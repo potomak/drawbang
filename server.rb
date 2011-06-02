@@ -4,6 +4,8 @@ require 'haml'
 require 'aws/s3'
 require 'base64'
 
+S3_BUCKET = 'draw.heroku.com'
+
 helpers do
   def is_production?
     ENV['RACK_ENV'] == 'production'
@@ -21,9 +23,9 @@ get '/' do
   if is_production?
     init_aws
 
-    @images = AWS::S3::Bucket.objects('draw.heroku.com')
+    @drawings = AWS::S3::Bucket.objects(S3_BUCKET).sort {|a, b| b.about['date'] <=> a.about['date']}
   else
-    @images = Dir.entries(File.join('public', 'images')).select {|i| i =~ /\.png/}.sort {|a, b| b <=> a}
+    @drawings = Dir.entries(File.join('public', 'images', 'drawings')).select {|i| i =~ /\.png/}.sort {|a, b| b <=> a}
   end
   
   comb1 = ['00', 'ff', 'ff'].permutation(3).to_a.uniq
@@ -34,20 +36,31 @@ get '/' do
   haml :index
 end
 
+get '/drawings/:id' do
+  if is_production?
+    init_aws
+    
+    @drawing = AWS::S3::S3Object.find(params[:id], S3_BUCKET)
+  else
+    @drawing = params[:id]
+  end
+  
+  haml :drawing
+end
+
 post '/upload' do
-  image = "#{Time.now.to_i}.png"
+  drawing = "#{Time.now.to_i}.png"
   
   begin
     if is_production?
       init_aws
 
       AWS::S3::S3Object.store(
-        image,
+        drawing,
         Base64.decode64(params[:imageData].gsub(/data:image\/png;base64/, '')),
-        "draw.heroku.com"
-      )
+        S3_BUCKET)
     else
-      File.open(File.join('public', 'images', image), "w") do |file|
+      File.open(File.join('public', 'images', 'drawings', drawing), "w") do |file|
         file << Base64.decode64(params[:imageData].gsub(/data:image\/png;base64/, ''))
       end
     end
@@ -55,5 +68,5 @@ post '/upload' do
     "failure: #{e}"
   end
   
-  image
+  haml :thumb, :layout => false, :locals => {:id => drawing, :drawing_url => is_production? ? "http://#{S3_BUCKET}.s3.amazonaws.com/#{drawing}" : "/images/drawings/#{drawing}"}
 end

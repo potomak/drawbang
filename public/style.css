@@ -35,6 +35,18 @@ a:visited {
 
 #controls { float: left; }
 
+a#upload.disabled,
+a:active#upload.disabled,
+a:visited#upload.disabled {
+	color: #eee;
+}
+
+a#upload.enabled,
+a:active#upload.enabled,
+a:visited#upload.enabled {
+	color: #999;
+}
+
 #images {
 	margin-top: 20px;
 	overflow: hidden;
@@ -43,12 +55,11 @@ a:visited {
 #images .drawing {
 	overflow: hidden;
 	float: left;
-	margin-right: 10px;
+	margin-right: 20px;
 	margin-bottom: 10px;
 }
 
 #images img {
-	float: left;
 	margin-right: 10px;
 	border: 1px solid #eee;
 	width: 64px;
@@ -59,8 +70,27 @@ a:visited {
 	-webkit-interpolation-mode: nearest-neighbor;
 }
 
+#images a {
+	float: left;
+}
+
 #images iframe {
 	float: left;
+}
+
+#drawing {
+	width: 320px;
+	margin: 0 auto;
+}
+
+#drawing img {
+	margin-bottom: 10px;
+	border: 1px solid #eee;
+}
+
+#disqus_thread {
+	width: 320px;
+	margin: 0 auto;
 }
 
 #footer {

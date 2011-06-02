@@ -1,3 +1,19 @@
+function upload() {
+  $.post('/upload', { imageData : pixel.getDataURL() }, function(response) {
+    if(response.match(/\d+\.png/)) {
+      $("#images").prepend(response);
+    }
+    else {
+      alert(response);
+    }
+  });
+  
+  $(this).unbind('click').removeClass('enabled');
+  $(this).addClass('disabled');
+  
+  return false;
+}
+
 $(document).ready(function() {
   var canvas = $("#canvas canvas");
 
@@ -8,10 +24,15 @@ $(document).ready(function() {
     pixel.setDraw(true);
     var x = e.offsetX ? e.offsetX : e.pageX - this.offsetLeft;
     var y = e.offsetY ? e.offsetY : e.pageY - this.offsetTop;
+    
     pixel.doAction(x, y);
+    
+    $("#upload.disabled").bind('click', upload).removeClass('disabled');
+    $("#upload").addClass('enabled');
   }).mousemove(function(e) {
     var x = e.offsetX ? e.offsetX : e.pageX - this.offsetLeft;
     var y = e.offsetY ? e.offsetY : e.pageY - this.offsetTop;
+    
     pixel.doAction(x, y);
   });
 
@@ -23,6 +44,8 @@ $(document).ready(function() {
   // controls
   $("#clear").click(function() {
     pixel.clearCanvas();
+    $("#upload.enabled").unbind('click').removeClass('enabled');
+    $("#upload").addClass('disabled');
     return false;
   });
 
@@ -37,18 +60,6 @@ $(document).ready(function() {
     pixel.setPixelStyle($(this).data().color);
     $(".color.active").toggleClass("active");
     $(this).toggleClass("active");
-    return false;
-  });
-
-  $("#upload").click(function() {
-    $.post('/upload', { imageData : pixel.getDataURL() }, function(response) {
-      if(response.match(/\d+\.png/)) {
-        $("#images").prepend("<img src='/images/" + response + "'>");
-      }
-      else {
-        alert(response);
-      }
-    });
     return false;
   });
 });

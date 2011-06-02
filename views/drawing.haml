@@ -1,0 +1,27 @@
+%a{:href => "/"} Return to index
+
+#drawing
+  %img{:src => is_production? ? @drawing.url : "/images/drawings/#{@drawing}"}
+  #tweet-it
+    %a{:href => "http://twitter.com/share", :class => "twitter-share-button", 'data-url' => is_production? ? @drawing.url : "/images/drawings/#{@drawing}", 'data-text' => "Check this drawing out!", 'data-count' => "horizontal", 'data-via' => "johnnyaboh"} Tweet
+    %script{:type => "text/javascript", :src => "http://platform.twitter.com/widgets.js"}
+
+#disqus_thread
+:javascript
+  /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+  var disqus_shortname = 'draw-heroku'; // required: replace example with your forum shortname
+
+  // The following are highly recommended additional parameters. Remove the slashes in front to use.
+  var disqus_identifier = 'drawing_#{params[:id]}';
+  var disqus_url = 'http://draw.heroku.com/#{@url}';
+
+  /* * * DON'T EDIT BELOW THIS LINE * * */
+  (function() {
+    var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+    dsq.src = 'http://' + disqus_shortname + '.disqus.com/embed.js';
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+
+%noscript
+  Please enable JavaScript to view the
+  %a{:href => "http://disqus.com/?ref_noscript"} comments powered by Disqus.
