@@ -45,7 +45,7 @@ get '/drawings/:id' do
     @drawing = params[:id]
   end
   
-  unless @drawing.nil?
+  if @drawing.nil?
     haml :not_found
   else
     haml :drawing
