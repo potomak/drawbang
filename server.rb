@@ -45,7 +45,11 @@ get '/drawings/:id' do
     @drawing = params[:id]
   end
   
-  haml :drawing
+  unless @drawing.nil?
+    haml :not_found
+  else
+    haml :drawing
+  end
 end
 
 post '/upload' do
@@ -68,5 +72,5 @@ post '/upload' do
     "failure: #{e}"
   end
   
-  haml :thumb, :layout => false, :locals => {:id => drawing, :drawing_url => is_production? ? "http://#{S3_BUCKET}.s3.amazonaws.com/#{drawing}" : "/images/drawings/#{drawing}"}
+  haml :thumb, :layout => false, :locals => {:id => drawing, :drawing_url => is_production? ? "http://#{S3_BUCKET}.s3.amazonaws.com/#{drawing}" : "/images/drawings/#{drawing}", :share_url => "http://draw.heroku.com/drawings/#{drawing}"}
 end

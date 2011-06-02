@@ -13,4 +13,4 @@
 
 #images
   - @drawings.each do |drawing|
-    = haml :thumb, :layout => false, :locals => {:id => is_production? ? drawing.key : drawing, :drawing_url => is_production? ? drawing.url : "/images/drawings/#{drawing}"}
+    = haml :thumb, :layout => false, :locals => {:id => is_production? ? drawing.key : drawing, :drawing_url => is_production? ? drawing.url : "/images/drawings/#{drawing}", :share_url => "http://draw.heroku.com/drawings/#{is_production? ? drawing.key : drawing}"}
