@@ -13,4 +13,7 @@
 
 #images
   - @images.each do |image|
-    %img{:src => is_production? ? image.url : "/images/#{image}"}
+    .drawing
+      %img{:src => is_production? ? image.url : "/images/#{image}"}
+      %a{:href => "http://twitter.com/share", :class => "twitter-share-button", 'data-url' => is_production? ? image.url : "/images/#{image}", 'data-text' => "Check you this drawing!", 'data-count' => "vertical", 'data-via' => "johnnyaboh"} Tweet
+      %script{:type => "text/javascript", :src => "http://platform.twitter.com/widgets.js"}

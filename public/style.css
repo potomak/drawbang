@@ -12,6 +12,19 @@ a:visited {
 	font-weight: bold;
 }
 
+#header {
+	overflow: hidden;
+}
+
+#header h1 {
+	float: left;
+}
+
+#header iframe {
+	margin-top: 30px;
+	margin-left: 20px;
+}
+
 #canvas {
 	cursor: crosshair;
 	width: 320px;
@@ -24,12 +37,30 @@ a:visited {
 
 #images {
 	margin-top: 20px;
+	overflow: hidden;
+}
+
+#images .drawing {
+	overflow: hidden;
+	float: left;
+	margin-right: 10px;
+	margin-bottom: 10px;
 }
 
 #images img {
-	border: 1px solid #eee;
+	float: left;
 	margin-right: 10px;
-	margin-bottom: 10px;
+	border: 1px solid #eee;
+	width: 64px;
+	image-rendering: -moz-crisp-edges;
+	-ms-interpolation-mode: nearest-neighbor;
+	/* see https://bugs.webkit.org/show_bug.cgi?id=40881 */
+	image-rendering: -webkit-crisp-edges;
+	-webkit-interpolation-mode: nearest-neighbor;
+}
+
+#images iframe {
+	float: left;
 }
 
 #footer {
