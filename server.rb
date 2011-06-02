@@ -4,8 +4,10 @@ require 'haml'
 require 'aws/s3'
 require 'base64'
 
-def is_production?
-  ENV['RACK_ENV'] == 'production'
+helpers do
+  def is_production?
+    ENV['RACK_ENV'] == 'production'
+  end
 end
 
 def init_aws

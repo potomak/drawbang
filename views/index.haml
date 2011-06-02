@@ -13,4 +13,7 @@
 
 #images
   - @images.each do |image|
-    %img{:src => "/images/#{image}"}
+    - if is_production?
+      %img{:src => "http://draw.heroku.com.s3.amazonaws.com/#{image}"}
+    - else
+      %img{:src => "/images/#{image}"}
