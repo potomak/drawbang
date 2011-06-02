@@ -1,0 +1,43 @@
+body { font-family: Helvetica, sans-serif; }
+
+a,
+a:active,
+a:visited {
+	color: #999;
+	display: block;
+	cursor: pointer;
+}
+
+.active {
+	font-weight: bold;
+}
+
+#canvas {
+	cursor: crosshair;
+	width: 320px;
+	height: 320px;
+	margin: 0 auto;
+	border: 1px solid #eee;
+}
+
+#controls { float: left; }
+
+#images {
+	margin-top: 20px;
+}
+
+#images img {
+	border: 1px solid #eee;
+	margin-right: 10px;
+	margin-bottom: 10px;
+}
+
+#footer {
+	font-size: 12px;
+}
+
+#footer a,
+#footer a:active,
+#footer a:visited {
+	display: inline;
+}

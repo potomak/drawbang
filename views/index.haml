@@ -1,0 +1,16 @@
+#controls
+  %a#clear Clear
+  %a.action.active{ 'data-action' => 'pixel' } Draw
+  %a.action{ 'data-action' => 'fill' } Fill
+  - @colors.each do |color|
+    %a.color{ 'data-color' => color }
+      Set
+      %span{ :style => "color: #{color}" }= color
+  %a#upload Save image
+
+#canvas
+  %canvas{ :width => "320", :height => "320", :onSelectStart => "this.style.cursor='crosshair'; return false;" }
+
+#images
+  - @images.each do |image|
+    %img{:src => "/images/#{image}"}

@@ -1,0 +1,17 @@
+!!!
+%html
+  %head
+    %meta{'http-equiv' => 'Content-Type', :content => 'text/html;charset=utf-8'}
+    %title= 'jquery pixel'
+    
+    %script{:src => 'http://ajax.googleapis.com/ajax/libs/jquery/1.4/jquery.min.js', :type => 'text/javascript'}
+    %script{:src => 'https://github.com/potomak/jquery-pixel/raw/master/jquery.pixel.js', :type => 'text/javascript'}
+    %script{:src => '/init.js', :type => 'text/javascript'}
+
+    %link{:href => '/style.css', :media => 'all', :rel => 'stylesheet', :type => 'text/css'}
+
+  %body
+    = yield
+    #footer
+      2011 &copy;
+      %a{:href => "http://www.focustheweb.com"} Giovanni Cappellotto
