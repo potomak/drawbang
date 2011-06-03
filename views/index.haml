@@ -3,7 +3,7 @@
   %a.action.active{ 'data-action' => 'pixel' } Draw
   %a.action{ 'data-action' => 'fill' } Fill
   - @colors.each do |color|
-    %a.color{ 'data-color' => color }
+    %a.color{ 'data-color' => color, :class => "#{"active" if color == "#00ff00"}" }
       Set
       %span{ :style => "color: #{color}" }= color
   %a#upload.disabled Save image

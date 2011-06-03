@@ -40,26 +40,43 @@ $(document).ready(function() {
   $(document).mouseup(function() {
     pixel.setDraw(false);
   });
+  
+  // if shift is pressed set color to transparent
+  $(document).keydown(function(e) {
+    e.keyCode == 16 && console.log("shift!");
+    e.keyCode == 16 && pixel.setPixelStyle("rgba(0, 0, 0, 0)");
+  });
+  
+  // reset color to current active color
+  $(document).keyup(function(e) {
+    pixel.setPixelStyle($(".color.active").data().color);
+  });
 
   // controls
   $("#clear").click(function() {
     pixel.clearCanvas();
+    
     $("#upload.enabled").unbind('click').removeClass('enabled');
     $("#upload").addClass('disabled');
+    
     return false;
   });
 
   $(".action").click(function() {
     pixel.setAction($(this).data().action);
+    
     $(".action.active").toggleClass("active");
     $(this).toggleClass("active");
+    
     return false;
   });
 
   $(".color").click(function() {
     pixel.setPixelStyle($(this).data().color);
+    
     $(".color.active").toggleClass("active");
     $(this).toggleClass("active");
+    
     return false;
   });
 });
