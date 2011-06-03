@@ -5,6 +5,24 @@ require 'aws/s3'
 require 'base64'
 
 S3_BUCKET = 'draw.heroku.com'
+EGA_PALETTE = %w{
+  #000000
+  #0000aa
+  #00aa00
+  #00aaaa
+  #aa0000
+  #aa00aa
+  #aa5500
+  #aaaaaa
+  #555555
+  #5555ff
+  #55ff55
+  #55ffff
+  #ff5555
+  #ff55ff
+  #ffff55
+  #ffffff
+}
 
 helpers do
   def is_production?
@@ -28,10 +46,7 @@ get '/' do
     @drawings = Dir.entries(File.join('public', 'images', 'drawings')).select {|i| i =~ /\.png/}.sort {|a, b| b <=> a}
   end
   
-  comb1 = ['00', 'ff', 'ff'].permutation(3).to_a.uniq
-  comb2 = ['00', '00', 'ff'].permutation(3).to_a.uniq
-  combinations = comb1 + comb2 << ['000000'] << ['ffffff']
-  @colors = combinations.map {|e| "##{e.join}"}
+  @colors = EGA_PALETTE
   
   haml :index
 end
