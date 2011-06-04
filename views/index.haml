@@ -1,16 +1,18 @@
-#controls
-  #actions
+#desktop
+  #controls
+    #actions
+      .action.pixel.active{ 'data-action' => 'pixel' }
+      .action.fill{ 'data-action' => 'fill' }
+    #colors
+      - @colors.each do |color|
+        .color{ 'data-color' => color, :class => "#{"active" if color == "#000000"}" }
+          %div{ :style => "background-color: #{color}" }
     #clear
-    .action.pixel.active{ 'data-action' => 'pixel' }
-    .action.fill{ 'data-action' => 'fill' }
-  #colors
-    - @colors.each do |color|
-      .color{ 'data-color' => color, :class => "#{"active" if color == "#000000"}" }
-        %div{ :style => "background-color: #{color}" }
-  %a#upload.disabled Save image
 
-#canvas
-  %canvas{ :width => "320", :height => "320", :onSelectStart => "this.style.cursor='crosshair'; return false;" }
+  #canvas
+    %canvas{ :width => "320", :height => "320", :onSelectStart => "this.style.cursor='crosshair'; return false;" }
+
+  %a#upload.disabled Save image
 
 %h2 Gallery
 #images
