@@ -41,7 +41,7 @@ get '/' do
   if is_production?
     init_aws
 
-    @drawings = AWS::S3::Bucket.objects(S3_BUCKET).sort {|a, b| b.about['date'] <=> a.about['date']}
+    @drawings = AWS::S3::Bucket.objects(S3_BUCKET).sort {|a, b| b.key <=> a.key}
   else
     @drawings = Dir.entries(File.join('public', 'images', 'drawings')).select {|i| i =~ /\.png/}.sort {|a, b| b <=> a}
   end
@@ -87,5 +87,5 @@ post '/upload' do
     "failure: #{e}"
   end
   
-  haml :thumb, :layout => false, :locals => {:id => drawing, :drawing_url => is_production? ? "http://#{S3_BUCKET}.s3.amazonaws.com/#{drawing}" : "/images/drawings/#{drawing}", :share_url => "http://draw.heroku.com/drawings/#{drawing}"}
+  haml :thumb, :layout => false, :locals => {:id => drawing, :drawing_url => is_production? ? AWS::S3::S3Object.find(drawing, S3_BUCKET).url : "/images/drawings/#{drawing}", :share_url => "http://draw.heroku.com/drawings/#{drawing}"}
 end
