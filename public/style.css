@@ -12,6 +12,13 @@ a:visited {
 	font-weight: bold;
 }
 
+#forkme img {
+	position: absolute;
+	top: 0;
+	right: 0;
+	border: 0;
+}
+
 #header {
 	overflow: hidden;
 }
