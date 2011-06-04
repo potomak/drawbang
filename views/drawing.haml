@@ -1,7 +1,7 @@
 %a{:href => "/"} Return to index
 
 #drawing
-  %img{:src => is_production? ? @drawing.url : "/images/drawings/#{@drawing}"}
+  %img{:src => is_production? ? @drawing.url(:authenticated => false) : "/images/drawings/#{@drawing}"}
   #tweet-it
     %a{:href => "http://twitter.com/share", :class => "twitter-share-button", 'data-url' => "http://draw.heroku.com/drawings/#{is_production? ? @drawing.key : @drawing}", 'data-text' => "Check this drawing out!", 'data-count' => "horizontal", 'data-via' => "johnnyaboh"} Tweet
     %script{:type => "text/javascript", :src => "http://platform.twitter.com/widgets.js"}
@@ -13,7 +13,7 @@
 
   // The following are highly recommended additional parameters. Remove the slashes in front to use.
   var disqus_identifier = 'drawing_#{params[:id]}';
-  var disqus_url = 'http://draw.heroku.com/#{@url}';
+  var disqus_url = 'http://draw.heroku.com/drawings/#{is_production? ? @drawing.key : @drawing}';
 
   /* * * DON'T EDIT BELOW THIS LINE * * */
   (function() {

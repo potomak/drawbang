@@ -4,6 +4,7 @@ require 'haml'
 require 'aws/s3'
 require 'base64'
 
+DRAWINGS_PATH = File.join('public', 'images', 'drawings')
 S3_BUCKET = 'draw.heroku.com'
 EGA_PALETTE = %w{
   #000000
@@ -37,13 +38,17 @@ def init_aws
   )
 end
 
+def decode_png(string)
+  Base64.decode64(string.gsub(/data:image\/png;base64/, ''))
+end
+
 get '/' do
   if is_production?
     init_aws
 
     @drawings = AWS::S3::Bucket.objects(S3_BUCKET).sort {|a, b| b.key <=> a.key}
   else
-    @drawings = Dir.entries(File.join('public', 'images', 'drawings')).select {|i| i =~ /\.png/}.sort {|a, b| b <=> a}
+    @drawings = Dir.entries(DRAWINGS_PATH).select {|i| i =~ /\.png/}.sort {|a, b| b <=> a}
   end
   
   @colors = EGA_PALETTE
@@ -52,19 +57,19 @@ get '/' do
 end
 
 get '/drawings/:id' do
-  if is_production?
-    init_aws
+  begin
+    if is_production?
+      init_aws
     
-    @drawing = AWS::S3::S3Object.find(params[:id], S3_BUCKET)
-  else
-    @drawing = params[:id]
+      @drawing = AWS::S3::S3Object.find(params[:id], S3_BUCKET)
+    else
+      @drawing = params[:id]
+    end
+  rescue => e
+    haml :not_found
   end
   
-  if @drawing.nil?
-    haml :not_found
-  else
-    haml :drawing
-  end
+  haml :drawing
 end
 
 post '/upload' do
@@ -76,17 +81,21 @@ post '/upload' do
 
       AWS::S3::S3Object.store(
         drawing,
-        Base64.decode64(params[:imageData].gsub(/data:image\/png;base64/, '')),
+        decode_png(params[:imageData]),
         S3_BUCKET,
         :access => :public_read)
     else
-      File.open(File.join('public', 'images', 'drawings', drawing), "w") do |file|
-        file << Base64.decode64(params[:imageData].gsub(/data:image\/png;base64/, ''))
+      File.open(File.join(DRAWINGS_PATH, drawing), "w") do |file|
+        file << decode_png(params[:imageData])
       end
     end
   rescue => e
     "failure: #{e}"
   end
   
-  haml :thumb, :layout => false, :locals => {:id => drawing, :drawing_url => is_production? ? AWS::S3::S3Object.find(drawing, S3_BUCKET).url : "/images/drawings/#{drawing}", :share_url => "http://draw.heroku.com/drawings/#{drawing}"}
+  haml :thumb, :layout => false, :locals => {
+    :id => drawing,
+    :drawing_url => is_production? ? AWS::S3::S3Object.find(drawing, S3_BUCKET).url(:authenticated => false) : "/images/drawings/#{drawing}",
+    :share_url => "http://draw.heroku.com/drawings/#{drawing}"
+  }
 end
