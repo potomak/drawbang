@@ -1,8 +1,9 @@
 #controls
-  %a#clear Clear
-  %a.action.active{ 'data-action' => 'pixel' } Draw
-  %a.action{ 'data-action' => 'fill' } Fill
-  .colors
+  #actions
+    #clear
+    .action.pixel.active{ 'data-action' => 'pixel' }
+    .action.fill{ 'data-action' => 'fill' }
+  #colors
     - @colors.each do |color|
       .color{ 'data-color' => color, :class => "#{"active" if color == "#000000"}" }
         %div{ :style => "background-color: #{color}" }
@@ -11,6 +12,7 @@
 #canvas
   %canvas{ :width => "320", :height => "320", :onSelectStart => "this.style.cursor='crosshair'; return false;" }
 
+%h2 Gallery
 #images
   - @drawings.each do |drawing|
     = haml :thumb, :layout => false, :locals => {:id => is_production? ? drawing.key : drawing, :drawing_url => is_production? ? drawing.url : "/images/drawings/#{drawing}", :share_url => "http://draw.heroku.com/drawings/#{is_production? ? drawing.key : drawing}"}

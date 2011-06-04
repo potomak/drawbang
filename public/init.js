@@ -2,6 +2,7 @@ function upload() {
   $.post('/upload', { imageData : pixel.getDataURL() }, function(response) {
     if(response.match(/\d+\.png/)) {
       $("#images").prepend(response);
+      pixel.clearCanvas();
     }
     else {
       alert(response);
@@ -43,13 +44,16 @@ $(document).ready(function() {
   
   // if shift is pressed set color to transparent
   $(document).keydown(function(e) {
-    e.keyCode == 16 && console.log("shift!");
-    e.keyCode == 16 && pixel.setPixelStyle("rgba(0, 0, 0, 0)");
+    if(e.keyCode == 16) {
+      pixel.setPixelStyle("rgba(0, 0, 0, 0)");
+      $("#clear").addClass('active');
+    }
   });
   
   // reset color to current active color
   $(document).keyup(function(e) {
     pixel.setPixelStyle($(".color.active").data().color);
+    $("#clear").removeClass('active');
   });
 
   // controls
@@ -58,8 +62,6 @@ $(document).ready(function() {
     
     $("#upload.enabled").unbind('click').removeClass('enabled');
     $("#upload").addClass('disabled');
-    
-    return false;
   });
 
   $(".action").click(function() {
@@ -67,8 +69,6 @@ $(document).ready(function() {
     
     $(".action.active").toggleClass("active");
     $(this).toggleClass("active");
-    
-    return false;
   });
 
   $(".color").click(function() {
@@ -76,7 +76,5 @@ $(document).ready(function() {
     
     $(".color.active").toggleClass("active");
     $(this).toggleClass("active");
-    
-    return false;
   });
 });

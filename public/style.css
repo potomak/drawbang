@@ -35,9 +35,48 @@ a:visited {
 
 #controls { float: left; }
 
-#controls .colors {
+#controls #actions {
 	overflow: hidden;
-	width: 160px;
+	margin-bottom: 10px;
+}
+
+#controls #actions div {
+	float: left;
+	width: 16px;
+	height: 16px;
+	border: 1px solid #eee;
+	background-image: url(/images/controls.gif);
+	margin-right: 2px;
+}
+
+#controls #clear {
+	background-position: 1px 31px;
+}
+
+#controls #clear.active {
+	background-position: 17px 31px;
+}
+
+#controls .action.pixel {
+	background-position: 1px 1px;
+}
+
+#controls .action.pixel.active {
+	background-position: 17px 1px;
+}
+
+#controls .action.fill {
+	background-position: 0px 47px;
+}
+
+#controls .action.fill.active {
+	background-position: 16px 47px;
+}
+
+#controls #colors {
+	overflow: hidden;
+	width: 176px;
+	margin-bottom: 10px;
 }
 
 #controls .color {
@@ -45,6 +84,7 @@ a:visited {
 	width: 16px;
 	height: 16px;
 	padding: 1px;
+	margin: 1px;
 	border: 1px solid #eee;
 }
 
