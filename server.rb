@@ -77,7 +77,8 @@ post '/upload' do
       AWS::S3::S3Object.store(
         drawing,
         Base64.decode64(params[:imageData].gsub(/data:image\/png;base64/, '')),
-        S3_BUCKET)
+        S3_BUCKET,
+        :access => :public_read)
     else
       File.open(File.join('public', 'images', 'drawings', drawing), "w") do |file|
         file << Base64.decode64(params[:imageData].gsub(/data:image\/png;base64/, ''))
