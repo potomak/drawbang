@@ -4,9 +4,13 @@ An example app showing usage of the [jQuery pixel library](http://github.com/pot
 
 ## Required gems
 
-1. `sinatra --version '>= 1.0'`
-1. `haml`
-1. `aws-s3`
+`bundler` and `heroku` gems are needed, than just run
+
+    bundle
+
+to install other required gems.
+
+See also [`Gemfile`](https://github.com/potomak/jquery-pixel-app/raw/master/Gemfile)
 
 ## How to run the app locally
 

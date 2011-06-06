@@ -1,3 +1,0 @@
-sinatra --version '>= 1.0'
-haml
-aws-s3
