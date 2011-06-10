@@ -58,7 +58,11 @@ a:visited {
 }
 
 #header iframe {
-	margin-bottom: 20px;
+	margin-bottom: 10px;
+}
+
+#auth {
+	margin-bottom: 10px;
 }
 
 #container {
