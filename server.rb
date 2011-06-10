@@ -2,53 +2,45 @@ require 'rubygems'
 require 'sinatra'
 require 'haml'
 require 'aws/s3'
+require 'omniauth/oauth'
 require 'base64'
+require 'yaml'
+require 'redis'
+require 'system_timer'
+require 'json'
+require 'rack-flash'
 
-DRAWINGS_PATH = File.join('public', 'images', 'drawings')
-S3_BUCKET = 'draw.heroku.com'
-EGA_PALETTE = %w{
-  #000000
-  #0000aa
-  #00aa00
-  #00aaaa
-  #aa0000
-  #aa00aa
-  #aa5500
-  #aaaaaa
-  #555555
-  #5555ff
-  #55ff55
-  #55ffff
-  #ff5555
-  #ff55ff
-  #ffff55
-  #ffffff
-}
+configure do
+  require 'config/config'
+  require "config/#{settings.environment}"
+  
+  enable :sessions
+end
+
+use OmniAuth::Builder do
+  provider :facebook, FACEBOOK['app_id'], FACEBOOK['app_secret'], { :scope => 'status_update, publish_stream' }
+end
+
+use Rack::Flash
 
 helpers do
   def is_production?
-    ENV['RACK_ENV'] == 'production'
+    settings.environment == "production"
+  end
+  
+  def logged_in?
+    not @user.nil?
   end
 end
 
-def init_aws
-  AWS::S3::Base.establish_connection!(
-    :access_key_id     => ENV['S3_KEY'],
-    :secret_access_key => ENV['S3_SECRET']
-  )
-end
-
-def decode_png(string)
-  Base64.decode64(string.gsub(/data:image\/png;base64/, ''))
+before do
+  @user = JSON.parse(REDIS.get(session[:user])) if session[:user]
 end
 
 get '/' do
-  if is_production?
-    init_aws
-
-    @drawings = AWS::S3::Bucket.objects(S3_BUCKET).sort {|a, b| b.key <=> a.key}
-  else
-    @drawings = Dir.entries(DRAWINGS_PATH).select {|i| i =~ /\.png/}.sort {|a, b| b <=> a}
+  @drawings = REDIS.lrange("drawings", 0, -1).map do |o|
+    obj = JSON.parse(o)
+    obj.merge({:share_url => "http://#{request.host}/drawings/#{obj[:id]}"})
   end
   
   @colors = EGA_PALETTE
@@ -74,6 +66,7 @@ end
 
 post '/upload' do
   drawing = "#{Time.now.to_i}.png"
+  drawing_obj = {:id => drawing, :url => nil}
   
   begin
     if is_production?
@@ -84,18 +77,58 @@ post '/upload' do
         decode_png(params[:imageData]),
         S3_BUCKET,
         :access => :public_read)
+      
+      drawing_obj.merge!({:url => AWS::S3::S3Object.find(drawing, S3_BUCKET).url(:authenticated => false)})
     else
       File.open(File.join(DRAWINGS_PATH, drawing), "w") do |file|
         file << decode_png(params[:imageData])
       end
+      
+      drawing_obj.merge!({:url => "/images/drawings/#{drawing}"})
     end
+    
+    drawing_obj.merge!({:user => {:uid => @user['uid'], :first_name => @user['user_info']['first_name'], :image => @user['user_info']['image']}}) if logged_in?
+    
+    REDIS.lpush "drawings", drawing_obj.to_json
   rescue => e
     "failure: #{e}"
   end
   
-  haml :thumb, :layout => false, :locals => {
-    :id => drawing,
-    :drawing_url => is_production? ? AWS::S3::S3Object.find(drawing, S3_BUCKET).url(:authenticated => false) : "/images/drawings/#{drawing}",
-    :share_url => "http://draw.heroku.com/drawings/#{drawing}"
-  }
+  haml :thumb, :layout => false, :locals => drawing_obj.merge({:share_url => "http://#{request.host}/drawings/#{drawing}"})
+end
+
+get '/auth/facebook/callback' do
+  session[:user] = "user:#{request.env['omniauth.auth']['uid']}"
+  REDIS.set session[:user], request.env['omniauth.auth'].to_json
+  redirect '/'
+end
+
+get '/auth/failure' do
+  clear_session
+  flash[:error] = 'There was an error trying to access to your Facebook data'
+  redirect '/'
+end
+
+get '/logout' do
+  clear_session
+  redirect '/'
+end
+
+get '/about' do
+  haml :about
+end
+
+def clear_session
+  session[:user] = nil
+end
+
+def init_aws
+  AWS::S3::Base.establish_connection!(
+    :access_key_id     => ENV['S3_KEY'],
+    :secret_access_key => ENV['S3_SECRET']
+  )
+end
+
+def decode_png(string)
+  Base64.decode64(string.gsub(/data:image\/png;base64/, ''))
 end

@@ -1,10 +1,39 @@
-body { font-family: Helvetica, sans-serif; }
+@font-face {
+	font-family: uni;
+	src: url('/uni05_63.ttf');
+} 
+
+body {
+	font-family: uni, Helvetica, sans-serif;
+	background-image: url(/images/bg.gif);
+}
+
+h1 {
+	font-size: 80px;
+}
+
+h2 {
+	font-size: 40px;
+}
+
+h1, h2 {
+	text-align: center;
+	color: black;
+	-webkit-text-fill-color: white; /* Will override color (regardless of order) */
+	-webkit-text-stroke-width: 2px;
+	-webkit-text-stroke-color: black;
+	text-shadow:
+		 4px 4px 0 #000,
+		-1px -1px 0 #000,
+		 1px -1px 0 #000,
+		-1px 1px 0 #000,
+		 1px 1px 0 #000;
+}
 
 a,
 a:active,
 a:visited {
 	color: #999;
-	display: block;
 	cursor: pointer;
 }
 
@@ -12,38 +41,35 @@ a:visited {
 	font-weight: bold;
 }
 
-#forkme img {
-	position: absolute;
-	top: 0;
-	right: 0;
-	border: 0;
-}
-
 #header {
 	overflow: hidden;
+	text-align: center;
 }
 
 #header h1 {
-	float: left;
+	margin-top: 20px;
+	margin-bottom: 0px;
+}
+
+#header a,
+#header a:active,
+#header a:visited {
+	text-decoration: none;
 }
 
 #header iframe {
-	margin-top: 30px;
-	margin-left: 20px;
+	margin-bottom: 20px;
 }
 
-#canvas {
-	cursor: crosshair;
-	width: 320px;
-	height: 320px;
+#container {
+	width: 820px;
 	margin: 0 auto;
-	border: 1px solid #eee;
 }
 
 #desktop {
 	overflow: hidden;
-	margin: 0 auto;
-	width: 508px;
+	margin: 0 auto 80px auto;
+	width: 542px;
 }
 
 #controls {
@@ -64,7 +90,7 @@ a:visited {
 #controls #clear {
 	width: 16px;
 	height: 16px;
-	border: 1px solid #eee;
+	border: 1px solid #000;
 	background-image: url(/images/controls.gif);
 	margin-right: 4px;
 }
@@ -105,7 +131,7 @@ a:visited {
 	height: 16px;
 	padding: 1px;
 	margin: 1px;
-	border: 1px solid #eee;
+	border: 1px solid #000;
 }
 
 #controls .color div {
@@ -117,11 +143,22 @@ a:visited {
 	border: 1px solid #999;
 }
 
-#canvas { float: left; }
+#canvas {
+	float: left;
+	cursor: crosshair;
+	width: 320px;
+	height: 320px;
+	margin: 0 auto 5px auto;
+	border: 1px solid #000;
+	background-image: url(/images/canvas_bg.gif);
+	-moz-box-shadow: 5px 5px 0 #000;
+	-webkit-box-shadow: 5px 5px 0 #000;
+	box-shadow: 5px 5px 0 #000;
+}
 
 #upload {
 	float: right;
-	height: 16px;
+	height: 20px;
 	padding-left: 26px;
 	padding-top: 10px;
 	margin-left: 10px;
@@ -149,26 +186,35 @@ a:visited#upload.enabled {
 }
 
 #images {
-	margin-top: 20px;
+	margin: 20px auto 0 auto;
 	overflow: hidden;
 }
 
 #images .drawing {
 	overflow: hidden;
 	float: left;
-	margin-right: 20px;
-	margin-bottom: 10px;
+	margin-right: 30px;
+	margin-bottom: 20px;
+}
+
+#images .drawing a {
+	display: block;
+	height: 80px;
 }
 
 #images img {
 	margin-right: 10px;
-	border: 1px solid #eee;
+	border: 1px solid #000;
 	width: 64px;
 	image-rendering: -moz-crisp-edges;
 	-ms-interpolation-mode: nearest-neighbor;
 	/* see https://bugs.webkit.org/show_bug.cgi?id=40881 */
 	image-rendering: -webkit-crisp-edges;
 	-webkit-interpolation-mode: nearest-neighbor;
+	
+	-moz-box-shadow: 5px 5px 0 #000;
+	-webkit-box-shadow: 5px 5px 0 #000;
+	box-shadow: 5px 5px 0 #000;
 }
 
 #images a {
@@ -186,16 +232,15 @@ a:visited#upload.enabled {
 
 #drawing img {
 	margin-bottom: 10px;
-	border: 1px solid #eee;
-}
-
-#disqus_thread {
-	width: 320px;
-	margin: 0 auto;
+	border: 1px solid #000;
+	-moz-box-shadow: 5px 5px 0 #000;
+	-webkit-box-shadow: 5px 5px 0 #000;
+	box-shadow: 5px 5px 0 #000;
 }
 
 #footer {
 	font-size: 12px;
+	text-align: center;
 }
 
 #footer a,

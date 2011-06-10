@@ -14,7 +14,7 @@
 
   %a#upload.disabled Save image
 
-%h2 Gallery
+%h2 GALLERY
 #images
   - @drawings.each do |drawing|
-    = haml :thumb, :layout => false, :locals => {:id => is_production? ? drawing.key : drawing, :drawing_url => is_production? ? drawing.url(:authenticated => false) : "/images/drawings/#{drawing}", :share_url => "http://draw.heroku.com/drawings/#{is_production? ? drawing.key : drawing}"}
+    = haml :thumb, :layout => false, :locals => drawing

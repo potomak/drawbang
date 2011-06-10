@@ -1,0 +1,1 @@
+# Redis development log folder

@@ -1,0 +1,1 @@
+# Redis development db folder

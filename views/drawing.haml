@@ -1,5 +1,3 @@
-%a{:href => "/"} Return to index
-
 #drawing
   %img{:src => is_production? ? @drawing.url(:authenticated => false) : "/images/drawings/#{@drawing}"}
   #tweet-it

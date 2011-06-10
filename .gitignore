@@ -1,2 +1,5 @@
 /public/images/drawings/*.png
+/config/*.yml
+/db/*.rdb
+/log/*.log
 .DS_Store
