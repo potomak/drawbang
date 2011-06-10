@@ -25,7 +25,7 @@ use Rack::Flash
 
 helpers do
   def is_production?
-    settings.environment == "production"
+    settings.environment == :production
   end
   
   def logged_in?
