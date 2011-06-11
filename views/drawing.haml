@@ -11,6 +11,7 @@
   %img{:src => @drawing['url']}
   - if @drawing['user']
     #user
+      by
       %img.avatar{:width => 25, :src => @drawing['user']['image']}
       %span.name= @drawing['user']['first_name']
       - if logged_in? && @drawing['user']['uid'] == @user['uid']
