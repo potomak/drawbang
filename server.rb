@@ -18,7 +18,9 @@ configure do
 end
 
 use OmniAuth::Builder do
-  provider :facebook, FACEBOOK['app_id'], FACEBOOK['app_secret'], {:scope => 'status_update, publish_stream', :client_options => settings.environment == :production ? {:ssl => {:ca_file => '/usr/lib/ssl/certs/ca-certificates.crt'}} : {}}
+  options = {:scope => 'status_update, publish_stream'}
+  options.merge!({:client_options => {:ssl => {:ca_file => '/usr/lib/ssl/certs/ca-certificates.crt'}}}) if settings.environment == :production
+  provider :facebook, FACEBOOK['app_id'], FACEBOOK['app_secret'], options
 end
 
 use Rack::Flash
