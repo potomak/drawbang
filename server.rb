@@ -1,5 +1,6 @@
 require 'rubygems'
 require 'sinatra'
+require 'sinatra/content_for'
 require 'haml'
 require 'aws/s3'
 require 'omniauth/oauth'
@@ -93,6 +94,8 @@ delete '/drawings/:id' do |id|
 end
 
 post '/upload' do
+  content_type :json
+  
   drawing = "#{Time.now.to_i}.png"
   drawing_obj = {:id => drawing, :url => nil}
   
@@ -112,18 +115,20 @@ post '/upload' do
         file << decode_png(params[:imageData])
       end
       
-      drawing_obj.merge!({:url => "/images/drawings/#{drawing}"})
+      drawing_obj.merge!({:url => "http://#{request.host_with_port}/images/drawings/#{drawing}"})
     end
     
     drawing_obj.merge!({:user => {:uid => @user['uid'], :first_name => @user['user_info']['first_name'], :image => @user['user_info']['image']}}) if logged_in?
     
     REDIS.lpush "drawings", drawing
     REDIS.set "drawing:#{drawing}", drawing_obj.to_json
+    
+    drawing_obj.merge(
+      :thumb => haml(:thumb, :layout => false, :locals => drawing_obj.merge!({:share_url => "http://#{request.host}/drawings/#{drawing}"}))
+    ).to_json
   rescue => e
-    "failure: #{e}"
+    "failure: #{e}".to_json
   end
-  
-  haml :thumb, :layout => false, :locals => drawing_obj.merge({:share_url => "http://#{request.host}/drawings/#{drawing}"})
 end
 
 get '/auth/facebook/callback' do

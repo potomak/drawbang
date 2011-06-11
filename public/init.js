@@ -1,13 +1,33 @@
 function upload() {
-  $.post('/upload', { imageData : pixel.getDataURL() }, function(response) {
-    if(response.match(/\d+\.png/)) {
-      $("#images").prepend(response);
+  $.post('/upload', { imageData : pixel.getDataURL() }, function(data) {
+    if(typeof data.thumb != 'undefined') {
+      $("#images").prepend(data.thumb);
       pixel.clearCanvas();
+      
+      console.log(data);
+      
+      FB.ui({
+        method: 'feed',
+        name: 'My brand new drawing',
+        link: data.share_url,
+        picture: 'http://localhost:4567/' + data.url,
+        caption: 'Check my drawing out!',
+        description: 'Do you like it?',
+        message: 'Check my drawing out!',
+        actions: [JSON.stringify({name: 'Draw!', link: 'http://draw.heroku.com/'})]
+      },
+      function(response) {
+        if (response && response.post_id) {
+          // alert('Post was published.');
+        } else {
+          // alert('Post was not published.');
+        }
+      });
     }
     else {
-      alert(response);
+      alert(data);
     }
-  });
+  }, "json");
   
   $(this).unbind('click').removeClass('enabled');
   $(this).addClass('disabled');
@@ -58,10 +78,12 @@ $(document).ready(function() {
 
   // controls
   $("#clear").click(function() {
-    pixel.clearCanvas();
+    if($("#upload").hasClass('enabled') && confirm("Sure?")) {
+      pixel.clearCanvas();
     
-    $("#upload.enabled").unbind('click').removeClass('enabled');
-    $("#upload").addClass('disabled');
+      $("#upload.enabled").unbind('click').removeClass('enabled');
+      $("#upload").addClass('disabled');
+    }
   });
 
   $(".action").click(function() {

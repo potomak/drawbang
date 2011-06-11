@@ -1,3 +1,12 @@
+- content_for :head do
+  %meta{:property => "og:title", :content => "Drawing #{params[:id]}"}
+  %meta{:property => "og:type", :content => "website"}
+  %meta{:property => "og:url", :content => @drawing[:share_url]}
+  %meta{:property => "og:image", :content => @drawing['url']}
+  %meta{:property => "og:site_name", :content => "Draw!"}
+  %meta{:property => "fb:app_id", :content => FACEBOOK['app_id']}
+  %meta{:property => "og:description", :content => "Check this drawing out!"}
+
 #drawing
   %img{:src => @drawing['url']}
   - if @drawing['user']
