@@ -25,14 +25,18 @@
 
 #desktop
   #controls
-    #actions
-      .action.pixel.active{ 'data-action' => 'pixel' }
-      .action.fill{ 'data-action' => 'fill' }
+    .actions
+      .action.selectable.pixel.active{ 'data-action' => 'pixel' }
+      .action.selectable.fill{ 'data-action' => 'fill' }
+      .action.selectable.clearPixel{ 'data-action' => 'clearPixel' }
+    .actions
+      .action.undo.active
+      .action.redo.active
     #colors
       - @colors.each do |color|
         .color{ 'data-color' => color, :class => "#{"active" if color == "#000000"}" }
           %div{ :style => "background-color: #{color}" }
-    #clear
+    #clear.active
 
   #canvas
     %canvas{ :width => "320", :height => "320", :onSelectStart => "this.style.cursor='crosshair'; return false;" }

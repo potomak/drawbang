@@ -1,36 +1,38 @@
+var currentColor = "#000000";
+
 function upload() {
-  $.post('/upload', { imageData : pixel.getDataURL() }, function(data) {
-    if(typeof data.thumb != 'undefined') {
-      $("#images").prepend(data.thumb);
-      pixel.clearCanvas();
+  if(confirm("Want to save?")) {
+    $.post('/upload', { imageData : pixel.getDataURL() }, function(data) {
+      if(typeof data.thumb != 'undefined') {
+        $("#images").prepend(data.thumb);
+        pixel.clearCanvas();
       
-      console.log(data);
-      
-      FB.ui({
-        method: 'feed',
-        name: 'My brand new drawing',
-        link: data.share_url,
-        picture: data.url,
-        caption: 'Check my drawing out!',
-        description: 'Do you like it?',
-        message: 'Check my drawing out!',
-        actions: [JSON.stringify({name: 'Draw!', link: 'http://draw.heroku.com/'})]
-      },
-      function(response) {
-        if (response && response.post_id) {
-          // alert('Post was published.');
-        } else {
-          // alert('Post was not published.');
-        }
-      });
-    }
-    else {
-      alert(data);
-    }
-  }, "json");
+        FB.ui({
+          method: 'feed',
+          name: 'My brand new drawing',
+          link: data.share_url,
+          picture: data.url,
+          caption: 'Check my drawing out!',
+          description: 'Do you like it?',
+          message: 'Check my drawing out!',
+          actions: [JSON.stringify({name: 'Draw!', link: 'http://draw.heroku.com/'})]
+        },
+        function(response) {
+          if (response && response.post_id) {
+            // alert('Post was published.');
+          } else {
+            // alert('Post was not published.');
+          }
+        });
+      }
+      else {
+        alert(data);
+      }
+    }, "json");
   
-  $(this).unbind('click').removeClass('enabled');
-  $(this).addClass('disabled');
+    $(this).unbind('click').removeClass('enabled');
+    $(this).addClass('disabled');
+  }
   
   return false;
 }
@@ -46,7 +48,7 @@ $(document).ready(function() {
     var x = e.offsetX ? e.offsetX : e.pageX - this.offsetLeft;
     var y = e.offsetY ? e.offsetY : e.pageY - this.offsetTop;
     
-    pixel.doAction(x, y);
+    pixel.doAction(x, y, currentColor);
     
     $("#upload.disabled").bind('click', upload).removeClass('disabled');
     $("#upload").addClass('enabled');
@@ -54,7 +56,7 @@ $(document).ready(function() {
     var x = e.offsetX ? e.offsetX : e.pageX - this.offsetLeft;
     var y = e.offsetY ? e.offsetY : e.pageY - this.offsetTop;
     
-    pixel.doAction(x, y);
+    pixel.doAction(x, y, currentColor);
   });
 
   //reset it on mouseup
@@ -65,15 +67,17 @@ $(document).ready(function() {
   // if shift is pressed set color to transparent
   $(document).keydown(function(e) {
     if(e.keyCode == 16) {
-      pixel.setPixelStyle("rgba(0, 0, 0, 0)");
-      $("#clear").addClass('active');
+      currentColor = "rgba(0, 0, 0, 0)";
+      $(".clearPixel").addClass('active');
     }
   });
   
   // reset color to current active color
   $(document).keyup(function(e) {
-    pixel.setPixelStyle($(".color.active").data().color);
-    $("#clear").removeClass('active');
+    currentColor = $(".color.active").data().color;
+    if($(".action.selectable.active").data().action != "clearPixel") {
+      $(".clearPixel").removeClass('active');
+    }
   });
 
   // controls
@@ -86,17 +90,27 @@ $(document).ready(function() {
     }
   });
 
-  $(".action").click(function() {
+  $(".action.selectable").click(function() {
     pixel.setAction($(this).data().action);
     
-    $(".action.active").toggleClass("active");
+    $(".action.selectable.active").toggleClass("active");
     $(this).toggleClass("active");
   });
 
   $(".color").click(function() {
-    pixel.setPixelStyle($(this).data().color);
+    currentColor = $(this).data().color;
     
     $(".color.active").toggleClass("active");
     $(this).toggleClass("active");
+  });
+  
+  $(".undo").click(function() {
+    pixel.undo();
+    return false;
+  });
+  
+  $(".redo").click(function() {
+    pixel.redo();
+    return false;
   });
 });
