@@ -1,5 +1,5 @@
 /public/images/drawings/*.png
-/config/*.yml
+/config/facebook.yml
 /db/*.rdb
 /log/*.log
 .DS_Store
