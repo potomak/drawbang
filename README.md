@@ -18,6 +18,12 @@ Run
 
     ruby server.rb
 
+### Start the app console
+
+Run
+
+    irb -r server.rb
+
 ## How to use Heroku
 
 ### Create Heroku app
@@ -41,3 +47,15 @@ To see current configuration variables run
 To add configuration variables run
 
     heroku config:add S3_KEY=xxx S3_SECRET=xxx
+
+### Get Heroku logs
+
+To see Heroku logs run
+
+    heroku logs
+
+### Run Heroku console
+
+Run
+
+    heroku console
