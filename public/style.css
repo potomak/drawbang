@@ -41,6 +41,14 @@ a:visited {
 	font-weight: bold;
 }
 
+p.flash.error {
+	color: #f55;
+}
+
+p.flash.notice {
+	color: #0a0;
+}
+
 #header {
 	overflow: hidden;
 	text-align: center;
@@ -58,14 +66,32 @@ a:visited {
 }
 
 #header iframe {
-	margin-bottom: 10px;
+	margin-bottom: 40px;
 }
 
 #auth {
-	margin-bottom: 10px;
+	overflow: hidden;
+	text-align: center;
 }
 
-#container {
+#auth a {
+	float: right;
+}
+
+#auth h3 {
+	float: left;
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+#auth img.avatar {
+	border: 1px solid #000;
+	-moz-box-shadow: 5px 5px 0 #000;
+	-webkit-box-shadow: 5px 5px 0 #000;
+	box-shadow: 5px 5px 0 #000;
+}
+
+.wrapper {
 	width: 820px;
 	margin: 0 auto;
 }
@@ -240,6 +266,19 @@ a:visited#upload.enabled {
 	-moz-box-shadow: 5px 5px 0 #000;
 	-webkit-box-shadow: 5px 5px 0 #000;
 	box-shadow: 5px 5px 0 #000;
+}
+
+#drawing #user {
+	overflow: hidden;
+	margin-bottom: 10px;
+}
+
+#drawing #user img {
+	margin-bottom: 0;
+}
+
+#disqus_thread {
+	margin-top: 20px;
 }
 
 #footer {

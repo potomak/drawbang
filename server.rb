@@ -24,6 +24,7 @@ use OmniAuth::Builder do
 end
 
 use Rack::Flash
+use Rack::MethodOverride
 
 helpers do
   def is_production?
@@ -40,9 +41,9 @@ before do
 end
 
 get '/' do
-  @drawings = REDIS.lrange("drawings", 0, -1).map do |o|
-    obj = JSON.parse(o)
-    obj.merge({:share_url => "http://#{request.host}/drawings/#{obj[:id]}"})
+  @drawings = REDIS.lrange("drawings", 0, -1).map do |id|
+    obj = JSON.parse(REDIS.get("drawing:#{id}")).merge(:id => id)
+    obj.merge({:share_url => "http://#{request.host}/drawings/#{id}"})
   end
   
   @colors = EGA_PALETTE
@@ -51,19 +52,44 @@ get '/' do
 end
 
 get '/drawings/:id' do
-  begin
-    if is_production?
-      init_aws
-    
-      @drawing = AWS::S3::S3Object.find(params[:id], S3_BUCKET)
-    else
-      @drawing = params[:id]
-    end
-  rescue => e
+  @drawing = REDIS.get("drawing:#{params[:id]}")
+  
+  if @drawing
+    @drawing = JSON.parse(@drawing).merge({:id => params[:id], :share_url => "http://#{request.host}/drawings/#{params[:id]}"})
+    haml :drawing
+  else
     haml :not_found
   end
+end
+
+delete '/drawings/:id' do |id|
+  redirect "/drawings/#{id}" unless logged_in?
+  @drawing = JSON.parse(REDIS.get("drawing:#{id}"))
+  redirect "/drawings/#{id}" unless @drawing && @drawing['user']
   
-  haml :drawing
+  if @drawing['user']['uid'] == @user['uid']
+    begin
+      if is_production?
+        init_aws
+        
+        AWS::S3::S3Object.delete id, S3_BUCKET
+      else
+        File.delete(File.join(DRAWINGS_PATH, id))
+      end
+      
+      REDIS.del("drawing:#{id}")
+      REDIS.lrem("drawings", 0, id)
+    rescue => e
+      "failure: #{e}"
+    end
+    
+    flash[:notice] = 'Drawing deleted'
+    redirect '/'
+  else
+    flash[:error] = 'There was an error trying delete this drawing'
+  end
+  
+  redirect "/drawings/#{id}"
 end
 
 post '/upload' do
@@ -91,7 +117,8 @@ post '/upload' do
     
     drawing_obj.merge!({:user => {:uid => @user['uid'], :first_name => @user['user_info']['first_name'], :image => @user['user_info']['image']}}) if logged_in?
     
-    REDIS.lpush "drawings", drawing_obj.to_json
+    REDIS.lpush "drawings", drawing
+    REDIS.set "drawing:#{drawing}", drawing_obj.to_json
   rescue => e
     "failure: #{e}"
   end
@@ -102,18 +129,18 @@ end
 get '/auth/facebook/callback' do
   session[:user] = "user:#{request.env['omniauth.auth']['uid']}"
   REDIS.set session[:user], request.env['omniauth.auth'].to_json
-  redirect '/'
+  redirect request.env['omniauth.origin'] || '/'
 end
 
 get '/auth/failure' do
   clear_session
   flash[:error] = 'There was an error trying to access to your Facebook data'
-  redirect '/'
+  redirect params[:origin] || '/'
 end
 
 get '/logout' do
   clear_session
-  redirect '/'
+  redirect params[:origin] || '/'
 end
 
 get '/about' do

@@ -23,27 +23,30 @@
       })();
 
   %body
+    .wrapper
+      - [:error, :notice].each do |level|
+        %p.flash{:class => level}
+          = flash[level]
+      
+      #auth
+        - if logged_in?
+          %h3
+            Hi, 
+            %img.avatar{:width => 25, :src => @user['user_info']['image']}
+            ="#{@user['user_info']['first_name']}!"
+          %a{:href => "/logout?origin=#{CGI.escape request.url}"}
+            %img{:src => "/images/fb_logout_button.png"}
+        - else
+          %a{:href => "/auth/facebook?origin=#{CGI.escape request.url}"}
+            %img{:src => "/images/fb_login_button.png"}
+  
     #header
       %a{:href => "/"}
         %h1 DRAW!
       %a{:href => "http://twitter.com/share", :class => "twitter-share-button", 'data-url' => "http://draw.heroku.com", 'data-text' => "Have fun drawing!", 'data-count' => "horizontal", 'data-via' => "johnnyaboh"} Tweet
       %script{:type => "text/javascript", :src => "http://platform.twitter.com/widgets.js"}
-
-      %p.flash
-        = flash[:error]
-      
-      #auth
-        - if logged_in?
-          %a{:href => "/logout"}
-            %img{:src => "/images/fb_logout_button.png"}
-        - else
-          %a{:href => "/auth/facebook"}
-            %img{:src => "/images/fb_login_button.png"}
-      
-      - if logged_in?
-        %h3= "Hello, #{@user['user_info']['first_name']}!"
     
-    #container
+    #container.wrapper
       = yield
     
     #footer

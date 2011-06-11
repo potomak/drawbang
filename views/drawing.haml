@@ -1,7 +1,16 @@
 #drawing
-  %img{:src => is_production? ? @drawing.url(:authenticated => false) : "/images/drawings/#{@drawing}"}
+  %img{:src => @drawing['url']}
+  - if @drawing['user']
+    #user
+      %img.avatar{:width => 25, :src => @drawing['user']['image']}
+      %span.name= @drawing['user']['first_name']
+      - if logged_in? && @drawing['user']['uid'] == @user['uid']
+        %form{:id => "delete_drawing", :action => "/drawings/#{params[:id]}", :method => "POST"}
+          %input{:type => "hidden", :name => "_method", :value => "delete"}
+        %a{:href => "#", :onclick => "if (confirm('Sure?')) {$('#delete_drawing').submit();} return false;"} Delete
+    
   #tweet-it
-    %a{:href => "http://twitter.com/share", :class => "twitter-share-button", 'data-url' => "http://draw.heroku.com/drawings/#{is_production? ? @drawing.key : @drawing}", 'data-text' => "Check this drawing out!", 'data-count' => "horizontal", 'data-via' => "johnnyaboh"} Tweet
+    %a{:href => "http://twitter.com/share", :class => "twitter-share-button", 'data-url' => @drawing[:share_url], 'data-text' => "Check this drawing out!", 'data-count' => "horizontal", 'data-via' => "johnnyaboh"} Tweet
     %script{:type => "text/javascript", :src => "http://platform.twitter.com/widgets.js"}
 
 #disqus_thread
@@ -11,7 +20,7 @@
 
   // The following are highly recommended additional parameters. Remove the slashes in front to use.
   var disqus_identifier = 'drawing_#{params[:id]}';
-  var disqus_url = 'http://draw.heroku.com/drawings/#{is_production? ? @drawing.key : @drawing}';
+  var disqus_url = '#{@drawing[:share_url]}';
 
   /* * * DON'T EDIT BELOW THIS LINE * * */
   (function() {
