@@ -10,7 +10,7 @@ function upload() {
         method: 'feed',
         name: 'My brand new drawing',
         link: data.share_url,
-        picture: 'http://localhost:4567/' + data.url,
+        picture: data.url,
         caption: 'Check my drawing out!',
         description: 'Do you like it?',
         message: 'Check my drawing out!',
