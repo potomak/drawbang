@@ -104,13 +104,40 @@ $(document).ready(function() {
     $(this).toggleClass("active");
   });
   
-  $(".undo").click(function() {
-    pixel.undo();
-    return false;
+  ["undo", "redo"].forEach(function(action) {
+    $("." + action).click(function() {
+      pixel[action].call();
+      return false;
+    });
   });
   
-  $(".redo").click(function() {
-    pixel.redo();
+  $("#more").click(function() {
+    $.get("/drawings?page=" + (currentPage + 1), function(data) {
+      if(typeof data == 'object') {
+        currentPage++;
+        
+        $("#images")
+          .append(data.map(function(d) {
+            return d.thumb;
+          }).join(" "))
+          .append("<script src='http://platform.twitter.com/widgets.js' type='text/javascript'></script>");
+        
+        // rerender FBML (like buttons)
+        FB.XFBML.parse(document.getElementById("images"));
+        
+        //
+        // NODE: doesn't work anymore
+        //
+        // rerender tweet buttons
+        // $('a.twitter-share-button').each(function() {
+        //   (new twttr.TweetButton(this)).render();
+        // });
+      }
+      else {
+        alert(data);
+      }
+    }, 'json');
+    
     return false;
   });
 });

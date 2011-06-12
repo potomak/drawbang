@@ -39,17 +39,23 @@ end
 
 before do
   @user = JSON.parse(REDIS.get(session[:user])) if session[:user]
+  @current_page = (params[:page] || 1).to_i
+  @page = @current_page - 1
 end
 
 get '/' do
-  @drawings = REDIS.lrange("drawings", 0, -1).map do |id|
-    obj = JSON.parse(REDIS.get("drawing:#{id}")).merge(:id => id)
-    obj.merge({:share_url => "http://#{request.host}/drawings/#{id}"})
-  end
-  
+  @drawings = drawings_list
   @colors = EGA_PALETTE
   
   haml :index
+end
+
+get '/drawings' do
+  content_type :json
+  
+  drawings_list.map do |obj|
+    obj.merge(:thumb => haml(:thumb, :layout => false, :locals => obj))
+  end.to_json
 end
 
 get '/drawings/:id' do
@@ -165,4 +171,10 @@ end
 
 def decode_png(string)
   Base64.decode64(string.gsub(/data:image\/png;base64/, ''))
+end
+
+def drawings_list
+  REDIS.lrange("drawings", @page*(PER_PAGE-1), (@page*(PER_PAGE-1))+(PER_PAGE-1)).map do |id|
+    JSON.parse(REDIS.get("drawing:#{id}")).merge(:id => id, :share_url => "http://#{request.host}/drawings/#{id}")
+  end
 end

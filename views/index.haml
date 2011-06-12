@@ -10,19 +10,6 @@
   %meta{:property => "fb:app_id", :content => FACEBOOK['app_id']}
   %meta{:property => "og:description", :content => "Let's draw now!"}
 
-#fb-root
-:javascript
-  window.fbAsyncInit = function() {
-    FB.init({appId: '#{FACEBOOK['app_id']}', status: true, cookie: true, xfbml: true});
-  };
-
-  (function() {
-    var e = document.createElement('script'); e.async = true;
-    e.src = document.location.protocol +
-      '//connect.facebook.net/en_US/all.js';
-    document.getElementById('fb-root').appendChild(e);
-  }());
-
 #desktop
   #controls
     .actions
@@ -47,3 +34,4 @@
 #images
   - @drawings.each do |drawing|
     = haml :thumb, :layout => false, :locals => drawing
+%a{:id => "more", :href => "#"} More

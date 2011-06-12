@@ -49,6 +49,19 @@ p.flash.notice {
 	color: #0a0;
 }
 
+.share {
+	overflow: hidden;
+	width: 220px;
+}
+
+.left {
+	float: left;
+}
+
+.share .twitter_button {
+	margin-top: 4px;
+}
+
 #header {
 	overflow: hidden;
 	text-align: center;
@@ -65,8 +78,8 @@ p.flash.notice {
 	text-decoration: none;
 }
 
-#header iframe {
-	margin-bottom: 40px;
+#header .share {
+	margin: 0 auto 40px auto;
 }
 
 #auth {
@@ -92,7 +105,7 @@ p.flash.notice {
 }
 
 .wrapper {
-	width: 820px;
+	width: 660px;
 	margin: 0 auto;
 }
 
@@ -263,6 +276,7 @@ a:visited#upload.enabled {
 }
 
 #images .drawing {
+	width: 190px;
 	overflow: hidden;
 	float: left;
 	margin-right: 30px;
@@ -295,6 +309,7 @@ a:visited#upload.enabled {
 
 #images iframe {
 	float: left;
+	margin-bottom: 5px;
 }
 
 #drawing {
@@ -317,6 +332,10 @@ a:visited#upload.enabled {
 
 #drawing #user img {
 	margin-bottom: 0;
+}
+
+#drawing .share {
+	margin-bottom: 40px;
 }
 
 #disqus_thread {
