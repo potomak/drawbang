@@ -62,6 +62,14 @@ p.flash.notice {
 	margin-top: 4px;
 }
 
+p.sep {
+	border-bottom: 1px solid #000;
+}
+
+p.sep a {
+	display: block;
+}
+
 #header {
 	overflow: hidden;
 	text-align: center;
@@ -305,6 +313,10 @@ a:visited#upload.enabled {
 
 #images a {
 	float: left;
+}
+
+#images p.sep a {
+	float: none;
 }
 
 #images iframe {

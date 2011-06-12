@@ -115,11 +115,13 @@ $(document).ready(function() {
     $.get("/drawings?page=" + (currentPage + 1), function(data) {
       if(typeof data == 'object') {
         currentPage++;
+        var permalink = "/?page=" + currentPage;
+        var sep = "<p class='sep'><a href='" + permalink + "'>" + ((12*(currentPage-1))+1) + " / " + 12*currentPage + "</a></p>"
         
         $("#images")
-          .append(data.map(function(d) {
+          .append([sep].concat(data.map(function(d) {
             return d.thumb;
-          }).join(" "))
+          })).join(" "))
           .append("<script src='http://platform.twitter.com/widgets.js' type='text/javascript'></script>");
         
         // rerender FBML (like buttons)
