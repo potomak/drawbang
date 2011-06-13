@@ -11,6 +11,9 @@ require 'system_timer'
 require 'json'
 require 'rack-flash'
 
+require 'models/user'
+require 'models/drawing'
+
 configure do
   require 'config/config'
   require "config/#{settings.environment}"
@@ -38,7 +41,7 @@ helpers do
 end
 
 before do
-  @user = JSON.parse(REDIS.get(session[:user])) if session[:user]
+  @user = User.find(session[:user]) if session[:user]
   @current_page = (params[:page] || 1).to_i
   @page = @current_page - 1
 end
@@ -59,10 +62,10 @@ get '/drawings' do
 end
 
 get '/drawings/:id' do
-  @drawing = REDIS.get("drawing:#{params[:id]}")
+  @drawing = Drawing.find(params[:id])
   
   if @drawing
-    @drawing = JSON.parse(@drawing).merge({:id => params[:id], :share_url => "http://#{request.host}/drawings/#{params[:id]}"})
+    @drawing.merge!(:id => params[:id], :share_url => "http://#{request.host}/drawings/#{params[:id]}")
     haml :drawing
   else
     haml :not_found
@@ -71,7 +74,7 @@ end
 
 delete '/drawings/:id' do |id|
   redirect "/drawings/#{id}" unless logged_in?
-  @drawing = JSON.parse(REDIS.get("drawing:#{id}"))
+  @drawing = Drawing.find(id)
   redirect "/drawings/#{id}" unless @drawing && @drawing['user']
   
   if @drawing['user']['uid'] == @user['uid']
@@ -84,8 +87,7 @@ delete '/drawings/:id' do |id|
         File.delete(File.join(DRAWINGS_PATH, id))
       end
       
-      REDIS.del("drawing:#{id}")
-      REDIS.lrem("drawings", 0, id)
+      Drawing.destroy(id)
     rescue => e
       "failure: #{e}"
     end
@@ -102,35 +104,34 @@ end
 post '/upload' do
   content_type :json
   
-  drawing = "#{Time.now.to_i}.png"
-  drawing_obj = {:id => drawing, :url => nil}
+  id = "#{Time.now.to_i}.png"
+  drawing = {:id => id, :url => nil}
   
   begin
     if is_production?
       init_aws
 
       AWS::S3::S3Object.store(
-        drawing,
+        id,
         decode_png(params[:imageData]),
         S3_BUCKET,
         :access => :public_read)
       
-      drawing_obj.merge!({:url => AWS::S3::S3Object.find(drawing, S3_BUCKET).url(:authenticated => false)})
+      drawing.merge!({:url => AWS::S3::S3Object.find(id, S3_BUCKET).url(:authenticated => false)})
     else
-      File.open(File.join(DRAWINGS_PATH, drawing), "w") do |file|
+      File.open(File.join(DRAWINGS_PATH, id), "w") do |file|
         file << decode_png(params[:imageData])
       end
       
-      drawing_obj.merge!({:url => "http://#{request.host_with_port}/images/drawings/#{drawing}"})
+      drawing.merge!({:url => "http://#{request.host_with_port}/images/drawings/#{id}"})
     end
     
-    drawing_obj.merge!({:user => {:uid => @user['uid'], :first_name => @user['user_info']['first_name'], :image => @user['user_info']['image']}}) if logged_in?
+    drawing.merge!(:user => {:uid => @user['uid'], :first_name => @user['user_info']['first_name'], :image => @user['user_info']['image']}) if logged_in?
     
-    REDIS.lpush "drawings", drawing
-    REDIS.set "drawing:#{drawing}", drawing_obj.to_json
+    Drawing.new(drawing).save
     
-    drawing_obj.merge(
-      :thumb => haml(:thumb, :layout => false, :locals => drawing_obj.merge!({:share_url => "http://#{request.host}/drawings/#{drawing}"}))
+    drawing.merge(
+      :thumb => haml(:thumb, :layout => false, :locals => drawing.merge!({:share_url => "http://#{request.host}/drawings/#{id}"}))
     ).to_json
   rescue => e
     "failure: #{e}".to_json
@@ -139,7 +140,7 @@ end
 
 get '/auth/facebook/callback' do
   session[:user] = "user:#{request.env['omniauth.auth']['uid']}"
-  REDIS.set session[:user], request.env['omniauth.auth'].to_json
+  User.new(request.env['omniauth.auth'].merge(:key => session[:user])).save
   redirect request.env['omniauth.origin'] || '/'
 end
 
@@ -174,7 +175,5 @@ def decode_png(string)
 end
 
 def drawings_list
-  REDIS.lrange("drawings", @page*(PER_PAGE-1), (@page*(PER_PAGE-1))+(PER_PAGE-1)).map do |id|
-    JSON.parse(REDIS.get("drawing:#{id}")).merge(:id => id, :share_url => "http://#{request.host}/drawings/#{id}")
-  end
+  Drawing.all(:page => @page, :per_page => PER_PAGE, :host => request.host)
 end
