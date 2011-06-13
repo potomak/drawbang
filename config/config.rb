@@ -19,4 +19,4 @@ EGA_PALETTE = %w{
 }
 
 # drawings per page
-PER_PAGE = 12
+PER_PAGE = 36
