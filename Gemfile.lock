@@ -7,6 +7,7 @@ GEM
       mime-types
       xml-simple
     builder (3.0.0)
+    diff-lcs (1.1.2)
     faraday (0.6.1)
       addressable (~> 2.2.4)
       multipart-post (~> 1.1.0)
@@ -32,8 +33,18 @@ GEM
     rack (1.3.0)
     rack-flash (0.1.1)
       rack
+    rack-test (0.6.0)
+      rack (>= 1.0)
     redis (2.2.0)
     rmagick (2.13.1)
+    rspec (2.6.0)
+      rspec-core (~> 2.6.0)
+      rspec-expectations (~> 2.6.0)
+      rspec-mocks (~> 2.6.0)
+    rspec-core (2.6.4)
+    rspec-expectations (2.6.0)
+      diff-lcs (~> 1.1.2)
+    rspec-mocks (2.6.0)
     sinatra (1.2.6)
       rack (~> 1.1)
       tilt (>= 1.2.2, < 2.0)
@@ -52,8 +63,10 @@ DEPENDENCIES
   json
   oa-oauth
   rack-flash
+  rack-test
   redis
   rmagick
+  rspec
   sinatra
   sinatra-content-for
   system_timer
