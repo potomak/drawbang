@@ -58,6 +58,10 @@ p.flash.notice {
 	float: left;
 }
 
+.right {
+	float: right;
+}
+
 .share .twitter_button {
 	margin-top: 4px;
 }
@@ -96,14 +100,8 @@ p.sep a {
 	text-align: center;
 }
 
-#auth a {
-	float: right;
-}
-
 #auth h3 {
-	float: left;
-	margin-top: 0;
-	margin-bottom: 0;
+	margin: 0;
 }
 
 #auth img.avatar {
@@ -111,6 +109,11 @@ p.sep a {
 	-moz-box-shadow: 5px 5px 0 #000;
 	-webkit-box-shadow: 5px 5px 0 #000;
 	box-shadow: 5px 5px 0 #000;
+}
+
+#auth p {
+	margin: 0;
+	margin-left: 10px;
 }
 
 .wrapper {
