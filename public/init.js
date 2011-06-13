@@ -38,7 +38,9 @@ function upload() {
 }
 
 $(document).ready(function() {
-  var canvas = $("#canvas canvas");
+  var canvas = $("#canvas canvas"),
+      ctrlDown = false;
+      ctrlKey = 17, zKey = 90, shiftKey = 16;
 
   pixel.init(canvas[0]);
 
@@ -66,7 +68,7 @@ $(document).ready(function() {
   
   // if shift is pressed set color to transparent
   $(document).keydown(function(e) {
-    if(e.keyCode == 16) {
+    if(!ctrlDown && e.keyCode == shiftKey) {
       currentColor = "rgba(0, 0, 0, 0)";
       $(".clearPixel").addClass('active');
     }
@@ -102,6 +104,25 @@ $(document).ready(function() {
     
     $(".color.active").toggleClass("active");
     $(this).toggleClass("active");
+  });
+
+  $(document).keydown(function(e) {
+    e.keyCode == ctrlKey && ctrlDown = true;
+    e.keyCode == shiftKey && shiftDown = true;
+  }).keyup(function(e) {
+    e.keyCode == ctrlKey && ctrlDown = false;
+    e.keyCode == shiftKey && shiftDown = false;
+  });
+
+  $(document).keydown(function(e) {
+    if(ctrlDown && e.keyCode == zKey) {
+      if(shiftDown) {
+        console.log("redo");
+      }
+      else {
+        console.log("undo");
+      }
+    }
   });
   
   ["undo", "redo"].forEach(function(action) {
