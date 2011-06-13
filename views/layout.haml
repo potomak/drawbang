@@ -8,9 +8,6 @@
     %script{:src => 'http://ajax.googleapis.com/ajax/libs/jquery/1.4/jquery.min.js', :type => 'text/javascript'}
 
     %link{:href => '/style.css', :media => 'all', :rel => 'stylesheet', :type => 'text/css'}
-
-    :javascript
-      var currentPage = #{@current_page};
     
     %script{:type => "text/javascript", :src => "http://platform.twitter.com/widgets.js"}
     
@@ -46,7 +43,7 @@
             %img{:src => "/images/fb_login_button.png"}
   
     #header
-      %a{:href => "/"}
+      %a{:href => "/" == request.path_info ? "/about" : "/", :title => "/" == request.path_info ? "About Draw!" : "Return to gallery"}
         %h1 DRAW!
       .share
         .left.tweet_button

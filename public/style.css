@@ -68,6 +68,7 @@ p.sep {
 
 p.sep a {
 	display: block;
+	text-decoration: none;
 }
 
 #header {
@@ -113,13 +114,14 @@ p.sep a {
 }
 
 .wrapper {
-	width: 660px;
+	width: 610px;
 	margin: 0 auto;
 }
 
 #desktop {
 	overflow: hidden;
 	margin: 0 auto 80px auto;
+	padding-left: 88px;
 	width: 542px;
 }
 
@@ -279,16 +281,18 @@ a:visited#upload.enabled {
 }
 
 #images {
-	margin: 20px auto 0 auto;
 	overflow: hidden;
 }
 
-#images .drawing {
-	width: 190px;
+#images .drawing_wrapper {
+	margin-right: 30px;
+	margin-bottom: 30px;
 	overflow: hidden;
 	float: left;
-	margin-right: 30px;
-	margin-bottom: 20px;
+}
+
+#images .drawing_wrapper.last {
+	margin-right: 0;
 }
 
 #images .drawing a {

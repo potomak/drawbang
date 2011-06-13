@@ -110,30 +110,4 @@ $(document).ready(function() {
       return false;
     });
   });
-  
-  $("#more").click(function() {
-    $.get("/drawings?page=" + (currentPage + 1), function(data) {
-      if(typeof data == 'object') {
-        if(data.length > 0) {
-          currentPage++;
-          var permalink = "/?page=" + currentPage;
-          var sep = "<p class='sep'><a href='" + permalink + "'>" + ((12*(currentPage-1))+1) + " / " + 12*currentPage + "</a></p>"
-        
-          $("#images")
-            .append([sep].concat(data.map(function(d) {
-              return d.thumb;
-            })).join(" "))
-            .append("<script src='http://platform.twitter.com/widgets.js' type='text/javascript'></script>");
-        
-          // rerender FBML (like buttons)
-          FB.XFBML.parse(document.getElementById("images"));
-        }
-      }
-      else {
-        alert(data);
-      }
-    }, 'json');
-    
-    return false;
-  });
 });

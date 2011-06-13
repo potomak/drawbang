@@ -15,6 +15,8 @@ configure do
   require 'config/config'
   require "config/#{settings.environment}"
   
+  set :haml, :format => :html5
+  
   enable :sessions
 end
 
@@ -47,15 +49,11 @@ get '/' do
   @drawings = drawings_list
   @colors = EGA_PALETTE
   
-  haml :index
-end
-
-get '/drawings' do
-  content_type :json
-  
-  drawings_list.map do |obj|
-    obj.merge(:thumb => haml(:thumb, :layout => false, :locals => obj))
-  end.to_json
+  if request.xhr?
+    haml :gallery, :layout => false
+  else
+    haml :index
+  end
 end
 
 get '/drawings/:id' do
