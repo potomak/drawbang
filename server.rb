@@ -10,6 +10,7 @@ require 'redis'
 require 'system_timer'
 require 'json'
 require 'rack-flash'
+require 'version'
 
 configure do
   require 'config/config'
@@ -172,7 +173,7 @@ def decode_png(string)
 end
 
 def drawings_list
-  REDIS.lrange("drawings", @page*(PER_PAGE-1), (@page*(PER_PAGE-1))+(PER_PAGE-1)).map do |id|
+  REDIS.lrange("drawings", @page*PER_PAGE, ((@page+1)*PER_PAGE)-1).map do |id|
     JSON.parse(REDIS.get("drawing:#{id}")).merge(:id => id, :share_url => "http://#{request.host}/drawings/#{id}")
   end
 end
