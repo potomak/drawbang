@@ -19,11 +19,11 @@ class Drawing
   end
   
   def self.all(opts)
-    page = opts[:page] || 1
+    page = opts[:page] || 0
     per_page = opts[:per_page] || 10
     host = opts[:host] || "localhost:4567"
     
-    start_index = page*(per_page-1)
+    start_index = page*per_page
     end_index = start_index + per_page-1
     
     REDIS.lrange("drawings", start_index, end_index).map do |id|
