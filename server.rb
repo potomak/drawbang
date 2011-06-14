@@ -10,9 +10,9 @@ require 'redis'
 require 'system_timer'
 require 'json'
 require 'rack-flash'
-require 'version'
 
 configure do
+  require 'version'
   require 'config/config'
   require "config/#{settings.environment}"
   
