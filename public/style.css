@@ -117,14 +117,14 @@ p.sep a {
 }
 
 .wrapper {
-	width: 610px;
+	width: 666px;
 	margin: 0 auto;
 }
 
 #desktop {
 	overflow: hidden;
 	margin: 0 auto 80px auto;
-	padding-left: 88px;
+	padding-left: 100px;
 	width: 542px;
 }
 
@@ -287,24 +287,19 @@ a:visited#upload.enabled {
 	overflow: hidden;
 }
 
-#images .drawing_wrapper {
-	margin-right: 30px;
-	margin-bottom: 30px;
+#images .drawing {
+	margin-right: 40px;
+	margin-bottom: 40px;
 	overflow: hidden;
 	float: left;
 }
 
-#images .drawing_wrapper.last {
-	margin-right: 0;
-}
-
 #images .drawing a {
 	display: block;
-	height: 80px;
 }
 
 #images img {
-	margin-right: 10px;
+	margin-right: 5px;
 	border: 1px solid #000;
 	width: 64px;
 	image-rendering: -moz-crisp-edges;
@@ -329,6 +324,10 @@ a:visited#upload.enabled {
 #images iframe {
 	float: left;
 	margin-bottom: 5px;
+}
+
+#images .page {
+	overflow: hidden;
 }
 
 #drawing {
