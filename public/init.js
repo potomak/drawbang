@@ -37,10 +37,13 @@ function upload() {
   return false;
 }
 
+function ctrlKey(e) {
+  return navigator.platform.match(/mac/i) ? e.metaKey : e.ctrlKey;
+}
+
 $(document).ready(function() {
   var canvas = $("#canvas canvas"),
-      ctrlDown = false;
-      ctrlKey = 17, zKey = 90, shiftKey = 16;
+      zKey = 90;
 
   pixel.init(canvas[0]);
 
@@ -68,7 +71,7 @@ $(document).ready(function() {
   
   // if shift is pressed set color to transparent
   $(document).keydown(function(e) {
-    if(!ctrlDown && e.keyCode == shiftKey) {
+    if(!ctrlKey(e) && e.shiftKey) {
       currentColor = "rgba(0, 0, 0, 0)";
       $(".clearPixel").addClass('active');
     }
@@ -107,28 +110,21 @@ $(document).ready(function() {
   });
 
   $(document).keydown(function(e) {
-    e.keyCode == ctrlKey && ctrlDown = true;
-    e.keyCode == shiftKey && shiftDown = true;
-  }).keyup(function(e) {
-    e.keyCode == ctrlKey && ctrlDown = false;
-    e.keyCode == shiftKey && shiftDown = false;
-  });
-
-  $(document).keydown(function(e) {
-    if(ctrlDown && e.keyCode == zKey) {
-      if(shiftDown) {
-        console.log("redo");
+    if(ctrlKey(e) && e.keyCode == zKey) {
+      if(e.shiftKey) {
+        pixel.redo();
       }
       else {
-        console.log("undo");
+        pixel.undo();
       }
+      
+      return false;
     }
   });
   
   ["undo", "redo"].forEach(function(action) {
     $("." + action).click(function() {
       pixel[action].call();
-      return false;
     });
   });
 });
