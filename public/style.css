@@ -51,7 +51,7 @@ p.flash.notice {
 
 .share {
 	overflow: hidden;
-	width: 220px;
+	width: 345px;
 }
 
 .left {
@@ -64,6 +64,10 @@ p.flash.notice {
 
 .share .twitter_button {
 	margin-top: 4px;
+}
+
+.share .flattr_button {
+	margin-right: 14px;
 }
 
 p.sep {
