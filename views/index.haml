@@ -32,6 +32,15 @@
 
   #canvas
     %canvas{ :width => "320", :height => "320", :onSelectStart => "this.style.cursor='crosshair'; return false;" }
+      %p
+        Sorry, your browser doesn't support the <canvas> element.
+      %p
+        Please upgrade to
+        %a{:href => "http://www.microsoft.com/IE9"} IE 9
+        or use the latest
+        %a{:href => "http://www.google.com/chrome"} Chrome
+        or
+        %a{:href => "http://www.mozilla.com/"} Firefox
 
   %a#upload.disabled Save image
 
