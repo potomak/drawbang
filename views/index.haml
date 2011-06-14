@@ -1,6 +1,11 @@
 - content_for :head do
+  :javascript
+    var currentPage = #{@current_page};
+
+  %script{:src => 'https://raw.github.com/brianmario/jquery-infinite-scroll/master/jquery.infinitescroll.js', :type => 'text/javascript'}
   %script{:src => is_production? ? 'https://github.com/potomak/jquery-pixel/raw/master/jquery.pixel.js' : '/jquery.pixel.js', :type => 'text/javascript'}
   %script{:src => '/init.js', :type => 'text/javascript'}
+  %script{:src => '/pagination.js', :type => 'text/javascript'}
 
   %meta{:property => "og:title", :content => "Draw!"}
   %meta{:property => "og:type", :content => "website"}
@@ -32,6 +37,6 @@
 
 %h2 GALLERY
 #images
-  - @drawings.each do |drawing|
-    = haml :thumb, :layout => false, :locals => drawing
+  %div{:style => "clear: both"}
+  = haml :gallery
 %a{:id => "more", :href => "#"} More

@@ -8,11 +8,17 @@
     %script{:src => 'http://ajax.googleapis.com/ajax/libs/jquery/1.4/jquery.min.js', :type => 'text/javascript'}
 
     %link{:href => '/style.css', :media => 'all', :rel => 'stylesheet', :type => 'text/css'}
-
-    :javascript
-      var currentPage = #{@current_page};
     
     %script{:type => "text/javascript", :src => "http://platform.twitter.com/widgets.js"}
+    
+    :javascript
+      (function() {
+        var s = document.createElement('script'), t = document.getElementsByTagName('script')[0];
+        s.type = 'text/javascript';
+        s.async = true;
+        s.src = 'http://api.flattr.com/js/0.6/load.js?mode=auto';
+        t.parentNode.insertBefore(s, t);
+      })();
     
     :javascript
       var _gaq = _gaq || [];
@@ -35,20 +41,27 @@
       
       #auth
         - if logged_in?
-          %h3
+          %h3.left
             Hi, 
             %img.avatar{:width => 25, :src => @user['user_info']['image']}
             ="#{@user['user_info']['first_name']}!"
-          %a{:href => "/logout?origin=#{CGI.escape request.url}"}
+          %a.right{:href => "/logout?origin=#{CGI.escape request.url}"}
             %img{:src => "/images/fb_logout_button.png"}
         - else
-          %a{:href => "/auth/facebook?origin=#{CGI.escape request.url}"}
-            %img{:src => "/images/fb_login_button.png"}
+          .left
+            %p.right to share your drawings easily
+            %a{:href => "/auth/facebook?origin=#{CGI.escape request.url}"}
+              %img{:src => "/images/fb_login_button.png"}
   
     #header
-      %a{:href => "/"}
+      %a{:href => "/" == request.path_info ? "/about" : "/", :title => "/" == request.path_info ? "About Draw!" : "Return to gallery"}
         %h1 DRAW!
       .share
+        .left.flattr_button
+          %a.FlattrButton{:style => "display:none;", :rev => "flattr;button:compact;", :href => "http://draw.heroku.com/"}
+          %noscript
+            %a{:href => "http://flattr.com/thing/310196/Draw", :target => "_blank"}
+              %img{:src => "http://api.flattr.com/button/flattr-badge-large.png", :alt => "Flattr this", :title => "Flattr this", :border => "0"}
         .left.tweet_button
           %a{:href => "http://twitter.com/share", :class => "twitter-share-button", 'data-url' => "http://draw.heroku.com", 'data-text' => "Have fun drawing!", 'data-count' => "horizontal", 'data-via' => "johnnyaboh"} Tweet
         .left.like_button

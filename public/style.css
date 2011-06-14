@@ -51,15 +51,23 @@ p.flash.notice {
 
 .share {
 	overflow: hidden;
-	width: 220px;
+	width: 345px;
 }
 
 .left {
 	float: left;
 }
 
+.right {
+	float: right;
+}
+
 .share .twitter_button {
 	margin-top: 4px;
+}
+
+.share .flattr_button {
+	margin-right: 14px;
 }
 
 p.sep {
@@ -68,6 +76,7 @@ p.sep {
 
 p.sep a {
 	display: block;
+	text-decoration: none;
 }
 
 #header {
@@ -95,14 +104,8 @@ p.sep a {
 	text-align: center;
 }
 
-#auth a {
-	float: right;
-}
-
 #auth h3 {
-	float: left;
-	margin-top: 0;
-	margin-bottom: 0;
+	margin: 0;
 }
 
 #auth img.avatar {
@@ -112,14 +115,20 @@ p.sep a {
 	box-shadow: 5px 5px 0 #000;
 }
 
+#auth p {
+	margin: 0;
+	margin-left: 10px;
+}
+
 .wrapper {
-	width: 660px;
+	width: 666px;
 	margin: 0 auto;
 }
 
 #desktop {
 	overflow: hidden;
 	margin: 0 auto 80px auto;
+	padding-left: 100px;
 	width: 542px;
 }
 
@@ -279,25 +288,22 @@ a:visited#upload.enabled {
 }
 
 #images {
-	margin: 20px auto 0 auto;
 	overflow: hidden;
 }
 
 #images .drawing {
-	width: 190px;
+	margin-right: 40px;
+	margin-bottom: 40px;
 	overflow: hidden;
 	float: left;
-	margin-right: 30px;
-	margin-bottom: 20px;
 }
 
 #images .drawing a {
 	display: block;
-	height: 80px;
 }
 
 #images img {
-	margin-right: 10px;
+	margin-right: 5px;
 	border: 1px solid #000;
 	width: 64px;
 	image-rendering: -moz-crisp-edges;
@@ -322,6 +328,10 @@ a:visited#upload.enabled {
 #images iframe {
 	float: left;
 	margin-bottom: 5px;
+}
+
+#images .page {
+	overflow: hidden;
 }
 
 #drawing {

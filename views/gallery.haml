@@ -1,0 +1,10 @@
+- if @drawings.size > 0
+  .page
+    %p.sep
+      %a{:href => "http://#{request.host}/?page=#{@current_page}"}
+        = (PER_PAGE*(@current_page-1))+1
+        \/
+        = PER_PAGE*@current_page
+
+    - @drawings.each do |drawing|
+      = haml :thumb, :locals => drawing
