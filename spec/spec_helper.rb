@@ -1,7 +1,5 @@
-require File.join(File.dirname(__FILE__), '..', 'server.rb')
+require 'server'
 
-require 'rubygems'
-require 'sinatra'
 require 'rack/test'
 require 'rspec'
 
