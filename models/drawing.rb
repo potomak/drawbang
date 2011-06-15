@@ -31,8 +31,6 @@ class Drawing
     end
   end
   
-  private
-  
   def self.key(id)
     "drawing:#{id}"
   end
