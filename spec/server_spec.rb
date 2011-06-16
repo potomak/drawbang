@@ -13,12 +13,38 @@ describe "Draw! app" do
   end
   
   it "should respond to GET /about" do
-    get '/'
+    get '/about'
     last_response.should be_ok
   end
   
-  it "should respond to GET /drawing/123.png" do
-    get '/'
-    last_response.should be_ok
+  describe "GET /drawings/123.png" do
+    before :each do
+      @id = "123.png"
+      @drawing = {'url' => "/the/drawing.png"}
+    end
+    
+    it "should respond" do
+      Drawing.should_receive(:find).with(@id)
+      get "/drawings/#{@id}"
+      last_response.should be_ok
+    end
+
+    it "should display drawing" do
+      Drawing.should_receive(:find).with(@id).and_return(@drawing)
+      get "/drawings/#{@id}"
+      last_response.should match @drawing['url']
+    end
+
+    it "should display 'not found'" do
+      Drawing.should_receive(:find).with(@id).and_return(nil)
+      get "/drawings/#{@id}"
+      last_response.should match /not found/
+    end
   end
+  
+  # it "should respond to POST /upload" do
+  #   post '/upload'
+  #   
+  #   last_response.should be_ok
+  # end
 end
