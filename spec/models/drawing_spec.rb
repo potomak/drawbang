@@ -13,6 +13,12 @@ describe Drawing do
     Drawing.find(@id).should == @drawing
   end
   
+  it "should return nil if it can't find drawing" do
+    REDIS.should_receive(:get).with(Drawing.key(@id)).and_return(nil)
+    
+    Drawing.find(@id).should == nil
+  end
+  
   it "should destroy drawing" do
     REDIS.should_receive(:del).with(Drawing.key(@id))
     REDIS.should_receive(:lrem).with("drawings", 0, @id)

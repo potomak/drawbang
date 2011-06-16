@@ -18,4 +18,10 @@ describe User do
     
     User.find(@key).should == @user
   end
+  
+  it "should return nil if it can't find user" do
+    REDIS.should_receive(:get).with(@key).and_return(nil)
+    
+    User.find(@key).should == nil
+  end
 end

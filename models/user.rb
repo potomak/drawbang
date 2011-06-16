@@ -8,6 +8,7 @@ class User
   end
   
   def self.find(key)
-    JSON.parse(REDIS.get(key))
+    value = REDIS.get(key)
+    JSON.parse(value) unless value.nil?
   end
 end

@@ -10,7 +10,8 @@ class Drawing
   end
   
   def self.find(id)
-    JSON.parse(REDIS.get(key(id)))
+    value = REDIS.get(key(id))
+    JSON.parse(value) unless value.nil?
   end
   
   def self.destroy(id)
