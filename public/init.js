@@ -37,8 +37,13 @@ function upload() {
   return false;
 }
 
+function ctrlKey(e) {
+  return navigator.platform.match(/mac/i) ? e.metaKey : e.ctrlKey;
+}
+
 $(document).ready(function() {
-  var canvas = $("#canvas canvas");
+  var canvas = $("#canvas canvas"),
+      zKey = 90;
 
   pixel.init(canvas[0]);
 
@@ -66,7 +71,7 @@ $(document).ready(function() {
   
   // if shift is pressed set color to transparent
   $(document).keydown(function(e) {
-    if(e.keyCode == 16) {
+    if(!ctrlKey(e) && e.shiftKey) {
       currentColor = "rgba(0, 0, 0, 0)";
       $(".clearPixel").addClass('active');
     }
@@ -103,11 +108,23 @@ $(document).ready(function() {
     $(".color.active").toggleClass("active");
     $(this).toggleClass("active");
   });
+
+  $(document).keydown(function(e) {
+    if(ctrlKey(e) && e.keyCode == zKey) {
+      if(e.shiftKey) {
+        pixel.redo();
+      }
+      else {
+        pixel.undo();
+      }
+      
+      return false;
+    }
+  });
   
   ["undo", "redo"].forEach(function(action) {
     $("." + action).click(function() {
       pixel[action].call();
-      return false;
     });
   });
 });

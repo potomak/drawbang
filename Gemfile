@@ -9,3 +9,8 @@ gem 'json'
 gem 'rack-flash'
 gem 'sinatra-content-for'
 gem 'rmagick'
+
+group :test do
+  gem 'rack-test'
+  gem 'rspec'
+end
