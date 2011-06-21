@@ -14,6 +14,8 @@
   %meta{:property => "og:site_name", :content => "Draw!"}
   %meta{:property => "fb:app_id", :content => FACEBOOK['app_id']}
   %meta{:property => "og:description", :content => "Let's draw now!"}
+  
+  %link{:rel => "alternate", :type => "application/rss+xml", :href => "http://#{request.host_with_port}/feed.rss", :title => "Draw! feed"}
 
 #desktop
   #controls

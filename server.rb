@@ -49,7 +49,7 @@ before do
   @page = @current_page - 1
 end
 
-get '/', :provides => 'html' do
+get '/' do
   @drawings = Drawing.all(:page => @page, :per_page => PER_PAGE, :host => request.host)
   @colors = EGA_PALETTE
   
@@ -60,7 +60,7 @@ get '/', :provides => 'html' do
   end
 end
 
-get '/', :provides => 'rss' do
+get '/feed.rss', :provides => 'rss' do
   @drawings = Drawing.all(:page => 0, :per_page => PER_PAGE, :host => request.host)
   builder :feed
 end

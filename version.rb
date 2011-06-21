@@ -1,1 +1,1 @@
-VERSION = [0, 2, 1] unless defined?(VERSION)
+VERSION = [0, 2, 2] unless defined?(VERSION)
