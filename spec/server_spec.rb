@@ -8,14 +8,18 @@ describe "Draw! app" do
   end
 
   describe "GET /" do
-    ['text/html', 'application/rss+xml'].each do |format|
-      it "should respond to #{format} request" do
-        Drawing.should_receive(:all).and_return([])
-        header 'Accept', format
-        get '/'
-        last_response.should be_ok
-      end
+    it "should respond" do
+      Drawing.should_receive(:all).and_return([])
+      get '/'
+      last_response.should be_ok
     end
+  end
+  
+  it "should respond to GET /feed.rss" do
+    Drawing.should_receive(:all).and_return([])
+    header 'Accept', 'application/rss+xml'
+    get '/'
+    last_response.should be_ok
   end
   
   it "should respond to GET /about" do
