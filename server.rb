@@ -49,8 +49,8 @@ before do
   @page = @current_page - 1
 end
 
-get '/' do
-  @drawings = drawings_list
+get '/', :provides => 'html' do
+  @drawings = Drawing.all(:page => @page, :per_page => PER_PAGE, :host => request.host)
   @colors = EGA_PALETTE
   
   if request.xhr?
@@ -58,6 +58,11 @@ get '/' do
   else
     haml :index
   end
+end
+
+get '/', :provides => 'rss' do
+  @drawings = Drawing.all(:page => 0, :per_page => PER_PAGE, :host => request.host)
+  builder :feed
 end
 
 get '/drawings/:id' do
@@ -171,8 +176,4 @@ end
 
 def decode_png(string)
   Base64.decode64(string.gsub(/data:image\/png;base64/, ''))
-end
-
-def drawings_list
-  Drawing.all(:page => @page, :per_page => PER_PAGE, :host => request.host)
 end

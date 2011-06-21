@@ -7,9 +7,15 @@ describe "Draw! app" do
     @app ||= Sinatra::Application
   end
 
-  it "should respond to GET /" do
-    get '/'
-    last_response.should be_ok
+  describe "GET /" do
+    ['text/html', 'application/rss+xml'].each do |format|
+      it "should respond to #{format} request" do
+        Drawing.should_receive(:all).and_return([])
+        header 'Accept', format
+        get '/'
+        last_response.should be_ok
+      end
+    end
   end
   
   it "should respond to GET /about" do
