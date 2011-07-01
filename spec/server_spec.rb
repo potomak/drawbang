@@ -13,6 +13,17 @@ describe "Draw! app" do
       get '/'
       last_response.should be_ok
     end
+    
+    it "should create session" do
+      get '/'
+      last_response.header['Set-Cookie'].should match /rack\.session/
+    end
+    
+    it "should set session expiration date" do
+      get '/'
+      puts last_response.header['Set-Cookie']
+      last_response.header['Set-Cookie'].should match /expires/i
+    end
   end
   
   it "should respond to GET /feed.rss" do

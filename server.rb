@@ -21,7 +21,10 @@ configure do
   
   set :haml, :format => :html5
   
-  enable :sessions
+  # NOTE: this is the new form of the :sessions setting
+  #set :sessions, :expire_after => 2592000 #30 days in seconds
+  use Rack::Session::Cookie, :expire_after => 2592000,
+                             :secret => settings.session_secret
 end
 
 use OmniAuth::Builder do
