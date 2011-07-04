@@ -21,7 +21,6 @@ describe "Draw! app" do
     
     it "should set session expiration date" do
       get '/'
-      puts last_response.header['Set-Cookie']
       last_response.header['Set-Cookie'].should match /expires/i
     end
   end

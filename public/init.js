@@ -1,37 +1,48 @@
 var currentColor = "#000000";
 
+function postUploadCallback(data) {
+  if(typeof data.thumb != 'undefined') {
+    $("#images").prepend(data.thumb);
+    pixel.clearCanvas();
+
+    FB.ui({
+      method: 'feed',
+      name: 'My brand new drawing',
+      link: data.share_url,
+      picture: data.url,
+      caption: 'Check my drawing out!',
+      description: 'Do you like it?',
+      message: 'Check my drawing out!',
+      actions: [{name: 'Draw!', link: 'http://draw.heroku.com/'}]
+    },
+    function(response) {
+      if (response && response.post_id) {
+        // alert('Post was published.');
+      } else {
+        // alert('Post was not published.');
+      }
+    });
+  }
+  else {
+    alert(data);
+  }
+}
+
+function performUpload() {
+  $.post('/upload', { imageData : pixel.getDataURL() }, postUploadCallback, "json");
+  $(this).unbind('click').removeClass('enabled');
+  $(this).addClass('disabled');
+}
+
 function upload() {
   if(confirm("Want to save?")) {
-    $.post('/upload', { imageData : pixel.getDataURL() }, function(data) {
-      if(typeof data.thumb != 'undefined') {
-        $("#images").prepend(data.thumb);
-        pixel.clearCanvas();
-      
-        FB.ui({
-          method: 'feed',
-          name: 'My brand new drawing',
-          link: data.share_url,
-          picture: data.url,
-          caption: 'Check my drawing out!',
-          description: 'Do you like it?',
-          message: 'Check my drawing out!',
-          actions: [{name: 'Draw!', link: 'http://draw.heroku.com/'}]
-        },
-        function(response) {
-          if (response && response.post_id) {
-            // alert('Post was published.');
-          } else {
-            // alert('Post was not published.');
-          }
-        });
-      }
-      else {
-        alert(data);
-      }
-    }, "json");
-  
-    $(this).unbind('click').removeClass('enabled');
-    $(this).addClass('disabled');
+    if(typeof user_uid != 'undefined') {
+      performUpload();
+    }
+    else {
+      trying_to_save = true;
+      $("a.popup").trigger('click');
+    }
   }
   
   return false;

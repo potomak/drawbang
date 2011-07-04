@@ -1,0 +1,6 @@
+%h3.left
+  Hi, 
+  %img.avatar{:width => 25, :src => @user['user_info']['image']}
+  ="#{@user['user_info']['first_name']}!"
+%a.right{:href => "/logout#{"?origin=#{origin}" if defined?(origin)}"}
+  %img{:src => "/images/fb_logout_button.png"}

@@ -1,0 +1,5 @@
+:javascript
+  if(window.opener) {
+    window.opener.flash(#{haml(:'shared/flash').to_json});
+    window.close();
+  }

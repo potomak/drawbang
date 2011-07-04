@@ -7,4 +7,4 @@
         = PER_PAGE*@current_page
 
     - @drawings.each do |drawing|
-      = haml :thumb, :locals => drawing
+      = haml :'shared/thumb', :locals => drawing

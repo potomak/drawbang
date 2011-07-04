@@ -60,7 +60,7 @@ get '/' do
   @colors = EGA_PALETTE
   
   if request.xhr?
-    haml :gallery, :layout => false
+    haml :'shared/gallery', :layout => false
   else
     haml :index
   end
@@ -119,6 +119,7 @@ delete '/drawings/:id' do |id|
 end
 
 post '/upload' do
+  redirect '/' unless logged_in?
   content_type :json
   
   id = "#{Time.now.to_i}.png"
@@ -138,13 +139,13 @@ post '/upload' do
         S3_BUCKET,
         :access => :public_read)
       
-      drawing.merge!({:url => AWS::S3::S3Object.find(id, S3_BUCKET).url(:authenticated => false)})
+      drawing.merge!(:url => AWS::S3::S3Object.find(id, S3_BUCKET).url(:authenticated => false))
     else
       File.open(File.join(DRAWINGS_PATH, id), "w") do |file|
         file << decode_png(params[:imageData])
       end
       
-      drawing.merge!({:url => "http://#{request.host_with_port}/images/drawings/#{id}"})
+      drawing.merge!(:url => "http://#{request.host_with_port}/images/drawings/#{id}")
     end
     #
     #
@@ -154,9 +155,8 @@ post '/upload' do
     
     Drawing.new(drawing).save
     
-    drawing.merge(
-      :thumb => haml(:thumb, :layout => false, :locals => drawing.merge!({:share_url => "http://#{request.host}/drawings/#{id}"}))
-    ).to_json
+    drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}")
+    drawing.merge(:thumb => haml(:'shared/thumb', :layout => false, :locals => drawing)).to_json
   rescue => e
     "failure: #{e}".to_json
   end
@@ -164,14 +164,14 @@ end
 
 get '/auth/facebook/callback' do
   session[:user] = "user:#{request.env['omniauth.auth']['uid']}"
-  User.new(request.env['omniauth.auth'].merge(:key => session[:user])).save
+  @user = User.new(request.env['omniauth.auth'].merge(:key => session[:user])).save
   haml :callback
 end
 
 get '/auth/failure' do
   clear_session
-  flash[:error] = 'There was an error trying to access to your Facebook data'
-  redirect params[:origin] || '/'
+  flash.now[:error] = 'There was an error trying to access to your Facebook data'
+  haml :failure
 end
 
 get '/logout' do

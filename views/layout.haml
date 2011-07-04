@@ -38,10 +38,6 @@
         return window.open(url, name, "menubar=no,toolbar=no,status=no,width="+width+",height="+height+",toolbar=no,left="+left+",top="+top);
       }
       
-      function reload() {
-        window.location.reload(true);
-      }
-
       $(document).ready(function() {
         $("a.popup").click(function(e) {
           popupCenter($(this).attr("href"), $(this).attr("data-width"), $(this).attr("data-height"), "authPopup");
@@ -49,22 +45,29 @@
         });
       });
       
+      var trying_to_save = false;
+      
+      function reload(user_header) {
+        $("#auth").html(user_header);
+        trying_to_save && performUpload();
+      }
+      
+      function flash(html) {
+        $("#flash_wrapper").html(html);
+      }
+      
     = yield_content :head
 
   %body
     .wrapper
-      - [:error, :notice].each do |level|
-        %p.flash{:class => level}
-          = flash[level]
+      #flash_wrapper
+        = haml :'shared/flash'
       
       #auth
         - if logged_in?
-          %h3.left
-            Hi, 
-            %img.avatar{:width => 25, :src => @user['user_info']['image']}
-            ="#{@user['user_info']['first_name']}!"
-          %a.right{:href => "/logout?origin=#{CGI.escape request.url}"}
-            %img{:src => "/images/fb_logout_button.png"}
+          :javascript
+            var user_uid = #{@user['uid']};
+          = haml :'shared/user_header', :locals => {:origin => CGI.escape(request.url)}
         - else
           .left
             %p.right to share your drawings easily
