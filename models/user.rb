@@ -5,6 +5,7 @@ class User
   
   def save
     REDIS.set @user.delete(:key), @user.to_json
+    @user # NOTE: SET can't fail (http://redis.io/commands/set)
   end
   
   def self.find(key)
