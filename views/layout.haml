@@ -12,26 +12,6 @@
     %script{:type => "text/javascript", :src => "http://platform.twitter.com/widgets.js"}
     
     :javascript
-      (function() {
-        var s = document.createElement('script'), t = document.getElementsByTagName('script')[0];
-        s.type = 'text/javascript';
-        s.async = true;
-        s.src = 'http://api.flattr.com/js/0.6/load.js?mode=auto';
-        t.parentNode.insertBefore(s, t);
-      })();
-    
-    :javascript
-      var _gaq = _gaq || [];
-      _gaq.push(['_setAccount', 'UA-2935139-17']);
-      _gaq.push(['_trackPageview']);
-    
-      (function() {
-        var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
-        ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
-        var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
-      })();
-    
-    :javascript
       function popupCenter(url, width, height, name) {
         var left = (screen.width/2)-(width/2);
         var top = (screen.height/2)-(height/2);
@@ -55,6 +35,10 @@
       function flash(html) {
         $("#flash_wrapper").html(html);
       }
+    
+    = haml :'shared/flattr'
+
+    = haml :'shared/analytics'
       
     = yield_content :head
 
@@ -94,15 +78,4 @@
     #footer
       %a{:href => "/about"} About
     
-    #fb-root
-    :javascript
-      window.fbAsyncInit = function() {
-        FB.init({appId: '#{FACEBOOK['app_id']}', status: true, cookie: true, xfbml: true});
-      };
-
-      (function() {
-        var e = document.createElement('script'); e.async = true;
-        e.src = document.location.protocol +
-          '//connect.facebook.net/en_US/all.js';
-        document.getElementById('fb-root').appendChild(e);
-      }());
+    = haml :'shared/facebook'
