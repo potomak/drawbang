@@ -30,6 +30,24 @@
         ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
         var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
       })();
+    
+    :javascript
+      function popupCenter(url, width, height, name) {
+        var left = (screen.width/2)-(width/2);
+        var top = (screen.height/2)-(height/2);
+        return window.open(url, name, "menubar=no,toolbar=no,status=no,width="+width+",height="+height+",toolbar=no,left="+left+",top="+top);
+      }
+      
+      function reload() {
+        window.location.reload(true);
+      }
+
+      $(document).ready(function() {
+        $("a.popup").click(function(e) {
+          popupCenter($(this).attr("href"), $(this).attr("data-width"), $(this).attr("data-height"), "authPopup");
+          e.stopPropagation(); return false;
+        });
+      });
       
     = yield_content :head
 
@@ -50,7 +68,7 @@
         - else
           .left
             %p.right to share your drawings easily
-            %a{:href => "/auth/facebook?origin=#{CGI.escape request.url}"}
+            %a{:href => "/auth/facebook?origin=#{CGI.escape request.url}", :class => "popup", :'data-width' => 600, :'data-height' => 400}
               %img{:src => "/images/fb_login_button.png"}
   
     #header
