@@ -28,7 +28,7 @@ configure do
 end
 
 use OmniAuth::Builder do
-  options = {:scope => 'status_update, publish_stream'}
+  options = {:scope => 'status_update, publish_stream', :display => "popup"}
   options.merge!({:client_options => {:ssl => {:ca_file => '/usr/lib/ssl/certs/ca-certificates.crt'}}}) if settings.environment == :production
   provider :facebook, FACEBOOK['app_id'], FACEBOOK['app_secret'], options
 end
@@ -148,7 +148,7 @@ end
 get '/auth/facebook/callback' do
   session[:user] = "user:#{request.env['omniauth.auth']['uid']}"
   User.new(request.env['omniauth.auth'].merge(:key => session[:user])).save
-  redirect request.env['omniauth.origin'] || '/'
+  haml :callback
 end
 
 get '/auth/failure' do
