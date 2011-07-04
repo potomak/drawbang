@@ -29,6 +29,7 @@ end
 
 use OmniAuth::Builder do
   options = {:scope => 'status_update, publish_stream', :display => "popup"}
+  # NOTE: https://github.com/technoweenie/faraday/wiki/Setting-up-SSL-certificates
   options.merge!({:client_options => {:ssl => {:ca_file => '/usr/lib/ssl/certs/ca-certificates.crt'}}}) if settings.environment == :production
   provider :facebook, FACEBOOK['app_id'], FACEBOOK['app_secret'], options
 end
@@ -47,7 +48,9 @@ helpers do
 end
 
 before do
+  # authentication
   @user = User.find(session[:user]) if session[:user]
+  # pagination
   @current_page = (params[:page] || 1).to_i
   @page = @current_page - 1
 end
@@ -86,6 +89,10 @@ delete '/drawings/:id' do |id|
   
   if @drawing['user']['uid'] == @user['uid']
     begin
+      # TODO: move to Drawing model
+      #
+      #
+      #
       if is_production?
         init_aws
         
@@ -93,6 +100,9 @@ delete '/drawings/:id' do |id|
       else
         File.delete(File.join(DRAWINGS_PATH, id))
       end
+      #
+      #
+      #
       
       Drawing.destroy(id)
     rescue => e
@@ -115,6 +125,10 @@ post '/upload' do
   drawing = {:id => id, :url => nil}
   
   begin
+    # TODO: move to Drawing model
+    #
+    #
+    #
     if is_production?
       init_aws
 
@@ -132,6 +146,9 @@ post '/upload' do
       
       drawing.merge!({:url => "http://#{request.host_with_port}/images/drawings/#{id}"})
     end
+    #
+    #
+    #
     
     drawing.merge!(:user => {:uid => @user['uid'], :first_name => @user['user_info']['first_name'], :image => @user['user_info']['image']}) if logged_in?
     
