@@ -55,7 +55,7 @@ before do
   @page = @current_page - 1
 end
 
-get '/' do
+def root_action
   @drawings = Drawing.all(:page => @page, :per_page => PER_PAGE, :host => request.host)
   @colors = EGA_PALETTE
   
@@ -64,6 +64,14 @@ get '/' do
   else
     haml :index
   end
+end
+
+post '/' do
+  root_action
+end
+
+get '/' do
+  root_action
 end
 
 get '/feed.rss', :provides => 'rss' do
