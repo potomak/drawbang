@@ -132,6 +132,8 @@ p.sep a {
 	width: 542px;
 }
 
+/* canvas */
+
 #controls {
 	float: left;
 	margin-right: 10px;
@@ -247,6 +249,8 @@ p.sep a {
 	box-shadow: 3px 3px 0 #000;
 }
 
+/* canvas */
+
 #canvas {
 	float: left;
 	cursor: crosshair;
@@ -258,6 +262,59 @@ p.sep a {
 	-moz-box-shadow: 5px 5px 0 #000;
 	-webkit-box-shadow: 5px 5px 0 #000;
 	box-shadow: 5px 5px 0 #000;
+}
+
+/* commands */
+
+#commands {
+	overflow: hidden;
+}
+
+#size {
+	float: left;
+	font-size: 12px;
+	margin-left: 24px;
+}
+
+#size p {
+	margin-bottom: 5px;
+}
+
+#size ul {
+	list-style-type: none;
+	padding: 0;
+	margin: 0;
+}
+
+#size li {
+	padding-left: 20px;
+	margin-bottom: 3px;
+	background-repeat: no-repeat;
+	background-position: 0 50%;
+}
+
+#size li.active {
+	background-image: url(/images/arrow.png);
+}
+
+#size li.star.yellow {
+	background-image: url(/images/star_yellow.png);
+}
+
+#size li.star.blue {
+	background-image: url(/images/star_blue.png);
+}
+
+#size li.star.green {
+	background-image: url(/images/star_green.png);
+}
+
+#size li.coming_soon {
+	opacity: 0.2;
+}
+
+#size li:hover.coming_soon {
+	opacity: 0.7;
 }
 
 #upload {
