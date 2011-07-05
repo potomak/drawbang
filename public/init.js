@@ -6,6 +6,9 @@ function upload() {
       if(typeof data.thumb != 'undefined') {
         $("#images").prepend(data.thumb);
         pixel.clearCanvas();
+        
+        // add event tracking data
+        _gaq.push(['_trackEvent', 'Drawings', 'Save', data.url]);
       
         FB.ui({
           method: 'feed',
@@ -20,6 +23,9 @@ function upload() {
         function(response) {
           if (response && response.post_id) {
             // alert('Post was published.');
+            
+            // add event tracking data
+            _gaq.push(['_trackEvent', 'Drawings', 'Post', data.url]);
           } else {
             // alert('Post was not published.');
           }
