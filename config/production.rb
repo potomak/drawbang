@@ -1,3 +1,6 @@
+# drawings per page
+PER_PAGE = 36
+
 # s3 bucket
 S3_BUCKET = 'draw.heroku.com'
 
