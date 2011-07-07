@@ -28,4 +28,30 @@ describe User do
       User.find(@key).should == nil
     end
   end
+  
+  describe "User.update" do
+    it "should find user" do
+      User.should_receive(:find).with(@key).and_return(@user)
+      
+      User.update(@key, {}).should == @user
+    end
+
+    it "should return nil if it can't find user" do
+      User.should_receive(:find).with(@key).and_return(nil)
+
+      User.update(@key, {}).should == nil
+    end
+    
+    it "should create and save a new user merged with hash" do
+      hash = {:name => "tom"}
+      new_user_hash = @user.merge({:key => @key}).merge(hash)
+      new_user = User.new(new_user_hash)
+      
+      User.should_receive(:find).with(@key).and_return(@user)
+      User.should_receive(:new).with(new_user_hash).and_return(new_user)
+      new_user.should_receive(:save).and_return(new_user)
+
+      User.update(@key, hash).should == new_user
+    end
+  end
 end
