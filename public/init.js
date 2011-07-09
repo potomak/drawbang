@@ -113,6 +113,7 @@ $(document).ready(function() {
     $(this).toggleClass("active");
   });
 
+  // colors
   $(".color").click(function() {
     currentColor = $(this).data().color;
     
@@ -120,6 +121,7 @@ $(document).ready(function() {
     $(this).toggleClass("active");
   });
 
+  // undo / redo
   $(document).keydown(function(e) {
     if(ctrlKey(e) && e.keyCode == zKey) {
       if(e.shiftKey) {
