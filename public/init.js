@@ -1,43 +1,54 @@
 var currentColor = "#000000";
 
-function upload() {
-  if(confirm("Want to save?")) {
-    $.post('/upload', { imageData : pixel.getDataURL() }, function(data) {
-      if(typeof data.thumb != 'undefined') {
-        $("#images").prepend(data.thumb);
-        pixel.clearCanvas();
-        
+function postUploadCallback(data) {
+  if(typeof data.thumb != 'undefined') {
+    $("#images").prepend(data.thumb);
+    pixel.clearCanvas();
+
         // add event tracking data
         _gaq.push(['_trackEvent', 'Drawings', 'Save', data.url]);
       
-        FB.ui({
-          method: 'feed',
-          name: 'My brand new drawing',
-          link: data.share_url,
-          picture: data.url,
-          caption: 'Check my drawing out!',
-          description: 'Do you like it?',
-          message: 'Check my drawing out!',
+    FB.ui({
+      method: 'feed',
+      name: 'My brand new drawing',
+      link: data.share_url,
+      picture: data.url,
+      caption: 'Check my drawing out!',
+      description: 'Do you like it?',
+      message: 'Check my drawing out!',
           actions: [{name: 'Draw!', link: 'http://drawbang.com/'}]
-        },
-        function(response) {
-          if (response && response.post_id) {
-            // alert('Post was published.');
+    },
+    function(response) {
+      if (response && response.post_id) {
+        // alert('Post was published.');
             
             // add event tracking data
             _gaq.push(['_trackEvent', 'Drawings', 'Post', data.url]);
-          } else {
-            // alert('Post was not published.');
-          }
-        });
+      } else {
+        // alert('Post was not published.');
       }
-      else {
-        alert(data);
-      }
-    }, "json");
-  
-    $(this).unbind('click').removeClass('enabled');
-    $(this).addClass('disabled');
+    });
+  }
+  else {
+    alert(data);
+  }
+}
+
+function performUpload() {
+  $.post('/upload', { imageData : pixel.getDataURL() }, postUploadCallback, "json");
+  $(this).unbind('click').removeClass('enabled');
+  $(this).addClass('disabled');
+}
+
+function upload() {
+  if(confirm("Want to save?")) {
+    if(typeof user_uid != 'undefined') {
+      performUpload();
+    }
+    else {
+      trying_to_save = true;
+      $("a.popup").trigger('click');
+    }
   }
   
   return false;
@@ -108,6 +119,7 @@ $(document).ready(function() {
     $(this).toggleClass("active");
   });
 
+  // colors
   $(".color").click(function() {
     currentColor = $(this).data().color;
     
@@ -115,6 +127,7 @@ $(document).ready(function() {
     $(this).toggleClass("active");
   });
 
+  // undo / redo
   $(document).keydown(function(e) {
     if(ctrlKey(e) && e.keyCode == zKey) {
       if(e.shiftKey) {

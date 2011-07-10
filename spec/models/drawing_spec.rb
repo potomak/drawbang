@@ -1,50 +1,127 @@
 require 'spec/spec_helper'
 
 describe Drawing do
+  before :all do
+    # development env
+    @test_path = "test"
+    Object.const_set("DRAWINGS_PATH", @test_path)
+    
+    # production env
+    @test_bucket = "test"
+    Object.const_set("S3_BUCKET", @test_bucket)
+  end
+  
   before :each do
-    @id = 123
-    @drawing = {:url => "/the/drawing.png"}
+    @id = "123.png"
+    @drawing = {:request_host => "example.com"}
   end
   
-  it "should find drawing" do
-    REDIS.should_receive(:get).with(Drawing.key(@id)).and_return(@drawing.to_json)
-    JSON.should_receive(:parse).with(@drawing.to_json).and_return(@drawing)
-    
-    Drawing.find(@id).should == @drawing
+  describe "Drawing.find" do
+    it "should find drawing" do
+      REDIS.should_receive(:get).with(Drawing.key(@id)).and_return(@drawing.to_json)
+      JSON.should_receive(:parse).with(@drawing.to_json).and_return(@drawing)
+
+      Drawing.find(@id).should == @drawing
+    end
+
+    it "should return nil if it can't find drawing" do
+      REDIS.should_receive(:get).with(Drawing.key(@id)).and_return(nil)
+
+      Drawing.find(@id).should == nil
+    end
   end
   
-  it "should return nil if it can't find drawing" do
-    REDIS.should_receive(:get).with(Drawing.key(@id)).and_return(nil)
+  describe "Drawing.destroy" do
+    after :each do
+      REDIS.should_receive(:del).with(Drawing.key(@id))
+      REDIS.should_receive(:lrem).with("drawings", 0, @id)
+      
+      Drawing.destroy(@id)
+    end
     
-    Drawing.find(@id).should == nil
+    it "should remove drawing file on development env, destroy object and remove it from list" do
+      Drawing.should_receive(:is_production?).and_return(false)
+      File.should_receive(:delete).with(File.join(@test_path, @id))
+    end
+    
+    it "should remove drawing S3 object on production env, destroy object and remove it from list" do
+      Drawing.should_receive(:is_production?).and_return(true)
+      Drawing.should_receive(:init_aws)
+      AWS::S3::S3Object.should_receive(:delete).with(@id, @test_bucket)
+    end
   end
   
-  it "should destroy drawing" do
-    REDIS.should_receive(:del).with(Drawing.key(@id))
-    REDIS.should_receive(:lrem).with("drawings", 0, @id)
+  describe "drawing.save" do
+    after :each do
+      REDIS.should_receive(:lpush).with("drawings", @id)
+
+      Drawing.new(@drawing.merge(:id => @id)).save
+    end
     
-    Drawing.destroy(@id)
+    it "should save drawing on development env" do
+      Drawing.should_receive(:is_production?).and_return(false)
+      Drawing.should_receive(:decode_png)
+      
+      file = Object.new
+      file.should_receive(:'<<').with(nil)
+      File.should_receive(:open).with(File.join(@test_path, @id), "w").and_yield(file)
+      
+      @result_drawing = {:url => "http://#{@drawing[:request_host]}/images/drawings/#{@id}"}
+      REDIS.should_receive(:set).with(Drawing.key(@id), @result_drawing.to_json)
+    end
+    
+    it "should save drawing on production env" do
+      Drawing.should_receive(:is_production?).and_return(true)
+      Drawing.should_receive(:init_aws)
+      Drawing.should_receive(:decode_png)
+      AWS::S3::S3Object.should_receive(:store).with(
+        @id,
+        nil,
+        @test_bucket,
+        :access => :public_read)
+      
+      s3_object_url = "s3_object/public/url"
+      s3_object = Object.new
+      s3_object.should_receive(:url).with(:authenticated => false).and_return(s3_object_url)
+      AWS::S3::S3Object.should_receive(:find).with(@id, @test_bucket).and_return(s3_object)
+      
+      @result_drawing = {:url => s3_object_url}
+      REDIS.should_receive(:set).with(Drawing.key(@id), @result_drawing.to_json)
+    end
   end
   
-  it "should save drawing" do
-    REDIS.should_receive(:set).with(Drawing.key(@id), @drawing.to_json)
-    REDIS.should_receive(:lpush).with("drawings", @id)
-    
-    Drawing.new(@drawing.merge(:id => @id)).save
+  describe "Drawing.all" do
+    it "should find all drawings" do
+      ids = (0..9).map {@id}
+      opts = {
+        :page => 0,
+        :per_page => 10,
+        :host => "example.com"
+      }
+
+      REDIS.should_receive(:lrange).with("drawings", 0, 9).and_return(ids)
+      REDIS.should_receive(:get).exactly(10).times.with(Drawing.key(@id)).and_return(@drawing.to_json)
+      JSON.should_receive(:parse).exactly(10).times.with(@drawing.to_json).and_return(@drawing)
+
+      Drawing.all(opts).should == ids.map {|id| @drawing.merge(:id => id, :share_url => "http://#{opts[:host]}/drawings/#{id}")}
+    end
   end
   
-  it "should find all drawings" do
-    ids = (0..9).map {@id}
-    opts = {
-      :page => 0,
-      :per_page => 10,
-      :host => "example.com"
-    }
+  describe "Drawing.decode_png" do
+    it "should return nil if nil object is passed" do
+      Drawing.decode_png(nil).should == nil
+    end
     
-    REDIS.should_receive(:lrange).with("drawings", 0, 9).and_return(ids)
-    REDIS.should_receive(:get).exactly(10).times.with(Drawing.key(@id)).and_return(@drawing.to_json)
-    JSON.should_receive(:parse).exactly(10).times.with(@drawing.to_json).and_return(@drawing)
-    
-    Drawing.all(opts).should == ids.map {|id| @drawing.merge(:id => id, :share_url => "http://#{opts[:host]}/drawings/#{id}")}
+    it "should decode image data string" do
+      mime_type = "image/png"
+      encoded_data = "encoded image data"
+      image_data = "image data"
+      string = mime_type + encoded_data
+      
+      string.should_receive(:gsub).with(/data:image\/png;base64/, '').and_return(encoded_data)
+      Base64.should_receive(:decode64).with(encoded_data).and_return(image_data)
+      
+      Drawing.decode_png(string).should == image_data
+    end
   end
 end
