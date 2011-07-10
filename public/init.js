@@ -18,7 +18,7 @@ function upload() {
           caption: 'Check my drawing out!',
           description: 'Do you like it?',
           message: 'Check my drawing out!',
-          actions: [{name: 'Draw!', link: 'http://draw.heroku.com/'}]
+          actions: [{name: 'Draw!', link: 'http://drawbang.com/'}]
         },
         function(response) {
           if (response && response.post_id) {
