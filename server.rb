@@ -13,6 +13,7 @@ require 'rack-flash'
 
 require 'models/user'
 require 'models/drawing'
+require 'redirect'
 
 configure do
   require 'version'
@@ -36,6 +37,8 @@ end
 
 use Rack::Flash
 use Rack::MethodOverride
+
+use Redirect
 
 helpers do
   def is_production?
