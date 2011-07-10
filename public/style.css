@@ -50,7 +50,6 @@ p.flash.notice {
 }
 
 .share {
-	overflow: hidden;
 	width: 345px;
 }
 
@@ -80,7 +79,6 @@ p.sep a {
 }
 
 #header {
-	overflow: hidden;
 	text-align: center;
 }
 
