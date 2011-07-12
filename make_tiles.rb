@@ -29,5 +29,5 @@ total = matrix2.append(true)
 # total.write("total_test.png")
 
 # production
-init_aws
+Drawing.init_aws
 AWS::S3::S3Object.store("total_test.png", total.to_blob, S3_BUCKET, :access => :public_read)
