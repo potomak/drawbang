@@ -54,26 +54,51 @@ describe Drawing do
   describe "drawing.save" do
     after :each do
       REDIS.should_receive(:lpush).with("drawings", @id)
+      image = Object.new
+      image.should_receive(:to_blob)
+      thumbnail = Object.new
+      thumbnail.should_receive(:to_blob)
+      image.should_receive(:resize).and_return(thumbnail)
+      Drawing.should_receive(:process_image).and_return(image)
 
-      Drawing.new(@drawing.merge(:id => @id)).save
+      Drawing.new(@drawing.merge(:id => @id, :image => {:frame => []})).save
     end
     
     it "should save drawing on development env" do
+      file_url = "http://#{@drawing[:request_host]}/images/drawings/#{@id}"
+      
+      Drawing.should_receive(:save_image).and_return(file_url)
+      Drawing.should_receive(:save_image)
+      
+      @result_drawing = {:url => file_url}
+      REDIS.should_receive(:set).with(Drawing.key(@id), @result_drawing.to_json)
+    end
+    
+    it "should save drawing on production env" do
+      s3_object_url = "s3_object/public/url"
+      
+      Drawing.should_receive(:save_image).and_return(s3_object_url)
+      Drawing.should_receive(:save_image)
+      
+      @result_drawing = {:url => s3_object_url}
+      REDIS.should_receive(:set).with(Drawing.key(@id), @result_drawing.to_json)
+    end
+  end
+  
+  describe "Drawing.save_image" do
+    it "should save drawing on production env" do
       Drawing.should_receive(:is_production?).and_return(false)
-      Drawing.should_receive(:decode_png)
       
       file = Object.new
       file.should_receive(:'<<').with(nil)
       File.should_receive(:open).with(File.join(@test_path, @id), "w").and_yield(file)
       
-      @result_drawing = {:url => "http://#{@drawing[:request_host]}/images/drawings/#{@id}"}
-      REDIS.should_receive(:set).with(Drawing.key(@id), @result_drawing.to_json)
+      Drawing.save_image(@id, @drawing[:request_host], nil).should == "http://#{@drawing[:request_host]}/images/drawings/#{@id}"
     end
     
-    it "should save drawing on production env" do
+    it "should save drawing on development env" do
       Drawing.should_receive(:is_production?).and_return(true)
       Drawing.should_receive(:init_aws)
-      Drawing.should_receive(:decode_png)
       AWS::S3::S3Object.should_receive(:store).with(
         @id,
         nil,
@@ -85,8 +110,7 @@ describe Drawing do
       s3_object.should_receive(:url).with(:authenticated => false).and_return(s3_object_url)
       AWS::S3::S3Object.should_receive(:find).with(@id, @test_bucket).and_return(s3_object)
       
-      @result_drawing = {:url => s3_object_url}
-      REDIS.should_receive(:set).with(Drawing.key(@id), @result_drawing.to_json)
+      Drawing.save_image(@id, @drawing[:request_host], nil).should == s3_object_url
     end
   end
   
@@ -104,24 +128,6 @@ describe Drawing do
       JSON.should_receive(:parse).exactly(10).times.with(@drawing.to_json).and_return(@drawing)
 
       Drawing.all(opts).should == ids.map {|id| @drawing.merge(:id => id, :share_url => "http://#{opts[:host]}/drawings/#{id}")}
-    end
-  end
-  
-  describe "Drawing.decode_png" do
-    it "should return nil if nil object is passed" do
-      Drawing.decode_png(nil).should == nil
-    end
-    
-    it "should decode image data string" do
-      mime_type = "image/png"
-      encoded_data = "encoded image data"
-      image_data = "image data"
-      string = mime_type + encoded_data
-      
-      string.should_receive(:gsub).with(/data:image\/png;base64/, '').and_return(encoded_data)
-      Base64.should_receive(:decode64).with(encoded_data).and_return(image_data)
-      
-      Drawing.decode_png(string).should == image_data
     end
   end
 end

@@ -1,4 +1,4 @@
-init_aws
+Drawing.init_aws
 
 drawings = AWS::S3::Bucket.objects(S3_BUCKET).sort {|a, b| b.key <=> a.key}
 
