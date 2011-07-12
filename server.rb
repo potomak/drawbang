@@ -145,11 +145,13 @@ post '/upload' do
   redirect '/' unless logged_in?
   content_type :json
   
+  data = JSON.parse(request.env["rack.input"].read)
+  
   # compose drawing object
-  id = "#{Time.now.to_i}.png"
+  id = "#{Time.now.to_i}.#{data['image']['frames'] ? "gif" : "png"}"
   drawing = {
     :id => id,
-    :image_data => params[:imageData],
+    :image => data['image'],
     :request_host => request.host_with_port
   }
   
@@ -167,7 +169,7 @@ post '/upload' do
     drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}")
     drawing.merge(:thumb => haml(:'shared/thumb', :layout => false, :locals => drawing)).to_json
   rescue => e
-    "failure: #{e}".to_json
+    "failure: #{e}\n#{e.backtrace}".to_json
   end
 end
 

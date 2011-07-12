@@ -3,10 +3,18 @@ var currentColor = "#000000";
 function postUploadCallback(data) {
   if(typeof data.thumb != 'undefined') {
     $("#images").prepend(data.thumb);
+    
+    for(var i = 0; i < 2; i++) {
+      pixel.setCurrentFrame(i);
+      pixel.clearCanvas();
+    }
+    $(".frame.active").toggleClass("active");
+    $(".frame:eq(0)").toggleClass("active");
+    pixel.setCurrentFrame(0);
     pixel.clearCanvas();
 
-        // add event tracking data
-        _gaq.push(['_trackEvent', 'Drawings', 'Save', data.url]);
+    // add event tracking data
+    _gaq.push(['_trackEvent', 'Drawings', 'Save', data.url]);
       
     FB.ui({
       method: 'feed',
@@ -16,14 +24,14 @@ function postUploadCallback(data) {
       caption: 'Check my drawing out!',
       description: 'Do you like it?',
       message: 'Check my drawing out!',
-          actions: [{name: 'Draw!', link: 'http://drawbang.com/'}]
+      actions: [{name: 'Draw!', link: 'http://drawbang.com/'}]
     },
     function(response) {
       if (response && response.post_id) {
         // alert('Post was published.');
-            
-            // add event tracking data
-            _gaq.push(['_trackEvent', 'Drawings', 'Post', data.url]);
+
+        // add event tracking data
+        _gaq.push(['_trackEvent', 'Drawings', 'Post', data.url]);
       } else {
         // alert('Post was not published.');
       }
@@ -35,9 +43,38 @@ function postUploadCallback(data) {
 }
 
 function performUpload() {
-  $.post('/upload', { imageData : pixel.getDataURL() }, postUploadCallback, "json");
-  $(this).unbind('click').removeClass('enabled');
-  $(this).addClass('disabled');
+  var data = {image: null};
+  if(pixel.getFrame(1) != null) {
+    // NOTE: workaround
+    pixel.setCurrentFrame((pixel.getCurrentFrameId()+1)%2);
+    pixel.setCurrentFrame((pixel.getCurrentFrameId()+1)%2);
+    
+    data['image'] = {frames: []};
+    for(var i = 0; i < 2; i++) {
+      if(pixel.getCurrentFrameId() == i) {
+        data['image']['frames'].push(pixel.getCurrentFrame());
+      }
+      else {
+        data['image']['frames'].push(pixel.getFrame(i));
+      }
+    }
+  }
+  else {
+    data['image'] = {frame: pixel.getCurrentFrame()};
+  }
+  
+  $.ajax({
+    url: '/upload',
+    type: "POST",
+    contentType: "application/json",
+    processData: false,
+    data: JSON.stringify(data),
+    success: postUploadCallback,
+    dataType: "json"
+  });
+  
+  $("#upload.enabled").unbind('click').removeClass('enabled');
+  $("#upload").addClass('disabled');
 }
 
 function upload() {
@@ -145,5 +182,40 @@ $(document).ready(function() {
     $("." + action).click(function() {
       pixel[action].call();
     });
+  });
+  
+  $(".frame").click(function() {
+    pixel.setCurrentFrame($(this).data().frame);
+    
+    $(".frame.active").toggleClass("active");
+    $(this).toggleClass("active");
+  });
+  
+  $(".onion").click(function() {
+    if($(this).data().frame == pixel.getCurrentOnionFrameId()) {
+      pixel.setOnionFrame(null);
+    }
+    else {
+      pixel.setOnionFrame($(this).data().frame);
+      $(".onion.active").toggleClass("active");
+    }
+    
+    $(this).toggleClass("active");
+  });
+  
+  $(".play_stop").click(function() {
+    if($(this).hasClass("stop")) {
+      pixel.stop();
+    }
+    else {
+      pixel.play(5, function(frame) {
+        $(".frame.active").toggleClass("active");
+        $(".frame").each(function() {
+          $(this).data().frame == frame && $(this).toggleClass("active");
+        });
+      });
+    }
+    
+    $(this).toggleClass("stop");
   });
 });
