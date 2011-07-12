@@ -1,4 +1,5 @@
 /public/images/drawings/*.png
+/public/images/drawings/*.gif
 /config/facebook.yml
 /db/*.rdb
 /log/*.log
