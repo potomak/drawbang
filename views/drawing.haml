@@ -17,13 +17,14 @@
       - if logged_in? && @drawing['user']['uid'] == @user['uid']
         %form{:id => "delete_drawing", :action => "/drawings/#{params[:id]}", :method => "POST"}
           %input{:type => "hidden", :name => "_method", :value => "delete"}
-        %a{:href => "#", :onclick => "if (confirm('Sure?')) {$('#delete_drawing').submit();} return false;"} Delete
+        %a{:href => "#", :onclick => "if (confirm('Sure?')) {_gaq.push(['_trackEvent', 'Drawings', 'Delete', '#{@drawing['url']}']); $('#delete_drawing').submit();} return false;"} Delete
     
   .share
     .left.tweet_button
-      %a{:href => "http://twitter.com/share", :class => "twitter-share-button", 'data-url' => @drawing[:share_url], 'data-text' => "Check this drawing out!", 'data-count' => "horizontal", 'data-via' => "drawbang"} Tweet
+      %a{:href => "http://twitter.com/share", :class => "twitter-share-button", :'data-url' => @drawing[:share_url], :'data-text' => "Check this drawing out!", :'data-count' => "horizontal", :'data-via' => "drawbang"} Tweet
     .left.like_button
       %fb:like{:href => @drawing[:share_url], :send => "false", :layout => "button_count", :width => "110", :show_faces => "false", :font => ""}
+    %div{:style => "clear: both"}
 
 #disqus_thread
 :javascript

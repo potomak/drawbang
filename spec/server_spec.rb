@@ -6,6 +6,8 @@ describe "Draw! app" do
   def app
     @app ||= Sinatra::Application
   end
+  
+  it "should respond to POST /"
 
   describe "GET /" do
     it "should respond" do
@@ -21,21 +23,17 @@ describe "Draw! app" do
     
     it "should set session expiration date" do
       get '/'
-      puts last_response.header['Set-Cookie']
       last_response.header['Set-Cookie'].should match /expires/i
     end
   end
   
-  it "should respond to GET /feed.rss" do
-    Drawing.should_receive(:all).and_return([])
-    header 'Accept', 'application/rss+xml'
-    get '/'
-    last_response.should be_ok
-  end
-  
-  it "should respond to GET /about" do
-    get '/about'
-    last_response.should be_ok
+  describe "GET /feed.rss" do
+    it "should respond" do
+      Drawing.should_receive(:all).and_return([])
+      header 'Accept', 'application/rss+xml'
+      get '/'
+      last_response.should be_ok
+    end
   end
   
   describe "GET /drawings/123.png" do
@@ -63,9 +61,27 @@ describe "Draw! app" do
     end
   end
   
-  # it "should respond to POST /upload" do
-  #   post '/upload'
-  #   
-  #   last_response.should be_ok
-  # end
+  it "should respond to POST /upload"
+  it "should respond to GET /auth/facebook/callback"
+  it "should respond to GET /auth/failure"
+  
+  describe "GET /logout" do
+    it "should redirect" do
+      get '/logout'
+      last_response.should be_redirect
+    end
+    
+    # see https://groups.google.com/d/topic/sinatrarb/CMlBimoHiPg/discussion
+    it "should clear session"
+  end
+  
+  describe "GET /about" do
+    it "should respond" do
+      get '/about'
+      last_response.should be_ok
+    end
+  end
+  
+  describe "DELETE /drawings/123.png" do
+  end
 end

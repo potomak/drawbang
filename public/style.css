@@ -18,10 +18,10 @@ h2 {
 
 h1, h2 {
 	text-align: center;
-	color: black;
-	-webkit-text-fill-color: white; /* Will override color (regardless of order) */
+	color: #000;
+	-webkit-text-fill-color: #fff; /* Will override color (regardless of order) */
 	-webkit-text-stroke-width: 2px;
-	-webkit-text-stroke-color: black;
+	-webkit-text-stroke-color: #000;
 	text-shadow:
 		 4px 4px 0 #000,
 		-1px -1px 0 #000,
@@ -50,7 +50,6 @@ p.flash.notice {
 }
 
 .share {
-	overflow: hidden;
 	width: 345px;
 }
 
@@ -80,7 +79,6 @@ p.sep a {
 }
 
 #header {
-	overflow: hidden;
 	text-align: center;
 }
 
@@ -132,6 +130,8 @@ p.sep a {
 	width: 542px;
 }
 
+/* canvas */
+
 #controls {
 	float: left;
 	margin-right: 10px;
@@ -150,6 +150,7 @@ p.sep a {
 	background-image: url(/images/controls.gif);
 	margin-right: 4px;
 	margin-bottom: 4px;
+	background-color: #eee;
 	border: 1px solid #ccc;
 	-moz-box-shadow: 3px 3px 0 #ccc;
 	-webkit-box-shadow: 3px 3px 0 #ccc;
@@ -247,6 +248,8 @@ p.sep a {
 	box-shadow: 3px 3px 0 #000;
 }
 
+/* canvas */
+
 #canvas {
 	float: left;
 	cursor: crosshair;
@@ -258,6 +261,108 @@ p.sep a {
 	-moz-box-shadow: 5px 5px 0 #000;
 	-webkit-box-shadow: 5px 5px 0 #000;
 	box-shadow: 5px 5px 0 #000;
+}
+
+/* commands */
+
+#commands {
+	overflow: hidden;
+}
+
+#size {
+	float: left;
+	font-size: 12px;
+	margin-left: 24px;
+}
+
+#size p {
+	margin-bottom: 5px;
+}
+
+#size ul {
+	list-style-type: none;
+	padding: 0;
+	margin: 0;
+}
+
+#size li {
+	padding-left: 20px;
+	margin-bottom: 3px;
+	background-repeat: no-repeat;
+	background-position: 0 50%;
+}
+
+#size li.active {
+	background-image: url(/images/arrow.png);
+}
+
+#size li.star.yellow {
+	background-image: url(/images/star_yellow.png);
+}
+
+#size li.star.blue {
+	background-image: url(/images/star_blue.png);
+}
+
+#size li.star.green {
+	background-image: url(/images/star_green.png);
+}
+
+#size li.coming_soon {
+	opacity: 0.2;
+}
+
+#size li:hover.coming_soon {
+	opacity: 0.7;
+}
+
+#animation {
+	float: left;
+	font-size: 12px;
+	margin-left: 24px;
+}
+
+#animation .frame,
+#animation .onion,
+#animation .play_stop {
+	cursor: pointer;
+	float: left;
+	width: 15px;
+	height: 15px;
+	text-align: center;
+	background-color: #eee;
+	margin-right: 5px;
+	margin-bottom: 5px;
+	padding-top: 1px;
+	padding-left: 1px;
+	border: 1px solid #ccc;
+	-moz-box-shadow: 3px 3px 0 #ccc;
+	-webkit-box-shadow: 3px 3px 0 #ccc;
+	box-shadow: 3px 3px 0 #ccc;
+}
+
+#animation .frame.active,
+#animation .onion.active {
+	color: #fff;
+	background-color: #000;
+	border: 1px solid #000;
+	-moz-box-shadow: 3px 3px 0 #000;
+	-webkit-box-shadow: 3px 3px 0 #000;
+	box-shadow: 3px 3px 0 #000;
+}
+
+#animation .play_stop {
+	background-image: url(/images/play_stop.png);
+	background-position: 0 0;
+	margin-right: 10px;
+	border: 1px solid #000;
+	-moz-box-shadow: 3px 3px 0 #000;
+	-webkit-box-shadow: 3px 3px 0 #000;
+	box-shadow: 3px 3px 0 #000;
+}
+
+#animation .play_stop.stop {
+	background-position: 0 16px;
 }
 
 #upload {

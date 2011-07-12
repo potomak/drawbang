@@ -10,6 +10,7 @@ require 'redis'
 require 'system_timer'
 require 'json'
 require 'rack-flash'
+require 'fbgraph'
 
 require 'models/user'
 require 'models/drawing'
@@ -30,6 +31,7 @@ end
 
 use OmniAuth::Builder do
   options = {:scope => 'status_update, publish_stream', :display => "popup"}
+  # NOTE: https://github.com/technoweenie/faraday/wiki/Setting-up-SSL-certificates
   options.merge!({:client_options => {:ssl => {:ca_file => '/usr/lib/ssl/certs/ca-certificates.crt'}}}) if settings.environment == :production
   provider :facebook, FACEBOOK['app_id'], FACEBOOK['app_secret'], options
 end
@@ -41,7 +43,7 @@ use Redirect
 
 helpers do
   def is_production?
-    settings.environment == :production
+    :production == settings.environment
   end
   
   def logged_in?
@@ -50,22 +52,52 @@ helpers do
 end
 
 before do
+  # authentication
   @user = User.find(session[:user]) if session[:user]
+  # pagination
   @current_page = (params[:page] || 1).to_i
   @page = @current_page - 1
 end
 
-get '/' do
+def root_action
   @drawings = Drawing.all(:page => @page, :per_page => PER_PAGE, :host => request.host)
   @colors = EGA_PALETTE
+end
+
+#
+# POST /
+#
+post '/' do
+  # parse facebook signed_request
+  data = FBGraph::Canvas.parse_signed_request(FACEBOOK['app_secret'], params[:signed_request])
+  
+  # log in users who have allowed draw! app to access their facebook data
+  if data['user_id']
+    session[:user] = "user:#{data['user_id']}"
+    @user = User.update(session[:user], :credentials => {:token => data['oauth_token']})
+  end
+  
+  root_action
+
+  haml :index
+end
+
+#
+# GET /
+#
+get '/' do
+  root_action
   
   if request.xhr?
-    haml :gallery, :layout => false
+    haml :'shared/gallery', :layout => false
   else
     haml :index
   end
 end
 
+#
+# GET /feed.rss
+#
 get '/feed.rss', :provides => 'rss' do
   @drawings = Drawing.all(:page => 0, :per_page => PER_PAGE, :host => request.host)
   builder :feed
@@ -82,6 +114,9 @@ get '/drawings/:id' do
   end
 end
 
+#
+# DELETE /drawings/:id
+#
 delete '/drawings/:id' do |id|
   redirect "/drawings/#{id}" unless logged_in?
   @drawing = Drawing.find(id)
@@ -89,14 +124,6 @@ delete '/drawings/:id' do |id|
   
   if @drawing['user']['uid'] == @user['uid']
     begin
-      if is_production?
-        init_aws
-        
-        AWS::S3::S3Object.delete id, S3_BUCKET
-      else
-        File.delete(File.join(DRAWINGS_PATH, id))
-      end
-      
       Drawing.destroy(id)
     rescue => e
       "failure: #{e}"
@@ -111,75 +138,74 @@ delete '/drawings/:id' do |id|
   redirect "/drawings/#{id}"
 end
 
+#
+# POST /upload
+#
 post '/upload' do
+  redirect '/' unless logged_in?
   content_type :json
   
-  id = "#{Time.now.to_i}.png"
-  drawing = {:id => id, :url => nil}
+  data = JSON.parse(request.env["rack.input"].read)
+  
+  # compose drawing object
+  id = "#{Time.now.to_i}.#{data['image']['frames'] ? "gif" : "png"}"
+  drawing = {
+    :id => id,
+    :image => data['image'],
+    :request_host => request.host_with_port
+  }
+  
+  # add user info if present
+  drawing.merge!(
+    :user => {
+      :uid => @user['uid'],
+      :first_name => @user['user_info']['first_name'],
+      :image => @user['user_info']['image']
+    }
+  ) if logged_in?
   
   begin
-    if is_production?
-      init_aws
-
-      AWS::S3::S3Object.store(
-        id,
-        decode_png(params[:imageData]),
-        S3_BUCKET,
-        :access => :public_read)
-      
-      drawing.merge!({:url => AWS::S3::S3Object.find(id, S3_BUCKET).url(:authenticated => false)})
-    else
-      File.open(File.join(DRAWINGS_PATH, id), "w") do |file|
-        file << decode_png(params[:imageData])
-      end
-      
-      drawing.merge!({:url => "http://#{request.host_with_port}/images/drawings/#{id}"})
-    end
-    
-    drawing.merge!(:user => {:uid => @user['uid'], :first_name => @user['user_info']['first_name'], :image => @user['user_info']['image']}) if logged_in?
-    
-    Drawing.new(drawing).save
-    
-    drawing.merge(
-      :thumb => haml(:thumb, :layout => false, :locals => drawing.merge!({:share_url => "http://#{request.host}/drawings/#{id}"}))
-    ).to_json
+    drawing = Drawing.new(drawing).save
+    drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}")
+    drawing.merge(:thumb => haml(:'shared/thumb', :layout => false, :locals => drawing)).to_json
   rescue => e
-    "failure: #{e}".to_json
+    "failure: #{e}\n#{e.backtrace}".to_json
   end
 end
 
+#
+# GET /auth/facebook/callback
+#
 get '/auth/facebook/callback' do
   session[:user] = "user:#{request.env['omniauth.auth']['uid']}"
-  User.new(request.env['omniauth.auth'].merge(:key => session[:user])).save
+  @user = User.new(request.env['omniauth.auth'].merge(:key => session[:user])).save
   haml :callback
 end
 
+#
+# GET /auth/failure
+#
 get '/auth/failure' do
   clear_session
-  flash[:error] = 'There was an error trying to access to your Facebook data'
-  redirect params[:origin] || '/'
+  flash.now[:error] = 'There was an error trying to access to your Facebook data.<br/>Please log in to save your drawing.'
+  haml :failure
 end
 
+#
+# GET /logout
+#
 get '/logout' do
   clear_session
   redirect params[:origin] || '/'
 end
 
+#
+# GET /about
+#
 get '/about' do
   haml :about
 end
 
 def clear_session
   session[:user] = nil
-end
-
-def init_aws
-  AWS::S3::Base.establish_connection!(
-    :access_key_id     => ENV['S3_KEY'],
-    :secret_access_key => ENV['S3_SECRET']
-  )
-end
-
-def decode_png(string)
-  Base64.decode64(string.gsub(/data:image\/png;base64/, ''))
 end

@@ -20,20 +20,20 @@
 #desktop
   #controls
     .actions
-      .action.selectable.pixel.active{ 'data-action' => 'pixel' }
-      .action.selectable.fill{ 'data-action' => 'fill' }
-      .action.selectable.clearPixel{ 'data-action' => 'clearPixel' }
+      .action.selectable.pixel.active{:'data-action' => 'pixel'}
+      .action.selectable.fill{:'data-action' => 'fill'}
+      .action.selectable.clearPixel{:'data-action' => 'clearPixel'}
     .actions
       .action.undo.active
       .action.redo.active
     #colors
       - @colors.each do |color|
-        .color{ 'data-color' => color, :class => "#{"active" if color == "#000000"}" }
-          %div{ :style => "background-color: #{color}" }
+        .color{:'data-color' => color, :class => "#{"active" if color == "#000000"}"}
+          %div{:style => "background-color: #{color}"}
     #clear.active
 
   #canvas
-    %canvas{ :width => "320", :height => "320", :onSelectStart => "this.style.cursor='crosshair'; return false;" }
+    %canvas{:width => "320", :height => "320", :onSelectStart => "this.style.cursor='crosshair'; return false;"}
       %p
         Sorry, your browser doesn't support the <canvas> element.
       %p
@@ -44,10 +44,30 @@
         or
         %a{:href => "http://www.mozilla.com/"} Firefox
 
-  %a#upload.disabled Save image
+  #commands
+    %a#upload.disabled Save image
+    -#
+      / #size
+      /   %p Image size (px):
+      /   %ul
+      /     %li.active 16x16
+      /     %li.star.green.coming_soon 32x32
+      /     %li.star.blue.coming_soon 64x64
+      /     %li.star.yellow.coming_soon custom
+    #animation
+      %p Frames
+      %div{:style => "overflow: hidden"}
+        .play_stop.active
+        .frame.active{:'data-frame' => 0, :href => "#"} 1
+        .frame{:'data-frame' => 1, :href => "#"} 2
+      %p Onion skin
+      %div{:style => "overflow: hidden"}
+        - (0..1).each do |frame|
+          .onion{:'data-frame' => frame, :href => "#"}= frame+1
+    
 
 %h2 GALLERY
 #images
   %div{:style => "clear: both"}
-  = haml :gallery
+  = haml :'shared/gallery'
 %a{:id => "more", :href => "#"} More

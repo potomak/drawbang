@@ -1,43 +1,91 @@
 var currentColor = "#000000";
 
-function upload() {
-  if(confirm("Want to save?")) {
-    $.post('/upload', { imageData : pixel.getDataURL() }, function(data) {
-      if(typeof data.thumb != 'undefined') {
-        $("#images").prepend(data.thumb);
-        pixel.clearCanvas();
-        
-        // add event tracking data
-        _gaq.push(['_trackEvent', 'Drawings', 'Save', data.url]);
+function postUploadCallback(data) {
+  if(typeof data.thumb != 'undefined') {
+    $("#images").prepend(data.thumb);
+    
+    for(var i = 0; i < 2; i++) {
+      pixel.setCurrentFrame(i);
+      pixel.clearCanvas();
+    }
+    $(".frame.active").toggleClass("active");
+    $(".frame:eq(0)").toggleClass("active");
+    pixel.setCurrentFrame(0);
+    pixel.clearCanvas();
+
+    // add event tracking data
+    _gaq.push(['_trackEvent', 'Drawings', 'Save', data.url]);
       
-        FB.ui({
-          method: 'feed',
-          name: 'My brand new drawing',
-          link: data.share_url,
-          picture: data.url,
-          caption: 'Check my drawing out!',
-          description: 'Do you like it?',
-          message: 'Check my drawing out!',
-          actions: [{name: 'Draw!', link: 'http://drawbang.com/'}]
-        },
-        function(response) {
-          if (response && response.post_id) {
-            // alert('Post was published.');
-            
-            // add event tracking data
-            _gaq.push(['_trackEvent', 'Drawings', 'Post', data.url]);
-          } else {
-            // alert('Post was not published.');
-          }
-        });
+    FB.ui({
+      method: 'feed',
+      name: 'My brand new drawing',
+      link: data.share_url,
+      picture: data.url,
+      caption: 'Check my drawing out!',
+      description: 'Do you like it?',
+      message: 'Check my drawing out!',
+      actions: [{name: 'Draw!', link: 'http://drawbang.com/'}]
+    },
+    function(response) {
+      if (response && response.post_id) {
+        // alert('Post was published.');
+
+        // add event tracking data
+        _gaq.push(['_trackEvent', 'Drawings', 'Post', data.url]);
+      } else {
+        // alert('Post was not published.');
+      }
+    });
+  }
+  else {
+    alert(data);
+  }
+}
+
+function performUpload() {
+  var data = {image: null};
+  if(pixel.getFrame(1) != null) {
+    // NOTE: workaround
+    pixel.setCurrentFrame((pixel.getCurrentFrameId()+1)%2);
+    pixel.setCurrentFrame((pixel.getCurrentFrameId()+1)%2);
+    
+    data['image'] = {frames: []};
+    for(var i = 0; i < 2; i++) {
+      if(pixel.getCurrentFrameId() == i) {
+        data['image']['frames'].push(pixel.getCurrentFrame());
       }
       else {
-        alert(data);
+        data['image']['frames'].push(pixel.getFrame(i));
       }
-    }, "json");
+    }
+  }
+  else {
+    data['image'] = {frame: pixel.getCurrentFrame()};
+  }
   
-    $(this).unbind('click').removeClass('enabled');
-    $(this).addClass('disabled');
+  $.ajax({
+    url: '/upload',
+    type: "POST",
+    contentType: "application/json",
+    processData: false,
+    data: JSON.stringify(data),
+    success: postUploadCallback,
+    dataType: "json"
+  });
+  
+  $("#upload.enabled").unbind('click').removeClass('enabled');
+  $("#upload").addClass('disabled');
+}
+
+function upload() {
+  if(confirm("Want to save?")) {
+    if(typeof user_uid != 'undefined') {
+      performUpload();
+    }
+    else {
+      trying_to_save = true;
+      $("a.popup").trigger('click');
+    }
   }
   
   return false;
@@ -108,6 +156,7 @@ $(document).ready(function() {
     $(this).toggleClass("active");
   });
 
+  // colors
   $(".color").click(function() {
     currentColor = $(this).data().color;
     
@@ -115,6 +164,7 @@ $(document).ready(function() {
     $(this).toggleClass("active");
   });
 
+  // undo / redo
   $(document).keydown(function(e) {
     if(ctrlKey(e) && e.keyCode == zKey) {
       if(e.shiftKey) {
@@ -132,5 +182,40 @@ $(document).ready(function() {
     $("." + action).click(function() {
       pixel[action].call();
     });
+  });
+  
+  $(".frame").click(function() {
+    pixel.setCurrentFrame($(this).data().frame);
+    
+    $(".frame.active").toggleClass("active");
+    $(this).toggleClass("active");
+  });
+  
+  $(".onion").click(function() {
+    if($(this).data().frame == pixel.getCurrentOnionFrameId()) {
+      pixel.setOnionFrame(null);
+    }
+    else {
+      pixel.setOnionFrame($(this).data().frame);
+      $(".onion.active").toggleClass("active");
+    }
+    
+    $(this).toggleClass("active");
+  });
+  
+  $(".play_stop").click(function() {
+    if($(this).hasClass("stop")) {
+      pixel.stop();
+    }
+    else {
+      pixel.play(5, function(frame) {
+        $(".frame.active").toggleClass("active");
+        $(".frame").each(function() {
+          $(this).data().frame == frame && $(this).toggleClass("active");
+        });
+      });
+    }
+    
+    $(this).toggleClass("stop");
   });
 });
