@@ -30,7 +30,7 @@ configure do
 end
 
 use OmniAuth::Builder do
-  options = {:scope => 'status_update, publish_stream', :display => "popup"}
+  options = {:scope => '', :display => "popup"}
   # NOTE: https://github.com/technoweenie/faraday/wiki/Setting-up-SSL-certificates
   options.merge!({:client_options => {:ssl => {:ca_file => '/usr/lib/ssl/certs/ca-certificates.crt'}}}) if settings.environment == :production
   provider :facebook, FACEBOOK['app_id'], FACEBOOK['app_secret'], options
