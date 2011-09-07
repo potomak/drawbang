@@ -14,6 +14,10 @@ See also [`Gemfile`](https://github.com/potomak/jquery-pixel-app/raw/master/Gemf
 
 ## How to run the app locally
 
+Copy Facebook config file example
+
+    cp config/facebook.example.yml config/facebook.yml
+
 Run
 
     ruby server.rb

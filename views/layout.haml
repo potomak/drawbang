@@ -2,7 +2,7 @@
 %html{'xmlns:fb' => "http://www.facebook.com/2008/fbml"}
   %head
     %meta{'http-equiv' => 'Content-Type', :content => 'text/html;charset=utf-8'}
-    %meta{:name => 'description', :content => 'Draw!'}
+    %meta{:name => 'description', :content => 'Draw 16 x 16 animated pictures. Draw! is a social flavored online pixel art editor.'}
     %title= 'Draw!'
     
     %script{:src => 'http://ajax.googleapis.com/ajax/libs/jquery/1.4/jquery.min.js', :type => 'text/javascript'}
@@ -57,24 +57,27 @@
           = haml :'shared/user_header', :locals => {:origin => CGI.escape(request.url)}
         - else
           .left
-            %p.right to share your drawings easily
             %a{:href => "/auth/facebook?origin=#{CGI.escape request.url}", :class => "popup", :'data-width' => 600, :'data-height' => 400}
               %img{:src => "/images/fb_login_button.png"}
   
     #header
-      %a{:href => "/" == request.path_info ? "/about" : "/", :title => "/" == request.path_info ? "About Draw!" : "Return to gallery"}
-        %h1 DRAW!
-      .share
-        .left.flattr_button
-          %a.FlattrButton{:style => "display:none;", :rev => "flattr;button:compact;", :href => "http://draw.heroku.com/"}
-          %noscript
-            %a{:href => "http://flattr.com/thing/310196/Draw", :target => "_blank"}
-              %img{:src => "http://api.flattr.com/button/flattr-badge-large.png", :alt => "Flattr this", :title => "Flattr this", :border => "0"}
-        .left.tweet_button
-          %a{:href => "http://twitter.com/share", :class => "twitter-share-button", :'data-url' => "http://drawbang.com", :'data-text' => "Have fun drawing!", :'data-count' => "horizontal", :'data-via' => "drawbang", :'data-related' => "drawbang"} Tweet
-        .left.like_button
-          %fb:like{:href => "http://drawbang.com", :send => "false", :layout => "button_count", :width => "110", :show_faces => "false", :font => ""}
-        %div{:style => "clear: both"}
+      .wrapper
+        .sponsor
+          %p Sponsored by
+          %a{:href => "http://redistogo.com", :title => "Redis To Go"} Redis To Go
+        %a{:href => "/" == request.path_info ? "/about" : "/", :title => "/" == request.path_info ? "Learn more about Draw!" : "Return to gallery"}
+          %h1 DRAW!
+        .share
+          .left.flattr_button
+            %a.FlattrButton{:style => "display:none;", :rev => "flattr;button:compact;", :href => "http://draw.heroku.com/"}
+            %noscript
+              %a{:href => "http://flattr.com/thing/310196/Draw", :target => "_blank"}
+                %img{:src => "http://api.flattr.com/button/flattr-badge-large.png", :alt => "Flattr this", :title => "Flattr this", :border => "0"}
+          .left.tweet_button
+            %a{:href => "http://twitter.com/share", :class => "twitter-share-button", :'data-url' => "http://drawbang.com", :'data-text' => "Have fun drawing!", :'data-count' => "horizontal", :'data-via' => "drawbang", :'data-related' => "drawbang"} Tweet
+          .left.like_button
+            %fb:like{:href => "http://drawbang.com", :send => "false", :layout => "button_count", :width => "110", :show_faces => "false", :font => ""}
+          %div{:style => "clear: both"}
     
     #container.wrapper
       = yield
