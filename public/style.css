@@ -82,6 +82,30 @@ p.sep a {
 	text-align: center;
 }
 
+#header .wrapper {
+	position: relative;
+}
+
+#header .sponsor {
+	position: absolute;
+	right: 0;
+}
+
+#header .sponsor a {
+	background: url(/images/redistogo.png);
+	width: 48px;
+	height: 48px;
+	text-indent: -9000px;
+	display: block;
+	float: right;
+}
+
+#header .sponsor p {
+	margin-top: 5px;
+	margin-bottom: 5px;
+	font-size: 8px;
+}
+
 #header h1 {
 	margin-top: 20px;
 	margin-bottom: 0px;
