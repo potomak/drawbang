@@ -59,10 +59,11 @@
       %div{:style => "overflow: hidden"}
         .play_stop.active
         .frame.active{:'data-frame' => 0, :href => "#"} 1
-        .frame{:'data-frame' => 1, :href => "#"} 2
+        - (1..7).each do |frame|
+          .frame{:'data-frame' => frame, :href => "#"}= frame+1
       %p Onion skin
       %div{:style => "overflow: hidden"}
-        - (0..1).each do |frame|
+        - (0..7).each do |frame|
           .onion{:'data-frame' => frame, :href => "#"}= frame+1
     
 

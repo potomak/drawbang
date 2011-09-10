@@ -1,10 +1,11 @@
 var currentColor = "#000000";
+var maxFrames = 8;
 
 function postUploadCallback(data) {
   if(typeof data.thumb != 'undefined') {
     $("#images").prepend(data.thumb);
     
-    for(var i = 0; i < 2; i++) {
+    for(var i = 0; i < maxFrames; i++) {
       pixel.setCurrentFrame(i);
       pixel.clearCanvas();
     }
@@ -44,13 +45,22 @@ function postUploadCallback(data) {
 
 function performUpload() {
   var data = {image: null};
-  if(pixel.getFrame(1) != null) {
-    // NOTE: workaround
-    pixel.setCurrentFrame((pixel.getCurrentFrameId()+1)%2);
-    pixel.setCurrentFrame((pixel.getCurrentFrameId()+1)%2);
+  var lastFrameNotNull = 0;
+  
+  for(var i = 1; i < maxFrames && 0 == lastFrameNotNull; i++) {
+    if(pixel.getFrame(i) == null) {
+      lastFrameNotNull = i-1;
+    }
+  }
+  
+  if(0 != lastFrameNotNull) {
+    // NOTE: workaround (but why?)
+    for(var i = 0; i < lastFrameNotNull; i++) {
+      pixel.setCurrentFrame((pixel.getCurrentFrameId()+1) % (lastFrameNotNull+1));
+    }
     
     data['image'] = {frames: []};
-    for(var i = 0; i < 2; i++) {
+    for(var i = 0; i < lastFrameNotNull; i++) {
       if(pixel.getCurrentFrameId() == i) {
         data['image']['frames'].push(pixel.getCurrentFrame());
       }
