@@ -18,6 +18,10 @@ Copy Facebook config file example
 
     cp config/facebook.example.yml config/facebook.yml
 
+Start Redis
+
+    redis-server config/redis.conf
+
 Run
 
     ruby server.rb

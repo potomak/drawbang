@@ -12,12 +12,21 @@
   %meta{:property => "og:url", :content => "http://drawbang.com"}
   %meta{:property => "og:image", :content => "http://#{request.host_with_port}/images/draw.png"}
   %meta{:property => "og:site_name", :content => "Draw!"}
+  %meta{:property => "og:description", :content => "Let's draw pixelart now!"}
   %meta{:property => "fb:app_id", :content => FACEBOOK['app_id']}
-  %meta{:property => "og:description", :content => "Let's draw now!"}
   
   %link{:rel => "alternate", :type => "application/rss+xml", :href => "http://#{request.host_with_port}/feed.rss", :title => "Draw! feed"}
 
 #desktop
+  #adv
+    :javascript
+      google_ad_client = "ca-pub-7194529311513014";
+      /* Draw! (160x600) */
+      google_ad_slot = "7948970014";
+      google_ad_width = 160;
+      google_ad_height = 600;
+    %script{:src => 'http://pagead2.googlesyndication.com/pagead/show_ads.js', :type => 'text/javascript'}
+  
   #controls
     .actions
       .action.selectable.pixel.active{:'data-action' => 'pixel'}
@@ -45,7 +54,7 @@
         %a{:href => "http://www.mozilla.com/"} Firefox
 
   #commands
-    %a#upload.disabled Save image
+    %a#upload.disabled Save
     -#
       / #size
       /   %p Image size (px):
@@ -64,7 +73,16 @@
       %div{:style => "overflow: hidden"}
         - (0..1).each do |frame|
           .onion{:'data-frame' => frame, :href => "#"}= frame+1
-    
+  
+  - 2.times do
+    .adv2
+      :javascript
+        google_ad_client = "ca-pub-7194529311513014";
+        /* Draw! (200x200) */
+        google_ad_slot = "6210493148";
+        google_ad_width = 200;
+        google_ad_height = 200;
+      %script{:src => 'http://pagead2.googlesyndication.com/pagead/show_ads.js', :type => 'text/javascript'}
 
 %h2 GALLERY
 #images
