@@ -149,9 +149,17 @@ p.sep a {
 
 #desktop {
 	overflow: hidden;
-	margin: 0 auto 80px auto;
-	padding-left: 100px;
-	width: 542px;
+}
+
+#adv {
+	float: left;
+	margin-right: 20px;
+}
+
+.adv2 {
+	float: left;
+	margin-top: 72px;
+	margin-right: 20px;
 }
 
 /* canvas */
@@ -341,7 +349,6 @@ p.sep a {
 }
 
 #animation {
-	float: left;
 	font-size: 12px;
 	margin-left: 24px;
 }
@@ -390,9 +397,8 @@ p.sep a {
 }
 
 #upload {
-	float: right;
 	padding-left: 26px;
-	margin-left: 10px;
+	margin-left: 22px;
 	background: url(/images/save.gif) no-repeat;
 }
 
