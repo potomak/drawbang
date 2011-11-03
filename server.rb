@@ -14,7 +14,8 @@ require 'fbgraph'
 
 require 'models/user'
 require 'models/drawing'
-require 'redirect'
+require 'lib/middlewares/no_www'
+require 'lib/middlewares/no_heroku'
 
 configure do
   require 'version'
@@ -39,7 +40,8 @@ end
 use Rack::Flash
 use Rack::MethodOverride
 
-use Redirect
+use NoWWW
+use NoHeroku
 
 helpers do
   def is_production?
