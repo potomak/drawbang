@@ -1,4 +1,5 @@
 source :rubygems
+gem 'rake'
 gem 'sinatra'
 gem 'haml'
 gem 'aws-s3'
