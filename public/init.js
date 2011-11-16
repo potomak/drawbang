@@ -5,38 +5,9 @@ function postUploadCallback(data) {
   if(typeof data.thumb != 'undefined') {
     $("#images").prepend(data.thumb);
     
-    for(var i = 0; i < maxFrames; i++) {
-      pixel.setCurrentFrame(i);
-      pixel.clearCanvas();
-    }
-    $(".frame.active").toggleClass("active");
-    $(".frame:eq(0)").toggleClass("active");
-    pixel.setCurrentFrame(0);
-    pixel.clearCanvas();
-
-    // add event tracking data
-    _gaq.push(['_trackEvent', 'Drawings', 'Save', data.url]);
-      
-    FB.ui({
-      method: 'feed',
-      name: 'My brand new drawing',
-      link: data.share_url,
-      picture: data.url,
-      caption: 'Check my drawing out!',
-      description: 'Do you like it?',
-      message: 'Check my drawing out!',
-      actions: [{name: 'Draw!', link: 'http://drawbang.com/'}]
-    },
-    function(response) {
-      if (response && response.post_id) {
-        // alert('Post was published.');
-
-        // add event tracking data
-        _gaq.push(['_trackEvent', 'Drawings', 'Post', data.url]);
-      } else {
-        // alert('Post was not published.');
-      }
-    });
+    clearAll();
+    trackEvent('Save', data.url);
+    showFacebookDialog(data.share_url, data.url);
   }
   else {
     alert(data);
@@ -45,30 +16,29 @@ function postUploadCallback(data) {
 
 function performUpload() {
   var data = {image: null},
-      lastFrameNotNull = 0;
+      lastFrameNotNull = -1,
+      lastFrameNotNullFound = false;
   
-  for(var i = 1; i < maxFrames && 0 == lastFrameNotNull; i++) {
+  for(var i = 1; i < maxFrames && !lastFrameNotNullFound; i++) {
     if(pixel.getFrame(i) == null) {
       lastFrameNotNull = i-1;
+      lastFrameNotNullFound = true;
     }
   }
   
-  console.log(['lastFrameNotNull', 0]);
+  console.log(['lastFrameNotNull', lastFrameNotNull]);
   
   if(0 != lastFrameNotNull) {
-    // NOTE: workaround (but why?)
-    for(var i = 0; i < lastFrameNotNull; i++) {
+    -1 == lastFrameNotNull && (lastFrameNotNull = 15);
+    
+    // NOTE: workaround to populate frames matrix
+    for(var i = 0; i < lastFrameNotNull+1; i++) {
       pixel.setCurrentFrame((pixel.getCurrentFrameId()+1) % (lastFrameNotNull+1));
     }
     
     data['image'] = {frames: []};
-    for(var i = 0; i < lastFrameNotNull; i++) {
-      if(pixel.getCurrentFrameId() == i) {
-        data['image']['frames'].push(pixel.getCurrentFrame());
-      }
-      else {
-        data['image']['frames'].push(pixel.getFrame(i));
-      }
+    for(var i = 0; i < lastFrameNotNull+1; i++) {
+      data['image']['frames'].push(pixel.getFrame(i));
     }
   }
   else {
@@ -107,6 +77,31 @@ function ctrlKey(e) {
   return navigator.platform.match(/mac/i) ? e.metaKey : e.ctrlKey;
 }
 
+// clear all frames, disable all frames except the first one and make first frame active
+function clearAll() {
+  for(var i = 0; i < frames; i++) {
+    pixel.setCurrentFrame(i);
+    pixel.clearCanvas();
+    disable($(".frame[data-frame=" + i + "]"));
+  }
+  deactivate($(".frame.active"));
+  activate($(".frame[data-frame=0]"));
+  enable($(".frame[data-frame=0]"));
+  pixel.setCurrentFrame(0);
+  pixel.clearCanvas();
+  frames = 1;
+}
+
+// deactivate element
+function deactivate($el) {
+  $el.removeClass("active");
+}
+
+// activate element
+function activate($el) {
+  $el.addClass("active");
+}
+
 // disable element
 function disable($el) {
   $el.addClass("disabled");
@@ -120,6 +115,32 @@ function enable($el) {
 // is element enabled?
 function isEnabled($el) {
   return !$el.hasClass("disabled");
+}
+
+// track event
+function trackEvent(e, url) {
+  _gaq.push(['_trackEvent', 'Drawings', e, url]);
+}
+
+// show facebook wall post dialog
+function showFacebookDialog(share_url, image_url) {
+  FB.ui({
+    method: 'feed',
+    name: 'My brand new drawing',
+    link: share_url,
+    picture: image_url,
+    caption: 'Check my drawing out!',
+    description: 'Do you like it?',
+    message: 'Check my drawing out!',
+    actions: [{name: 'Draw!', link: 'http://drawbang.com/'}]
+  },
+  function(response) {
+    if (response && response.post_id) {
+      trackEvent('Post', image_url);
+    } else {
+      // alert('Post was not published.');
+    }
+  });
 }
 
 $(document).ready(function() {
