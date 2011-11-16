@@ -1,5 +1,5 @@
-var currentColor = "#000000";
-var maxFrames = 8;
+var currentColor = "#000000",
+    frames = 1;
 
 function postUploadCallback(data) {
   if(typeof data.thumb != 'undefined') {
@@ -44,14 +44,16 @@ function postUploadCallback(data) {
 }
 
 function performUpload() {
-  var data = {image: null};
-  var lastFrameNotNull = 0;
+  var data = {image: null},
+      lastFrameNotNull = 0;
   
   for(var i = 1; i < maxFrames && 0 == lastFrameNotNull; i++) {
     if(pixel.getFrame(i) == null) {
       lastFrameNotNull = i-1;
     }
   }
+  
+  console.log(['lastFrameNotNull', 0]);
   
   if(0 != lastFrameNotNull) {
     // NOTE: workaround (but why?)
@@ -105,11 +107,26 @@ function ctrlKey(e) {
   return navigator.platform.match(/mac/i) ? e.metaKey : e.ctrlKey;
 }
 
+// disable element
+function disable($el) {
+  $el.addClass("disabled");
+}
+
+// enable element
+function enable($el) {
+  $el.removeClass("disabled");
+}
+
+// is element enabled?
+function isEnabled($el) {
+  return !$el.hasClass("disabled");
+}
+
 $(document).ready(function() {
   var canvas = $("#canvas canvas"),
       zKey = 90;
 
-  pixel.init(canvas[0]);
+  pixel.init(canvas[0], !production_env);
 
   //set it true on mousedown
   canvas.mousedown(function(e) {
@@ -143,8 +160,8 @@ $(document).ready(function() {
   
   // reset color to current active color
   $(document).keyup(function(e) {
-    currentColor = $(".color.active").data().color;
-    if($(".action.selectable.active").data().action != "clearPixel") {
+    currentColor = $(".color.active").data('color');
+    if($(".action.selectable.active").data('action') != "clearPixel") {
       $(".clearPixel").removeClass('active');
     }
   });
@@ -160,7 +177,7 @@ $(document).ready(function() {
   });
 
   $(".action.selectable").click(function() {
-    pixel.setAction($(this).data().action);
+    pixel.setAction($(this).data('action'));
     
     $(".action.selectable.active").toggleClass("active");
     $(this).toggleClass("active");
@@ -168,7 +185,7 @@ $(document).ready(function() {
 
   // colors
   $(".color").click(function() {
-    currentColor = $(this).data().color;
+    currentColor = $(this).data('color');
     
     $(".color.active").toggleClass("active");
     $(this).toggleClass("active");
@@ -195,12 +212,48 @@ $(document).ready(function() {
   });
   
   $(".frame").click(function() {
-    pixel.setCurrentFrame($(this).data().frame);
+    if(isEnabled($(this))) {
+      pixel.setCurrentFrame($(this).data('frame'));
     
-    $(".frame.active").toggleClass("active");
-    $(this).toggleClass("active");
+      $(".frame.active").toggleClass("active");
+      $(this).toggleClass("active");
+    }
   });
   
+  // add frame
+  $(".add_frame").click(function() {
+    if(isEnabled($(this))) {
+      frames++;
+      maxFrames == frames && disable($(this));
+      enable($(".remove_frame"));
+      
+      enable($(".frame[data-frame=" + (frames-1) + "]"));
+      $(".frame.active").toggleClass("active");
+      $(".frame[data-frame=" + (frames-1) + "]").toggleClass("active");
+      
+      pixel.setCurrentFrame(frames-1);
+      
+      console.log(['add_frame', frames]);
+    }
+  });
+  
+  // remove frame
+  $(".remove_frame").click(function() {
+    if(isEnabled($(this))) {
+      frames--;
+      1 == frames && disable($(this));
+      enable($(".add_frame"));
+      
+      disable($(".frame[data-frame=" + frames + "]"));
+      $(".frame.active").toggleClass("active");
+      $(".frame[data-frame=" + (frames-1) + "]").toggleClass("active");
+      
+      console.log(['remove_frame', frames]);
+    }
+  });
+  
+  // NOTE: deprecated
+  /*
   $(".onion").click(function() {
     if($(this).data().frame == pixel.getCurrentOnionFrameId()) {
       pixel.setOnionFrame(null);
@@ -212,6 +265,7 @@ $(document).ready(function() {
     
     $(this).toggleClass("active");
   });
+  */
   
   $(".play_stop").click(function() {
     if($(this).hasClass("stop")) {
@@ -221,7 +275,7 @@ $(document).ready(function() {
       pixel.play(5, function(frame) {
         $(".frame.active").toggleClass("active");
         $(".frame").each(function() {
-          $(this).data().frame == frame && $(this).toggleClass("active");
+          $(this).data('frame') == frame && $(this).toggleClass("active");
         });
       });
     }
