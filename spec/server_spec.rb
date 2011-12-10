@@ -7,7 +7,9 @@ describe "Draw! app" do
     @app ||= Sinatra::Application
   end
   
-  it "should respond to POST /"
+  describe "POST /" do
+    it "should be tested"
+  end
 
   describe "GET /" do
     it "should respond" do
@@ -61,9 +63,54 @@ describe "Draw! app" do
     end
   end
   
-  it "should respond to POST /upload"
-  it "should respond to GET /auth/facebook/callback"
-  it "should respond to GET /auth/failure"
+  describe "POST /upload" do
+    it "should be tested"
+  end
+  
+  describe "GET /auth/facebook/callback" do
+    # #
+    # # GET /auth/facebook/callback
+    # #
+    # get '/auth/facebook/callback' do
+    #   session[:user] = "user:#{request.env['omniauth.auth']['uid']}"
+    #   @user = User.new(request.env['omniauth.auth'].merge(:key => session[:user])).save
+    #   haml :callback
+    # end
+    
+    before(:each) do
+      get '/auth/facebook/callback'
+    end
+    
+    it "should set user auth session" do
+      last_request.session['user'].should match /user:/
+    end
+    
+    it "should save authenticated user" do
+      pending
+      
+      @user = Object.new
+      @user.should_receive(:save)
+      User.should_receive(:new).and_return(@user)
+    end
+    
+    it "should render callback template" do
+      last_response.body.should match /window\.close/
+    end
+  end
+  
+  describe "GET /auth/failure" do
+    before(:each) do
+      get '/auth/failure'
+    end
+    
+    it "should show an error message" do
+      last_response.body.should match /There was an error trying to access to your Facebook data/
+    end
+    
+    it "should clear session" do
+      last_request.session['user'].should be_nil
+    end
+  end
   
   describe "GET /logout" do
     it "should redirect" do
@@ -71,17 +118,33 @@ describe "Draw! app" do
       last_response.should be_redirect
     end
     
-    # see https://groups.google.com/d/topic/sinatrarb/CMlBimoHiPg/discussion
-    it "should clear session"
+    it "should redirect to origin if param[:origin] is set" do
+      get '/logout', :origin => "/origin"
+      last_response.should be_redirect
+      last_response.header['Location'].should match /\/origin/
+    end
+    
+    it "should clear session" do
+      get '/logout'
+      last_request.session['user'].should be_nil
+    end
   end
   
   describe "GET /about" do
-    it "should respond" do
+    before(:each) do
       get '/about'
+    end
+    
+    it "should respond" do
       last_response.should be_ok
+    end
+    
+    it "should render about template" do
+      last_response.body.should match /Credits/
     end
   end
   
   describe "DELETE /drawings/123.png" do
+    it "should be tested"
   end
 end
