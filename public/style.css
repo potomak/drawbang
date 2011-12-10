@@ -353,6 +353,10 @@ p.sep a {
 	margin-left: 24px;
 }
 
+#animation .frames {
+	overflow: hidden;
+}
+
 #animation .frame,
 #animation .onion,
 #animation .play_stop {

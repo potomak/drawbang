@@ -17,3 +17,6 @@ EGA_PALETTE = %w{
   #aaaaaa
   #ffffff
 }
+
+# max frames number
+MAX_FRAMES = 16
