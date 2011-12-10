@@ -53,14 +53,16 @@ class Drawing
   end
   
   def self.all(opts)
-    page     = opts[:page] || 0
+    user_id  = opts[:user_id]  || nil
+    page     = opts[:page]     || 0
     per_page = opts[:per_page] || 10
-    host     = opts[:host] || "localhost:4567"
+    host     = opts[:host]     || "localhost:4567"
     
     start_index = page*per_page
     end_index   = start_index + per_page-1
+    list        = user_id ? "drawings:user:#{user_id}" : "drawings"
     
-    REDIS.lrange("drawings", start_index, end_index).map do |id|
+    REDIS.lrange(list, start_index, end_index).map do |id|
       JSON.parse(REDIS.get(key(id))).merge(:id => id, :share_url => "http://#{host}/drawings/#{id}")
     end
   end

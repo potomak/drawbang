@@ -12,7 +12,8 @@
     #user
       by
       %img.avatar{:width => 25, :src => @drawing['user']['image']}
-      %span.name= @drawing['user']['first_name']
+      %span.name
+        %a{:href => "/users/#{@drawing['user']['uid']}"}= @drawing['user']['first_name']
       - if logged_in? && @drawing['user']['uid'] == @user['uid']
         %form{:id => "delete_drawing", :action => "/drawings/#{params[:id]}", :method => "POST"}
           %input{:type => "hidden", :name => "_method", :value => "delete"}
