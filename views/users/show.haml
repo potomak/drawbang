@@ -1,2 +1,9 @@
 #user
   USER
+  = @user['user_info']['name']
+
+%h2 GALLERY
+#images
+  %div{:style => "clear: both"}
+  = haml :'shared/gallery'
+%a{:id => "more", :href => "#"} More

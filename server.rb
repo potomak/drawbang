@@ -147,7 +147,7 @@ delete '/drawings/:id' do |id|
   
   if @drawing['user']['uid'] == @user['uid']
     begin
-      Drawing.destroy(id)
+      Drawing.destroy(id, @user['uid'])
     rescue => e
       "failure: #{e}"
     end

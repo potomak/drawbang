@@ -13,7 +13,10 @@ describe Drawing do
   
   before :each do
     @id = "123.png"
-    @drawing = {:request_host => "example.com"}
+    @drawing = {
+      :request_host => "example.com",
+      :user => { :uid => "1423" }
+    }
   end
   
   describe "Drawing.find" do
@@ -35,9 +38,10 @@ describe Drawing do
     it "should remove drawing file, destroy object and remove it from list" do
       Drawing.should_receive(:delete_file).with(@id)
       REDIS.should_receive(:del).with(Drawing.key(@id))
-      REDIS.should_receive(:lrem).with("drawings", 0, @id)
+      REDIS.should_receive(:lrem).with(Drawing.list(@drawing[:user][:uid]), 0, @id)
+      REDIS.should_receive(:lrem).with(Drawing.list, 0, @id)
       
-      Drawing.destroy(@id)
+      Drawing.destroy(@id, @drawing[:user][:uid])
     end
   end
   
@@ -57,9 +61,10 @@ describe Drawing do
       Drawing.should_receive(:save_file).with(@id, @drawing[:request_host], image_object_blob).and_return(file_url)
       Drawing.should_receive(:save_file).with("#{@id}_64.png", @drawing[:request_host], thumbnail_object_blob)
       
-      REDIS.should_receive(:lpush).with("drawings", @id)
+      REDIS.should_receive(:lpush).with(Drawing.list(@drawing[:user][:uid]), @id)
+      REDIS.should_receive(:lpush).with(Drawing.list, @id)
       
-      @result_drawing = {:url => file_url}
+      @result_drawing = {:url => file_url, :user => { :uid => "1423" }}
       REDIS.should_receive(:set).with(Drawing.key(@id), @result_drawing.to_json)
       
       Drawing.new(@drawing.merge(:id => @id, :image => {:frame => []})).save
@@ -76,10 +81,25 @@ describe Drawing do
       }
 
       REDIS.should_receive(:lrange).with("drawings", 0, 9).and_return(ids)
-      REDIS.should_receive(:get).exactly(10).times.with(Drawing.key(@id)).and_return(@drawing.to_json)
-      JSON.should_receive(:parse).exactly(10).times.with(@drawing.to_json).and_return(@drawing)
+      Drawing.should_receive(:find).exactly(10).times.with(@id).and_return(@drawing)
 
       Drawing.all(opts).should == ids.map {|id| @drawing.merge(:id => id, :share_url => "http://#{opts[:host]}/drawings/#{id}")}
+    end
+  end
+  
+  describe "Drawing.key" do
+    it "should return drawing key given id" do
+      Drawing.key("123").should == "drawing:123"
+    end
+  end
+  
+  describe "Drawing.list" do
+    it "should return all drawings list key" do
+      Drawing.list.should == "drawings"
+    end
+    
+    it "should return user drawings list key" do
+      Drawing.list("123").should == "drawings:user:123"
     end
   end
 end

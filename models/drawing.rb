@@ -35,7 +35,8 @@ class Drawing
     @drawing.merge!(:url => image_url)
     
     REDIS.set(Drawing.key(id), @drawing.to_json)
-    REDIS.lpush("drawings", id)
+    REDIS.lpush(Drawing.list(@drawing[:user][:uid]), id)
+    REDIS.lpush(Drawing.list, id)
     
     @drawing
   end
@@ -45,11 +46,12 @@ class Drawing
     JSON.parse(value) unless value.nil?
   end
   
-  def self.destroy(id)
+  def self.destroy(id, user_id)
     delete_file(id)
     
     REDIS.del(key(id))
-    REDIS.lrem("drawings", 0, id)
+    REDIS.lrem(Drawing.list(user_id), 0, id)
+    REDIS.lrem(Drawing.list, 0, id)
   end
   
   def self.all(opts)
@@ -60,14 +62,19 @@ class Drawing
     
     start_index = page*per_page
     end_index   = start_index + per_page-1
-    list        = user_id ? "drawings:user:#{user_id}" : "drawings"
+    list        = list(user_id)
     
     REDIS.lrange(list, start_index, end_index).map do |id|
-      JSON.parse(REDIS.get(key(id))).merge(:id => id, :share_url => "http://#{host}/drawings/#{id}")
+      drawing = find(id)
+      drawing.merge(:id => id, :share_url => "http://#{host}/drawings/#{id}") if drawing
     end
   end
   
   def self.key(id)
     "drawing:#{id}"
+  end
+  
+  def self.list(user_id=nil)
+    user_id ? "drawings:user:#{user_id}" : "drawings"
   end
 end
