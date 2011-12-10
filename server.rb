@@ -66,6 +66,10 @@ def root_action
   @colors = EGA_PALETTE
 end
 
+def clear_session
+  session[:user] = nil
+end
+
 #
 # POST /
 #
@@ -105,14 +109,31 @@ get '/feed.rss', :provides => 'rss' do
   builder :feed
 end
 
+#
+# GET /users/:id
+#
+get '/users/:id' do
+  @user = User.find("user:#{params[:id]}")
+  
+  if @user
+    @drawings = Drawing.all(:user_id => params[:id], :page => @page, :per_page => PER_PAGE, :host => request.host)
+    haml :'users/show'
+  else
+    haml :'users/not_found'
+  end
+end
+
+#
+# GET /drawings/:id
+#
 get '/drawings/:id' do
   @drawing = Drawing.find(params[:id])
   
   if @drawing
     @drawing.merge!(:id => params[:id], :share_url => "http://#{request.host}/drawings/#{params[:id]}")
-    haml :drawing
+    haml :'drawings/show'
   else
-    haml :not_found
+    haml :'drawings/not_found'
   end
 end
 
@@ -206,8 +227,4 @@ end
 #
 get '/about' do
   haml :about
-end
-
-def clear_session
-  session[:user] = nil
 end
