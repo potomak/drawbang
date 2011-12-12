@@ -10,7 +10,7 @@ An example app showing usage of the [jQuery pixel library](http://github.com/pot
 
 to install other required gems.
 
-See also [`Gemfile`](https://github.com/potomak/jquery-pixel-app/raw/master/Gemfile)
+See also [`Gemfile`](https://github.com/potomak/drawbang/raw/master/Gemfile)
 
 ## How to run the app locally
 
