@@ -55,10 +55,19 @@ end
 
 before do
   # authentication
-  @user = User.find(session[:user]) if session[:user]
+  @user = User.find_by_key(session[:user]) if session[:user]
   # pagination
   @current_page = (params[:page] || 1).to_i
   @page = @current_page - 1
+end
+
+not_found do
+  case request.accept
+  when 'application/json'
+    "not found".to_json
+  else
+    haml :'shared/not_found'
+  end
 end
 
 def root_action
@@ -113,13 +122,20 @@ end
 # GET /users/:id
 #
 get '/users/:id' do
-  @user = User.find("user:#{params[:id]}")
+  @user = User.find(params[:id])
+  content_type :json if request.accept.include? 'application/json'
   
   if @user
     @drawings = Drawing.all(:user_id => params[:id], :page => @page, :per_page => PER_PAGE, :host => request.host)
-    haml :'users/show'
+    
+    case request.accept.first
+    when 'application/json'
+      @user.merge(:drawings => @drawings).to_json
+    else
+      haml :'users/show'
+    end
   else
-    haml :'users/not_found'
+    status 404
   end
 end
 
@@ -128,12 +144,18 @@ end
 #
 get '/drawings/:id' do
   @drawing = Drawing.find(params[:id])
+  content_type :json if request.accept.include? 'application/json'
   
   if @drawing
-    @drawing.merge!(:id => params[:id], :share_url => "http://#{request.host}/drawings/#{params[:id]}")
-    haml :'drawings/show'
+    case request.accept.first
+    when 'application/json'
+      @drawing.to_json
+    else
+      @drawing.merge!(:id => params[:id], :share_url => "http://#{request.host}/drawings/#{params[:id]}")
+      haml :'drawings/show'
+    end
   else
-    haml :'drawings/not_found'
+    status 404
   end
 end
 

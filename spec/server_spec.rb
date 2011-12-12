@@ -38,28 +38,100 @@ describe "Draw! app" do
     end
   end
   
+  describe "GET /users/123" do
+    before :each do
+      @id = "123"
+      @user = {:uid => "123", 'user_info' => {'name' => "John"}}
+      @drawing = {'url' => "/the/drawing.png"}
+    end
+    
+    describe "user found" do
+      before(:each) do
+        User.should_receive(:find).with(@id).and_return(@user)
+      end
+      
+      it "should respond 200 if a user is found" do
+        get "/users/#{@id}"
+        last_response.should be_ok
+      end
+      
+      it "should respond with json if accept header is set to 'application/json'" do
+        header 'Accept', 'application/json'
+        get "/users/#{@id}"
+        last_response.header['Content-type'].should == 'application/json'
+      end
+
+      it "should display user info" do
+        get "/users/#{@id}"
+        last_response.should match @user['user_info']['name']
+      end
+
+      it "should display user gallery" do
+        get "/users/#{@id}"
+        last_response.should match @user['user_info']['name']
+      end
+      
+    end
+    
+    describe "user not found" do
+      before(:each) do
+        User.should_receive(:find).with(@id).and_return(nil)
+      end
+      
+      it "should respond 404 if a user is not found" do
+        get "/users/#{@id}"
+        last_response.should be_not_found
+      end
+      
+      it "should display 'not found'" do
+        get "/users/#{@id}"
+        last_response.should match /not found/
+      end
+    end
+  end
+  
   describe "GET /drawings/123.png" do
     before :each do
       @id = "123.png"
       @drawing = {'url' => "/the/drawing.png"}
     end
     
-    it "should respond" do
-      Drawing.should_receive(:find).with(@id)
-      get "/drawings/#{@id}"
-      last_response.should be_ok
-    end
+    describe "drawing found" do
+      before(:each) do
+        Drawing.should_receive(:find).with(@id).and_return(@drawing)
+      end
+      
+      it "should respond 200 if a drawing is found" do
+        get "/drawings/#{@id}"
+        last_response.should be_ok
+      end
+      
+      it "should respond with json if accept header is set to 'application/json'" do
+        header 'Accept', 'application/json'
+        get "/drawings/#{@id}"
+        last_response.header['Content-type'].should == 'application/json'
+      end
 
-    it "should display drawing" do
-      Drawing.should_receive(:find).with(@id).and_return(@drawing)
-      get "/drawings/#{@id}"
-      last_response.should match @drawing['url']
+      it "should display drawing" do
+        get "/drawings/#{@id}"
+        last_response.should match @drawing['url']
+      end
     end
-
-    it "should display 'not found'" do
-      Drawing.should_receive(:find).with(@id).and_return(nil)
-      get "/drawings/#{@id}"
-      last_response.should match /not found/
+    
+    describe "drawing not found" do
+      before(:each) do
+        Drawing.should_receive(:find).with(@id).and_return(nil)
+      end
+      
+      it "should respond 404 if a drawing is not found" do
+        get "/drawings/#{@id}"
+        last_response.should be_not_found
+      end
+      
+      it "should display 'not found'" do
+        get "/drawings/#{@id}"
+        last_response.should match /not found/
+      end
     end
   end
   
