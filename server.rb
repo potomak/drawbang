@@ -193,11 +193,12 @@ post '/upload' do
   data = JSON.parse(request.env["rack.input"].read)
   
   # compose drawing object
-  id = "#{Time.now.to_i}.#{data['image']['frames'] ? "gif" : "png"}"
+  id = "#{Drawing.generate_token}.#{data['image']['frames'] ? "gif" : "png"}"
   drawing = {
     :id => id,
     :image => data['image'],
-    :request_host => request.host_with_port
+    :request_host => request.host_with_port,
+    :created_at => Time.now.to_i
   }
   
   # add user info if present

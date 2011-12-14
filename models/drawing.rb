@@ -77,4 +77,8 @@ class Drawing
   def self.list(user_id=nil)
     user_id ? "drawings:user:#{user_id}" : "drawings"
   end
+  
+  def self.generate_token
+    Digest::SHA1.hexdigest(rand(36**32).to_s(36))
+  end
 end

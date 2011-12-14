@@ -102,4 +102,13 @@ describe Drawing do
       Drawing.list("123").should == "drawings:user:123"
     end
   end
+  
+  describe "Drawing.generate_token" do
+    it "should return a random hash string" do
+      random_hash = "a random hash"
+      Digest::SHA1.should_receive(:hexdigest).and_return(random_hash)
+      
+      Drawing.generate_token.should == random_hash
+    end
+  end
 end
