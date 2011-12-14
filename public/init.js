@@ -143,33 +143,45 @@ function showFacebookDialog(share_url, image_url) {
   });
 }
 
+// mouse down event callback
+function mouseDownCallback(e) {
+  pixel.setDraw(true);
+  var x = e.offsetX ? e.offsetX : e.pageX - this.offsetLeft;
+  var y = e.offsetY ? e.offsetY : e.pageY - this.offsetTop;
+  
+  pixel.doAction(x, y, currentColor);
+  
+  $("#upload.disabled").bind('click', upload).removeClass('disabled');
+  $("#upload").addClass('enabled');
+}
+
+// mouse move event callback
+function mouseMoveCallback(e) {
+  var x = e.offsetX ? e.offsetX : e.pageX - this.offsetLeft;
+  var y = e.offsetY ? e.offsetY : e.pageY - this.offsetTop;
+  
+  pixel.doAction(x, y, currentColor);
+  e.preventDefault();
+}
+
+// mouse up event callback
+function mouseUpCallback() {
+  pixel.setDraw(false);
+}
+
 $(document).ready(function() {
   var canvas = $("#canvas canvas"),
       zKey = 90;
 
   pixel.init(canvas[0], !production_env);
 
-  //set it true on mousedown
-  canvas.mousedown(function(e) {
-    pixel.setDraw(true);
-    var x = e.offsetX ? e.offsetX : e.pageX - this.offsetLeft;
-    var y = e.offsetY ? e.offsetY : e.pageY - this.offsetTop;
-    
-    pixel.doAction(x, y, currentColor);
-    
-    $("#upload.disabled").bind('click', upload).removeClass('disabled');
-    $("#upload").addClass('enabled');
-  }).mousemove(function(e) {
-    var x = e.offsetX ? e.offsetX : e.pageX - this.offsetLeft;
-    var y = e.offsetY ? e.offsetY : e.pageY - this.offsetTop;
-    
-    pixel.doAction(x, y, currentColor);
-  });
+  // set drawing on mousedown
+  canvas.mousedown(mouseDownCallback).mousemove(mouseMoveCallback);
+  canvas.bind('touchstart', mouseDownCallback).bind('touchmove', mouseMoveCallback);
 
-  //reset it on mouseup
-  $(document).mouseup(function() {
-    pixel.setDraw(false);
-  });
+  // reset drawing on mouseup
+  $(document).mouseup(mouseUpCallback);
+  $(document).bind('touchend', mouseUpCallback);
   
   // if shift is pressed set color to transparent
   $(document).keydown(function(e) {
