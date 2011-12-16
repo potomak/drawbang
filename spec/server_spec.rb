@@ -3,6 +3,37 @@ require 'spec/spec_helper'
 describe "Draw! app" do
   include Rack::Test::Methods
 
+  # see https://groups.google.com/forum/#!topic/sinatrarb/qd5PaQYxs6E
+  # source https://gist.github.com/375973
+  class SessionData
+    def initialize(cookies)
+      @cookies = cookies
+      @data = cookies['rack.session']
+      if @data
+        @data = @data.unpack("m*").first
+        @data = Marshal.load(@data)
+      else
+        @data = {}
+      end
+    end
+
+    def [](key)
+      @data[key]
+    end
+
+    def []=(key, value)
+      @data[key] = value
+      session_data = Marshal.dump(@data)
+      session_data = [session_data].pack("m*")
+      @cookies.merge("rack.session=#{Rack::Utils.escape(session_data)}", URI.parse("//example.org//"))
+      raise "session variable not set" unless @cookies['rack.session'] == session_data
+    end
+  end
+
+  def session
+    SessionData.new(rack_test_session.instance_variable_get(:@rack_mock_session).cookie_jar)
+  end
+
   def app
     @app ||= Sinatra::Application
   end
@@ -41,7 +72,7 @@ describe "Draw! app" do
   describe "GET /users/123" do
     before :each do
       @id = "123"
-      @user = {:uid => "123", 'user_info' => {'name' => "John"}}
+      @user = {:uid => "123", 'user_info' => {'first_name' => "John"}}
       @drawing = {'url' => "/the/drawing.png"}
     end
     
@@ -63,12 +94,12 @@ describe "Draw! app" do
 
       it "should display user info" do
         get "/users/#{@id}"
-        last_response.should match @user['user_info']['name']
+        last_response.should match @user['user_info']['first_name']
       end
 
       it "should display user gallery" do
         get "/users/#{@id}"
-        last_response.should match @user['user_info']['name']
+        last_response.should match @user['user_info']['first_name']
       end
       
     end
@@ -121,15 +152,14 @@ describe "Draw! app" do
     describe "drawing not found" do
       before(:each) do
         Drawing.should_receive(:find).with(@id).and_return(nil)
+        get "/drawings/#{@id}"
       end
       
       it "should respond 404 if a drawing is not found" do
-        get "/drawings/#{@id}"
         last_response.should be_not_found
       end
       
       it "should display 'not found'" do
-        get "/drawings/#{@id}"
         last_response.should match /not found/
       end
     end
@@ -217,6 +247,54 @@ describe "Draw! app" do
   end
   
   describe "DELETE /drawings/123.png" do
-    it "should be tested"
+    before(:each) do
+      @id = "123.png"
+    end
+    
+    describe "guest user" do
+      before(:each) do
+        @user = nil
+        delete '/drawings/123.png'
+      end
+      
+      it "should redirect to '/drawings/123.png'" do
+        last_response.should be_redirect
+        last_response.header['Location'].should match /\/drawings\/123\.png/
+      end
+    end
+    
+    describe "authenticated user" do
+      before(:each) do
+        @user_id = "user:xxx"
+        session[:user] = @user_id
+        @user = {:uid => "123", 'user_info' => {'first_name' => "John"}}
+        User.should_receive(:find_by_key).with(@user_id).and_return(@user)
+      end
+
+      describe "drawing not found" do
+        before(:each) do
+          Drawing.should_receive(:find).with(@id).and_return(nil)
+          delete '/drawings/123.png'
+        end
+
+        it "should respond 404 if a drawing is not found" do
+          last_response.should be_not_found
+        end
+
+        it "should display 'not found'" do
+          last_response.should match /not found/
+        end
+      end
+      
+      describe "drawing found" do
+        describe "hasn't an author" do
+          it "should be tested"
+        end
+        
+        describe "has an author" do
+          it "should be tested"
+        end
+      end
+    end
   end
 end

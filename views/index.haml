@@ -21,84 +21,10 @@
 
 %fb:facepile
 
-#desktop
-  #adv
-    :javascript
-      google_ad_client = "ca-pub-7194529311513014";
-      /* Draw! (160x600) */
-      google_ad_slot = "7948970014";
-      google_ad_width = 160;
-      google_ad_height = 600;
-    %script{:src => 'http://pagead2.googlesyndication.com/pagead/show_ads.js', :type => 'text/javascript'}
-  
-  #controls
-    .actions
-      .action.selectable.pixel.active{:'data-action' => 'pixel'}
-      .action.selectable.fill{:'data-action' => 'fill'}
-      .action.selectable.clearPixel{:'data-action' => 'clearPixel'}
-    .actions
-      .action.undo.active
-      .action.redo.active
-    #colors
-      - @colors.each do |color|
-        .color{:'data-color' => color, :class => "#{"active" if color == "#000000"}"}
-          %div{:style => "background-color: #{color}"}
-    #clear.active
-
-  #canvas
-    %canvas{:width => "320", :height => "320", :onSelectStart => "this.style.cursor='crosshair'; return false;"}
-      %p
-        Sorry, your browser doesn't support the <canvas> element.
-      %p
-        Please upgrade to
-        %a{:href => "http://www.microsoft.com/IE9"} IE 9
-        or use the latest
-        %a{:href => "http://www.google.com/chrome"} Chrome
-        or
-        %a{:href => "http://www.mozilla.com/"} Firefox
-
-  #commands
-    %a#upload.disabled Save
-    -#
-      / #size
-      /   %p Image size (px):
-      /   %ul
-      /     %li.active 16x16
-      /     %li.star.green.coming_soon 32x32
-      /     %li.star.blue.coming_soon 64x64
-      /     %li.star.yellow.coming_soon custom
-
-  %div{:style => "clear: both"}
-  
-  #animation
-    %p Frames
-    %div{:style => "overflow: hidden"}
-      .play_stop.active
-      .frames
-        .frame.active{:'data-frame' => 0, :href => "#"} 1
-        - (1..MAX_FRAMES-1).each do |frame|
-          .frame.disabled{:'data-frame' => frame, :href => "#"}= frame+1
-      .add_frame +
-      .remove_frame.disabled -
-    
-    -# NOTE: deprecated
-      / %p Onion skin
-      / %div{:style => "overflow: hidden"}
-      /   - (0..7).each do |frame|
-      /     .onion{:'data-frame' => frame, :href => "#"}= frame+1
-    
-  - 2.times do
-    .adv2
-      :javascript
-        google_ad_client = "ca-pub-7194529311513014";
-        /* Draw! (200x200) */
-        google_ad_slot = "6210493148";
-        google_ad_width = 200;
-        google_ad_height = 200;
-      %script{:src => 'http://pagead2.googlesyndication.com/pagead/show_ads.js', :type => 'text/javascript'}
+= haml :'shared/editor'
 
 %h2 GALLERY
 #images
   %div{:style => "clear: both"}
-  = haml :'shared/gallery'
+  = haml :'drawings/gallery'
 %a{:id => "more", :href => "#"} More

@@ -72,11 +72,17 @@ end
 
 def root_action
   @drawings = Drawing.all(:page => @page, :per_page => PER_PAGE, :host => request.host)
-  @colors = EGA_PALETTE
 end
 
 def clear_session
   session[:user] = nil
+end
+
+def auth_or_redirect(path)
+  unless logged_in?
+    flash[:error] = 'Please log in to perform this operation'
+    redirect path
+  end
 end
 
 #
@@ -104,7 +110,7 @@ get '/' do
   root_action
   
   if request.xhr?
-    haml :'shared/gallery', :layout => false
+    haml :'drawings/gallery', :layout => false
   else
     haml :index
   end
@@ -121,12 +127,12 @@ end
 #
 # GET /users/:id
 #
-get '/users/:id' do
-  @user = User.find(params[:id])
+get '/users/:id' do |id|
+  @user = User.find(id)
   content_type :json if request.accept.include? 'application/json'
   
   if @user
-    @drawings = Drawing.all(:user_id => params[:id], :page => @page, :per_page => PER_PAGE, :host => request.host)
+    @drawings = Drawing.all(:user_id => id, :page => @page, :per_page => PER_PAGE, :host => request.host)
     
     case request.accept.first
     when 'application/json'
@@ -142,8 +148,8 @@ end
 #
 # GET /drawings/:id
 #
-get '/drawings/:id' do
-  @drawing = Drawing.find(params[:id])
+get '/drawings/:id' do |id|
+  @drawing = Drawing.find(id)
   content_type :json if request.accept.include? 'application/json'
   
   if @drawing
@@ -151,8 +157,28 @@ get '/drawings/:id' do
     when 'application/json'
       @drawing.to_json
     else
-      @drawing.merge!(:id => params[:id], :share_url => "http://#{request.host}/drawings/#{params[:id]}")
+      @drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}")
       haml :'drawings/show'
+    end
+  else
+    status 404
+  end
+end
+
+#
+# POST /drawings/:id/fork
+#
+get '/drawings/:id/fork' do |id|
+  @drawing = Drawing.find(id)
+  content_type :json if request.accept.include? 'application/json'
+  
+  if @drawing
+    case request.accept.first
+    when 'application/json'
+      @drawing.to_json
+    else
+      @drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}")
+      haml :'drawings/fork'
     end
   else
     status 404
@@ -163,31 +189,36 @@ end
 # DELETE /drawings/:id
 #
 delete '/drawings/:id' do |id|
-  redirect "/drawings/#{id}" unless logged_in?
+  auth_or_redirect "/drawings/#{id}"
+  
+  # find drawing
   @drawing = Drawing.find(id)
-  redirect "/drawings/#{id}" unless @drawing && @drawing['user']
   
-  if @drawing['user']['uid'] == @user['uid']
-    begin
-      Drawing.destroy(id, @user['uid'])
-    rescue => e
-      "failure: #{e}"
+  if @drawing
+    if @drawing['user'] && @drawing['user']['uid'] == @user['uid']
+      begin
+        Drawing.destroy(id, @user['uid'])
+        flash[:notice] = "Drawing deleted"
+        redirect '/'
+      rescue => e
+        puts "failure: #{e}"
+        flash[:error] = "Wow! I can't delete this drawing"
+        redirect "/drawings/#{id}"
+      end
+    else
+      flash[:error] = "You can't delete this drawing"
+      redirect "/drawings/#{id}"
     end
-    
-    flash[:notice] = 'Drawing deleted'
-    redirect '/'
   else
-    flash[:error] = 'There was an error trying delete this drawing'
+    status 404
   end
-  
-  redirect "/drawings/#{id}"
 end
 
 #
 # POST /upload
 #
 post '/upload' do
-  redirect '/' unless logged_in?
+  auth_or_redirect '/'
   content_type :json
   
   data = JSON.parse(request.env["rack.input"].read)
@@ -201,6 +232,7 @@ post '/upload' do
     :created_at => Time.now.to_i
   }
   
+  # TODO: remove logged_in? test
   # add user info if present
   drawing.merge!(
     :user => {
@@ -213,7 +245,7 @@ post '/upload' do
   begin
     drawing = Drawing.new(drawing).save
     drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}")
-    drawing.merge(:thumb => haml(:'shared/thumb', :layout => false, :locals => drawing)).to_json
+    drawing.merge(:thumb => haml(:'drawings/thumb', :layout => false, :locals => drawing)).to_json
   rescue => e
     "failure: #{e}\n#{e.backtrace}".to_json
   end
