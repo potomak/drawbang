@@ -287,12 +287,34 @@ describe "Draw! app" do
       end
       
       describe "drawing found" do
-        describe "hasn't an author" do
-          it "should be tested"
+        describe "unauthorized user" do
+          before(:each) do
+            @drawing = {}
+            Drawing.should_receive(:find).with(@id).and_return(@drawing)
+            delete '/drawings/123.png'
+          end
+          
+          it "should respond 403" do
+            last_response.status.should == 403
+          end
+
+          it "should display 'Access forbidden'" do
+            last_response.should match /Access forbidden/
+          end
         end
         
-        describe "has an author" do
-          it "should be tested"
+        describe "authorized user" do
+          before(:each) do
+            @drawing = {'user' => @user}
+            Drawing.should_receive(:find).with(@id).and_return(@drawing)
+            Drawing.should_receive(:destroy).with(@id, @user['uid'])
+            delete '/drawings/123.png'
+          end
+          
+          it "should redirect to '/'" do
+            last_response.should be_redirect
+            last_response.header['Location'].should match /\//
+          end
         end
       end
     end
