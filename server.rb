@@ -237,29 +237,26 @@ post '/upload' do
   auth_or_redirect '/'
   content_type :json
   
-  data = JSON.parse(request.env["rack.input"].read)
-  
-  # compose drawing object
-  id = "#{Drawing.generate_token}.#{data['image']['frames'] ? "gif" : "png"}"
-  drawing = {
-    :id => id,
-    :image => data['image'],
-    :request_host => request.host_with_port,
-    :created_at => Time.now.to_i
-  }
-  
-  # TODO: remove logged_in? test
-  # add user info if present
-  drawing.merge!(
-    :user => {
-      :uid => @user['uid'],
-      :first_name => @user['user_info']['first_name'],
-      :image => @user['user_info']['image']
-    }
-  ) if logged_in?
-  
   begin
+    # get access to raw POST data
+    data = JSON.parse(request.env["rack.input"].read)
+    # compose drawing id
+    id = "#{Drawing.generate_token}.#{data['image']['frames'] ? "gif" : "png"}"
+    # compose drawing object
+    drawing = {
+      :id => id,
+      :image => data['image'],
+      :request_host => request.host_with_port,
+      :created_at => Time.now.to_i,
+      :user => {
+        :uid => @user['uid'],
+        :first_name => @user['user_info']['first_name'],
+        :image => @user['user_info']['image']
+      }
+    }
+    # save drawing
     drawing = Drawing.new(drawing).save
+    # respond with drawing object augmented by thumb pratial HTML
     drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}")
     drawing.merge(:thumb => haml(:'drawings/thumb', :layout => false, :locals => drawing)).to_json
   rescue => e

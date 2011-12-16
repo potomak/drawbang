@@ -166,7 +166,33 @@ describe "Draw! app" do
   end
   
   describe "POST /upload" do
-    it "should be tested"
+    describe "guest user" do
+      before(:each) do
+        @user = nil
+        post '/upload'
+      end
+      
+      it "should redirect to '/'" do
+        last_response.should be_redirect
+        last_response.header['Location'].should match /\//
+      end
+    end
+    
+    describe "authenticated user" do
+      before(:each) do
+        @user_id = "user:xxx"
+        session[:user] = @user_id
+        @user = {:uid => "123", 'user_info' => {'first_name' => "John"}}
+        User.should_receive(:find_by_key).with(@user_id).and_return(@user)
+      end
+      
+      it "should be tested"
+      
+      it "should respond with json" do
+        post '/upload', {}.to_json
+        last_response.header['Content-type'].should == 'application/json'
+      end
+    end
   end
   
   describe "GET /auth/facebook/callback" do
