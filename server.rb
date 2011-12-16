@@ -70,6 +70,24 @@ not_found do
   end
 end
 
+error 403 do
+  case request.accept
+  when 'application/json'
+    "access forbidden".to_json
+  else
+    haml :'shared/access_forbidden'
+  end
+end
+
+error 500 do
+  case request.accept
+  when 'application/json'
+    "application error".to_json
+  else
+    haml :'shared/application_error'
+  end
+end
+
 def root_action
   @drawings = Drawing.all(:page => @page, :per_page => PER_PAGE, :host => request.host)
 end
@@ -202,12 +220,10 @@ delete '/drawings/:id' do |id|
         redirect '/'
       rescue => e
         puts "failure: #{e}"
-        flash[:error] = "Wow! I can't delete this drawing"
-        redirect "/drawings/#{id}"
+        status 500
       end
     else
-      flash[:error] = "You can't delete this drawing"
-      redirect "/drawings/#{id}"
+      status 403
     end
   else
     status 404
