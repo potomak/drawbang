@@ -24,4 +24,8 @@ describe Image do
   describe "parse_color" do
     it "should be tested"
   end
+  
+  describe "image_raw_data" do
+    it "should be tested"
+  end
 end

@@ -109,10 +109,11 @@ end
 post '/' do
   # parse facebook signed_request
   data = FBGraph::Canvas.parse_signed_request(FACEBOOK['app_secret'], params[:signed_request])
+  puts "signed_request data: #{data.inspect}"
   
   # log in users who have allowed draw! app to access their facebook data
   if data['user_id']
-    session[:user] = "user:#{data['user_id']}"
+    session[:user] = User.key(data['user_id'])
     @user = User.update(session[:user], :credentials => {:token => data['oauth_token']})
   end
   
@@ -186,17 +187,23 @@ end
 #
 # POST /drawings/:id/fork
 #
-get '/drawings/:id/fork' do |id|
+post '/drawings/:id/fork' do |id|
   @drawing = Drawing.find(id)
   content_type :json if request.accept.include? 'application/json'
   
   if @drawing
-    case request.accept.first
-    when 'application/json'
-      @drawing.to_json
-    else
-      @drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}")
-      haml :'drawings/fork'
+    begin
+      @drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}", :image => Drawing.image_raw_data(@drawing['url']))
+      
+      case request.accept.first
+      when 'application/json'
+        @drawing.to_json
+      else
+        haml :'drawings/fork'
+      end
+    rescue => e
+      puts "ERROR: #{e}"
+      status 500
     end
   else
     status 404
@@ -219,7 +226,7 @@ delete '/drawings/:id' do |id|
         flash[:notice] = "Drawing deleted"
         redirect '/'
       rescue => e
-        puts "failure: #{e}"
+        puts "ERROR: #{e}"
         status 500
       end
     else
@@ -260,7 +267,7 @@ post '/upload' do
     drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}")
     drawing.merge(:thumb => haml(:'drawings/thumb', :layout => false, :locals => drawing)).to_json
   rescue => e
-    "failure: #{e}\n#{e.backtrace}".to_json
+    "ERROR: #{e}\n#{e.backtrace}".to_json
   end
 end
 
@@ -268,9 +275,9 @@ end
 # GET /auth/facebook/callback
 #
 get '/auth/facebook/callback' do
-  session[:user] = "user:#{request.env['omniauth.auth']['uid']}"
+  session[:user] = User.key(request.env['omniauth.auth']['uid'])
   @user = User.new(request.env['omniauth.auth'].merge(:key => session[:user])).save
-  haml :callback
+  haml :'auth/callback'
 end
 
 #
@@ -279,7 +286,7 @@ end
 get '/auth/failure' do
   clear_session
   flash.now[:error] = 'There was an error trying to access to your Facebook data.<br/>Please log in to save your drawing.'
-  haml :failure
+  haml :'auth/failure'
 end
 
 #

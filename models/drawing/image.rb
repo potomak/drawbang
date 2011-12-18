@@ -89,5 +89,16 @@ module Image
         return rgb + [Magick::QuantumRange]
       end
     end
+    
+    # downloads image, parses it and returns raw data
+    def image_raw_data(url)
+      open(url) do |f|
+        # hash with meta information
+        puts "meta: #{f.meta.inspect}"
+        puts "Content-Type: #{f.content_type}"
+        puts "last modified: #{f.last_modified.to_s}"
+        puts "raw data: #{f.read}"
+      end
+    end
   end
 end
