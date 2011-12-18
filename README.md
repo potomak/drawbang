@@ -1,6 +1,13 @@
-# Draw! (drawbang)
+# ![Draw!](https://github.com/potomak/drawbang/raw/develop/public/favicon.ico "Draw!") Draw! (drawbang)
 
-An example app showing usage of the [jQuery pixel library](http://github.com/potomak/jquery-pixel).
+Draw 16 x 16 animated pictures. Draw! is a social flavored online pixel art editor.
+
+Draw! it's also an experiment app about:
+
+* html5 canvas element through the [pixel library](http://github.com/potomak/jquery-pixel).
+* redis
+
+Follow [@drawbang](http://twitter.com/drawbang) and read the blog at [http://blog.drawbang.com](http://github.com/potomak/jquery-pixel).
 
 ## Required gems
 
