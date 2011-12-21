@@ -1,16 +1,7 @@
 require 'rubygems'
-require 'sinatra'
-require 'sinatra/content_for'
-require 'haml'
-require 'aws/s3'
-require 'omniauth/oauth'
-require 'base64'
-require 'yaml'
-require 'redis'
-require 'system_timer'
-require 'json'
-require 'rack-flash'
-require 'fbgraph'
+require 'bundler'
+
+Bundler.require
 
 require 'models/user'
 require 'models/drawing'

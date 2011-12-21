@@ -1,5 +1,3 @@
-require 'RMagick'
-
 module Image
   WIDTH  = 16
   HEIGHT = 16

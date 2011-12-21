@@ -19,7 +19,6 @@
 
 require 'models/drawing/image'
 require 'models/drawing/storage'
-require 'RMagick'
 
 class Drawing
   include Image
