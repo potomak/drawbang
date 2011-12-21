@@ -1,3 +1,22 @@
+# Drawing model.
+#
+# Attributes:
+#
+# * created_at
+# * url, image url
+# * user, user object
+#
+# User object attributes:
+#
+# * uid
+# * first_name
+# * image
+#
+# Lists:
+#
+# * drawings
+# * drawings:user:#{user_id}, user's drawings
+
 require 'models/drawing/image'
 require 'models/drawing/storage'
 require 'RMagick'
@@ -6,6 +25,7 @@ class Drawing
   include Image
   include Magick
   
+  # use different storage strategy depending on environment
   if :production == settings.environment
     include Storage::Aws
   else
