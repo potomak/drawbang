@@ -239,7 +239,7 @@ p.sep a {
 #controls {
 	float: left;
 	width: 91px;
-	margin-right: 40px;
+	margin-right: 20px;
 }
 
 #controls .actions {
@@ -346,7 +346,7 @@ p.sep a {
 	overflow: hidden;
 	width: 90px;
 	height: 90px;
-	margin-left: 20px;
+	margin-left: 30px;
 	/*border: 10px solid #CCC;
 	background-color: #CCC;*/
 	float: left;
@@ -400,7 +400,7 @@ p.sep a {
 	height: 320px;
 	/*border: 10px solid #DDD;*/
 	background-image: url(images/canvas_bg.gif);
-	margin: 0 auto 5px auto;
+	margin: 0 auto;
 }
 
 #canvas.isometric::after {
@@ -469,14 +469,14 @@ p.sep a {
 
 #animation {
 	font-size: 12px;
-	margin-top: 20px;
+	margin-top: 30px;
 }
 #animation .play_stop{
 	float: left;
 	width: 80px;
 	height: 40px;
-	background: url(images/play-stop.gif) 0 0;
-	margin-right: 20px;
+	background: url(images/play-stop.gif) 0 0 #F9F9F9;
+	margin-right: 30px;
 	cursor: pointer;
 }
 
@@ -546,9 +546,8 @@ p.sep a {
 #animation #add_frames {
 	width: 81px;
 	height: 20px;
-
 	margin-top: 60px;
-	margin-left: 279px;
+	margin-left: 239px;
 }
 #animation .add_frame::after{
 	width: 40px;
@@ -580,7 +579,7 @@ p.sep a {
 	width: 10px;
 	height: 20px;
 }
-#animation .add_frame:active, #animation .remove_frame:active { top: 10px; left: 10px;}
+#animation .add_frame:active, #animation .remove_frame:active { top: 10px; left: 10px; z-index: -2;}
 #animation .remove_frame:active::before{
 	width: 0px;
 	height: 0px;
