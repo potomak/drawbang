@@ -25,13 +25,17 @@ Copy Facebook config file example
 
     cp config/facebook.example.yml config/facebook.yml
 
-Start Redis
+Start Redis server
 
     redis-server config/redis.conf
 
 Run
 
     ruby server.rb
+
+or run rake task `server`, alias `s`
+
+    rake s
 
 ### Start the app console
 
@@ -74,6 +78,16 @@ To see Heroku logs run
 Run
 
     heroku console
+
+or run rake task `console`, alias `c`
+
+    rake c
+
+### Get application users and drawings stats
+
+Run
+
+    rake stats
 
 ## License
 
