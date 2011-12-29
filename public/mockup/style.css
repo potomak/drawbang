@@ -4,7 +4,7 @@
 } 
 
 body {
-	font-family: uni, Helvetica, sans-serif;
+	font-family: Courier, "Courier New" ;
 
 }
 
@@ -78,6 +78,61 @@ p.sep a {
 	text-decoration: none;
 }
 
+.isometric.active::after {
+	width: 0px;
+	height: 0px;
+}
+
+.isometric.active::before {
+	width: 0px;
+	height: 0px;
+}
+.isometric {
+	position: relative;
+}
+
+.isometric::after {
+	content: '';
+	position: absolute;
+	bottom: -10px;
+	left: 0;
+	background-color: #999999;
+	-webkit-transform: skew(45deg);
+	-webkit-transform-origin: top;
+	-moz-transform: skew(45deg);
+	-moz-transform-origin: top;
+	-ms-transform: skew(45deg);
+	-ms-transform-origin: top;
+	-o-transform: skew(45deg);
+	-o-transform-origin: top;
+	transform: skew(45deg);
+	transform-origin: top;
+	z-index: -1;
+	-webkit-transform-origin-x: 50%;
+	-webkit-transform-origin-y: 0%;
+}
+
+.isometric::before {
+	content: '';
+	position: absolute;
+	top: 5px;
+	right: -10px;
+	background-color: #cccccc;
+	-webkit-transform: skewY(45deg);
+	-webkit-transform-origin: top;
+	-moz-transform: skewY(45deg);
+	-moz-transform-origin: top;
+	-ms-transform: skewY(45deg);
+	-ms-transform-origin: top;
+	-o-transform: skewY(45deg);
+	-o-transform-origin: top;
+	transform: skewY(45deg);
+	transform-origin: top;
+	z-index: -1;
+	-webkit-transform-origin-x: 50%;
+	-webkit-transform-origin-y: 0%;
+}
+
 #header {
 	text-align: center;
 }
@@ -143,17 +198,23 @@ p.sep a {
 }
 
 .wrapper {
-	width: 666px;
+	width: 940px;
 	margin: 0 auto;
 }
 
 #desktop {
-	overflow: hidden;
+	width: 600px;
+	float:left;
 }
 
-#adv {
+#adv-left {
+	width: 160px;
 	float: left;
 	margin-right: 20px;
+}
+#adv-right {
+	width: 160px;
+	float: right;
 }
 
 .adv2 {
@@ -177,15 +238,17 @@ p.sep a {
 
 #controls {
 	float: left;
-	width: 81px;
+	width: 91px;
 	margin-right: 40px;
 }
 
 #controls .actions {
-	border: 10px solid #DDD;
-	background-color: #DDD;
+	/*border: 10px solid #DDD;
+	background-color: #DDD;*/
 	margin-bottom: 16px;
-	width: 81px;
+	width: 91px;
+	padding-bottom: 20px;
+	padding-right: 10px;
 }
 
 #controls .actions div,
@@ -194,7 +257,26 @@ p.sep a {
 	width: 40px;
 	height: 40px;
 	background-image: url(images/tools_sprite.gif);
-	background-color: #FFF;
+	background-color: #F9F9F9;
+}
+
+#controls .actions div::before{
+	width: 10px;
+	height: 40px;
+}
+
+#controls .actions div.active::before{
+	width: 0px;
+	height: 0px;
+}
+
+#controls .actions div::after{
+	width: 40px;
+	height: 10px;
+}
+#controls .actions div.active::after{
+	width: 0px;
+	height: 0px;
 }
 
 #controls .actions .active,
@@ -202,6 +284,11 @@ p.sep a {
 	
 }
 
+#controls .active {
+	top: 10px;
+	left: 10px;
+	z-index: -2;
+}
 #controls #clear {
 	background-position: 16px 16px;
 }
@@ -255,25 +342,53 @@ p.sep a {
 	background-position: 0 96px;
 }
 
-#controls #colors {
+#colors {
 	overflow: hidden;
-	width: 44px;
-	margin-bottom: 10px;
+	width: 90px;
+	height: 90px;
+	margin-left: 20px;
+	/*border: 10px solid #CCC;
+	background-color: #CCC;*/
+	float: left;
 }
 
-#controls .color {
+#colors .color {
 	float: left;
 	width: 20px;
 	height: 20px;
 }
 
-#controls .color div {
+#colors .color div {
 	width: 100%;
 	height: 100%;
+
 }
 
-#controls .color.active {
+#colors .color #color_4::before { background-color: #3333cc; }
+#colors .color #color_8::before { background-color: #33cccc; }
+#colors .color #color_12::before { background-color: #cc33cc; }
+#colors .color #color_16::before { background-color: #cccccc; }
+#colors .color #color_16::after { background-color: #999999; }
+#colors .color #color_15::after { background-color: #666666; }
+#colors .color #color_14::after { background-color: #666622; }
+#colors .color #color_13::after { background-color: #663300; }
 
+
+#colors .color .isometric::after {
+	width: 20px;
+	height: 10px;
+}
+#colors .color .isometric::before {
+	width: 10px;
+	height: 20px;
+}
+
+
+#colors .color.active div {
+	/*background: url(images/color_selected.gif) no-repeat;*/
+	top: 10px;
+	left: 10px;
+	z-index: -2;
 }
 
 /* canvas */
@@ -283,16 +398,26 @@ p.sep a {
 	cursor: crosshair;
 	width: 320px;
 	height: 320px;
-	margin: 0 auto 5px auto;
-	border: 10px solid #DDD;
+	/*border: 10px solid #DDD;*/
 	background-image: url(images/canvas_bg.gif);
-
+	margin: 0 auto 5px auto;
 }
+
+#canvas.isometric::after {
+	width: 320px;
+	height: 10px;
+}
+#canvas.isometric::before {
+	width: 10px;
+	height: 320px;
+}
+
 
 /* commands */
 
 #commands {
 	overflow: hidden;
+	width: 560px;
 }
 
 #size {
@@ -344,50 +469,105 @@ p.sep a {
 
 #animation {
 	font-size: 12px;
-	margin-left: 24px;
+	margin-top: 20px;
 }
-
-#animation .frame,
-#animation .onion,
-#animation .play_stop {
-	cursor: pointer;
+#animation .play_stop{
 	float: left;
-	width: 15px;
-	height: 15px;
-	text-align: center;
-	background-color: #eee;
-	margin-right: 5px;
-	margin-bottom: 5px;
-	padding-top: 1px;
-	padding-left: 1px;
-	border: 1px solid #ccc;
-	-moz-box-shadow: 3px 3px 0 #ccc;
-	-webkit-box-shadow: 3px 3px 0 #ccc;
-	box-shadow: 3px 3px 0 #ccc;
-}
-
-#animation .frame.active,
-#animation .onion.active {
-	color: #fff;
-	background-color: #000;
-	border: 1px solid #000;
-	-moz-box-shadow: 3px 3px 0 #000;
-	-webkit-box-shadow: 3px 3px 0 #000;
-	box-shadow: 3px 3px 0 #000;
-}
-
-#animation .play_stop {
-	background-image: url(/images/play_stop.png);
-	background-position: 0 0;
-	margin-right: 10px;
-	border: 1px solid #000;
-	-moz-box-shadow: 3px 3px 0 #000;
-	-webkit-box-shadow: 3px 3px 0 #000;
-	box-shadow: 3px 3px 0 #000;
+	width: 80px;
+	height: 40px;
+	background: url(images/play-stop.gif) 0 0;
+	margin-right: 20px;
 }
 
 #animation .play_stop.stop {
-	background-position: 0 16px;
+	background-position: 0 -40px;
+	top: 10px;
+	left: 10px;
+}
+#animation .play_stop::after {
+	width: 80px;
+	height: 10px;
+}
+#animation .play_stop::before {
+	width: 10px;
+	height: 40px;
+}
+
+#animation .play_stop.stop::after {
+	width: 0px;
+	height: 0px;
+}
+#animation .play_stop.stop::before {
+	width: 0px;
+	height: 0px;
+}
+
+#animation .frames::after {
+	width: 320px;
+	height: 10px;
+}
+#animation .frames::before {
+	width: 10px;
+	height: 40px;
+}
+
+#animation .frames {
+	float: left;
+	width: 320px;
+	height: 40px;
+	text-align: center;
+	background-color: #DDD;
+}
+#animation .frame {
+	float: left;
+	width: 20px;
+	height: 40px;
+	color: #999;
+	text-align: center;
+	background: url(images/frames.gif) no-repeat 0 0;
+}
+#animation .frame canvas {
+	margin: 2px; 
+}
+#animation .frame.active canvas {
+	background-color: #fff;
+}
+#animation .frame.disabled {
+	background-position: -40px 0;
+}
+#animation .frame.active {
+	background-position: -20px 0;
+}
+#animation .frame div {
+
+}
+
+#animation #add_frames {
+	width: 41px;
+	height: 20px;
+	background-color: #DDD;
+	border-left: 10px solid #DDD;
+	border-right: 10px solid #DDD;
+	border-bottom: 10px solid #DDD;
+	margin-top: 60px;
+	margin-left: 279px;
+}
+#animation .add_frame {
+	float:left;
+	width: 20px;
+	height: 17px;
+	text-align: center;
+	background-color: #FFF;
+	margin-right: 1px;
+	padding-top: 3px;
+}
+#animation .remove_frame {
+	width: 20px;
+	height: 17px;
+	text-align: center;
+	background-color: #FFF;
+	float: right;
+	padding-top: 3px;
 }
 
 #upload {
