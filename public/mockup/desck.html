@@ -66,13 +66,15 @@
     </script>
     <script>
       //<![CDATA[
-        var currentPage = 1;
+        var production_env = false,
+            maxFrames = 16,
+            currentPage = 1;
       //]]>
     </script>
     <script src='https://raw.github.com/brianmario/jquery-infinite-scroll/master/jquery.infinitescroll.js' type='text/javascript'></script>
     <script src='/jquery.pixel.js' type='text/javascript'></script>
     <script src='/init.js' type='text/javascript'></script>
-    <script src='/pagination.js' type='text/javascript'></script>
+   <!-- <script src='/pagination.js' type='text/javascript'></script>-->
     <meta content='Draw!' property='og:title'>
     <meta content='website' property='og:type'>
     <meta content='http://drawbang.com' property='og:url'>
@@ -80,7 +82,7 @@
     <meta content='Draw!' property='og:site_name'>
     <meta content="Let's draw pixelart now!" property='og:description'>
     <meta content='207609735942895' property='fb:app_id'>
-    <link href='http://localhost:4567/feed.rss' rel='alternate' title='Draw! feed' type='application/rss+xml'>
+    <link href='http://localhost:4567/feed.rss' rel='alternate' title='Draw! feed' type='application/rss+xml'>  
   </head>
   <body>
     <div class='wrapper'>
@@ -88,104 +90,235 @@
       </div>
     </div>
     <div id='header'>
-    
+      <script type="text/javascript"><!--
+      google_ad_client = "ca-pub-7194529311513014";
+      /* Draw! (728x90) */
+      google_ad_slot = "9403034170";
+      google_ad_width = 728;
+      google_ad_height = 90;
+      //-->
+      </script>
+      <script type="text/javascript"
+      src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+      </script>
     </div>
     <div class='wrapper' id='container'>
+      <div id='adv-left'>
+        <script type="text/javascript"><!--
+        google_ad_client = "ca-pub-7194529311513014";
+        /* Draw! (120x600) */
+        google_ad_slot = "3056163295";
+        google_ad_width = 120;
+        google_ad_height = 600;
+        //-->
+        </script>
+        <script type="text/javascript"
+        src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+        </script>
+      </div>
       <div id='desktop'>
         <div id='controls'>
           <div class='actions block'>
-            <div class='action left first selectable pixel active' data-action='pixel'></div>
-            <div class='action left selectable fill' data-action='fill'></div>
-            <div class='action left first selectable clearPixel' data-action='clearPixel'></div>
+            <div class='isometric action left first selectable pixel active' data-action='pixel'></div>
+            <div class='isometric action left selectable fill' data-action='fill'></div>
+            <div class='isometric action left first selectable clearPixel' data-action='clearPixel'></div>
           </div>
           <div class='actions block'>
-            <div class='action undo active'></div>
-            <div class='action redo active'></div>
+            <div class='isometric action left first selectable move_vertical' data-action='move_vertical'></div>
+            <div class='isometric action left selectable move_horizontal' data-action='move_horizontal'></div>
+            <div class='isometric action left first selectable flip_horizontal' data-action='flip_horizontal'></div>
+            <div class='isometric action left selectable flip_vertical' data-action='flip_vertical'></div>
+            <div class='isometric action left first selectable copy' data-action='copy'></div>
+            <div class='isometric action left selectable paste' data-action='paste'></div>
+            <div class='isometric action left first selectable rotate' data-action='rotate'></div>
           </div>
-          <div id='colors'>
-            <div class='active color' data-color='#000000'>
-              <div style='background-color: #000000'></div>
-            </div>
-            <div class='color' data-color='#555555'>
-              <div style='background-color: #555555'></div>
-            </div>
-            <div class='color' data-color='#0000aa'>
-              <div style='background-color: #0000aa'></div>
-            </div>
-            <div class='color' data-color='#5555ff'>
-              <div style='background-color: #5555ff'></div>
-            </div>
-            <div class='color' data-color='#00aa00'>
-              <div style='background-color: #00aa00'></div>
-            </div>
-            <div class='color' data-color='#55ff55'>
-              <div style='background-color: #55ff55'></div>
-            </div>
-            <div class='color' data-color='#00aaaa'>
-              <div style='background-color: #00aaaa'></div>
-            </div>
-            <div class='color' data-color='#55ffff'>
-              <div style='background-color: #55ffff'></div>
-            </div>
-            <div class='color' data-color='#aa0000'>
-              <div style='background-color: #aa0000'></div>
-            </div>
-            <div class='color' data-color='#ff5555'>
-              <div style='background-color: #ff5555'></div>
-            </div>
-            <div class='color' data-color='#aa00aa'>
-              <div style='background-color: #aa00aa'></div>
-            </div>
-            <div class='color' data-color='#ff55ff'>
-              <div style='background-color: #ff55ff'></div>
-            </div>
-            <div class='color' data-color='#aa5500'>
-              <div style='background-color: #aa5500'></div>
-            </div>
-            <div class='color' data-color='#ffff55'>
-              <div style='background-color: #ffff55'></div>
-            </div>
-            <div class='color' data-color='#aaaaaa'>
-              <div style='background-color: #aaaaaa'></div>
-            </div>
-            <div class='color' data-color='#ffffff'>
-              <div style='background-color: #ffffff'></div>
-            </div>
-          </div>
-          <div class='active' id='clear'></div>
+          <!--<div class='active' id='clear'></div>-->
         </div>
-        <div id='canvas'>
-          <canvas height='320' onSelectStart="this.style.cursor='crosshair'; return false;" width='320'>
-            <p>
-              Sorry, your browser doesn't support the <canvas> element.
-            </p>
-            <p>
-              Please upgrade to
-              <a href='http://www.microsoft.com/IE9'>IE 9</a>
-              or use the latest
-              <a href='http://www.google.com/chrome'>Chrome</a>
-              or
-              <a href='http://www.mozilla.com/'>Firefox</a>
-            </p>
-          </canvas>
+        
+          <div id='canvas' class="isometric">
+            <canvas height='320' onSelectStart="this.style.cursor='crosshair'; return false;" width='320'>
+              <p>
+                Sorry, your browser doesn't support the <canvas> element.
+              </p>
+              <p>
+                Please upgrade to
+                <a href='http://www.microsoft.com/IE9'>IE 9</a>
+                or use the latest
+                <a href='http://www.google.com/chrome'>Chrome</a>
+                or
+                <a href='http://www.mozilla.com/'>Firefox</a>
+              </p>
+            </canvas>
+          </div>
+    
+        <div id='colors'>
+          <div class='active color' data-color='#000000'>
+            <div id="color_1" class="isometric" style='background-color: #000000'></div>
+          </div>
+          <div class='color' data-color='#555555'>
+            <div id="color_2" class="isometric" style='background-color: #555555'></div>
+          </div>
+          <div class='color' data-color='#0000aa'>
+            <div id="color_3" class="isometric" style='background-color: #0000aa'></div>
+          </div>
+          <div class='color' data-color='#5555ff'>
+            <div id="color_4" class="isometric" style='background-color: #5555ff'></div>
+          </div>
+          <div class='color' data-color='#00aa00'>
+            <div id="color_5" class="isometric" style='background-color: #00aa00'></div>
+          </div>
+          <div class='color' data-color='#55ff55'>
+            <div id="color_6" class="isometric" style='background-color: #55ff55'></div>
+          </div>
+          <div class='color' data-color='#00aaaa'>
+            <div id="color_7" class="isometric" style='background-color: #00aaaa'></div>
+          </div>
+          <div class='color' data-color='#55ffff'>
+            <div id="color_8" class="isometric" style='background-color: #55ffff'></div>
+          </div>
+          <div class='color' data-color='#aa0000'>
+            <div id="color_9" class="isometric" style='background-color: #aa0000'></div>
+          </div>
+          <div class='color' data-color='#ff5555'>
+            <div id="color_10" class="isometric" style='background-color: #ff5555'></div>
+          </div>
+          <div class='color' data-color='#aa00aa'>
+            <div id="color_11" class="isometric" style='background-color: #aa00aa'></div>
+          </div>
+          <div class='color' data-color='#ff55ff'>
+            <div id="color_12" class="isometric" style='background-color: #ff55ff'></div>
+          </div>
+          <div class='color' data-color='#aa5500'>
+            <div id="color_13" class="isometric" style='background-color: #aa5500'></div>
+          </div>
+          <div class='color' data-color='#ffff55'>
+            <div id="color_14" class="isometric" style='background-color: #ffff55'></div>
+          </div>
+          <div class='color' data-color='#aaaaaa'>
+            <div id="color_15" class="isometric" style='background-color: #aaaaaa'></div>
+          </div>
+          <div class='color' data-color='#ffffff'>
+            <div id="color_16" class="isometric" style='background-color: #ffffff'></div>
+          </div>
         </div>
         <div id='commands'>
-          <a class='disabled' id='upload'>Save</a>
+          <!--<a class='disabled' id='upload'>Save</a>-->
           <div id='animation'>
-            <p>Frames</p>
-            <div style='overflow: hidden'>
-              <div class='play_stop active'></div>
-              <div class='frame active' data-frame='0' href='#'>1</div>
-              <div class='frame' data-frame='1' href='#'>2</div>
+            <div class='play_stop active isometric'></div>
+            <!--<p>Frames</p>-->
+            <div style='overflow: hidden; height:90px'>
+              <div class='frames isometric'>
+                <div class='frame active' data-frame='0' href='#'>
+                  <canvas width="16" height="16"></canvas>
+                  <div>1</div>
+                </div>
+                <div class='frame disabled' data-frame='1' href='#'>
+                  <canvas width="16" height="16"></canvas>
+                  <div>2</div>
+                </div>
+                <div class='frame disabled' data-frame='2' href='#'>
+                  <canvas width="16" height="16"></canvas>
+                  <div>3</div>
+                </div>
+                <div class='frame disabled' data-frame='3' href='#'>
+                  <canvas width="16" height="16"></canvas>
+                  <div>4</div>
+                </div>
+                <div class='frame disabled' data-frame='4' href='#'>
+                  <canvas width="16" height="16"></canvas>
+                  <div>5</div>
+                </div>
+                <div class='frame disabled' data-frame='5' href='#'>
+                  <canvas width="16" height="16"></canvas>
+                  <div>6</div>
+                </div>
+                <div class='frame disabled' data-frame='6' href='#'>
+                  <canvas width="16" height="16"></canvas>
+                  <div>7</div>
+                </div>
+                <div class='frame disabled' data-frame='7' href='#'>
+                  <canvas width="16" height="16"></canvas>
+                  <div>8</div>
+                </div>
+                <div class='frame disabled' data-frame='8' href='#'>
+                  <canvas width="16" height="16"></canvas>
+                  <div>9</div>
+                </div>
+                <div class='frame disabled' data-frame='9' href='#'>
+                  <canvas width="16" height="16"></canvas>
+                  <div>10</div>
+                </div>
+                <div class='frame disabled' data-frame='10' href='#'>
+                  <canvas width="16" height="16"></canvas>
+                  <div>11</div>
+                </div>
+                <div class='frame disabled' data-frame='11' href='#'>
+                  <canvas width="16" height="16"></canvas>
+                  <div>12</div>
+                </div>
+                <div class='frame disabled' data-frame='12' href='#'>
+                  <canvas width="16" height="16"></canvas>
+                  <div>13</div>
+                </div>
+                <div class='frame disabled' data-frame='13' href='#'>
+                  <canvas width="16" height="16"></canvas>
+                  <div>14</div>
+                </div>
+                <div class='frame disabled' data-frame='14' href='#'>
+                  <canvas width="16" height="16"></canvas>
+                  <div>15</div>
+                </div>
+                <div class='frame disabled' data-frame='15' href='#'>
+                  <canvas width="16" height="16"></canvas>
+                  <div>16</div>
+                </div>
+              </div>
+              <div id="add_frames">
+                <div class='add_frame'>+</div>
+                <div class='remove_frame disabled'>-</div>
+              </div>
             </div>
+            <!--
             <p>Onion skin</p>
             <div style='overflow: hidden'>
               <div class='onion' data-frame='0' href='#'>1</div>
               <div class='onion' data-frame='1' href='#'>2</div>
-            </div>
+            </div>-->
           </div>
         </div>
       </div>
+      <div id='adv-right'>
+        <script type="text/javascript"><!--
+        google_ad_client = "ca-pub-7194529311513014";
+        /* Draw! (120x600) */
+        google_ad_slot = "3056163295";
+        google_ad_width = 120;
+        google_ad_height = 600;
+        //-->
+        </script>
+        <script type="text/javascript"
+        src="http://pagead2.googlesyndication.com/pagead/show_ads.js">
+        </script>
+      </div>
+    </div>
+      <div id='images'>
+        <div style='clear: both'></div>
+        <div class='page'>
+          <p class='sep'>
+            <a href='http://localhost/?page=1'>
+              1
+              /
+              1
+            </a>
+          </p>
+          <div class='drawing'>
+            <a href='/drawings/1320407257.png'>
+              <img src='http://s3.amazonaws.com/draw.heroku.com/1323510050.gif_64.gif'>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
     </div>
   </body>
 </html>
