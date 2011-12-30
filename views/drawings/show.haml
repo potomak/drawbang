@@ -11,7 +11,7 @@
   - if @drawing['user']
     #user
       by
-      %img.avatar{:width => 25, :src => @drawing['user']['image']}
+      %img.isometric.avatar{:width => 25, :src => @drawing['user']['image']}
       %span.name
         %a{:href => "/users/#{@drawing['user']['uid']}"}= @drawing['user']['first_name']
       %form{:id => "fork_drawing", :action => "/drawings/#{params[:id]}/fork", :method => "POST"}

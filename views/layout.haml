@@ -47,17 +47,18 @@
     = yield_content :head
 
   %body
+    .container.black
+      .wrapper
+        #auth
+          - if logged_in?
+            :javascript
+              var user_uid = #{@user['uid']};
+            = haml :'shared/user_header', :locals => {:origin => CGI.escape(request.url)}
+          - else
+            .left
+              %a{:href => "/auth/facebook?origin=#{CGI.escape request.url}", :class => "popup", :'data-width' => 600, :'data-height' => 400}
+                %img{:src => "/images/fb_login_button.png"}
     .wrapper
-      #auth
-        - if logged_in?
-          :javascript
-            var user_uid = #{@user['uid']};
-          = haml :'shared/user_header', :locals => {:origin => CGI.escape(request.url)}
-        - else
-          .left
-            %a{:href => "/auth/facebook?origin=#{CGI.escape request.url}", :class => "popup", :'data-width' => 600, :'data-height' => 400}
-              %img{:src => "/images/fb_login_button.png"}
-      
       #flash_wrapper
         = haml :'shared/flash'
   
