@@ -20,29 +20,29 @@ function performUpload() {
       lastFrameNotNullFound = false;
   
   for(var i = 1; i < maxFrames && !lastFrameNotNullFound; i++) {
-    if(pixel.getFrame(i) == null) {
+    if(PIXEL.getFrame(i) == null) {
       lastFrameNotNull = i-1;
       lastFrameNotNullFound = true;
     }
   }
   
-  pixel.log(['lastFrameNotNull', lastFrameNotNull]);
+  PIXEL.log(['lastFrameNotNull', lastFrameNotNull]);
   
   if(0 != lastFrameNotNull) {
     -1 == lastFrameNotNull && (lastFrameNotNull = 15);
     
     // NOTE: workaround to populate frames matrix
     for(var i = 0; i < lastFrameNotNull+1; i++) {
-      pixel.setCurrentFrame((pixel.getCurrentFrameId()+1) % (lastFrameNotNull+1));
+      PIXEL.setCurrentFrame((PIXEL.getCurrentFrameId()+1) % (lastFrameNotNull+1));
     }
     
     data['image'] = {frames: []};
     for(var i = 0; i < lastFrameNotNull+1; i++) {
-      data['image']['frames'].push(pixel.getFrame(i));
+      data['image']['frames'].push(PIXEL.getFrame(i));
     }
   }
   else {
-    data['image'] = {frame: pixel.getCurrentFrame()};
+    data['image'] = {frame: PIXEL.getCurrentFrame()};
   }
   
   $.ajax({
@@ -80,15 +80,15 @@ function ctrlKey(e) {
 // clear all frames, disable all frames except the first one and make first frame active
 function clearAll() {
   for(var i = 0; i < frames; i++) {
-    pixel.setCurrentFrame(i);
-    pixel.clearCanvas();
+    PIXEL.setCurrentFrame(i);
+    PIXEL.clearCanvas();
     disable($(".frame[data-frame=" + i + "]"));
   }
   deactivate($(".frame.active"));
   activate($(".frame[data-frame=0]"));
   enable($(".frame[data-frame=0]"));
-  pixel.setCurrentFrame(0);
-  pixel.clearCanvas();
+  PIXEL.setCurrentFrame(0);
+  PIXEL.clearCanvas();
   frames = 1;
 }
 
@@ -155,12 +155,12 @@ function getCoordinates(e) {
 
 // mouse down event callback
 function mouseDownCallback(e) {
-  pixel.setDraw(true);
+  PIXEL.setDraw(true);
   var coordinates = getCoordinates(e);
   
-  pixel.log(['mouseDownCallback', e]);
+  PIXEL.log(['mouseDownCallback', e]);
   
-  pixel.doAction(coordinates.x, coordinates.y, currentColor);
+  PIXEL.doAction(coordinates.x, coordinates.y, currentColor);
   
   $("#upload.disabled").bind('click', upload).removeClass('disabled');
   $("#upload").addClass('enabled');
@@ -170,20 +170,20 @@ function mouseDownCallback(e) {
 function mouseMoveCallback(e) {
   var coordinates = getCoordinates(e);
   
-  pixel.doAction(coordinates.x, coordinates.y, currentColor);
+  PIXEL.doAction(coordinates.x, coordinates.y, currentColor);
   e.preventDefault();
 }
 
 // mouse up event callback
 function mouseUpCallback() {
-  pixel.setDraw(false);
+  PIXEL.setDraw(false);
 }
 
 $(document).ready(function() {
   var canvas = $("#canvas canvas"),
       zKey = 90;
 
-  pixel.init(canvas[0], !production_env);
+  PIXEL.init(canvas[0], !production_env);
 
   // set drawing on mousedown
   canvas.mousedown(mouseDownCallback).mousemove(mouseMoveCallback);
@@ -212,7 +212,7 @@ $(document).ready(function() {
   // controls
   $("#clear").click(function() {
     if($("#upload").hasClass('enabled') && confirm("Sure?")) {
-      pixel.clearCanvas();
+      PIXEL.clearCanvas();
     
       $("#upload.enabled").unbind('click').removeClass('enabled');
       $("#upload").addClass('disabled');
@@ -220,7 +220,7 @@ $(document).ready(function() {
   });
 
   $(".action.selectable").click(function() {
-    pixel.setAction($(this).data('action'));
+    PIXEL.setAction($(this).data('action'));
     
     $(".action.selectable.active").toggleClass("active");
     $(this).toggleClass("active");
@@ -238,10 +238,10 @@ $(document).ready(function() {
   $(document).keydown(function(e) {
     if(ctrlKey(e) && e.keyCode == zKey) {
       if(e.shiftKey) {
-        pixel.redo();
+        PIXEL.redo();
       }
       else {
-        pixel.undo();
+        PIXEL.undo();
       }
       
       return false;
@@ -256,7 +256,7 @@ $(document).ready(function() {
   
   $(".frame").click(function() {
     if(isEnabled($(this))) {
-      pixel.setCurrentFrame($(this).data('frame'));
+      PIXEL.setCurrentFrame($(this).data('frame'));
     
       $(".frame.active").toggleClass("active");
       $(this).toggleClass("active");
@@ -274,9 +274,9 @@ $(document).ready(function() {
       $(".frame.active").toggleClass("active");
       $(".frame[data-frame=" + (frames-1) + "]").toggleClass("active");
       
-      pixel.setCurrentFrame(frames-1);
+      PIXEL.setCurrentFrame(frames-1);
       
-      pixel.log(['add_frame', frames]);
+      PIXEL.log(['add_frame', frames]);
     }
   });
   
@@ -291,18 +291,18 @@ $(document).ready(function() {
       $(".frame.active").toggleClass("active");
       $(".frame[data-frame=" + (frames-1) + "]").toggleClass("active");
       
-      pixel.log(['remove_frame', frames]);
+      PIXEL.log(['remove_frame', frames]);
     }
   });
   
   // NOTE: deprecated
   /*
   $(".onion").click(function() {
-    if($(this).data().frame == pixel.getCurrentOnionFrameId()) {
-      pixel.setOnionFrame(null);
+    if($(this).data().frame == PIXEL.getCurrentOnionFrameId()) {
+      PIXEL.setOnionFrame(null);
     }
     else {
-      pixel.setOnionFrame($(this).data().frame);
+      PIXEL.setOnionFrame($(this).data().frame);
       $(".onion.active").toggleClass("active");
     }
     
@@ -312,10 +312,10 @@ $(document).ready(function() {
   
   $(".play_stop").click(function() {
     if($(this).hasClass("stop")) {
-      pixel.stop();
+      PIXEL.stop();
     }
     else {
-      pixel.play(5, function(frame) {
+      PIXEL.play(5, function(frame) {
         $(".frame.active").toggleClass("active");
         $(".frame").each(function() {
           $(this).data('frame') == frame && $(this).toggleClass("active");
