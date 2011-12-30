@@ -19,9 +19,11 @@
   
   %link{:rel => "alternate", :type => "application/rss+xml", :href => "http://#{request.host_with_port}/feed.rss", :title => "Draw! feed"}
 
-%fb:facepile
+.block
+  = haml :'shared/editor'
 
-= haml :'shared/editor'
+.block
+  %fb:facepile
 
 %h2 GALLERY
 #images

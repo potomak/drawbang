@@ -1,11 +1,10 @@
-@font-face {
-	font-family: uni;
-	src: url('/uni05_63.ttf');
-} 
+html, body {
+	margin: 0;
+	padding: 0;
+}
 
 body {
-	font-family: Courier, "Courier New" ;
-
+	font-family: 'Inconsolata', sans-serif;
 }
 
 h1 {
@@ -18,16 +17,8 @@ h2 {
 
 h1, h2 {
 	text-align: center;
-	color: #000;
-	-webkit-text-fill-color: #fff; /* Will override color (regardless of order) */
-	-webkit-text-stroke-width: 2px;
-	-webkit-text-stroke-color: #000;
-	text-shadow:
-		 4px 4px 0 #000,
-		-1px -1px 0 #000,
-		 1px -1px 0 #000,
-		-1px 1px 0 #000,
-		 1px 1px 0 #000;
+	color: #333;
+	font-weight: normal;
 }
 
 a,
@@ -207,6 +198,13 @@ p.sep a {
 	float:left;
 }
 
+#desktop * {
+	-moz-user-select: none;
+	-khtml-user-select: none;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
 #adv-left {
 	width: 160px;
 	float: left;
@@ -243,8 +241,6 @@ p.sep a {
 }
 
 #controls .actions {
-	/*border: 10px solid #DDD;
-	background-color: #DDD;*/
 	margin-bottom: 16px;
 	width: 91px;
 	padding-bottom: 20px;
@@ -347,8 +343,6 @@ p.sep a {
 	width: 90px;
 	height: 90px;
 	margin-left: 30px;
-	/*border: 10px solid #CCC;
-	background-color: #CCC;*/
 	float: left;
 }
 
