@@ -282,6 +282,8 @@ $(document).ready(function() {
   
   // remove frame
   $(".remove_frame").click(function() {
+    PIXEL.log(['remove_frame', this]);
+    
     if(isEnabled($(this))) {
       frames--;
       1 == frames && disable($(this));
@@ -324,5 +326,21 @@ $(document).ready(function() {
     }
     
     $(this).toggleClass("stop");
+  });
+  
+  $(".move_right").click(function() {
+    PIXEL.moveRight()
+  });
+  
+  $(".move_top").click(function() {
+    PIXEL.moveTop()}
+  );
+  
+  $(".flip_horizontal").click(function() {
+    PIXEL.flipHorizontal()}
+  );
+  
+  $(".flip_vertical").click(function() {
+    PIXEL.flipVertical()
   });
 });
