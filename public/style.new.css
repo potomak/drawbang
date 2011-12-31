@@ -5,6 +5,7 @@ html, body {
 
 body {
 	font-family: 'Inconsolata', sans-serif;
+	background-image: url(/images/bg.gif);
 }
 
 h1 {
@@ -289,7 +290,7 @@ p.sep a {
 	float: left;
 	width: 40px;
 	height: 40px;
-	background-image: url(images/tools_sprite.gif);
+	background-image: url(/images/tools_sprite.gif);
 	background-color: #F9F9F9;
 }
 
@@ -473,7 +474,6 @@ p.sep a {
 
 
 #colors .color.active div {
-	/*background: url(images/color_selected.gif) no-repeat;*/
 	top: 10px;
 	left: 10px;
 	z-index: -2;
@@ -486,8 +486,7 @@ p.sep a {
 	cursor: crosshair;
 	width: 320px;
 	height: 320px;
-	/*border: 10px solid #DDD;*/
-	background-image: url(images/canvas_bg.gif);
+	background-image: url(/images/canvas_bg.gif);
 	margin: 0 auto;
 }
 
@@ -563,7 +562,7 @@ p.sep a {
 	float: left;
 	width: 80px;
 	height: 40px;
-	background: url(images/play_stop.gif) 0 0 #F9F9F9;
+	background: url(/images/play_stop.gif) 0 0 #F9F9F9;
 	margin-right: 30px;
 	cursor: pointer;
 }
@@ -613,7 +612,7 @@ p.sep a {
 	height: 40px;
 	color: #999;
 	text-align: center;
-	background: url(images/frames.gif) no-repeat 0 0;
+	background: url(/images/frames.gif) no-repeat 0 0;
 }
 #animation .frame canvas {
 	margin: 2px; 
@@ -713,10 +712,20 @@ a:visited#upload.enabled {
 }
 
 #images .drawing {
+	width: 64px;
+	height: 64px;
 	margin-right: 40px;
 	margin-bottom: 40px;
-	overflow: hidden;
 	float: left;
+}
+
+#images .drawing.isometric::after {
+	width: 64px;
+	height: 10px;
+}
+#images .drawing.isometric::before {
+	width: 10px;
+	height: 64px;
 }
 
 #images .drawing a {
@@ -725,17 +734,12 @@ a:visited#upload.enabled {
 
 #images img {
 	margin-right: 5px;
-	border: 1px solid #000;
 	width: 64px;
 	image-rendering: -moz-crisp-edges;
 	-ms-interpolation-mode: nearest-neighbor;
 	/* see https://bugs.webkit.org/show_bug.cgi?id=40881 */
 	image-rendering: -webkit-crisp-edges;
 	-webkit-interpolation-mode: nearest-neighbor;
-	
-	-moz-box-shadow: 5px 5px 0 #000;
-	-webkit-box-shadow: 5px 5px 0 #000;
-	box-shadow: 5px 5px 0 #000;
 }
 
 #images a {
