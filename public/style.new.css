@@ -30,7 +30,7 @@ a:visited {
 }
 
 .active {
-	font-weight: bold;
+	text-decoration: underline;
 }
 
 p.flash.error {
@@ -633,55 +633,61 @@ p.sep a {
 
 }
 
+/* ADD AND REMOVE FRAMES */
 #animation #add_frames {
 	width: 81px;
-	height: 20px;
+	height: 40px;
 	margin-top: 60px;
 	margin-left: 239px;
 }
-#animation .add_frame::after{
-	width: 40px;
-	height: 10px;
-}
-#animation .add_frame::before{
-	width: 10px;
-	height: 20px;
-}
-#animation .add_frame {
-	float:left;
-	width: 40px;
-	height: 17px;
-	text-align: center;
-	background-color: #F9F9F9;
-	margin-right: 1px;
-	padding-top: 3px;
-	cursor: pointer;
-}
-#animation .remove_frame::after{
-	width: 40px;
-	height: 10px;
-}
-#animation .remove_frame:active::after{
-	width: 0px;
-	height: 0px;
-}
-#animation .remove_frame::before{
-	width: 10px;
-	height: 20px;
-}
-#animation .add_frame:active, #animation .remove_frame:active { top: 10px; left: 10px; z-index: -2;}
-#animation .remove_frame:active::before{
-	width: 0px;
-	height: 0px;
-}
+
+#animation .add_frame,
 #animation .remove_frame {
 	width: 40px;
-	height: 17px;
+	height: 32px;
 	text-align: center;
 	background-color: #F9F9F9;
-	float: right;
-	padding-top: 3px;
+	padding-top: 8px;
 	cursor: pointer;
+	font-size: 20px;
+	color: #999;
+}
+
+#animation .add_frame {
+	float: left;
+	margin-right: 1px;
+}
+
+#animation .remove_frame {
+	float: right;
+	z-index: 2;
+}
+
+#animation .add_frame.isometric::after,
+#animation .remove_frame.isometric::after {
+	width: 40px;
+	height: 10px;
+}
+
+#animation .add_frame.isometric::before,
+#animation .remove_frame.isometric::before {
+	width: 10px;
+	height: 40px;
+}
+
+#animation .add_frame.isometric:active::after,
+#animation .add_frame.isometric:active::before,
+#animation .remove_frame.isometric:active::after,
+#animation .remove_frame.isometric:active::before {
+	width: 0px;
+	height: 0px;
+}
+
+#animation .add_frame.isometric:active,
+#animation .remove_frame.isometric:active {
+	top: 10px;
+	left: 10px;
+/*	z-index: -2;*/
 }
 
 #upload {

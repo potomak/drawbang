@@ -36,15 +36,15 @@
     
     #animation
       .play_stop.active.isometric
-      %div{:style => "overflow: hidden; height:90px"}
+      %div{:style => "overflow: hidden; height:110px"}
         .frames.isometric
           - MAX_FRAMES.times do |frame|
             .frame{:'data-frame' => frame, :href => "#", :class => (0 == frame ? "active" : "disabled")}
               %canvas{:height => "16", :width => "16"}
               %div= frame+1
         #add_frames
-          .add_frame.isometric +
-          .remove_frame.disabled.isometric -
+          .isometric.add_frame +
+          .isometric.remove_frame.disabled -
 
 #adv-right
   = haml :'shared/adsense', :locals => {:slot => "7948970014", :width => 160, :height => 600}
