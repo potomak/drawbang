@@ -69,7 +69,8 @@
           %a{:href => "http://redistogo.com", :title => "Redis To Go"} Redis To Go
         %a{:href => "/" == request.path_info ? "/about" : "/", :title => "/" == request.path_info ? "Learn more about Draw!" : "Return to gallery"}
           %h1 DRAW!
-        .share
+          %h2 16x16 animated pixelart pictures
+        .share.block
           .left.flattr_button
             %a.FlattrButton{:style => "display:none;", :rev => "flattr;button:compact;", :href => "http://draw.heroku.com/"}
             %noscript
@@ -79,7 +80,6 @@
             %a{:href => "http://twitter.com/share", :class => "twitter-share-button", :'data-url' => "http://drawbang.com", :'data-text' => "Have fun drawing!", :'data-count' => "horizontal", :'data-via' => "drawbang", :'data-related' => "drawbang"} Tweet
           .left.like_button
             %fb:like{:href => "http://drawbang.com", :send => "false", :layout => "button_count", :width => "110", :show_faces => "false", :font => ""}
-          %div{:style => "clear: both"}
     
     #container.wrapper
       = yield

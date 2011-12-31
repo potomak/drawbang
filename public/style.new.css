@@ -8,22 +8,18 @@ body {
 	background-image: url(/images/bg.gif);
 }
 
+h1, h2, h3 {
+	color: #333;
+	font-weight: normal;
+}
+
 h1 {
 	font-size: 80px;
+	text-align: center;
 }
 
 h2 {
 	font-size: 40px;
-}
-
-h3 {
-	font-weight: normal;
-}
-
-h1, h2 {
-	text-align: center;
-	color: #333;
-	font-weight: normal;
 }
 
 a,
@@ -66,7 +62,7 @@ p.flash.notice {
 }
 
 p.sep {
-	border-bottom: 1px solid #000;
+	border-bottom: 1px solid #999;
 }
 
 p.sep a {
@@ -170,8 +166,15 @@ p.sep a {
 }
 
 #header h1 {
-	margin-top: 20px;
-	margin-bottom: 0px;
+	text-indent: -9000px;
+	width: 324px;
+	height: 62px;
+	background-image: url(/images/drawbang_logo.gif);
+	margin: 20px auto 0;
+}
+
+#header h2 {
+	font-size: 20px;
 }
 
 #header a,
