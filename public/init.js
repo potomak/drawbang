@@ -181,9 +181,10 @@ function mouseUpCallback() {
 
 $(document).ready(function() {
   var canvas = $("#canvas canvas"),
+      previewCanvases = $('.frames canvas'),
       zKey = 90;
 
-  PIXEL.init(canvas[0], !production_env);
+  PIXEL.init(canvas[0], previewCanvases, !production_env);
 
   // set drawing on mousedown
   canvas.mousedown(mouseDownCallback).mousemove(mouseMoveCallback);
