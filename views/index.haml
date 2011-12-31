@@ -5,7 +5,7 @@
         currentPage = #{@current_page};
 
   %script{:src => 'https://raw.github.com/brianmario/jquery-infinite-scroll/master/jquery.infinitescroll.js', :type => 'text/javascript'}
-  %script{:src => is_production? ? 'https://github.com/potomak/jquery-pixel/raw/master/pixel.min.js' : '/pixel.min.js', :type => 'text/javascript'}
+  %script{:src => is_production? ? 'https://github.com/potomak/jquery-pixel/raw/master/pixel.min.js' : '/pixel.js', :type => 'text/javascript'}
   %script{:src => '/init.js', :type => 'text/javascript'}
   %script{:src => '/pagination.js', :type => 'text/javascript'}
 
