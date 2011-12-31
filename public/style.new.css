@@ -634,9 +634,14 @@ p.sep a {
 }
 
 /* ADD AND REMOVE FRAMES */
+.frames_container {
+	overflow: hidden;
+	height: 90px;
+}
+
 #animation #add_frames {
 	width: 81px;
-	height: 40px;
+	height: 20px;
 	margin-top: 60px;
 	margin-left: 239px;
 }
@@ -644,12 +649,11 @@ p.sep a {
 #animation .add_frame,
 #animation .remove_frame {
 	width: 40px;
-	height: 32px;
+	height: 17px;
 	text-align: center;
 	background-color: #F9F9F9;
-	padding-top: 8px;
+	padding-top: 3px;
 	cursor: pointer;
-	font-size: 20px;
 	color: #999;
 }
 
@@ -660,7 +664,6 @@ p.sep a {
 
 #animation .remove_frame {
 	float: right;
-	z-index: 2;
 }
 
 #animation .add_frame.isometric::after,
@@ -672,10 +675,10 @@ p.sep a {
 #animation .add_frame.isometric::before,
 #animation .remove_frame.isometric::before {
 	width: 10px;
-	height: 40px;
+	height: 20px;
 }
 
-#animation .add_frame.isometric:active::after,
+/*#animation .add_frame.isometric:active::after,
 #animation .add_frame.isometric:active::before,
 #animation .remove_frame.isometric:active::after,
 #animation .remove_frame.isometric:active::before {
@@ -687,8 +690,8 @@ p.sep a {
 #animation .remove_frame.isometric:active {
 	top: 10px;
 	left: 10px;
-/*	z-index: -2;*/
-}
+	z-index: -2;
+}*/
 
 #upload {
 	padding-left: 26px;

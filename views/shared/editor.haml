@@ -36,7 +36,7 @@
     
     #animation
       .play_stop.active.isometric
-      %div{:style => "overflow: hidden; height:110px"}
+      .frames_container
         .frames.isometric
           - MAX_FRAMES.times do |frame|
             .frame{:'data-frame' => frame, :href => "#", :class => (0 == frame ? "active" : "disabled")}
