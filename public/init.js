@@ -343,4 +343,16 @@ $(document).ready(function() {
   $(".flip_vertical").click(function() {
     PIXEL.flipVertical()
   });
+  
+  $(".copy").click(function() {
+    PIXEL.copy()
+  });
+  
+  $(".paste").click(function() {
+    PIXEL.paste()
+  });
+  
+  $(".rotate").click(function() {
+    PIXEL.rotate()
+  });
 });
