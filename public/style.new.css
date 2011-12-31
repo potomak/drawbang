@@ -618,16 +618,19 @@ p.sep a {
 	background: url(/images/frames.gif) no-repeat 0 0;
 }
 #animation .frame canvas {
-	margin: 2px; 
+	margin: 2px;
 }
 #animation .frame.active canvas {
 	background-color: #fff;
 }
-#animation .frame.disabled {
-	background-position: -40px 0;
+#animation .frame.disabled canvas {
+	background-color: none;
 }
 #animation .frame.active {
 	background-position: -20px 0;
+}
+#animation .frame.disabled {
+	background-position: -40px 0;
 }
 #animation .frame div {
 

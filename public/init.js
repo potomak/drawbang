@@ -294,6 +294,9 @@ $(document).ready(function() {
       $(".frame.active").toggleClass("active");
       $(".frame[data-frame=" + (frames-1) + "]").toggleClass("active");
       
+      PIXEL.clearCanvas();
+      PIXEL.setCurrentFrame(frames-1);
+      
       PIXEL.log(['remove_frame', frames]);
     }
   });
@@ -346,11 +349,11 @@ $(document).ready(function() {
   });
   
   $(".copy").click(function() {
-    PIXEL.copy()
+    copyFrameIndex = PIXEL.getCurrentFrameId();
   });
   
   $(".paste").click(function() {
-    PIXEL.paste()
+    PIXEL.copyFrameAt(copyFrameIndex);
   });
   
   $(".rotate").click(function() {
