@@ -829,6 +829,31 @@ a:visited#upload.enabled {
 	margin-bottom: 40px;
 }
 
+#user .info {
+	width: 500px;
+	padding-bottom: 10px;
+}
+
+#user .info .avatar {
+	margin-right: 15px;
+	background-position: 50%;
+	width: 100px;
+	height: 100px;
+}
+
+#user .info .avatar.isometric::after {
+	width: 100px;
+	height: 10px;
+}
+#user .info .avatar.isometric::before {
+	width: 10px;
+	height: 100px;
+}
+
+#user .info h3 {
+	margin-top: 0;
+}
+
 #footer {
 	font-size: 12px;
 	text-align: center;

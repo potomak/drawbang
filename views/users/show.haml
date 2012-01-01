@@ -1,9 +1,13 @@
-#user
-  USER
-  = @user['user_info']['first_name']
-
-%h2 GALLERY
-#images
-  %div{:style => "clear: both"}
-  = haml :'drawings/gallery'
-%a{:id => "more", :href => "#"} More
+.block
+  #user.left
+    .info.block
+      .left.avatar.isometric{:style => "background-image: url(http://graph.facebook.com/#{@user['uid']}/picture?type=normal)"}
+      %h3.name= @user['user_info']['first_name']
+    
+    %h2 GALLERY
+    #images
+      = haml :'drawings/gallery'
+    %a{:id => "more", :href => "#"} More
+  
+  #adv-right
+    = haml :'shared/adsense', :locals => {:slot => "7948970014", :width => 160, :height => 600}
