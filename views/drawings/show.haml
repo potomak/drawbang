@@ -6,31 +6,35 @@
   %meta{:property => "og:description", :content => "Do you like pixelart?"}
   %meta{:property => "fb:app_id", :content => FACEBOOK['app_id']}
 
-#drawing
-  .drawing_container.isometric
-    %img{:src => @drawing['url']}
-  - if @drawing['user']
-    #user.block
-      %span.left by
-      .left.isometric
-        %img.avatar{:width => 25, :src => @drawing['user']['image']}
-      %span.name
-        %a{:href => "/users/#{@drawing['user']['uid']}"}= @drawing['user']['first_name']
+.block
+  #drawing.left
+    .drawing_container.isometric
+      %img{:src => @drawing['url']}
+    - if @drawing['user']
+      #user.block
+        %span.left by
+        .left.isometric
+          %img.avatar{:width => 25, :src => @drawing['user']['image']}
+        %span.name
+          %a{:href => "/users/#{@drawing['user']['uid']}"}= @drawing['user']['first_name']
     
-    #actions
-      -# TODO: activate when fork is ready
-        / %form{:id => "fork_drawing", :action => "/drawings/#{params[:id]}/fork", :method => "POST"}
-        / %a{:href => "#", :onclick => "_gaq.push(['_trackEvent', 'Drawings', 'Fork', '#{@drawing['url']}']); $('#fork_drawing').submit(); return false;"} Fork
-      - if logged_in? && @drawing['user']['uid'] == @user['uid']
-        %form{:id => "delete_drawing", :action => "/drawings/#{params[:id]}", :method => "POST"}
-          %input{:type => "hidden", :name => "_method", :value => "delete"}
-        %a{:href => "#", :title => "Delete your drawing", :onclick => "if (confirm('Sure?')) {_gaq.push(['_trackEvent', 'Drawings', 'Delete', '#{@drawing['url']}']); $('#delete_drawing').submit();} return false;"} Delete
+      #actions
+        -# TODO: activate when fork is ready
+          / %form{:id => "fork_drawing", :action => "/drawings/#{params[:id]}/fork", :method => "POST"}
+          / %a{:href => "#", :onclick => "_gaq.push(['_trackEvent', 'Drawings', 'Fork', '#{@drawing['url']}']); $('#fork_drawing').submit(); return false;"} Fork
+        - if logged_in? && @drawing['user']['uid'] == @user['uid']
+          %form{:id => "delete_drawing", :action => "/drawings/#{params[:id]}", :method => "POST"}
+            %input{:type => "hidden", :name => "_method", :value => "delete"}
+          %a{:href => "#", :title => "Delete your drawing", :onclick => "if (confirm('Sure?')) {_gaq.push(['_trackEvent', 'Drawings', 'Delete', '#{@drawing['url']}']); $('#delete_drawing').submit();} return false;"} Delete
     
-  .share
-    .left.tweet_button
-      %a{:href => "http://twitter.com/share", :class => "twitter-share-button", :'data-url' => @drawing[:share_url], :'data-text' => "Check this drawing out!", :'data-count' => "horizontal", :'data-via' => "drawbang", :'data-related' => "drawbang"} Tweet
-    .left.like_button
-      %fb:like{:href => @drawing[:share_url], :send => "false", :layout => "button_count", :width => "110", :show_faces => "false", :font => ""}
-    %div{:style => "clear: both"}
+    .share
+      .left.tweet_button
+        %a{:href => "http://twitter.com/share", :class => "twitter-share-button", :'data-url' => @drawing[:share_url], :'data-text' => "Check this drawing out!", :'data-count' => "horizontal", :'data-via' => "drawbang", :'data-related' => "drawbang"} Tweet
+      .left.like_button
+        %fb:like{:href => @drawing[:share_url], :send => "false", :layout => "button_count", :width => "110", :show_faces => "false", :font => ""}
+      %div{:style => "clear: both"}
 
-.fb-comments{:'data-href' => @drawing[:share_url], :'data-num-posts' => 2, :'data-width' => 666}
+    .fb-comments{:'data-href' => @drawing[:share_url], :'data-num-posts' => 2, :'data-width' => 666}
+
+  #adv-right
+    = haml :'shared/adsense', :locals => {:slot => "7948970014", :width => 160, :height => 600}

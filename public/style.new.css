@@ -774,10 +774,7 @@ a:visited#upload.enabled {
 	overflow: hidden;
 }
 
-#drawing {
-	width: 320px;
-	margin: 0 auto;
-}
+#drawing {}
 
 #drawing .drawing_container {
 	width: 320px;
