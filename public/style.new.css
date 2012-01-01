@@ -779,21 +779,53 @@ a:visited#upload.enabled {
 	margin: 0 auto;
 }
 
-#drawing img {
-	margin-bottom: 10px;
-	border: 1px solid #000;
-	-moz-box-shadow: 5px 5px 0 #000;
-	-webkit-box-shadow: 5px 5px 0 #000;
-	box-shadow: 5px 5px 0 #000;
+#drawing .drawing_container {
+	width: 320px;
+	height: 320px;
+	margin-bottom: 20px;
+}
+
+#drawing .drawing_container.isometric::after {
+	width: 320px;
+	height: 10px;
+}
+#drawing .drawing_container.isometric::before {
+	width: 10px;
+	height: 320px;
 }
 
 #drawing #user {
-	overflow: hidden;
 	margin-bottom: 10px;
+	padding-bottom: 10px;
 }
 
 #drawing #user img {
 	margin-bottom: 0;
+}
+
+#drawing #user .isometric {
+	width: 25px;
+	height: 25px;
+	margin-right: 15px;
+	margin-left: 5px;
+}
+
+#drawing #user .isometric::after {
+	width: 25px;
+	height: 10px;
+}
+#drawing #user .isometric::before {
+	width: 10px;
+	height: 25px;
+}
+
+#drawing #user span {
+	display: block;
+	margin-top: 10px;
+}
+
+#drawing #actions {
+	margin-bottom: 10px;
 }
 
 #drawing .share {

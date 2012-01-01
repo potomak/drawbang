@@ -7,19 +7,24 @@
   %meta{:property => "fb:app_id", :content => FACEBOOK['app_id']}
 
 #drawing
-  %img{:src => @drawing['url']}
+  .drawing_container.isometric
+    %img{:src => @drawing['url']}
   - if @drawing['user']
-    #user
-      by
-      %img.isometric.avatar{:width => 25, :src => @drawing['user']['image']}
+    #user.block
+      %span.left by
+      .left.isometric
+        %img.avatar{:width => 25, :src => @drawing['user']['image']}
       %span.name
         %a{:href => "/users/#{@drawing['user']['uid']}"}= @drawing['user']['first_name']
-      %form{:id => "fork_drawing", :action => "/drawings/#{params[:id]}/fork", :method => "POST"}
-      %a{:href => "#", :onclick => "_gaq.push(['_trackEvent', 'Drawings', 'Fork', '#{@drawing['url']}']); $('#fork_drawing').submit(); return false;"} Fork
+    
+    #actions
+      -# TODO: activate when fork is ready
+        / %form{:id => "fork_drawing", :action => "/drawings/#{params[:id]}/fork", :method => "POST"}
+        / %a{:href => "#", :onclick => "_gaq.push(['_trackEvent', 'Drawings', 'Fork', '#{@drawing['url']}']); $('#fork_drawing').submit(); return false;"} Fork
       - if logged_in? && @drawing['user']['uid'] == @user['uid']
         %form{:id => "delete_drawing", :action => "/drawings/#{params[:id]}", :method => "POST"}
           %input{:type => "hidden", :name => "_method", :value => "delete"}
-        %a{:href => "#", :onclick => "if (confirm('Sure?')) {_gaq.push(['_trackEvent', 'Drawings', 'Delete', '#{@drawing['url']}']); $('#delete_drawing').submit();} return false;"} Delete
+        %a{:href => "#", :title => "Delete your drawing", :onclick => "if (confirm('Sure?')) {_gaq.push(['_trackEvent', 'Drawings', 'Delete', '#{@drawing['url']}']); $('#delete_drawing').submit();} return false;"} Delete
     
   .share
     .left.tweet_button
