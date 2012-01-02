@@ -774,9 +774,7 @@ p.sep a {
 	margin-bottom: 5px;
 }
 
-#images .page {
-	overflow: hidden;
-}
+#images .page {}
 
 #drawing {}
 
