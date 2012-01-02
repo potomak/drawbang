@@ -315,7 +315,7 @@ p.sep a {
 
 #controls .actions .active,
 #controls #clear.active {
-	
+	background-color: #EEE;
 }
 
 #controls .active {
@@ -378,59 +378,59 @@ p.sep a {
 
 
 #controls .action.move_top {
-	background-position: 0 -280px;
+	background-position: 0 -120px;
 }
 
 #controls .action.move_top.active {
-	background-position: 40px -280px;
+	background-position: 40px -120px;
 }
 
 #controls .action.move_right {
-	background-position: 0 -240px;
-}
-
-#controls .action.move_right.active {
-	background-position: 40px -240px;
-}
-
-#controls .action.flip_horizontal {
-	background-position: 0 -200px;
-}
-
-#controls .action.flip_horizontal.active {
-	background-position: 40px -200px;
-}
-
-#controls .action.flip_vertical {
 	background-position: 0 -160px;
 }
 
-#controls .action.flip_vertical.active {
+#controls .action.move_right.active {
 	background-position: 40px -160px;
 }
 
+#controls .action.flip_horizontal {
+	background-position: 0 -240px;
+}
+
+#controls .action.flip_horizontal.active {
+	background-position: 40px -240px;
+}
+
+#controls .action.flip_vertical {
+	background-position: 0 -200px;
+}
+
+#controls .action.flip_vertical.active {
+	background-position: 40px -200px;
+}
+
 #controls .action.copy {
-	background-position: 0 -400px;
+	background-position: 0 -280px;
 }
 
 #controls .action.copy.active {
-	background-position: 40px -400px;
+	background-position: 40px -280px;
 }
 
 #controls .action.paste {
-	background-position: 0 -440px;
-}
-
-#controls .action.paste.active {
-	background-position: 40px -440px;
-}
-
-#controls .action.rotate {
 	background-position: 0 -320px;
 }
 
-#controls .action.rotate.active {
+#controls .action.paste.active {
 	background-position: 40px -320px;
+}
+
+#controls .action.rotate {
+	background-position: 0 -360px;
+}
+
+#controls .action.rotate.active {
+	background-position: 40px -360px;
 }
 
 #colors {
