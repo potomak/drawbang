@@ -237,8 +237,9 @@ p.sep a {
 /* DESKTOP */
 
 #desktop {
-	width: 600px;
-	float:left;
+	width: 560px;
+	float: left;
+	margin-left: 200px;
 }
 
 #desktop * {
