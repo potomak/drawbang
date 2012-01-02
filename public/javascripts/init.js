@@ -56,6 +56,7 @@ function performUpload() {
   });
   
   disable($("#upload")).unbind('click');
+  disable($("#clear"));
 }
 
 function upload() {
@@ -160,6 +161,7 @@ function mouseDownCallback(e) {
   
   if(!isEnabled($("#upload"))) {
     enable($("#upload")).bind('click', upload);
+    enable($("#clear"));
   }
 }
 
@@ -212,6 +214,7 @@ $(document).ready(function() {
     if(isEnabled($("#upload")) && confirm("Sure?")) {
       clearAll();
       disable($("#upload")).unbind('click');
+      disable($("#clear"));
     }
   });
 
@@ -234,7 +237,8 @@ $(document).ready(function() {
   $(document).keydown(function(e) {
     if(ctrlKey(e) && e.keyCode == zKey) {
       if(e.shiftKey) {
-        PIXEL.redo();
+        // NOTE: deprecated
+        // PIXEL.redo();
       }
       else {
         PIXEL.undo();
@@ -253,7 +257,7 @@ $(document).ready(function() {
   });
   */
   
-  $("#undo").click(function() {
+  $(".undo").click(function() {
     PIXEL.undo();
   });
   

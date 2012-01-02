@@ -287,9 +287,8 @@ p.sep a {
 }
 
 .actions {
-	margin-bottom: 16px;
 	width: 91px;
-	padding-bottom: 20px;
+	padding-bottom: 15px;
 	padding-right: 10px;
 }
 
@@ -356,15 +355,15 @@ p.sep a {
 	background-position: 40px -80px;
 }
 
-
 .action.undo {
-	background-position: 16px 0;
+	background-position: 0 -480px;
 }
 
 .action.undo.active {
-	background-position: 0 0;
+	background-position: 40px -480px;
 }
 
+/*
 .action.redo {
 	background-position: 16px 96px;
 }
@@ -372,7 +371,7 @@ p.sep a {
 .action.redo.active {
 	background-position: 0 96px;
 }
-
+*/
 
 .action.move_top {
 	background-position: 0 -120px;
@@ -503,8 +502,8 @@ p.sep a {
 	float: left;
 	width: 91px;
 	margin-left: 30px;
-	margin-top: 100px;
-	height: 121px;
+	margin-top: 145px;
+	height: 95px;
 }
 
 #commands .actions .action {
@@ -526,14 +525,6 @@ p.sep a {
 
 #clear.action.disabled {
 	background-position: 40px -440px;
-}
-
-#undo.action {
-	background-position: 0 -480px;
-}
-
-#undo.action.disabled {
-	background-position: 40px -480px;
 }
 
 #size {

@@ -5,13 +5,15 @@
       .isometric.action.left.selectable.fill{'data-action' => 'fill'}
       .isometric.action.left.selectable.clearPixel.first{'data-action' => 'clearPixel'}
     .actions.block
-      .isometric.action.left.move_top.first{'data-action' => 'move_top'}
-      .isometric.action.left.move_right{'data-action' => 'move_right'}
-      .isometric.action.left.flip_horizontal.first{'data-action' => 'flip_horizontal'}
-      .isometric.action.left.flip_vertical{'data-action' => 'flip_vertical'}
-      .isometric.action.left.copy.first{'data-action' => 'copy'}
-      .isometric.action.left.paste{'data-action' => 'paste'}
-      .isometric.action.left.rotate.first{'data-action' => 'rotate'}
+      .isometric.action.left.copy.first
+      .isometric.action.left.paste
+      .isometric.action.left.undo.first
+    .actions.block
+      .isometric.action.left.move_top.first
+      .isometric.action.left.move_right
+      .isometric.action.left.flip_horizontal.first
+      .isometric.action.left.flip_vertical
+      .isometric.action.left.rotate.first
 
   #canvas.isometric
     %canvas{:width => "320", :height => "320", :onselectstart => "this.style.cursor='crosshair'; return false;"}
@@ -33,7 +35,6 @@
   #commands
     .actions.block
       #upload.isometric.action.disabled
-      #undo.isometric.action.disabled
       #clear.isometric.action.disabled
   
   .block
