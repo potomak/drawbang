@@ -30,7 +30,7 @@
       var trying_to_save = false;
       
       function reload(user_header) {
-        $("#auth").html(user_header);
+        $("#auth .right").html(user_header);
         $("#flash_wrapper").html("");
         trying_to_save && performUpload();
       }
@@ -50,13 +50,24 @@
     .container.black
       .wrapper
         #auth
-          - if logged_in?
-            :javascript
-              var user_uid = #{@user['uid']};
-            = haml :'shared/user_header', :locals => {:origin => CGI.escape(request.url)}
-          - else
-            .left
-              %a{:href => "/auth/facebook?origin=#{CGI.escape request.url}", :class => "popup", :'data-width' => 600, :'data-height' => 400}
+          .left
+            .share.block
+              .left.flattr_button
+                %a.FlattrButton{:style => "display:none;", :rev => "flattr;button:compact;", :href => "http://draw.heroku.com/"}
+                %noscript
+                  %a{:href => "http://flattr.com/thing/310196/Draw", :target => "_blank"}
+                    %img{:src => "http://api.flattr.com/button/flattr-badge-large.png", :alt => "Flattr this", :title => "Flattr this", :border => "0"}
+              .left.tweet_button
+                %a{:href => "http://twitter.com/share", :class => "twitter-share-button", :'data-url' => "http://drawbang.com", :'data-text' => "Have fun drawing!", :'data-count' => "horizontal", :'data-via' => "drawbang", :'data-related' => "drawbang"} Tweet
+              .left.like_button
+                %fb:like{:href => "http://drawbang.com", :send => "false", :layout => "button_count", :width => "110", :show_faces => "false", :font => ""}
+          .right
+            - if logged_in?
+              :javascript
+                var user_uid = #{@user['uid']};
+              = haml :'shared/user_header', :locals => {:origin => CGI.escape(request.url)}
+            - else
+              %a.login{:href => "/auth/facebook?origin=#{CGI.escape request.url}", :class => "popup", :'data-width' => 600, :'data-height' => 400}
                 %img{:src => "/images/fb_login_button.png"}
     .wrapper
       #flash_wrapper
@@ -70,16 +81,6 @@
         %a{:href => "/" == request.path_info ? "/about" : "/", :title => "/" == request.path_info ? "Learn more about Draw!" : "Return to gallery"}
           %h1 DRAW!
           %h2 16x16 animated pixelart pictures
-        .share.block
-          .left.flattr_button
-            %a.FlattrButton{:style => "display:none;", :rev => "flattr;button:compact;", :href => "http://draw.heroku.com/"}
-            %noscript
-              %a{:href => "http://flattr.com/thing/310196/Draw", :target => "_blank"}
-                %img{:src => "http://api.flattr.com/button/flattr-badge-large.png", :alt => "Flattr this", :title => "Flattr this", :border => "0"}
-          .left.tweet_button
-            %a{:href => "http://twitter.com/share", :class => "twitter-share-button", :'data-url' => "http://drawbang.com", :'data-text' => "Have fun drawing!", :'data-count' => "horizontal", :'data-via' => "drawbang", :'data-related' => "drawbang"} Tweet
-          .left.like_button
-            %fb:like{:href => "http://drawbang.com", :send => "false", :layout => "button_count", :width => "110", :show_faces => "false", :font => ""}
     
     #container.wrapper
       = yield

@@ -41,10 +41,6 @@ p.flash.notice {
 	color: #0a0;
 }
 
-.share {
-	width: 345px;
-}
-
 .left {
 	float: left;
 }
@@ -53,12 +49,18 @@ p.flash.notice {
 	float: right;
 }
 
-.share .twitter_button {
-	margin-top: 4px;
+.share {
+	width: 345px;
+	margin-top: -5px;
+}
+
+.share .tweet_button {
+	margin-top: 10px;
 }
 
 .share .flattr_button {
 	margin-right: 14px;
+	margin-top: 12px;
 }
 
 p.sep {
@@ -175,16 +177,13 @@ p.sep a {
 
 #header h2 {
 	font-size: 20px;
+	margin-bottom: 30px;
 }
 
 #header a,
 #header a:active,
 #header a:visited {
 	text-decoration: none;
-}
-
-#header .share {
-	margin: 0 auto 40px auto;
 }
 
 /* AUTH HEADER */
@@ -196,18 +195,16 @@ p.sep a {
 	padding: 10px 0;
 }
 
-#auth .left.info {
-	width: 350px;
-}
-
 #auth a,
 #auth span {
 	display: block;
 	margin-top: 10px;
 }
 
-#auth a.logout {
+#auth a.logout,
+#auth a.login {
 	margin-top: 5px;
+	margin-left: 20px;
 }
 
 #auth .isometric {
