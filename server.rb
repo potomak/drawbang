@@ -260,9 +260,10 @@ post '/upload' do
     drawing = Drawing.new(drawing).save
     # respond with drawing object augmented by thumb pratial HTML
     drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}")
-    drawing.merge(:thumb => haml(:'drawings/thumb', :layout => false, :locals => drawing)).to_json
+    drawing.merge(:thumb => haml(:'drawings/thumb', :layout => false, :locals => {:drawing => drawing, :id => 0})).to_json
   rescue => e
-    "ERROR: #{e}\n#{e.backtrace}".to_json
+    puts "ERROR: #{e}\n#{e.backtrace}"
+    "Sorry, an error occurred while processing your request.".to_json
   end
 end
 
