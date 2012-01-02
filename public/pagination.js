@@ -1,6 +1,6 @@
 $(document).ready(function() {
   $("#more").click(function() {
-    $.get("/?page=" + (currentPage + 1), function(data) {
+    $.get(window.location.href + "?page=" + (currentPage + 1), function(data) {
       currentPage++;
       $("#images").append(data);
     });

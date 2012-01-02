@@ -144,11 +144,15 @@ get '/users/:id' do |id|
   if @user
     @drawings = Drawing.all(:user_id => id, :page => @page, :per_page => PER_PAGE, :host => request.host)
     
-    case request.accept.first
-    when 'application/json'
-      @user.merge(:drawings => @drawings).to_json
+    if request.xhr?
+      haml :'drawings/gallery', :layout => false
     else
-      haml :'users/show'
+      case request.accept.first
+      when 'application/json'
+        @user.merge(:drawings => @drawings).to_json
+      else
+        haml :'users/show'
+      end
     end
   else
     status 404
