@@ -137,6 +137,11 @@ p.sep a {
 	-webkit-transform-origin-y: 0%;
 }
 
+.block {
+	overflow: hidden;
+	clear: both;
+}
+
 /* HEADER */
 
 #header {
@@ -259,15 +264,12 @@ p.sep a {
 	margin-right: 20px;
 }
 
-/* CANVAS */
+/* CONTROLS */
 
-.block {
-	overflow: hidden;
-	clear: both;
-}
 #controls .first {
 	margin-right: 1px;
 }
+
 #controls .action {
 	margin-bottom: 1px;
 }
@@ -278,15 +280,14 @@ p.sep a {
 	margin-right: 20px;
 }
 
-#controls .actions {
+.actions {
 	margin-bottom: 16px;
 	width: 91px;
 	padding-bottom: 20px;
 	padding-right: 10px;
 }
 
-#controls .actions div,
-#controls #clear {
+.actions div {
 	float: left;
 	width: 40px;
 	height: 40px;
@@ -294,142 +295,132 @@ p.sep a {
 	background-color: #F9F9F9;
 }
 
-#controls .actions div::before{
+.actions div::before{
 	width: 10px;
 	height: 40px;
 }
 
-#controls .actions div.active::before{
+.actions div.active::before{
 	width: 0px;
 	height: 0px;
 }
 
-#controls .actions div::after{
+.actions div::after{
 	width: 40px;
 	height: 10px;
 }
-#controls .actions div.active::after{
+
+.actions div.active::after{
 	width: 0px;
 	height: 0px;
 }
 
-#controls .actions .active,
-#controls #clear.active {
+.actions .active {
 	background-color: #EEE;
-}
-
-#controls .active {
 	top: 10px;
 	left: 10px;
 	z-index: -2;
 }
-#controls #clear {
-	background-position: 16px 16px;
-}
 
-#controls #clear.active {
-	background-position: 0 16px;
-}
-
-#controls .actions .action {
+.actions .action {
 	float: left;
 }
 
-#controls .action.pixel {
+.action.pixel {
 	background-position: 0px 0px;
 }
 
-#controls .action.pixel.active {
+.action.pixel.active {
 	background-position: 40px 0px;
 }
 
-#controls .action.fill {
+.action.fill {
 	background-position: 0px -40px;
 }
 
-#controls .action.fill.active {
+.action.fill.active {
 	background-position: 40px -40px;
 }
 
-#controls .action.clearPixel {
+.action.clearPixel {
 	background-position: 0px -80px;
 }
 
-#controls .action.clearPixel.active {
+.action.clearPixel.active {
 	background-position: 40px -80px;
 }
 
 
-#controls .action.undo {
+.action.undo {
 	background-position: 16px 0;
 }
 
-#controls .action.undo.active {
+.action.undo.active {
 	background-position: 0 0;
 }
 
-#controls .action.redo {
+.action.redo {
 	background-position: 16px 96px;
 }
 
-#controls .action.redo.active {
+.action.redo.active {
 	background-position: 0 96px;
 }
 
 
-#controls .action.move_top {
+.action.move_top {
 	background-position: 0 -120px;
 }
 
-#controls .action.move_top.active {
+.action.move_top.active {
 	background-position: 40px -120px;
 }
 
-#controls .action.move_right {
+.action.move_right {
 	background-position: 0 -160px;
 }
 
-#controls .action.move_right.active {
+.action.move_right.active {
 	background-position: 40px -160px;
 }
 
-#controls .action.flip_horizontal {
+.action.flip_horizontal {
 	background-position: 0 -240px;
 }
 
-#controls .action.flip_horizontal.active {
+.action.flip_horizontal.active {
 	background-position: 40px -240px;
 }
 
-#controls .action.flip_vertical {
+.action.flip_vertical {
 	background-position: 0 -200px;
 }
 
-#controls .action.flip_vertical.active {
+.action.flip_vertical.active {
 	background-position: 40px -200px;
 }
 
-#controls .action.copy {
+.action.copy {
 	background-position: 0 -280px;
 }
 
-#controls .action.copy.active {
+.action.copy.active {
 	background-position: 40px -280px;
 }
 
-#controls .action.paste {
+.action.paste {
 	background-position: 0 -320px;
 }
 
-#controls .action.paste.active {
+.action.paste.active {
 	background-position: 40px -320px;
 }
 
-#controls .action.rotate {
+.action.rotate {
 	background-position: 0 -360px;
 }
 
-#controls .action.rotate.active {
+.action.rotate.active {
 	background-position: 40px -360px;
 }
 
@@ -500,11 +491,43 @@ p.sep a {
 }
 
 
-/* commands */
+/* COMMANDS */
 
 #commands {
-	overflow: hidden;
-	width: 560px;
+	float: left;
+	width: 91px;
+	margin-left: 30px;
+	margin-top: 100px;
+	height: 121px;
+}
+
+#commands .actions .action {
+	float: none;
+	margin-bottom: 5px;
+}
+
+#upload.action {
+	background-position: 0 -400px;
+}
+
+#upload.action.disabled {
+	background-position: 40px -400px;
+}
+
+#clear.action {
+	background-position: 0 -440px;
+}
+
+#clear.action.disabled {
+	background-position: 40px -440px;
+}
+
+#undo.action {
+	background-position: 0 -480px;
+}
+
+#undo.action.disabled {
+	background-position: 40px -480px;
 }
 
 #size {
@@ -692,32 +715,6 @@ p.sep a {
 	left: 10px;
 	z-index: -2;
 }*/
-
-#upload {
-	padding-left: 26px;
-	margin-left: 22px;
-	background: url(/images/save.gif) no-repeat;
-}
-
-#upload.disabled {
-	background-position: 0 -15px;
-}
-
-a#upload.disabled,
-a:active#upload.disabled,
-a:visited#upload.disabled {
-	color: #eee;
-}
-
-#upload.enabled {
-	background-position: 0 1px;
-}
-
-a#upload.enabled,
-a:active#upload.enabled,
-a:visited#upload.enabled {
-	color: #999;
-}
 
 #images {
 	overflow: hidden;

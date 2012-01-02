@@ -1,18 +1,17 @@
 #desktop
   #controls
     .actions.block
-      .isometric.action.left.first.selectable.pixel.active{'data-action' => 'pixel'}
+      .isometric.action.left.selectable.pixel.first.active{'data-action' => 'pixel'}
       .isometric.action.left.selectable.fill{'data-action' => 'fill'}
-      .isometric.action.left.first.selectable.clearPixel{'data-action' => 'clearPixel'}
+      .isometric.action.left.selectable.clearPixel.first{'data-action' => 'clearPixel'}
     .actions.block
-      .isometric.action.left.first.move_top{'data-action' => 'move_top'}
+      .isometric.action.left.move_top.first{'data-action' => 'move_top'}
       .isometric.action.left.move_right{'data-action' => 'move_right'}
-      .isometric.action.left.first.flip_horizontal{'data-action' => 'flip_horizontal'}
+      .isometric.action.left.flip_horizontal.first{'data-action' => 'flip_horizontal'}
       .isometric.action.left.flip_vertical{'data-action' => 'flip_vertical'}
-      .isometric.action.left.first.copy{'data-action' => 'copy'}
+      .isometric.action.left.copy.first{'data-action' => 'copy'}
       .isometric.action.left.paste{'data-action' => 'paste'}
-      .isometric.action.left.first.rotate{'data-action' => 'rotate'}
-    / <div class='active' id='clear'></div>
+      .isometric.action.left.rotate.first{'data-action' => 'rotate'}
 
   #canvas.isometric
     %canvas{:width => "320", :height => "320", :onselectstart => "this.style.cursor='crosshair'; return false;"}
@@ -30,10 +29,14 @@
     - EGA_PALETTE.each_with_index do |color, i|
       .color{:'data-color' => color, :class => "#{"active" if color == "#000000"}"}
         .isometric{:style => "background-color: #{color}", :id => "color_#{i+1}"}
-        
-  #commands
-    / <a class='disabled' id='upload'>Save</a>
     
+  #commands
+    .actions.block
+      #upload.isometric.action.disabled
+      #undo.isometric.action.disabled
+      #clear.isometric.action.disabled
+  
+  .block
     #animation
       .play_stop.active.isometric
       .frames_container

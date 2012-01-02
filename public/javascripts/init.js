@@ -94,22 +94,22 @@ function clearAll() {
 
 // deactivate element
 function deactivate($el) {
-  $el.removeClass("active");
+  return $el.removeClass("active");
 }
 
 // activate element
 function activate($el) {
-  $el.addClass("active");
+  return $el.addClass("active");
 }
 
 // disable element
 function disable($el) {
-  $el.addClass("disabled");
+  return $el.addClass("disabled");
 }
 
 // enable element
 function enable($el) {
-  $el.removeClass("disabled");
+  return $el.removeClass("disabled");
 }
 
 // is element enabled?
@@ -158,12 +158,11 @@ function mouseDownCallback(e) {
   PIXEL.setDraw(true);
   var coordinates = getCoordinates(e);
   
-  PIXEL.log(['mouseDownCallback', e]);
-  
   PIXEL.doAction(coordinates.x, coordinates.y, currentColor);
   
-  $("#upload.disabled").bind('click', upload).removeClass('disabled');
-  $("#upload").addClass('enabled');
+  if(!isEnabled($("#upload"))) {
+    enable($("#upload")).bind('click', upload);
+  }
 }
 
 // mouse move event callback
@@ -198,41 +197,40 @@ $(document).ready(function() {
   $(document).keydown(function(e) {
     if(!ctrlKey(e) && e.shiftKey) {
       currentColor = "rgba(0, 0, 0, 0)";
-      $(".clearPixel").addClass('active');
+      activate($(".clearPixel"));
     }
   });
   
   // reset color to current active color
   $(document).keyup(function(e) {
     currentColor = $(".color.active").data('color');
-    if($(".action.selectable.active").data('action') != "clearPixel") {
-      $(".clearPixel").removeClass('active');
+    if("clearPixel" != $(".action.selectable.active").data('action')) {
+      deactivate($(".clearPixel"));
     }
   });
 
   // controls
   $("#clear").click(function() {
-    if($("#upload").hasClass('enabled') && confirm("Sure?")) {
+    if(isEnabled($("#upload")) && confirm("Sure?")) {
       PIXEL.clearCanvas();
     
-      $("#upload.enabled").unbind('click').removeClass('enabled');
-      $("#upload").addClass('disabled');
+      disable($("#upload")).unbind('click');
     }
   });
 
   $(".action.selectable").click(function() {
     PIXEL.setAction($(this).data('action'));
     
-    $(".action.selectable.active").toggleClass("active");
-    $(this).toggleClass("active");
+    deactivate($(".action.selectable.active"));
+    activate($(this));
   });
 
   // colors
   $(".color").click(function() {
     currentColor = $(this).data('color');
     
-    $(".color.active").toggleClass("active");
-    $(this).toggleClass("active");
+    deactivate($(".color.active"));
+    activate($(this));
   });
 
   // undo / redo
@@ -249,18 +247,25 @@ $(document).ready(function() {
     }
   });
   
+  // NOTE: deprecated
+  /*
   ["undo", "redo"].forEach(function(action) {
     $("." + action).click(function() {
       pixel[action].call();
     });
+  });
+  */
+  
+  $("#undo").click(function() {
+    PIXEL.undo();
   });
   
   $(".frame").click(function() {
     if(isEnabled($(this))) {
       PIXEL.setCurrentFrame($(this).data('frame'));
     
-      $(".frame.active").toggleClass("active");
-      $(this).toggleClass("active");
+      deactivate($(".frame.active"));
+      activate($(this));
     }
   });
   
@@ -322,9 +327,9 @@ $(document).ready(function() {
     }
     else {
       PIXEL.play(5, function(frame) {
-        $(".frame.active").toggleClass("active");
+        deactivate($(".frame.active"));
         $(".frame").each(function() {
-          $(this).data('frame') == frame && $(this).toggleClass("active");
+          $(this).data('frame') == frame && activate($(this));
         });
       });
     }
