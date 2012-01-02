@@ -55,8 +55,7 @@ function performUpload() {
     dataType: "json"
   });
   
-  $("#upload.enabled").unbind('click').removeClass('enabled');
-  $("#upload").addClass('disabled');
+  disable($("#upload")).unbind('click');
 }
 
 function upload() {
@@ -88,7 +87,6 @@ function clearAll() {
   activate($(".frame[data-frame=0]"));
   enable($(".frame[data-frame=0]"));
   PIXEL.setCurrentFrame(0);
-  PIXEL.clearCanvas();
   frames = 1;
 }
 
@@ -212,8 +210,7 @@ $(document).ready(function() {
   // controls
   $("#clear").click(function() {
     if(isEnabled($("#upload")) && confirm("Sure?")) {
-      PIXEL.clearCanvas();
-    
+      clearAll();
       disable($("#upload")).unbind('click');
     }
   });
