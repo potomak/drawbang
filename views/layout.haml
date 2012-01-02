@@ -6,39 +6,12 @@
     %title= 'Draw!'
     
     %script{:src => 'http://ajax.googleapis.com/ajax/libs/jquery/1.4/jquery.min.js', :type => 'text/javascript'}
+    %script{:src => '/javascripts/application.js', :type => 'text/javascript'}
 
     %link{:href => 'http://fonts.googleapis.com/css?family=Inconsolata', :rel => 'stylesheet', :type => 'text/css'}
-    %link{:href => '/style.new.css', :media => 'all', :rel => 'stylesheet', :type => 'text/css'}
+    %link{:href => '/stylesheets/style.css', :media => 'all', :rel => 'stylesheet', :type => 'text/css'}
     
     %script{:type => "text/javascript", :src => "http://platform.twitter.com/widgets.js"}
-    
-    :javascript
-      function popupCenter(url, width, height, name) {
-        var left = (screen.width/2)-(width/2);
-        var top = (screen.height/2)-(height/2);
-        return window.open(url, name, "menubar=no,toolbar=no,status=no,width="+width+",height="+height+",toolbar=no,left="+left+",top="+top);
-      }
-      
-      $(document).ready(function() {
-        $("a.popup").click(function(e) {
-          popupCenter($(this).attr("href"), $(this).attr("data-width"), $(this).attr("data-height"), "authPopup");
-          e.stopPropagation();
-          return false;
-        });
-      });
-      
-      var trying_to_save = false;
-      
-      function reload(user_header) {
-        $("#auth .right").html(user_header);
-        $("#flash_wrapper").html("");
-        trying_to_save && performUpload();
-      }
-      
-      function flash(html) {
-        trying_to_save = false;
-        $("#flash_wrapper").html(html);
-      }
     
     = haml :'shared/flattr'
 
