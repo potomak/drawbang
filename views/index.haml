@@ -22,10 +22,9 @@
 .block
   = haml :'shared/editor'
 
-.block
-  %fb:facepile
-
-%h2 GALLERY
-#images
-  = haml :'drawings/gallery'
-%a{:id => "more", :href => "#"} More
+.content_wrapper{:style => "margin-top: -120px"}
+  .fb-facepile{:'data-width' => "540"}
+  %h2 Gallery
+  #images
+    = haml :'drawings/gallery'
+  %a{:id => "more", :href => "#"} More

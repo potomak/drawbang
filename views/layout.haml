@@ -13,23 +13,16 @@
     
     %script{:type => "text/javascript", :src => "http://platform.twitter.com/widgets.js"}
     
-    = haml :'shared/flattr'
-
     = haml :'shared/analytics'
       
     = yield_content :head
 
   %body
     .container.black
-      .wrapper
+      .content_wrapper
         #auth
           .left
             .share.block
-              .left.flattr_button
-                %a.FlattrButton{:style => "display:none;", :rev => "flattr;button:compact;", :href => "http://draw.heroku.com/"}
-                %noscript
-                  %a{:href => "http://flattr.com/thing/310196/Draw", :target => "_blank"}
-                    %img{:src => "http://api.flattr.com/button/flattr-badge-large.png", :alt => "Flattr this", :title => "Flattr this", :border => "0"}
               .left.tweet_button
                 %a{:href => "http://twitter.com/share", :class => "twitter-share-button", :'data-url' => "http://drawbang.com", :'data-text' => "Have fun drawing!", :'data-count' => "horizontal", :'data-via' => "drawbang", :'data-related' => "drawbang"} Tweet
               .left.like_button
@@ -47,7 +40,7 @@
         = haml :'shared/flash'
   
     #header
-      .wrapper
+      .content_wrapper
         .sponsor
           %p Sponsored by
           %a{:href => "http://redistogo.com", :title => "Redis To Go"} Redis To Go

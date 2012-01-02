@@ -77,6 +77,11 @@ p.sep a {
 	margin: 0 auto;
 }
 
+.content_wrapper {
+	width: 595px;
+	margin: 0 auto;
+}
+
 .container.black {
 	background-color: #333;
 	color: #fff;
@@ -148,7 +153,7 @@ p.sep a {
 	text-align: center;
 }
 
-#header .wrapper {
+#header .content_wrapper {
 	position: relative;
 }
 
@@ -729,6 +734,10 @@ p.sep a {
 	float: left;
 }
 
+#images .drawing.last {
+	margin-right: 0;
+}
+
 #images .drawing.isometric::after {
 	width: 64px;
 	height: 10px;
@@ -770,6 +779,11 @@ p.sep a {
 }
 
 #drawing {}
+
+#drawing .drawing_wrapper {
+	width: 320px;
+	margin: 0 auto;
+}
 
 #drawing .drawing_container {
 	width: 320px;

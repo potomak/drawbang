@@ -6,5 +6,5 @@
         \/
         = PER_PAGE*@current_page
 
-    - @drawings.each do |drawing|
-      = haml :'drawings/thumb', :locals => drawing
+    - @drawings.each_with_index do |drawing, id|
+      = haml :'drawings/thumb', :locals => {:drawing => drawing, :id => id}
