@@ -298,6 +298,7 @@ p.sep a {
 	height: 40px;
 	background-image: url(/images/tools_sprite.gif);
 	background-color: #F9F9F9;
+	cursor: pointer;
 }
 
 .actions div::before{
@@ -578,6 +579,7 @@ p.sep a {
 	font-size: 12px;
 	margin-top: 30px;
 }
+
 #animation .play_stop{
 	float: left;
 	width: 80px;
@@ -589,13 +591,16 @@ p.sep a {
 
 #animation .play_stop.stop {
 	background-position: 0 -40px;
+	background-color: #eee;
 	top: 10px;
 	left: 10px;
 }
+
 #animation .play_stop::after {
 	width: 80px;
 	height: 10px;
 }
+
 #animation .play_stop::before {
 	width: 10px;
 	height: 40px;
@@ -605,6 +610,7 @@ p.sep a {
 	width: 0px;
 	height: 0px;
 }
+
 #animation .play_stop.stop::before {
 	width: 0px;
 	height: 0px;
@@ -614,6 +620,7 @@ p.sep a {
 	width: 320px;
 	height: 10px;
 }
+
 #animation .frames::before {
 	width: 10px;
 	height: 40px;
@@ -626,6 +633,7 @@ p.sep a {
 	text-align: center;
 	background-color: #DDD;
 }
+
 #animation .frame {
 	float: left;
 	width: 20px;
@@ -633,25 +641,31 @@ p.sep a {
 	color: #999;
 	text-align: center;
 	background: url(/images/frames.gif) no-repeat 0 0;
+	cursor: pointer;
 }
+
 #animation .frame canvas {
 	margin: 2px;
 }
+
 #animation .frame.active canvas {
 	background-color: #fff;
 }
+
 #animation .frame.disabled canvas {
 	background-color: none;
 }
+
 #animation .frame.active {
 	background-position: -20px 0;
 }
+
 #animation .frame.disabled {
 	background-position: -40px 0;
+	color: #bbb;
 }
-#animation .frame div {
 
-}
+#animation .frame div {}
 
 /* ADD AND REMOVE FRAMES */
 .frames_container {
