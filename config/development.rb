@@ -1,5 +1,5 @@
 # drawings per page
-PER_PAGE = 1
+PER_PAGE = 36
 
 # drawings path
 DRAWINGS_PATH = File.join('public', 'images', 'drawings')

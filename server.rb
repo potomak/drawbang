@@ -1,20 +1,12 @@
 require 'rubygems'
-require 'sinatra'
-require 'sinatra/content_for'
-require 'haml'
-require 'aws/s3'
-require 'omniauth/oauth'
-require 'base64'
-require 'yaml'
-require 'redis'
-require 'system_timer'
-require 'json'
-require 'rack-flash'
-require 'fbgraph'
+require 'bundler'
+
+Bundler.require
 
 require 'models/user'
 require 'models/drawing'
-require 'redirect'
+require 'lib/middlewares/no_www'
+require 'lib/middlewares/no_heroku'
 
 configure do
   require 'version'
@@ -39,7 +31,8 @@ end
 use Rack::Flash
 use Rack::MethodOverride
 
-use Redirect
+use NoWWW
+use NoHeroku
 
 helpers do
   def is_production?
@@ -53,15 +46,52 @@ end
 
 before do
   # authentication
-  @user = User.find(session[:user]) if session[:user]
+  @user = User.find_by_key(session[:user]) if session[:user]
   # pagination
   @current_page = (params[:page] || 1).to_i
   @page = @current_page - 1
 end
 
+not_found do
+  case request.accept
+  when 'application/json'
+    "not found".to_json
+  else
+    haml :'shared/not_found'
+  end
+end
+
+error 403 do
+  case request.accept
+  when 'application/json'
+    "access forbidden".to_json
+  else
+    haml :'shared/access_forbidden'
+  end
+end
+
+error 500 do
+  case request.accept
+  when 'application/json'
+    "application error".to_json
+  else
+    haml :'shared/application_error'
+  end
+end
+
 def root_action
   @drawings = Drawing.all(:page => @page, :per_page => PER_PAGE, :host => request.host)
-  @colors = EGA_PALETTE
+end
+
+def clear_session
+  session[:user] = nil
+end
+
+def auth_or_redirect(path)
+  unless logged_in?
+    flash[:error] = 'Please log in to perform this operation'
+    redirect path
+  end
 end
 
 #
@@ -70,10 +100,11 @@ end
 post '/' do
   # parse facebook signed_request
   data = FBGraph::Canvas.parse_signed_request(FACEBOOK['app_secret'], params[:signed_request])
+  puts "signed_request data: #{data.inspect}"
   
   # log in users who have allowed draw! app to access their facebook data
   if data['user_id']
-    session[:user] = "user:#{data['user_id']}"
+    session[:user] = User.key(data['user_id'])
     @user = User.update(session[:user], :credentials => {:token => data['oauth_token']})
   end
   
@@ -89,7 +120,7 @@ get '/' do
   root_action
   
   if request.xhr?
-    haml :'shared/gallery', :layout => false
+    haml :'drawings/gallery', :layout => false
   else
     haml :index
   end
@@ -103,14 +134,74 @@ get '/feed.rss', :provides => 'rss' do
   builder :feed
 end
 
-get '/drawings/:id' do
-  @drawing = Drawing.find(params[:id])
+#
+# GET /users/:id
+#
+get '/users/:id' do |id|
+  @user = User.find(id)
+  content_type :json if request.accept.include? 'application/json'
+  
+  if @user
+    @drawings = Drawing.all(:user_id => id, :page => @page, :per_page => PER_PAGE, :host => request.host)
+    
+    if request.xhr?
+      haml :'drawings/gallery', :layout => false
+    else
+      case request.accept.first
+      when 'application/json'
+        @user.merge(:drawings => @drawings).to_json
+      else
+        haml :'users/show'
+      end
+    end
+  else
+    status 404
+  end
+end
+
+#
+# GET /drawings/:id
+#
+get '/drawings/:id' do |id|
+  @drawing = Drawing.find(id)
+  content_type :json if request.accept.include? 'application/json'
   
   if @drawing
-    @drawing.merge!(:id => params[:id], :share_url => "http://#{request.host}/drawings/#{params[:id]}")
-    haml :drawing
+    case request.accept.first
+    when 'application/json'
+      @drawing.to_json
+    else
+      @drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}")
+      haml :'drawings/show'
+    end
   else
-    haml :not_found
+    status 404
+  end
+end
+
+#
+# POST /drawings/:id/fork
+#
+post '/drawings/:id/fork' do |id|
+  @drawing = Drawing.find(id)
+  content_type :json if request.accept.include? 'application/json'
+  
+  if @drawing
+    begin
+      @drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}", :image => Drawing.image_raw_data(@drawing['url']))
+      
+      case request.accept.first
+      when 'application/json'
+        @drawing.to_json
+      else
+        haml :'drawings/fork'
+      end
+    rescue => e
+      puts "ERROR: #{e}"
+      status 500
+    end
+  else
+    status 404
   end
 end
 
@@ -118,58 +209,61 @@ end
 # DELETE /drawings/:id
 #
 delete '/drawings/:id' do |id|
-  redirect "/drawings/#{id}" unless logged_in?
+  auth_or_redirect "/drawings/#{id}"
+  
+  # find drawing
   @drawing = Drawing.find(id)
-  redirect "/drawings/#{id}" unless @drawing && @drawing['user']
   
-  if @drawing['user']['uid'] == @user['uid']
-    begin
-      Drawing.destroy(id)
-    rescue => e
-      "failure: #{e}"
+  if @drawing
+    if @drawing['user'] && @drawing['user']['uid'] == @user['uid']
+      begin
+        Drawing.destroy(id, @user['uid'])
+        flash[:notice] = "Drawing deleted"
+        redirect '/'
+      rescue => e
+        puts "ERROR: #{e}"
+        status 500
+      end
+    else
+      status 403
     end
-    
-    flash[:notice] = 'Drawing deleted'
-    redirect '/'
   else
-    flash[:error] = 'There was an error trying delete this drawing'
+    status 404
   end
-  
-  redirect "/drawings/#{id}"
 end
 
 #
 # POST /upload
 #
 post '/upload' do
-  redirect '/' unless logged_in?
+  auth_or_redirect '/'
   content_type :json
   
-  data = JSON.parse(request.env["rack.input"].read)
-  
-  # compose drawing object
-  id = "#{Time.now.to_i}.#{data['image']['frames'] ? "gif" : "png"}"
-  drawing = {
-    :id => id,
-    :image => data['image'],
-    :request_host => request.host_with_port
-  }
-  
-  # add user info if present
-  drawing.merge!(
-    :user => {
-      :uid => @user['uid'],
-      :first_name => @user['user_info']['first_name'],
-      :image => @user['user_info']['image']
-    }
-  ) if logged_in?
-  
   begin
+    # get access to raw POST data
+    data = JSON.parse(request.env["rack.input"].read)
+    # compose drawing id
+    id = "#{Drawing.generate_token}.#{data['image']['frames'] ? "gif" : "png"}"
+    # compose drawing object
+    drawing = {
+      :id => id,
+      :image => data['image'],
+      :request_host => request.host_with_port,
+      :created_at => Time.now.to_i,
+      :user => {
+        :uid => @user['uid'],
+        :first_name => @user['user_info']['first_name'],
+        :image => @user['user_info']['image']
+      }
+    }
+    # save drawing
     drawing = Drawing.new(drawing).save
+    # respond with drawing object augmented by thumb pratial HTML
     drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}")
-    drawing.merge(:thumb => haml(:'shared/thumb', :layout => false, :locals => drawing)).to_json
+    drawing.merge(:thumb => haml(:'drawings/thumb', :layout => false, :locals => {:drawing => drawing, :id => 0})).to_json
   rescue => e
-    "failure: #{e}\n#{e.backtrace}".to_json
+    puts "ERROR: #{e}\n#{e.backtrace}"
+    "Sorry, an error occurred while processing your request.".to_json
   end
 end
 
@@ -177,9 +271,9 @@ end
 # GET /auth/facebook/callback
 #
 get '/auth/facebook/callback' do
-  session[:user] = "user:#{request.env['omniauth.auth']['uid']}"
+  session[:user] = User.key(request.env['omniauth.auth']['uid'])
   @user = User.new(request.env['omniauth.auth'].merge(:key => session[:user])).save
-  haml :callback
+  haml :'auth/callback'
 end
 
 #
@@ -188,7 +282,7 @@ end
 get '/auth/failure' do
   clear_session
   flash.now[:error] = 'There was an error trying to access to your Facebook data.<br/>Please log in to save your drawing.'
-  haml :failure
+  haml :'auth/failure'
 end
 
 #
@@ -204,8 +298,4 @@ end
 #
 get '/about' do
   haml :about
-end
-
-def clear_session
-  session[:user] = nil
 end

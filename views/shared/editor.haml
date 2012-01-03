@@ -1,0 +1,54 @@
+#desktop
+  #controls
+    .actions.block
+      .isometric.action.left.selectable.pixel.first.active{'data-action' => 'pixel'}
+      .isometric.action.left.selectable.fill{'data-action' => 'fill'}
+      .isometric.action.left.selectable.clearPixel.first{'data-action' => 'clearPixel'}
+    .actions.block
+      .isometric.action.left.copy.first
+      .isometric.action.left.paste
+      .isometric.action.left.undo.first
+    .actions.block
+      .isometric.action.left.move_top.first
+      .isometric.action.left.move_right
+      .isometric.action.left.flip_horizontal.first
+      .isometric.action.left.flip_vertical
+      .isometric.action.left.rotate.first
+
+  #canvas.isometric
+    %canvas{:width => "320", :height => "320", :onselectstart => "this.style.cursor='crosshair'; return false;"}
+      %p
+        Sorry, your browser doesn't support the <canvas> element.
+      %p
+        Please upgrade to
+        %a{:href => "http://www.microsoft.com/IE9"} IE 9
+        or use the latest
+        %a{:href => "http://www.google.com/chrome"} Chrome
+        or
+        %a{:href => "http://www.mozilla.com/"} Firefox
+
+  #colors
+    - EGA_PALETTE.each_with_index do |color, i|
+      .color{:'data-color' => color, :class => "#{"active" if color == "#000000"}"}
+        .isometric{:style => "background-color: #{color}", :id => "color_#{i+1}"}
+    
+  #commands
+    .actions.block
+      #upload.isometric.action.disabled
+      #clear.isometric.action.disabled
+  
+  .block
+    #animation
+      .play_stop.active.isometric
+      .frames_container
+        .frames.isometric
+          - MAX_FRAMES.times do |frame|
+            .frame{:'data-frame' => frame, :href => "#", :class => (0 == frame ? "active" : "disabled")}
+              %canvas{:height => "16", :width => "16"}
+              %div= frame+1
+        #add_frames
+          .isometric.add_frame +
+          .isometric.remove_frame.disabled -
+
+#adv-right
+  = haml :'shared/adsense', :locals => {:slot => "7948970014", :width => 160, :height => 600}

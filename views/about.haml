@@ -1,19 +1,29 @@
-%p
-  Draw! is an online pixel art editor that lets you draw little 16x16 animations using only 16 colors.
-%p
-  Follow updates
-  %a{:href => "http://twitter.com/drawbang"} @drawbang
-%p
-  This app makes use of the
-  %a{:href => "http://github.com/potomak/jquery-pixel"} jQuery pixel library
-  %br
-  You can fork the app at
-  %a{:href => "http://github.com/potomak/drawbang"} http://github.com/potomak/drawbang
+.content_wrapper
+  %p
+    Draw! is an online pixel art editor that lets you draw little 16x16 animations using only 16 colors.
+  %p
+    Follow updates
+    %a{:href => "http://twitter.com/drawbang"} @drawbang
+    and read the blog at
+    = succeed '.' do
+      %a{:href => "http://blog.drawbang.com"} http://blog.drawbang.com
+  %p
+    This app makes use of
+    = succeed '.' do
+      %a{:href => "http://github.com/potomak/jquery-pixel"} Pixel library
+    %br
+    It's released under the MIT license and you can fork it at
+    = succeed '.' do
+      %a{:href => "http://github.com/potomak/drawbang"} http://github.com/potomak/drawbang
 
-%h3 Credits
-%p
-  Programming:
-  %a{:href => "http://twitter.com/johnnyaboh"} Giovanni Cappellotto
-  %br
-  Design:
-  %a{:href => "http://twitter.com/amphigoryglory"} Ashley Farrand
+  %h3 Credits
+  %p
+    Programming:
+    %a{:href => "http://twitter.com/johnnyaboh"} Giovanni Cappellotto
+    %br
+    Design:
+    %a{:href => "http://twitter.com/pinakes"} Francesco Fraioli
+  %h4 Old contributors
+  %p
+    Design:
+    %a{:href => "http://twitter.com/amphigoryglory"} Ashley Farrand

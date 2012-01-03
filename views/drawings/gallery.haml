@@ -1,0 +1,10 @@
+- if @drawings.size > 0
+  .block.page
+    %p.sep
+      %a{:href => "/?page=#{@current_page}"}
+        = (PER_PAGE*(@current_page-1))+1
+        \/
+        = PER_PAGE*@current_page
+
+    - @drawings.each_with_index do |drawing, id|
+      = haml :'drawings/thumb', :locals => {:drawing => drawing, :id => id}

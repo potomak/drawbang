@@ -13,7 +13,10 @@ describe Drawing do
   
   before :each do
     @id = "123.png"
-    @drawing = {:request_host => "example.com"}
+    @drawing = {
+      :request_host => "example.com",
+      :user => { :uid => "1423" }
+    }
   end
   
   describe "Drawing.find" do
@@ -32,85 +35,39 @@ describe Drawing do
   end
   
   describe "Drawing.destroy" do
-    after :each do
+    it "should remove drawing file, destroy object and remove it from list" do
+      Drawing.should_receive(:delete_file).with(@id)
       REDIS.should_receive(:del).with(Drawing.key(@id))
-      REDIS.should_receive(:lrem).with("drawings", 0, @id)
+      REDIS.should_receive(:lrem).with(Drawing.list(@drawing[:user][:uid]), 0, @id)
+      REDIS.should_receive(:lrem).with(Drawing.list, 0, @id)
       
-      Drawing.destroy(@id)
-    end
-    
-    it "should remove drawing file on development env, destroy object and remove it from list" do
-      Drawing.should_receive(:is_production?).and_return(false)
-      File.should_receive(:delete).with(File.join(@test_path, @id))
-    end
-    
-    it "should remove drawing S3 object on production env, destroy object and remove it from list" do
-      Drawing.should_receive(:is_production?).and_return(true)
-      Drawing.should_receive(:init_aws)
-      AWS::S3::S3Object.should_receive(:delete).with(@id, @test_bucket)
+      Drawing.destroy(@id, @drawing[:user][:uid])
     end
   end
   
   describe "drawing.save" do
-    after :each do
-      REDIS.should_receive(:lpush).with("drawings", @id)
-      image = Object.new
-      image.should_receive(:to_blob)
-      thumbnail = Object.new
-      thumbnail.should_receive(:to_blob)
-      image.should_receive(:resize).and_return(thumbnail)
-      Drawing.should_receive(:process_image).and_return(image)
-
-      Drawing.new(@drawing.merge(:id => @id, :image => {:frame => []})).save
-    end
-    
-    it "should save drawing on development env" do
+    it "should save drawing" do
+      image_object = Object.new
+      image_object_blob = Object.new
+      image_object.should_receive(:to_blob).and_return(image_object_blob)
+      thumbnail_object = Object.new
+      thumbnail_object_blob = Object.new
+      thumbnail_object.should_receive(:to_blob).and_return(thumbnail_object_blob)
       file_url = "http://#{@drawing[:request_host]}/images/drawings/#{@id}"
       
-      Drawing.should_receive(:save_image).and_return(file_url)
-      Drawing.should_receive(:save_image)
+      Drawing.should_receive(:process_image).and_return(image_object)
+      Drawing.should_receive(:process_thumbnail).and_return(thumbnail_object)
       
-      @result_drawing = {:url => file_url}
+      Drawing.should_receive(:save_file).with(@id, @drawing[:request_host], image_object_blob).and_return(file_url)
+      Drawing.should_receive(:save_file).with("#{@id}_64.png", @drawing[:request_host], thumbnail_object_blob)
+      
+      REDIS.should_receive(:lpush).with(Drawing.list(@drawing[:user][:uid]), @id)
+      REDIS.should_receive(:lpush).with(Drawing.list, @id)
+      
+      @result_drawing = {:url => file_url, :user => { :uid => "1423" }}
       REDIS.should_receive(:set).with(Drawing.key(@id), @result_drawing.to_json)
-    end
-    
-    it "should save drawing on production env" do
-      s3_object_url = "s3_object/public/url"
       
-      Drawing.should_receive(:save_image).and_return(s3_object_url)
-      Drawing.should_receive(:save_image)
-      
-      @result_drawing = {:url => s3_object_url}
-      REDIS.should_receive(:set).with(Drawing.key(@id), @result_drawing.to_json)
-    end
-  end
-  
-  describe "Drawing.save_image" do
-    it "should save drawing on production env" do
-      Drawing.should_receive(:is_production?).and_return(false)
-      
-      file = Object.new
-      file.should_receive(:'<<').with(nil)
-      File.should_receive(:open).with(File.join(@test_path, @id), "w").and_yield(file)
-      
-      Drawing.save_image(@id, @drawing[:request_host], nil).should == "http://#{@drawing[:request_host]}/images/drawings/#{@id}"
-    end
-    
-    it "should save drawing on development env" do
-      Drawing.should_receive(:is_production?).and_return(true)
-      Drawing.should_receive(:init_aws)
-      AWS::S3::S3Object.should_receive(:store).with(
-        @id,
-        nil,
-        @test_bucket,
-        :access => :public_read)
-      
-      s3_object_url = "s3_object/public/url"
-      s3_object = Object.new
-      s3_object.should_receive(:url).with(:authenticated => false).and_return(s3_object_url)
-      AWS::S3::S3Object.should_receive(:find).with(@id, @test_bucket).and_return(s3_object)
-      
-      Drawing.save_image(@id, @drawing[:request_host], nil).should == s3_object_url
+      Drawing.new(@drawing.merge(:id => @id, :image => {:frame => []})).save
     end
   end
   
@@ -124,10 +81,34 @@ describe Drawing do
       }
 
       REDIS.should_receive(:lrange).with("drawings", 0, 9).and_return(ids)
-      REDIS.should_receive(:get).exactly(10).times.with(Drawing.key(@id)).and_return(@drawing.to_json)
-      JSON.should_receive(:parse).exactly(10).times.with(@drawing.to_json).and_return(@drawing)
+      Drawing.should_receive(:find).exactly(10).times.with(@id).and_return(@drawing)
 
       Drawing.all(opts).should == ids.map {|id| @drawing.merge(:id => id, :share_url => "http://#{opts[:host]}/drawings/#{id}")}
+    end
+  end
+  
+  describe "Drawing.key" do
+    it "should return drawing key given id" do
+      Drawing.key("123").should == "drawing:123"
+    end
+  end
+  
+  describe "Drawing.list" do
+    it "should return all drawings list key" do
+      Drawing.list.should == "drawings"
+    end
+    
+    it "should return user drawings list key" do
+      Drawing.list("123").should == "drawings:user:123"
+    end
+  end
+  
+  describe "Drawing.generate_token" do
+    it "should return a random hash string" do
+      random_hash = "a random hash"
+      Digest::SHA1.should_receive(:hexdigest).and_return(random_hash)
+      
+      Drawing.generate_token.should == random_hash
     end
   end
 end
