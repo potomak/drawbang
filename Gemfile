@@ -12,6 +12,7 @@ gem 'rack-flash'
 gem 'sinatra-content-for', :require => 'sinatra/content_for'
 gem 'rmagick'
 gem 'fbgraph'
+gem 'color'
 
 group :test do
   gem 'rack-test'

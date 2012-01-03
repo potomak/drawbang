@@ -8,6 +8,7 @@ GEM
       mime-types
       xml-simple
     builder (3.0.0)
+    color (1.4.1)
     diff-lcs (1.1.2)
     faraday (0.6.1)
       addressable (~> 2.2.4)
@@ -83,6 +84,7 @@ PLATFORMS
 
 DEPENDENCIES
   aws-s3
+  color
   fbgraph
   haml
   json
