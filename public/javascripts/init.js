@@ -87,6 +87,7 @@ function clearAll() {
   deactivate($(".frame.active"));
   activate($(".frame[data-frame=0]"));
   enable($(".frame[data-frame=0]"));
+  disable($(".remove_frame"));
   PIXEL.setCurrentFrame(0);
   frames = 1;
 }
@@ -300,10 +301,11 @@ $(document).ready(function() {
       $(".frame.active").toggleClass("active");
       $(".frame[data-frame=" + (frames-1) + "]").toggleClass("active");
       
-      PIXEL.clearCanvas();
+      PIXEL.clearCanvasAt(frames);
+      PIXEL.removeFrame(frames);
       PIXEL.setCurrentFrame(frames-1);
       
-      PIXEL.log(['remove_frame', frames]);
+      PIXEL.log(['remove_frame, done', frames]);
     }
   });
   
