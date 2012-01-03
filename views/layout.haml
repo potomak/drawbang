@@ -30,7 +30,7 @@
           .right
             - if logged_in?
               :javascript
-                var user_uid = #{@user['uid']};
+                var user_uid = #{@current_user['uid']};
               = haml :'shared/user_header', :locals => {:origin => CGI.escape(request.url)}
             - else
               %a.login{:href => "/auth/facebook?origin=#{CGI.escape request.url}", :class => "popup", :'data-width' => 600, :'data-height' => 400}
