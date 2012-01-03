@@ -1,4 +1,5 @@
 var currentColor = "#000000",
+    copyFrameIndex = -1,
     frames = 1;
 
 function postUploadCallback(data) {
@@ -89,6 +90,7 @@ function clearAll() {
   enable($(".frame[data-frame=0]"));
   disable($(".remove_frame"));
   PIXEL.setCurrentFrame(0);
+  copyFrameIndex = -1;
   frames = 1;
 }
 
@@ -341,19 +343,19 @@ $(document).ready(function() {
   });
   
   $(".move_right").click(function() {
-    PIXEL.moveRight()
+    PIXEL.moveRight();
   });
   
   $(".move_top").click(function() {
-    PIXEL.moveTop()}
-  );
+    PIXEL.moveTop();
+  });
   
   $(".flip_horizontal").click(function() {
-    PIXEL.flipHorizontal()}
-  );
+    PIXEL.flipHorizontal();
+  });
   
   $(".flip_vertical").click(function() {
-    PIXEL.flipVertical()
+    PIXEL.flipVertical();
   });
   
   $(".copy").click(function() {
@@ -361,10 +363,10 @@ $(document).ready(function() {
   });
   
   $(".paste").click(function() {
-    PIXEL.copyFrameAt(copyFrameIndex);
+    copyFrameIndex > -1 && copyFrameIndex < frames && PIXEL.copyFrameAt(copyFrameIndex);
   });
   
   $(".rotate").click(function() {
-    PIXEL.rotate()
+    PIXEL.rotate();
   });
 });
