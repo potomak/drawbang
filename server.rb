@@ -40,13 +40,13 @@ helpers do
   end
   
   def logged_in?
-    not @user.nil?
+    not @current_user.nil?
   end
 end
 
 before do
   # authentication
-  @user = User.find_by_key(session[:user]) if session[:user]
+  @current_user = User.find_by_key(session[:user]) if session[:user]
   # pagination
   @current_page = (params[:page] || 1).to_i
   @page = @current_page - 1
@@ -105,7 +105,7 @@ post '/' do
   # log in users who have allowed draw! app to access their facebook data
   if data['user_id']
     session[:user] = User.key(data['user_id'])
-    @user = User.update(session[:user], :credentials => {:token => data['oauth_token']})
+    @current_user = User.update(session[:user], :credentials => {:token => data['oauth_token']})
   end
   
   root_action
@@ -215,9 +215,9 @@ delete '/drawings/:id' do |id|
   @drawing = Drawing.find(id)
   
   if @drawing
-    if @drawing['user'] && @drawing['user']['uid'] == @user['uid']
+    if @drawing['user'] && @drawing['user']['uid'] == @current_user['uid']
       begin
-        Drawing.destroy(id, @user['uid'])
+        Drawing.destroy(id, @current_user['uid'])
         flash[:notice] = "Drawing deleted"
         redirect '/'
       rescue => e
@@ -251,9 +251,9 @@ post '/upload' do
       :request_host => request.host_with_port,
       :created_at => Time.now.to_i,
       :user => {
-        :uid => @user['uid'],
-        :first_name => @user['user_info']['first_name'],
-        :image => @user['user_info']['image']
+        :uid => @current_user['uid'],
+        :first_name => @current_user['user_info']['first_name'],
+        :image => @current_user['user_info']['image']
       }
     }
     # save drawing
@@ -272,7 +272,7 @@ end
 #
 get '/auth/facebook/callback' do
   session[:user] = User.key(request.env['omniauth.auth']['uid'])
-  @user = User.new(request.env['omniauth.auth'].merge(:key => session[:user])).save
+  @current_user = User.new(request.env['omniauth.auth'].merge(:key => session[:user])).save
   haml :'auth/callback'
 end
 

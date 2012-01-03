@@ -1,7 +1,7 @@
 %span.left Hi,
 .isometric.left
-  %img.avatar{:width => 25, :src => @user['user_info']['image']}
-%a.left{:href => "/users/#{@user['uid']}"}
-  ="#{@user['user_info']['first_name']}!"
+  %img.avatar{:width => 25, :src => @current_user['user_info']['image']}
+%a.left{:href => "/users/#{@current_user['uid']}"}
+  ="#{@current_user['user_info']['first_name']}!"
 %a.left.logout{:href => "/logout#{"?origin=#{origin}" if defined?(origin)}"}
   %img{:src => "/images/fb_logout_button.png"}
