@@ -6,10 +6,10 @@ html, body {
 body {
 	font-family: 'Inconsolata', sans-serif;
 	background-image: url(/images/bg.gif);
+	color: #333;
 }
 
-h1, h2, h3 {
-	color: #333;
+h1, h2, h3, h4 {
 	font-weight: normal;
 }
 
@@ -839,6 +839,12 @@ p.sep a {
 
 #drawing .share {
 	margin-bottom: 40px;
+	margin-top: 10px;
+	height: 20px;
+}
+
+#drawing .share .tweet_button {
+	margin-top: 0;
 }
 
 #user .info {
