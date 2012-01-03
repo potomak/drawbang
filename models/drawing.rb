@@ -17,6 +17,7 @@
 # * drawings
 # * drawings:user:#{user_id}, user's drawings
 
+require 'RMagick'
 require 'models/drawing/image'
 require 'models/drawing/storage'
 
