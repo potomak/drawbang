@@ -13,6 +13,7 @@ gem 'sinatra-content-for', :require => 'sinatra/content_for'
 gem 'rmagick'
 gem 'fbgraph'
 gem 'color'
+gem 'newrelic_rpm'
 
 group :test do
   gem 'rack-test'
