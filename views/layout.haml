@@ -47,6 +47,9 @@
         %a{:href => "/" == request.path_info ? "/about" : "/", :title => "/" == request.path_info ? "Learn more about Draw!" : "Return to gallery"}
           %h1 DRAW!
           %h2 16x16 animated pixelart pictures
+        
+    #adv.top_banner
+      = haml :'shared/adsense', :locals => {:slot => "9403034170", :width => 728, :height => 90}
     
     #container.wrapper
       = yield
