@@ -73,7 +73,7 @@ p.sep a {
 }
 
 .wrapper {
-	width: 940px;
+	width: 890px;
 	margin: 0 auto;
 }
 
@@ -187,7 +187,7 @@ p.sep a {
 
 #header h2 {
 	font-size: 20px;
-	margin-bottom: 30px;
+	margin-bottom: 10px;
 }
 
 #header a,
@@ -244,7 +244,7 @@ p.sep a {
 #desktop {
 	width: 560px;
 	float: left;
-	margin-left: 200px;
+	margin-left: 10px;
 }
 
 #desktop * {
@@ -262,6 +262,12 @@ p.sep a {
 #adv-right {
 	width: 160px;
 	float: right;
+}
+
+#adv.top_banner {
+	width: 728px;
+	margin: 0 auto;
+	margin-bottom: 10px;
 }
 
 .adv2 {
