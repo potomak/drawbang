@@ -5,4 +5,9 @@ describe "about.haml" do
     render("/views/about.haml")
     rendered.should match(/Credits/)
   end
+  
+  it "should display app version" do
+    render("/views/about.haml")
+    rendered.should match(/Version: #{DRAW_VERSION.join(".")}/)
+  end
 end

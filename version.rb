@@ -1,1 +1,1 @@
-VERSION = [0, 4, 4] unless defined?(VERSION)
+DRAW_VERSION = [0, 4, 5] unless defined?(DRAW_VERSION)
