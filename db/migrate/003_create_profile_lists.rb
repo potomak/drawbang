@@ -8,6 +8,6 @@ drawings.each do |drawing|
   
   if drawing['user'] && drawing['user']['uid']
     puts "push drawing to #{Drawing.list(drawing['user']['uid'])}"
-    REDIS.rpush(Drawing.list(drawing['user']['uid']), drawing['id'])
+    REDIS.rpush(Drawing.list(drawing['user']['uid']), drawing[:id] || drawing['id'])
   end
 end

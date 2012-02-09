@@ -12,7 +12,7 @@ builder do |xml|
           xml.title drawing[:id]
           xml.link drawing[:share_url]
           xml.description do
-            xml.cdata!("<img src='#{drawing['url']}'/> #{"<br/>by <img src='#{drawing['user']['image']}' width='25'/> #{drawing['user']['first_name']}" if drawing['user']}")
+            xml.cdata!("<img src='#{drawing['url']}'/> #{"<br/>by <img src='#{drawing['user']['image']}' width='25'/> <a href='http://drawbang.com/users/#{drawing['user']['uid']}'>#{drawing['user']['first_name']}</a>" if drawing['user']}")
           end
           xml.pubDate Time.at(drawing[:id].gsub(/\.png/, '').to_i).rfc822
           xml.guid drawing[:share_url]
