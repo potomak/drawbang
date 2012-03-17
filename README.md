@@ -13,7 +13,9 @@ Follow [@drawbang](http://twitter.com/drawbang) and read the blog at [http://blo
 
 `bundler` and `heroku` gems are needed, than just run
 
-    bundle
+```bash
+$ bundle
+```
 
 to install other required gems.
 
@@ -23,25 +25,35 @@ See also [`Gemfile`](https://github.com/potomak/drawbang/raw/master/Gemfile)
 
 Copy Facebook config file example
 
-    cp config/facebook.example.yml config/facebook.yml
+```bash
+$ cp config/facebook.example.yml config/facebook.yml
+```
 
 Start Redis server
 
-    redis-server config/redis.conf
+```bash
+$ redis-server config/redis.conf
+```
 
 Run
 
-    ruby server.rb
+```bash
+$ ruby server.rb
+```
 
 or run rake task `server`, alias `s`
 
-    rake s
+```bash
+$ rake s
+```
 
 ### Start the app console
 
 Run
 
-    irb -r server.rb
+```bash
+$ irb -r server.rb
+```
 
 ## How to use Heroku
 
@@ -49,45 +61,67 @@ Run
 
 Run
 
-    heroku create
+```bash
+$ heroku create
+```
 
 ### Push app to Heroku
 
 Run
 
-    git push heroku master
+```bash
+$ git push heroku master
+```
 
 ### Configuration variables
 
 To see current configuration variables run
 
-    heroku config
+```bash
+$ heroku config
+```
 
 To add configuration variables run
 
-    heroku config:add S3_KEY=xxx S3_SECRET=xxx
+```bash
+$ heroku config:add S3_KEY=xxx S3_SECRET=xxx
+```
 
 ### Get Heroku logs
 
 To see Heroku logs run
 
-    heroku logs
+```bash
+$ heroku logs
+```
 
 ### Run Heroku console
 
 Run
 
-    heroku console
+```bash
+    $ heroku console
+```
 
 or run rake task `console`, alias `c`
 
-    rake c
+```bash
+$ rake c
+```
 
 ### Get application users and drawings stats
 
 Run
 
-    rake stats
+```bash
+$ rake stats
+```
+
+### Run specs
+
+```bash
+$ bundle exec rake spec
+```
 
 ## License
 

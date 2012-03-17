@@ -9,7 +9,9 @@ gem 'redis'
 gem 'system_timer'
 gem 'json'
 gem 'rack-flash'
-gem 'sinatra-content-for', :require => 'sinatra/content_for'
+gem 'sinatra-content-for',
+  :git => 'https://github.com/foca/sinatra-content-for',
+  :require => 'sinatra/content_for'
 gem 'rmagick'
 gem 'fbgraph'
 gem 'color'

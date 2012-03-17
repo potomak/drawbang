@@ -101,7 +101,6 @@ describe "Draw! app" do
         get "/users/#{@id}"
         last_response.should match @user['user_info']['first_name']
       end
-      
     end
     
     describe "user not found" do
@@ -118,6 +117,39 @@ describe "Draw! app" do
         get "/users/#{@id}"
         last_response.should match /not found/
       end
+    end
+  end
+
+  describe "GET /drawings" do
+    before(:each) do
+      header 'Accept', 'application/json'
+      @drawings = [
+        {:id => 1},
+        {:id => 2}
+      ]
+      Drawing.should_receive(:all).and_return(@drawings)
+
+      get "/drawings"
+    end
+      
+    it "should respond" do
+      last_response.should be_ok
+    end
+
+    it "should respond with json" do
+      last_response.header['Content-type'].should == 'application/json'
+    end
+
+    it "should respond with drawings" do
+      last_response.should match /drawings/
+      @drawings.each do |drawing|
+        last_response.should match drawing[:id].to_s
+      end
+    end
+
+    it "should respond with metadata" do
+      last_response.should match /meta/
+      last_response.should match /current_page/
     end
   end
   
