@@ -72,24 +72,19 @@ describe "Draw! app" do
   describe "GET /users/123" do
     before :each do
       @id = "123"
-      @user = {:uid => "123", 'user_info' => {'first_name' => "John"}}
+      @user = {'uid' => "123", 'user_info' => {'first_name' => "John"}}
       @drawing = {'url' => "/the/drawing.png"}
     end
     
     describe "user found" do
       before(:each) do
         User.should_receive(:find).with(@id).and_return(@user)
+        Drawing.should_receive(:all).with(:user_id => @id, :page => 0, :per_page => PER_PAGE, :host => 'example.org').and_return([@drawing])
       end
       
       it "should respond 200 if a user is found" do
         get "/users/#{@id}"
         last_response.should be_ok
-      end
-      
-      it "should respond with json if accept header is set to 'application/json'" do
-        header 'Accept', 'application/json'
-        get "/users/#{@id}"
-        last_response.header['Content-type'].should == 'application/json'
       end
 
       it "should display user info" do
@@ -100,6 +95,47 @@ describe "Draw! app" do
       it "should display user gallery" do
         get "/users/#{@id}"
         last_response.should match @user['user_info']['first_name']
+      end
+
+      describe "json request" do
+        before(:each) do
+          header 'Accept', 'application/json'
+        end
+
+        it "should respond" do
+          get "/users/#{@id}"
+          last_response.should be_ok
+        end
+
+        it "should respond with json if accept header is set to 'application/json'" do
+          get "/users/#{@id}"
+          last_response.header['Content-type'].should == 'application/json'
+        end
+
+        it "should respond with user data" do
+          get "/users/#{@id}"
+          last_response.should match /first_name/
+          last_response.should match /John/
+          last_response.should match /uid/
+          last_response.should match @id
+        end
+
+        it "should respond with user's drawings" do
+          get "/users/#{@id}"
+          last_response.should match /drawings/
+          last_response.should match @drawing['url'].to_s
+        end
+
+        it "should respond with metadata" do
+          get "/users/#{@id}"
+          last_response.should match /meta/
+          last_response.should match /current_page/
+        end
+
+        it "should not respond with user's private data" do
+          get "/users/#{@id}"
+          last_response.should_not match /token/
+        end
       end
     end
     
