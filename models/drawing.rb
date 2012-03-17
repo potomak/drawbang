@@ -74,6 +74,21 @@ class Drawing
     REDIS.lrem(Drawing.list, 0, id)
   end
   
+  # Returns an array of drawing objects.
+  #
+  # Example:
+  #
+  # [{
+  #   "created_at" => 1331999288,
+  #   "share_url"  => "http://localhost/drawings/39827484a8e1eca9be06bcca8bbe1106f5e8d2aa.png",
+  #   "url"        => "http://localhost:4567/images/drawings/39827484a8e1eca9be06bcca8bbe1106f5e8d2aa.png",
+  #   "id"         => "39827484a8e1eca9be06bcca8bbe1106f5e8d2aa.png"
+  #   "user" => {
+  #     "first_name" => "Giovanni",
+  #     "uid"        => "1207768639",
+  #     "image"      => "http://graph.facebook.com/1207768639/picture?type=square"
+  #   }
+  # }]
   def self.all(opts)
     user_id  = opts[:user_id]  || nil
     page     = opts[:page]     || 0
