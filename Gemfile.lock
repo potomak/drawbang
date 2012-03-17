@@ -1,3 +1,10 @@
+GIT
+  remote: https://github.com/foca/sinatra-content-for
+  revision: 74e665e713726094b7f88e376e77a981784f9631
+  specs:
+    sinatra-content-for (0.2)
+      sinatra
+
 GEM
   remote: http://rubygems.org/
   specs:
@@ -71,8 +78,6 @@ GEM
     sinatra (1.2.6)
       rack (~> 1.1)
       tilt (>= 1.2.2, < 2.0)
-    sinatra-content-for (0.1)
-      sinatra
     system_timer (1.0)
     tilt (1.3.2)
     typhoeus (0.2.4)
@@ -98,5 +103,5 @@ DEPENDENCIES
   rmagick
   rspec
   sinatra
-  sinatra-content-for (~> 0.1)
+  sinatra-content-for!
   system_timer
