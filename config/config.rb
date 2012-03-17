@@ -20,3 +20,6 @@ EGA_PALETTE = %w{
 
 # max frames number
 MAX_FRAMES = 16
+
+# drawings per page for API requests
+API_PER_PAGE = 100

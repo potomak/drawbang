@@ -24,7 +24,7 @@ end
 use OmniAuth::Builder do
   options = {:scope => '', :display => "popup"}
   # NOTE: https://github.com/technoweenie/faraday/wiki/Setting-up-SSL-certificates
-  options.merge!({:client_options => {:ssl => {:ca_file => '/usr/lib/ssl/certs/ca-certificates.crt'}}}) if settings.environment == :production
+  options.merge!({:client_options => {:ssl => {:ca_file => '/usr/lib/ssl/certs/ca-certificates.crt'}}})
   provider :facebook, FACEBOOK['app_id'], FACEBOOK['app_secret'], options
 end
 
@@ -79,8 +79,8 @@ error 500 do
   end
 end
 
-def root_action
-  @drawings = Drawing.all(:page => @page, :per_page => PER_PAGE, :host => request.host)
+def json_request?
+  request.accept.include? 'application/json'
 end
 
 def clear_session
@@ -108,7 +108,7 @@ post '/' do
     @current_user = User.update(session[:user], :credentials => {:token => data['oauth_token']})
   end
   
-  root_action
+  @drawings = Drawing.all(:page => @page, :per_page => PER_PAGE, :host => request.host)
 
   haml :index
 end
@@ -117,7 +117,7 @@ end
 # GET /
 #
 get '/' do
-  root_action
+  @drawings = Drawing.all(:page => @page, :per_page => PER_PAGE, :host => request.host)
   
   if request.xhr?
     haml :'drawings/gallery', :layout => false
@@ -139,7 +139,7 @@ end
 #
 get '/users/:id' do |id|
   @user = User.find(id)
-  content_type :json if request.accept.include? 'application/json'
+  content_type :json if json_request?
   
   if @user
     @drawings = Drawing.all(:user_id => id, :page => @page, :per_page => PER_PAGE, :host => request.host)
@@ -160,11 +160,25 @@ get '/users/:id' do |id|
 end
 
 #
+# GET /drawings
+#
+get '/drawings' do
+  content_type :json
+
+  @drawings = Drawing.all(:page => @page, :per_page => API_PER_PAGE, :host => request.host)
+
+  {
+    :drawings => @drawings,
+    :meta => {:current_page => @current_page}
+  }.to_json
+end
+
+#
 # GET /drawings/:id
 #
 get '/drawings/:id' do |id|
   @drawing = Drawing.find(id)
-  content_type :json if request.accept.include? 'application/json'
+  content_type :json if json_request?
   
   if @drawing
     case request.accept.first
@@ -184,7 +198,7 @@ end
 #
 post '/drawings/:id/fork' do |id|
   @drawing = Drawing.find(id)
-  content_type :json if request.accept.include? 'application/json'
+  content_type :json if json_request?
   
   if @drawing
     begin
