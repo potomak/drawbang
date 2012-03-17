@@ -11,7 +11,7 @@ require 'lib/middlewares/no_heroku'
 configure do
   require 'version'
   require 'config/config'
-  require "config/#{settings.environment}"
+  require "config/environments/#{settings.environment}"
   
   set :haml, :format => :html5
   
