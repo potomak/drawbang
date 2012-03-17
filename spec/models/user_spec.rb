@@ -7,7 +7,7 @@ describe User do
     @user = {:name => "john"}
   end
   
-  describe "user.save" do
+  describe "save" do
     it "should return user" do
       REDIS.should_receive(:set).with(@key, @user.to_json).and_return("OK")
 
@@ -15,7 +15,7 @@ describe User do
     end
   end
   
-  describe "User.find" do
+  describe "self.find" do
     before(:each) do
       User.should_receive(:key).with(@id).and_return(@key)
     end
@@ -33,7 +33,7 @@ describe User do
     end
   end
   
-  describe "User.find_by_key" do
+  describe "self.find_by_key" do
     it "should find user" do
       REDIS.should_receive(:get).with(@key).and_return(@user.to_json)
       JSON.should_receive(:parse).with(@user.to_json).and_return(@user)
@@ -48,7 +48,7 @@ describe User do
     end
   end
   
-  describe "User.update" do
+  describe "self.update" do
     it "should find user" do
       User.should_receive(:find_by_key).with(@key).and_return(@user)
       
@@ -71,6 +71,12 @@ describe User do
       new_user.should_receive(:save).and_return(new_user)
 
       User.update(@key, hash).should == new_user
+    end
+  end
+
+  describe "self.key" do
+    it "should return user's key for id" do
+      User.key('id').should == 'user:id'
     end
   end
 end

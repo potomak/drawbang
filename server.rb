@@ -149,7 +149,16 @@ get '/users/:id' do |id|
     else
       case request.accept.first
       when 'application/json'
-        @user.merge(:drawings => @drawings).to_json
+        {
+          :uid        => @user['uid'],
+          :first_name => @user['user_info']['first_name'],
+          :image      => @user['user_info']['image']
+        }.merge({
+          :drawings   => {
+            :drawings => @drawings,
+            :meta     => {:current_page => @current_page}
+          }
+        }).to_json
       else
         haml :'users/show'
       end
@@ -169,7 +178,7 @@ get '/drawings' do
 
   {
     :drawings => @drawings,
-    :meta => {:current_page => @current_page}
+    :meta     => {:current_page => @current_page}
   }.to_json
 end
 
@@ -260,14 +269,14 @@ post '/upload' do
     id = "#{Drawing.generate_token}.#{data['image']['frames'] ? "gif" : "png"}"
     # compose drawing object
     drawing = {
-      :id => id,
-      :image => data['image'],
+      :id           => id,
+      :image        => data['image'],
       :request_host => request.host_with_port,
-      :created_at => Time.now.to_i,
+      :created_at   => Time.now.to_i,
       :user => {
-        :uid => @current_user['uid'],
+        :uid        => @current_user['uid'],
         :first_name => @current_user['user_info']['first_name'],
-        :image => @current_user['user_info']['image']
+        :image      => @current_user['user_info']['image']
       }
     }
     # save drawing
