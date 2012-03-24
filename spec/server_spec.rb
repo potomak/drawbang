@@ -235,30 +235,103 @@ describe "Draw! app" do
   
   describe "POST /upload" do
     describe "guest user" do
-      before(:each) do
-        @user = nil
-        post '/upload'
-      end
-      
       it "should redirect to '/'" do
+        post '/upload'
         last_response.should be_redirect
         last_response.header['Location'].should match /\//
       end
+
+      describe "API request" do
+        before(:each) do
+          header 'Accept', 'application/json'
+        end
+
+        it "should respond with json" do
+          post '/upload'
+          last_response.header['Content-type'].should == 'application/json'
+        end
+
+        it "should respond unauthorized" do
+          post '/upload'
+          last_response.status.should == 403
+        end
+      end
     end
-    
+
     describe "authenticated user" do
       before(:each) do
-        @user_id = "user:xxx"
-        session[:user] = @user_id
-        @user = {:uid => "123", 'user_info' => {'first_name' => "John"}}
-        User.should_receive(:find_by_key).with(@user_id).and_return(@user)
+        @user_id = "123"
+        @user_key = "user:#{@user_id}"
+
+        @user = {
+          'uid' => @user_id,
+          'user_info' => {
+            'first_name' => "John"
+          },
+          'credentials' => {
+            'token' => "access_token"
+          }
+        }
+
+        @png_drawing = {
+          'image' =>  {
+            'frame' => [[]]
+          }
+        }
+
+        @gif_drawing = {
+          'image' =>  {
+            'frames' => [[[]]]
+          }
+        }
       end
-      
-      it "should be tested"
-      
+
       it "should respond with json" do
+        session[:user] = @user_key
+        User.stub!(:find_by_key).with(@user_key).and_return(@user)
         post '/upload', {}.to_json
         last_response.header['Content-type'].should == 'application/json'
+      end
+
+      describe "HTML request" do
+        before(:each) do
+          session[:user] = @user_key
+          User.should_receive(:find_by_key).with(@user_key).and_return(@user)
+        end
+
+        it "should respond" do
+          @drawing = Object.new
+          @drawing.should_receive(:save).and_return({})
+          Drawing.should_receive(:new).and_return(@drawing)
+          post '/upload', @png_drawing.to_json
+          last_response.should be_ok
+        end
+      end
+
+      describe "API request" do
+        before(:each) do
+          header 'Accept', 'application/json'
+        end
+
+        it "should respond" do
+          User.should_receive(:find).with(@user_id).and_return(@user)
+          @drawing = Object.new
+          @drawing.should_receive(:save).and_return({})
+          Drawing.should_receive(:new).and_return(@drawing)
+          post "/upload?uid=#{@user_id}&token=#{@user['credentials']['token']}", @png_drawing.to_json
+          last_response.should be_ok
+        end
+
+        it "should respond unauthorized without auth params" do
+          User.should_receive(:find).with('wrong_uid').and_return(nil)
+          post "/upload?uid=wrong_uid&token=wrong_token", @png_drawing.to_json
+          last_response.status.should == 403
+        end
+        
+        it "should respond unauthorized with wrong auth params" do
+          post "/upload", @png_drawing.to_json
+          last_response.status.should == 403
+        end
       end
     end
   end
@@ -339,6 +412,74 @@ describe "Draw! app" do
       last_response.body.should match /Credits/
     end
   end
+
+  describe "POST /authorize" do
+    before(:each) do
+      @client    = Object.new
+      @selection = Object.new
+      @me        = Object.new
+      @info      = Object.new
+      @data      = Object.new
+
+      @client.stub!(:selection).and_return(@selection)
+      @selection.stub!(:me).and_return(@me)
+      @me.stub!(:info!).and_return(@info)
+      @info.stub!(:data).and_return(@data)
+      @data.stub!(:id).and_return("123")
+      @data.stub!(:first_name).and_return("John")
+      @data.stub!(:last_name).and_return("Doe")
+    end
+
+    it "should call FB API to authorize user" do
+      FBGraph::Client.should_receive(:new).with(:client_id => FACEBOOK['app_id'], :secret_id => FACEBOOK['app_secret'], :token => "token").and_return(@client)
+      post '/authorize', {:uid => "123", :token => "token"}
+    end
+
+    describe "authorized user" do
+      before(:each) do
+        FBGraph::Client.stub!(:new).and_return(@client)
+        post '/authorize', {:uid => "123", :token => "token"}
+      end
+
+      it "should be successful" do
+        last_response.should be_ok
+      end
+
+      it "should respond with json" do
+        last_response.header['Content-type'].should == 'application/json'
+      end
+
+      it "should respond with user data" do
+        last_response.should match /first_name/
+        last_response.should match /John/
+        last_response.should match /uid/
+        last_response.should match /123/
+      end
+
+      it "should respond with user's drawings" do
+        last_response.should match /drawings/
+      end
+
+      it "should respond with metadata" do
+        last_response.should match /meta/
+        last_response.should match /current_page/
+      end
+    end
+
+    describe "invalid params" do
+      it "should be unauthorized if token is wrong" do
+        FBGraph::Client.stub!(:new).and_raise(RuntimeError)
+        post '/authorize', {:uid => "123", :token => "wrong_token"}
+        last_response.status.should == 403
+      end
+
+      it "should be unauthorized if uid is wrong" do
+        FBGraph::Client.stub!(:new).and_return(@client)
+        post '/authorize', {:uid => "wrong_id", :token => "token"}
+        last_response.status.should == 403
+      end
+    end
+  end
   
   describe "DELETE /drawings/123.png" do
     before(:each) do
@@ -361,7 +502,7 @@ describe "Draw! app" do
       before(:each) do
         @user_id = "user:xxx"
         session[:user] = @user_id
-        @user = {:uid => "123", 'user_info' => {'first_name' => "John"}}
+        @user = {'uid' => "123", 'user_info' => {'first_name' => "John"}}
         User.should_receive(:find_by_key).with(@user_id).and_return(@user)
       end
 

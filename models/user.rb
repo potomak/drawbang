@@ -1,3 +1,51 @@
+# A user.
+#
+# Example user structure
+#
+# {
+#   "user_info" => {
+#     "name"       => "Giovanni Cappellotto",
+#     "nickname"   => "gcappellotto",
+#     "email"      => nil,
+#     "image"      => "http://graph.facebook.com/1207768639/picture?type=square",
+#     "first_name" => "Giovanni",
+#     "last_name"  => "Cappellotto",
+#     "urls" => {
+#       "Website"  => nil,
+#       "Facebook" => "http://www.facebook.com/gcappellotto"
+#     }
+#   },
+#   "extra" => {
+#     "user_hash" => {
+#       "username"     => "gcappellotto",
+#       "name"         => "Giovanni Cappellotto",
+#       "locale"       => "en_US",
+#       "verified"     => true,
+#       "updated_time" => "2012-01-19T14:25:00+0000",
+#       "timezone"     => 1,
+#       "link"         => "http://www.facebook.com/gcappellotto",
+#       "gender"       => "male",
+#       "first_name"   => "Giovanni",
+#       "id"           => "1207768639",
+#       "last_name"    => "Cappellotto",
+#       "location" => {
+#         "name" => "Venice, Italy",
+#         "id"   => "107933505906257"
+#       },
+#       "hometown" => {
+#         "name" => "Venice, Italy",
+#         "id"   => "107933505906257"
+#       },
+#     }
+#   },
+#   "credentials" => {
+#     "token"         => "XXX",
+#     "refresh_token" => ""
+#   },
+#   "uid"      => "1207768639",
+#   "provider" => "facebook"
+# }
+
 class User
   def initialize(user)
     @user = user
