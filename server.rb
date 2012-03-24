@@ -46,8 +46,8 @@ end
 
 before do
   # authentication
-  if params['uid'] && params['token']
-    user = User.find(params['uid'])
+  if params[:uid] && params[:token]
+    user = User.find(params[:uid])
     @current_user = user if user && user['credentials'] && user['credentials']['token'] == params[:token]
   else
     @current_user = User.find_by_key(session[:user]) if session[:user]
@@ -256,7 +256,7 @@ end
 post '/upload' do
   auth_or_redirect '/'
   content_type :json
-  
+
   begin
     # get access to raw POST data
     data = JSON.parse(request.body.read)
