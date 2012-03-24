@@ -339,6 +339,74 @@ describe "Draw! app" do
       last_response.body.should match /Credits/
     end
   end
+
+  describe "POST /authorize" do
+    before(:each) do
+      @client    = Object.new
+      @selection = Object.new
+      @me        = Object.new
+      @info      = Object.new
+      @data      = Object.new
+
+      @client.stub!(:selection).and_return(@selection)
+      @selection.stub!(:me).and_return(@me)
+      @me.stub!(:info!).and_return(@info)
+      @info.stub!(:data).and_return(@data)
+      @data.stub!(:id).and_return("123")
+      @data.stub!(:first_name).and_return("John")
+      @data.stub!(:last_name).and_return("Doe")
+    end
+
+    it "should call FB API to authorize user" do
+      FBGraph::Client.should_receive(:new).with(:client_id => FACEBOOK['app_id'], :secret_id => FACEBOOK['app_secret'], :token => "token").and_return(@client)
+      post '/authorize', {:uid => "123", :token => "token"}
+    end
+
+    describe "authorized user" do
+      before(:each) do
+        FBGraph::Client.stub!(:new).and_return(@client)
+        post '/authorize', {:uid => "123", :token => "token"}
+      end
+
+      it "should be successful" do
+        last_response.should be_ok
+      end
+
+      it "should respond with json" do
+        last_response.header['Content-type'].should == 'application/json'
+      end
+
+      it "should respond with user data" do
+        last_response.should match /first_name/
+        last_response.should match /John/
+        last_response.should match /uid/
+        last_response.should match /123/
+      end
+
+      it "should respond with user's drawings" do
+        last_response.should match /drawings/
+      end
+
+      it "should respond with metadata" do
+        last_response.should match /meta/
+        last_response.should match /current_page/
+      end
+    end
+
+    describe "invalid params" do
+      it "should be unauthorized if token is wrong" do
+        FBGraph::Client.stub!(:new).and_raise(RuntimeError)
+        post '/authorize', {:uid => "123", :token => "wrong_token"}
+        last_response.status.should == 403
+      end
+
+      it "should be unauthorized if uid is wrong" do
+        FBGraph::Client.stub!(:new).and_return(@client)
+        post '/authorize', {:uid => "wrong_id", :token => "token"}
+        last_response.status.should == 403
+      end
+    end
+  end
   
   describe "DELETE /drawings/123.png" do
     before(:each) do
