@@ -38,45 +38,39 @@ helpers do
   def is_production?
     :production == settings.environment
   end
-  
+
   def logged_in?
-    not @current_user.nil?
+    !@current_user.nil? && @current_user['uid']
   end
 end
 
 before do
   # authentication
-  @current_user = User.find_by_key(session[:user]) if session[:user]
+  if params['uid'] && params['token']
+    user = User.find(params['uid'])
+    @current_user = user if user && user['credentials'] && user['credentials']['token'] == params[:token]
+  else
+    @current_user = User.find_by_key(session[:user]) if session[:user]
+  end
+
+  # respond with json if accepted
+  content_type :json if json_request?
+
   # pagination
   @current_page = (params[:page] || 1).to_i
   @page = @current_page - 1
 end
 
 not_found do
-  case request.accept
-  when 'application/json'
-    "not found".to_json
-  else
-    haml :'shared/not_found'
-  end
+  json_request? ? "not found".to_json : haml(:'shared/not_found')
 end
 
 error 403 do
-  case request.accept.first
-  when 'application/json'
-    "access forbidden".to_json
-  else
-    haml :'shared/access_forbidden'
-  end
+  json_request? ? "access forbidden".to_json : haml(:'shared/access_forbidden')
 end
 
 error 500 do
-  case request.accept
-  when 'application/json'
-    "application error".to_json
-  else
-    haml :'shared/application_error'
-  end
+  json_request? ? "application error".to_json : haml(:'shared/application_error')
 end
 
 def json_request?
@@ -89,8 +83,12 @@ end
 
 def auth_or_redirect(path)
   unless logged_in?
-    flash[:error] = 'Please log in to perform this operation'
-    redirect path
+    if json_request?
+      halt 403
+    else
+      flash[:error] = 'Please log in to perform this operation'
+      redirect path
+    end
   end
 end
 
@@ -139,7 +137,6 @@ end
 #
 get '/users/:id' do |id|
   @user = User.find(id)
-  content_type :json if json_request?
   
   if @user
     @drawings = Drawing.all(:user_id => id, :page => @page, :per_page => PER_PAGE, :host => request.host)
@@ -187,7 +184,6 @@ end
 #
 get '/drawings/:id' do |id|
   @drawing = Drawing.find(id)
-  content_type :json if json_request?
   
   if @drawing
     case request.accept.first
@@ -207,7 +203,6 @@ end
 #
 post '/drawings/:id/fork' do |id|
   @drawing = Drawing.find(id)
-  content_type :json if json_request?
   
   if @drawing
     begin
@@ -264,7 +259,7 @@ post '/upload' do
   
   begin
     # get access to raw POST data
-    data = JSON.parse(request.env["rack.input"].read)
+    data = JSON.parse(request.body.read)
     # compose drawing id
     id = "#{Drawing.generate_token}.#{data['image']['frames'] ? "gif" : "png"}"
     # compose drawing object
@@ -286,7 +281,7 @@ post '/upload' do
     drawing.merge(:thumb => haml(:'drawings/thumb', :layout => false, :locals => {:drawing => drawing, :id => 0})).to_json
   rescue => e
     puts "ERROR: #{e}\n#{e.backtrace}"
-    "Sorry, an error occurred while processing your request.".to_json
+    status 500
   end
 end
 
