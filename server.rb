@@ -144,8 +144,7 @@ get '/users/:id' do |id|
     if request.xhr?
       haml :'drawings/gallery', :layout => false
     else
-      case request.accept.first
-      when 'application/json'
+      if json_request?
         {
           :uid        => @user['uid'],
           :first_name => @user['user_info']['first_name'],
@@ -186,8 +185,7 @@ get '/drawings/:id' do |id|
   @drawing = Drawing.find(id)
   
   if @drawing
-    case request.accept.first
-    when 'application/json'
+    if json_request?
       @drawing.to_json
     else
       @drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}")
@@ -208,8 +206,7 @@ post '/drawings/:id/fork' do |id|
     begin
       @drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}", :image => Drawing.image_raw_data(@drawing['url']))
       
-      case request.accept.first
-      when 'application/json'
+      if json_request?
         @drawing.to_json
       else
         haml :'drawings/fork'
