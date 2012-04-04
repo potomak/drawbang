@@ -204,7 +204,8 @@ post '/drawings/:id/fork' do |id|
   
   if @drawing
     begin
-      @drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}", :image => Drawing.image_raw_data(@drawing['url']))
+      image_data = Drawing.image_raw_data(Drawing.thumb_url(@drawing['url']))
+      @drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}", :image => image_data)
       
       if json_request?
         @drawing.to_json
