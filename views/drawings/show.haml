@@ -21,9 +21,8 @@
               %a{:href => "/users/#{@drawing['user']['uid']}"}= @drawing['user']['first_name']
     
           #actions
-            -# TODO: activate when fork is ready
-              / %form{:id => "fork_drawing", :action => "/drawings/#{params[:id]}/fork", :method => "POST"}
-              / %a{:href => "#", :onclick => "_gaq.push(['_trackEvent', 'Drawings', 'Fork', '#{@drawing['url']}']); $('#fork_drawing').submit(); return false;"} Fork
+            %form{:id => "fork_drawing", :action => "/drawings/#{params[:id]}/fork", :method => "POST"}
+            %a{:href => "#", :onclick => "_gaq.push(['_trackEvent', 'Drawings', 'Fork', '#{@drawing['url']}']); $('#fork_drawing').submit(); return false;"} Fork
             - if logged_in? && @drawing['user']['uid'] == @current_user['uid']
               %form{:id => "delete_drawing", :action => "/drawings/#{params[:id]}", :method => "POST"}
                 %input{:type => "hidden", :name => "_method", :value => "delete"}
