@@ -1,0 +1,11 @@
+- content_for :head do
+  :javascript
+    var production_env = #{is_production?},
+        maxFrames = #{MAX_FRAMES},
+        imageData = #{@drawing[:image].to_json};
+
+  %script{:src => "/javascripts/pixel#{'.min' if is_production?}.js", :type => 'text/javascript'}
+  %script{:src => '/javascripts/init.js', :type => 'text/javascript'}
+
+.block
+  = haml :'shared/editor'
