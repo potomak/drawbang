@@ -87,15 +87,40 @@ module Image
         return rgb + [Magick::QuantumRange]
       end
     end
+
+    # parse pixel color
+    def parse_pixel_color(pixel)
+      if 0 != pixel.opacity
+        "rgba(0, 0, 0, 0)"
+      else
+        # returns color name corresponding the the pixel values
+        # format: #rrrrggggbbbbaaaa
+        color = pixel.to_color(Magick::AllCompliance, false, Magick::QuantumDepth, true)
+
+        component = /([a-fA-F0-9]{2})[a-fA-F0-9]{2}/
+        color_pattern = /##{component}#{component}#{component}/
+        "##{color.match(color_pattern).select {|c| 2 == c.size}.join}"
+      end
+    end
     
-    # downloads image, parses it and returns raw data
-    def image_raw_data(url)
-      open(url) do |f|
-        # hash with meta information
-        puts "meta: #{f.meta.inspect}"
-        puts "Content-Type: #{f.content_type}"
-        puts "last modified: #{f.last_modified.to_s}"
-        puts "raw data: #{f.read}"
+    # downloads thumb image, parses it and returns raw data
+    #
+    # KNOWN BUG: calling this function on PNG images where there's
+    #            only black color returns an array full of black.
+    def image_raw_data(thumb_url)
+      raw_data = []
+      open(thumb_url) do |f|
+        image_list = Magick::Image.from_blob(f.read)
+        image_list.each do |image|
+          raw_data << (0..15).map do |i|
+            (0..15).map do |j|
+              # thumbs size 64x64, image size 16x16, zoom 4x 
+              parse_pixel_color(image.pixel_color(i*4, j*4))
+            end
+          end 
+        end
+
+        raw_data
       end
     end
   end
