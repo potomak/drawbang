@@ -116,4 +116,8 @@ class Drawing
   def self.generate_token
     Digest::SHA1.hexdigest(rand(36**32).to_s(36))
   end
+
+  def self.thumb_url(image_url, size=64)
+    "#{image_url}_#{size}#{File.extname(image_url)}"
+  end
 end
