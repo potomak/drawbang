@@ -2,11 +2,11 @@
 
 var PIXEL = function() {
   // Global constants.
-  var TRANSPARENT = "rgba(0, 0, 0, 0)";
+  var VERSION     = '0.1',
+      TRANSPARENT = "rgba(0, 0, 0, 0)";
   
   // Global variables.
-  var version         = '0.1',
-      debug           = false,
+  var debug           = false,
       matrix          = [],
       frames          = [],
       animation       = null,
@@ -77,17 +77,15 @@ var PIXEL = function() {
     this.drawGrid = function() {
       var correction = 0.5;
 
-      if(this.settings.showGrid) {
-        for (var x = correction+this.settings.pixelSize; x < this.settings.size; x += this.settings.pixelSize) {
-          this.ctx.moveTo(x, 0);
-          this.ctx.lineTo(x, this.settings.size);
-          this.ctx.moveTo(0, x);
-          this.ctx.lineTo(this.settings.size, x);
-        }
-
-        this.ctx.strokeStyle = this.settings.gridColor;
-        this.ctx.stroke();
+      for (var x = correction+this.settings.pixelSize; x < this.settings.size; x += this.settings.pixelSize) {
+        this.ctx.moveTo(x, 0);
+        this.ctx.lineTo(x, this.settings.size);
+        this.ctx.moveTo(0, x);
+        this.ctx.lineTo(this.settings.size, x);
       }
+
+      this.ctx.strokeStyle = this.settings.gridColor;
+      this.ctx.stroke();
     }
     
     // ## getDataURL()
@@ -130,7 +128,7 @@ var PIXEL = function() {
         }
       }
 
-      this.drawGrid();
+      this.settings.showGrid && this.drawGrid();
     }
   }
   
@@ -141,15 +139,17 @@ var PIXEL = function() {
   //
   // `mainCanvas` is a HTML5 canvas elements.<br/>
   // `previewCanvases` is an array of HTML5 canvas elements.<br/>
-  // `debug` is a flag to override default debug settings.
-  var init = function(aMainCanvas, aPreviewCanvases, aDebug) {
+  // `debug` is a flag to override default debug settings.<br/>
+  // `imageData` an array containing bitmap image data.
+  var init = function(aMainCanvas, aPreviewCanvases, aDebug, imageData) {
     mainCanvas = new Canvas(aMainCanvas, settings.mainCanvas);
     for(var i = 0; i < aPreviewCanvases.length; i++) {
       previewCanvases[i] = new Canvas(aPreviewCanvases[i], settings.previewCanvas);
     }
     typeof aDebug != 'undefined' ? debug = aDebug : null;
-    
+
     initMatrix();
+    typeof imageData != 'undefined' ? loadImageData(imageData) : null;
     initCanvas();
   }
   
@@ -157,7 +157,7 @@ var PIXEL = function() {
   //
   // Initializes matrix values to transparent.
   var initMatrix = function() {
-    var length = settings.mainCanvas.size/settings.mainCanvas.pixelSize
+    var length = settings.mainCanvas.size/settings.mainCanvas.pixelSize;
     matrix = [];
     
     for(var i = 0; i < length; i++) {
@@ -183,6 +183,23 @@ var PIXEL = function() {
     };
     
     draw();
+  }
+
+  // ## loadImageData()
+  //
+  // Loads image data.
+  var loadImageData = function(imageData) {
+    // Copy image data first frame to main canvas bitmap data.
+    matrix = copyMatrix(imageData[0]);
+    mainCanvas.clearCanvas();
+    mainCanvas.draw(imageData[0]);
+
+    for(var i = 0; i < imageData.length; i++) {
+      frames[i] = copyMatrix(imageData[i]);
+
+      previewCanvases[i].clearCanvas();
+      previewCanvases[i].draw(imageData[i]);
+    }
   }
   
   // ## log(obj)
@@ -364,11 +381,11 @@ var PIXEL = function() {
   //
   // Returns color string at (`x`, `y`).
   //
-  // Color string format:
+  // Color string format:getColorAt
   //
   //     /#([a-fA-F0-9]{2})([a-fA-F0-9]{2})([a-fA-F0-9]{2})/
   var getColorAt = function(x, y) {
-    return TRANSPARENT == matrix[x][y] ? "#ffffff" : matrix[x][y];
+    return TRANSPARENT == matrix[x][y] ? null : matrix[x][y];
   }
   
   // ## fillPixels(x, y, color)
@@ -484,7 +501,16 @@ var PIXEL = function() {
   //
   // Returns data matrix for frame at index `frame`.
   var getFrame = function(frame) {
+    log("DEPRECATED");
+    log("Use getFrameAt(index) instead");
     return currentFrame == frame ? matrix : frames[frame];
+  }
+
+  // ## getFrameAt(index)
+  //
+  // Returns bitmat data for frame at `index`.
+  var getFrameAt = function(index) {
+    return frames[index];
   }
   
   // ## getCurrentFrame()
@@ -533,6 +559,7 @@ var PIXEL = function() {
   //
   // **Deprecation warning**
   var setOnionFrame = function(frame) {
+    log("DEPRECATED");
     onionFrame = frame;
     draw();
   }
@@ -543,6 +570,7 @@ var PIXEL = function() {
   //
   // **Deprecation warning**
   var getCurrentOnionFrameId = function() {
+    log("DEPRECATED");
     return onionFrame;
   }
   
