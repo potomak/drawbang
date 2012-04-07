@@ -2,8 +2,14 @@
 %img{:src => Drawing.thumb_url(@drawing['url'])}
 
 %p Tweet it now
-%form{:action => "/TEST", :method => "POST"}
-  %textarea{:name => 'tweet_text'}
-    I love @drawbang
-  %checkbox{:name => 'follow_drawbang', :value => '1', :checked => 'checked'}
-  %input{:type => 'submit'} Tweet it
+%form{:action => "/drawings/#{params[:id]}/tweet", :method => "POST"}
+  .tweet_text
+    %textarea{:name => 'tweet_text'}
+      Do you like my new #pixelart profile picture? Make yours with http://drawbang.com
+  .follow_drawbang
+    %input{:type => 'checkbox', :name => 'follow_drawbang', :value => 'yes', :checked => 'checked'}
+    %span
+      Follow
+      %a{:href => 'http://twitter.com/drawbang'} @drawbang
+  .tweet_it
+    %input{:type => 'submit', :value => "Tweet it"}

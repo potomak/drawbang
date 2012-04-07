@@ -262,6 +262,45 @@ get '/drawings/:id/use_as_twitter_avatar' do |id|
 end
 
 #
+# POST /drawings/:id/tweet
+#
+post '/drawings/:id/tweet' do |id|
+  @drawing = Drawing.find(id)
+  
+  if @drawing
+    if session[:twitter_access_token]
+      begin
+        Twitter.configure do |config|
+          config.consumer_key = TWITTER['consumer_key']
+          config.consumer_secret = TWITTER['consumer_secret']
+          config.oauth_token = session[:twitter_access_token][:token]
+          config.oauth_token_secret = session[:twitter_access_token][:secret]
+        end
+
+        Twitter.update(params[:tweet_text])
+
+        if 'yes' == params[:follow_drawbang]
+          Twitter.follow('drawbang')
+        end
+
+        if json_request?
+          @drawing.to_json
+        else
+          redirect "/drawings/#{id}"
+        end
+      rescue => e
+        puts "ERROR: #{e}"
+        status 500
+      end
+    else
+      redirect "/auth/twitter?origin=/drawings/#{id}/use_as_twitter_avatar"
+    end
+  else
+    status 404
+  end
+end
+
+#
 # DELETE /drawings/:id
 #
 delete '/drawings/:id' do |id|
