@@ -57,21 +57,43 @@ class Drawing
     REDIS.set(Drawing.key(id), @drawing.to_json)
     REDIS.lpush(Drawing.list(@drawing[:user][:uid]), id)
     REDIS.lpush(Drawing.list, id)
+    REDIS.lpush(Drawing.children_list(@drawing[:parent]), id) if @drawing[:parent]
     
     @drawing
   end
   
-  def self.find(id)
+  # Find drawing by id.
+  #
+  # If +:shallow+ option is true children aren't loaded.
+  def self.find(id, opts={})
     value = REDIS.get(key(id))
-    JSON.parse(value) unless value.nil?
+    unless value.nil?
+      drawing = JSON.parse(value)
+      drawing[:children] = all(:list => children_list(id)) unless opts[:shallow]
+      drawing[:parent] = find(drawing['parent'], :shallow => true)
+      drawing.merge(:id => id)
+    end
   end
   
+  # Destroy drawing.
+  #
+  # This method destroy also drawing
+  #
+  #  * from all drawings list
+  #  * from user (author) drawings list
+  #  * from parent's children list
+  # 
+  # and removes list of children.
   def self.destroy(id, user_id)
+    drawing = find(id, :shallow => true)
+
     delete_file(id)
     
     REDIS.del(key(id))
     REDIS.lrem(Drawing.list(user_id), 0, id)
     REDIS.lrem(Drawing.list, 0, id)
+    REDIS.lrem(Drawing.children_list(drawing['parent']), 0, id) if drawing && drawing['parent']
+    REDIS.del(Drawing.children_list(id))
   end
   
   # Returns an array of drawing objects.
@@ -91,26 +113,34 @@ class Drawing
   # }]
   def self.all(opts)
     user_id  = opts[:user_id]  || nil
+    list     = opts[:list]     || list(user_id)
     page     = opts[:page]     || 0
     per_page = opts[:per_page] || 10
     host     = opts[:host]     || "localhost:4567"
     
     start_index = page*per_page
     end_index   = start_index + per_page-1
-    list        = list(user_id)
     
     REDIS.lrange(list, start_index, end_index).map do |id|
-      drawing = find(id)
+      drawing = find(id, :shallow => true)
       drawing.merge(:id => id, :share_url => "http://#{host}/drawings/#{id}") if drawing
     end
   end
   
+  # Returns a string representing drawing key by +id+.
   def self.key(id)
     "drawing:#{id}"
   end
   
+  # Returns a string representing drawings list or user drawings list if
+  # +user_id+ is not +nil+.
   def self.list(user_id=nil)
     user_id ? "drawings:user:#{user_id}" : "drawings"
+  end
+
+  # Returns a string representing drawings children list.
+  def self.children_list(id)
+    "drawings:children:#{id}"
   end
   
   def self.generate_token
@@ -118,6 +148,6 @@ class Drawing
   end
 
   def self.thumb_url(image_url, size=64)
-    "#{image_url}_#{size}#{File.extname(image_url)}"
+    "#{image_url}_#{size}#{File.extname(image_url.to_s)}"
   end
 end

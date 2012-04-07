@@ -24,7 +24,7 @@ describe Drawing do
       REDIS.should_receive(:get).with(Drawing.key(@id)).and_return(@drawing.to_json)
       JSON.should_receive(:parse).with(@drawing.to_json).and_return(@drawing)
 
-      Drawing.find(@id).should == @drawing
+      Drawing.find(@id).should == @drawing.merge(:id => @id)
     end
 
     it "should return nil if it can't find drawing" do
@@ -81,7 +81,7 @@ describe Drawing do
       }
 
       REDIS.should_receive(:lrange).with("drawings", 0, 9).and_return(ids)
-      Drawing.should_receive(:find).exactly(10).times.with(@id).and_return(@drawing)
+      Drawing.should_receive(:find).exactly(10).times.with(@id, :shallow => true).and_return(@drawing)
 
       Drawing.all(opts).should == ids.map {|id| @drawing.merge(:id => id, :share_url => "http://#{opts[:host]}/drawings/#{id}")}
     end
