@@ -45,6 +45,10 @@ function performUpload() {
   else {
     data['image'] = {frame: PIXEL.getCurrentFrame()};
   }
+
+  if(typeof parent_id != 'undefined') {
+    data['parent'] = parent_id;
+  }
   
   $.ajax({
     url: '/upload',

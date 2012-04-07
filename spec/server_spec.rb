@@ -192,7 +192,7 @@ describe "Draw! app" do
   describe "GET /drawings/123.png" do
     before :each do
       @id = "123.png"
-      @drawing = {'url' => "/the/drawing.png"}
+      @drawing = {'url' => "/the/drawing.png", :children => []}
     end
     
     describe "drawing found" do
@@ -508,7 +508,7 @@ describe "Draw! app" do
 
       describe "drawing not found" do
         before(:each) do
-          Drawing.should_receive(:find).with(@id).and_return(nil)
+          Drawing.should_receive(:find).with(@id, :shallow => true).and_return(nil)
           delete '/drawings/123.png'
         end
 
@@ -525,7 +525,7 @@ describe "Draw! app" do
         describe "unauthorized user" do
           before(:each) do
             @drawing = {}
-            Drawing.should_receive(:find).with(@id).and_return(@drawing)
+            Drawing.should_receive(:find).with(@id, :shallow => true).and_return(@drawing)
             delete '/drawings/123.png'
           end
           
@@ -541,7 +541,7 @@ describe "Draw! app" do
         describe "authorized user" do
           before(:each) do
             @drawing = {'user' => @user}
-            Drawing.should_receive(:find).with(@id).and_return(@drawing)
+            Drawing.should_receive(:find).with(@id, :shallow => true).and_return(@drawing)
             Drawing.should_receive(:destroy).with(@id, @user['uid'])
             delete '/drawings/123.png'
           end

@@ -1,0 +1,9 @@
+%p Now your Twitter profile image looks like this
+%img{:src => Drawing.thumb_url(@drawing['url'])}
+
+%p Tweet it now
+%form{:action => "/TEST", :method => "POST"}
+  %textarea{:name => 'tweet_text'}
+    I love @drawbang
+  %checkbox{:name => 'follow_drawbang', :value => '1', :checked => 'checked'}
+  %input{:type => 'submit'} Tweet it
