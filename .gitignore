@@ -1,6 +1,7 @@
 /public/images/drawings/*.png
 /public/images/drawings/*.gif
 /config/facebook.yml
+/config/twitter.yml
 /db/*.rdb
 /log/*.log
 .DS_Store

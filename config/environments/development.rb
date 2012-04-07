@@ -9,3 +9,6 @@ REDIS = Redis.new(:host => 'localhost', :port => 6379)
 
 # facebook
 FACEBOOK = YAML.load_file('config/facebook.yml') unless defined?(FACEBOOK)
+
+# twitter
+TWITTER = YAML.load_file('config/twitter.yml') unless defined?(TWITTER)
