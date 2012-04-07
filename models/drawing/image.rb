@@ -10,6 +10,10 @@ module Image
     :thumb => {
       :width  => 64,
       :height => 64
+    },
+    :favicon => {
+      :width  => 16,
+      :height => 16
     }
   }
   
