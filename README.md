@@ -29,6 +29,12 @@ Copy Facebook config file example
 $ cp config/facebook.example.yml config/facebook.yml
 ```
 
+Copy Twitter config file example
+
+```bash
+$ cp config/twitter.example.yml config/twitter.yml
+```
+
 Start Redis server
 
 ```bash
@@ -86,6 +92,15 @@ To add configuration variables run
 ```bash
 $ heroku config:add S3_KEY=xxx S3_SECRET=xxx
 ```
+
+Minimal configuration variables:
+
+ * `FB_APP_ID`
+ * `FB_APP_SECRET`
+ * `TWITTER_CONSUMER_KEY`
+ * `TWITTER_CONSUMER_SECRET`
+ * `S3_KEY`
+ * `S3_SECRET`
 
 ### Get Heroku logs
 
