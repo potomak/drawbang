@@ -448,7 +448,11 @@ end
 
 #
 # GET /about
+# GET /privacy
+# GET /tos
 #
-get '/about' do
-  haml :about
+[:about, :privacy, :tos].each do |action|
+  get "/#{action}" do
+    haml action
+  end
 end

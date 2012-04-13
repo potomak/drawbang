@@ -399,17 +399,23 @@ describe "Draw! app" do
     end
   end
   
-  describe "GET /about" do
-    before(:each) do
-      get '/about'
-    end
-    
-    it "should respond" do
-      last_response.should be_ok
-    end
-    
-    it "should render about template" do
-      last_response.body.should match /Credits/
+  {
+    :about => 'Credits',
+    :privacy => 'Privacy',
+    :tos => 'Terms of Service'
+  }.each do |action, content|
+    describe "GET /#{action}" do
+      before(:each) do
+        get "/#{action}"
+      end
+      
+      it "should respond" do
+        last_response.should be_ok
+      end
+      
+      it "should render #{action} template" do
+        last_response.body.should match /#{content}/
+      end
     end
   end
 
