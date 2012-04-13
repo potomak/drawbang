@@ -27,7 +27,7 @@
               %form{:id => "delete_drawing", :action => "/drawings/#{params[:id]}", :method => "POST"}
                 %input{:type => "hidden", :name => "_method", :value => "delete"}
               %a{:href => "#", :title => "Delete your drawing", :onclick => "if (confirm('Sure?')) {_gaq.push(['_trackEvent', 'Drawings', 'Delete', '#{@drawing['url']}']); $('#delete_drawing').submit();} return false;"} Delete
-            %a{:href => "/auth/twitter?origin=/drawings/#{params[:id]}/use_as_twitter_avatar", :style => 'display:block'} Use as Twitter profile image
+            %a{:href => "/auth/twitter?origin=/drawings/#{params[:id]}/use_as_twitter_avatar", :style => 'display:block', :onclick => "if (confirm('Do you want to change your current Twitter profile image with this awesome drawing?')) {_gaq.push(['_trackEvent', 'Drawings', 'Twitter profile image', '#{@drawing['url']}']); return true} else {return false}"} Use as Twitter profile image
     
         .share
           .left.tweet_button

@@ -247,6 +247,7 @@ get '/drawings/:id/use_as_twitter_avatar' do |id|
         if json_request?
           @drawing.to_json
         else
+          @drawing.merge!(:share_url => "http://#{request.host}/drawings/#{id}")
           haml :'drawings/use_as_twitter_avatar'
         end
       rescue => e
