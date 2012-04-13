@@ -71,9 +71,15 @@ Run
 $ heroku create
 ```
 
-### Push app to Heroku
+### Push app to Heroku (deploy process)
 
-Run
+Before pushing any new version to Heroku be sure to recompile minified javascripts running
+
+```bash
+$ rake compile
+```
+
+To push master branch to Heroku run
 
 ```bash
 $ git push heroku master
