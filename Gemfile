@@ -16,6 +16,7 @@ gem 'rmagick'
 gem 'fbgraph'
 gem 'color'
 gem 'newrelic_rpm'
+gem 'twitter'
 
 group :test do
   gem 'rack-test'

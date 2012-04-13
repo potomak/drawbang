@@ -26,6 +26,7 @@ use OmniAuth::Builder do
   # NOTE: https://github.com/technoweenie/faraday/wiki/Setting-up-SSL-certificates
   options.merge!({:client_options => {:ssl => {:ca_file => '/usr/lib/ssl/certs/ca-certificates.crt'}}})
   provider :facebook, FACEBOOK['app_id'], FACEBOOK['app_secret'], options
+  provider :twitter, TWITTER['consumer_key'], TWITTER['consumer_secret']
 end
 
 use Rack::Flash
@@ -118,7 +119,7 @@ get '/' do
   @drawings = Drawing.all(:page => @page, :per_page => PER_PAGE, :host => request.host)
   
   if request.xhr?
-    haml :'drawings/gallery', :layout => false
+    haml :'drawings/gallery', :locals => {:drawings => @drawings}, :layout => false
   else
     haml :index
   end
@@ -142,7 +143,7 @@ get '/users/:id' do |id|
     @drawings = Drawing.all(:user_id => id, :page => @page, :per_page => PER_PAGE, :host => request.host)
     
     if request.xhr?
-      haml :'drawings/gallery', :layout => false
+      haml :'drawings/gallery', :locals => {:drawings => @drawings}, :layout => false
     else
       if json_request?
         {
@@ -204,7 +205,8 @@ post '/drawings/:id/fork' do |id|
   
   if @drawing
     begin
-      @drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}", :image => Drawing.image_raw_data(@drawing['url']))
+      image_data = Drawing.image_raw_data(Drawing.thumb_url(@drawing['url']))
+      @drawing.merge!(:id => id, :share_url => "http://#{request.host}/drawings/#{id}", :image => image_data)
       
       if json_request?
         @drawing.to_json
@@ -221,13 +223,92 @@ post '/drawings/:id/fork' do |id|
 end
 
 #
+# GET /drawings/:id/use_as_twitter_avatar
+#
+get '/drawings/:id/use_as_twitter_avatar' do |id|
+  @drawing = Drawing.find(id)
+  
+  if @drawing
+    if session[:twitter_access_token]
+      begin
+        Twitter.configure do |config|
+          config.consumer_key = TWITTER['consumer_key']
+          config.consumer_secret = TWITTER['consumer_secret']
+          config.oauth_token = session[:twitter_access_token][:token]
+          config.oauth_token_secret = session[:twitter_access_token][:secret]
+        end
+        
+        io = open(URI.parse(@drawing['url']))
+        def io.original_filename; base_uri.path.split('/').last; end
+        io.original_filename.blank? ? nil : io
+
+        Twitter.update_profile_image(io)
+
+        if json_request?
+          @drawing.to_json
+        else
+          @drawing.merge!(:share_url => "http://#{request.host}/drawings/#{id}")
+          haml :'drawings/use_as_twitter_avatar'
+        end
+      rescue => e
+        puts "ERROR: #{e}"
+        status 500
+      end
+    else
+      redirect "/auth/twitter?origin=/drawings/#{id}/use_as_twitter_avatar"
+    end
+  else
+    status 404
+  end
+end
+
+#
+# POST /drawings/:id/tweet
+#
+post '/drawings/:id/tweet' do |id|
+  @drawing = Drawing.find(id)
+  
+  if @drawing
+    if session[:twitter_access_token]
+      begin
+        Twitter.configure do |config|
+          config.consumer_key = TWITTER['consumer_key']
+          config.consumer_secret = TWITTER['consumer_secret']
+          config.oauth_token = session[:twitter_access_token][:token]
+          config.oauth_token_secret = session[:twitter_access_token][:secret]
+        end
+
+        Twitter.update(params[:tweet_text])
+
+        if 'yes' == params[:follow_drawbang]
+          Twitter.follow('drawbang')
+        end
+
+        if json_request?
+          @drawing.to_json
+        else
+          redirect "/drawings/#{id}"
+        end
+      rescue => e
+        puts "ERROR: #{e}"
+        status 500
+      end
+    else
+      redirect "/auth/twitter?origin=/drawings/#{id}/use_as_twitter_avatar"
+    end
+  else
+    status 404
+  end
+end
+
+#
 # DELETE /drawings/:id
 #
 delete '/drawings/:id' do |id|
   auth_or_redirect "/drawings/#{id}"
   
   # find drawing
-  @drawing = Drawing.find(id)
+  @drawing = Drawing.find(id, :shallow => true)
   
   if @drawing
     if @drawing['user'] && @drawing['user']['uid'] == @current_user['uid']
@@ -263,6 +344,7 @@ post '/upload' do
     drawing = {
       :id           => id,
       :image        => data['image'],
+      :parent       => data['parent'],
       :request_host => request.host_with_port,
       :created_at   => Time.now.to_i,
       :user => {
@@ -289,6 +371,17 @@ get '/auth/facebook/callback' do
   session[:user] = User.key(request.env['omniauth.auth']['uid'])
   @current_user = User.new(request.env['omniauth.auth'].merge(:key => session[:user])).save
   haml :'auth/callback'
+end
+
+#
+# GET /auth/twitter/callback
+#
+get '/auth/twitter/callback' do
+  session[:twitter_access_token] = {
+    :token  => request.env['omniauth.auth']['credentials']['token'],
+    :secret => request.env['omniauth.auth']['credentials']['secret']
+  }
+  redirect params[:origin] || '/'
 end
 
 #

@@ -1,0 +1,19 @@
+.content_wrapper.block
+  .right.new_profile_image
+    %p Now your Twitter profile image should look like this:
+    #images
+      = haml :'drawings/thumb', :locals => {:drawing => @drawing}
+
+  .left.tweet
+    %h3 Tell your friends
+    %form{:action => "/drawings/#{params[:id]}/tweet", :method => "POST"}
+      .tweet_text
+        %textarea{:name => 'tweet_text'}
+          Do you like my new #pixelart profile picture? #{@drawing[:share_url]} via @drawbang
+      .follow_drawbang
+        %input{:type => 'checkbox', :name => 'follow_drawbang', :value => 'yes', :checked => 'checked'}
+        %span
+          Follow
+          %a{:href => 'http://twitter.com/drawbang'} @drawbang
+      .tweet_it
+        %input{:type => 'submit', :value => "Tweet it"}

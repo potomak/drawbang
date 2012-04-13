@@ -45,6 +45,10 @@ function performUpload() {
   else {
     data['image'] = {frame: PIXEL.getCurrentFrame()};
   }
+
+  if(typeof parent_id != 'undefined') {
+    data['parent'] = parent_id;
+  }
   
   $.ajax({
     url: '/upload',
@@ -186,7 +190,22 @@ $(document).ready(function() {
       previewCanvases = $('.frames canvas'),
       zKey = 90;
 
-  PIXEL.init(canvas[0], previewCanvases, !production_env);
+  if(typeof imageData != 'undefined') {
+    PIXEL.init(canvas[0], previewCanvases, !production_env, imageData);
+
+    if(imageData.length > 1) {
+      frames = imageData.length;
+      maxFrames == frames && disable($(".add_frame"));
+      frames > 1 && enable($(".remove_frame"));
+      
+      for(var i = 1; i < frames; i++) {
+        enable($(".frame[data-frame=" + i + "]"));
+      }
+    }
+  }
+  else {
+    PIXEL.init(canvas[0], previewCanvases, !production_env);
+  }
 
   // set drawing on mousedown
   canvas.mousedown(mouseDownCallback).mousemove(mouseMoveCallback);

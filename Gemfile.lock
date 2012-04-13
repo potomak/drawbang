@@ -21,6 +21,8 @@ GEM
       addressable (~> 2.2.4)
       multipart-post (~> 1.1.0)
       rack (>= 1.1.0, < 2)
+    faraday_middleware (0.6.5)
+      faraday (~> 0.6.0)
     fbgraph (1.8.0)
       activesupport
       activesupport
@@ -75,11 +77,19 @@ GEM
     rspec-expectations (2.6.0)
       diff-lcs (~> 1.1.2)
     rspec-mocks (2.6.0)
+    simple_oauth (0.1.5)
     sinatra (1.2.6)
       rack (~> 1.1)
       tilt (>= 1.2.2, < 2.0)
     system_timer (1.0)
     tilt (1.3.2)
+    twitter (1.6.0)
+      faraday (~> 0.6.1)
+      faraday_middleware (~> 0.6.3)
+      hashie (~> 1.0.0)
+      multi_json (~> 1.0.0)
+      multi_xml (~> 0.2.0)
+      simple_oauth (~> 0.1.5)
     typhoeus (0.2.4)
       mime-types
       mime-types
@@ -105,3 +115,4 @@ DEPENDENCIES
   sinatra
   sinatra-content-for!
   system_timer
+  twitter

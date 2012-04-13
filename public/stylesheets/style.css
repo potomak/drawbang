@@ -911,6 +911,32 @@ p.sep a {
 	margin-top: 0;
 }
 
+/* TWEET FORM */
+.new_profile_image {
+	width: 240px;
+}
+
+.tweet {
+	width: 300px;
+}
+
+.tweet_text {}
+
+.tweet_text textarea {
+	width: 300px;
+	height: 60px;
+}
+
+.tweet_it {
+	margin-top: 20px;
+	text-align: center;
+}
+
+.tweet_it input {
+	font-family: 'Inconsolata', sans-serif;
+	font-size: 16px;
+}
+
 #footer {
 	font-size: 12px;
 	text-align: center;

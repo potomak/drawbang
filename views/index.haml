@@ -25,5 +25,5 @@
 .content_wrapper
   %h2 Gallery
   #images
-    = haml :'drawings/gallery'
+    = haml :'drawings/gallery', :locals => {:drawings => @drawings}
   %a{:id => "more", :href => "#"} More
