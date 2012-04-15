@@ -937,6 +937,30 @@ p.sep a {
 	font-size: 16px;
 }
 
+/* requests */
+
+#requests .request {
+	margin-bottom: 10px;
+}
+
+#requests .isometric {
+	width: 25px;
+	height: 25px;
+	margin-right: 15px;
+	margin-bottom: 30px;
+}
+
+#requests .isometric::after {
+	width: 25px;
+	height: 10px;
+	z-index: 1;
+}
+#requests .isometric::before {
+	width: 10px;
+	height: 25px;
+	z-index: 1;
+}
+
 #footer {
 	font-size: 12px;
 	text-align: center;
