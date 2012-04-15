@@ -9,7 +9,9 @@
       frictionlessRequests: true
     });
 
-    manageRequests(#{params[:request_ids].split(',').to_json if params[:request_ids]});
+    $(document).ready(function() {
+      manageRequests(#{params[:request_ids].split(',').to_json if params[:request_ids]});
+    });
   };
 
   (function() {
@@ -28,8 +30,7 @@
             $('#requests').append(
               "<div class='request block' id='request_" + response.id + "'>" +
               "<div class='from left isometric'><img class='avatar' width='25' src='http://graph.facebook.com/" + response.from.id + "/picture?type=square'></div>" +
-              "<div class='from_name'>" + response.from.name + "</div>" +
-              "<div class='object'>Would you like to fork <a href='" + response.data + "'>my drawing</a>?</div>" +
+              "<div class='from_name'>" + response.from.name + ": <i>Would you like to fork <a href='" + response.data + "'>my drawing</a>?</i></div>" +
               "<div class='delete'><a href='#' onclick='deleteRequest(\"" + response.id + "\")'>Delete notification</a></div>" +
               "</div>"
             );
