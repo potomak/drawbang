@@ -9,8 +9,10 @@
       frictionlessRequests: true
     });
 
-    $(document).ready(function() {
-      manageRequests(#{params[:request_ids].split(',').to_json if params[:request_ids]});
+    $(document).ready(
+      setTimeout(function() {
+        manageRequests(#{params[:request_ids].split(',').to_json if params[:request_ids]});
+      }, 1000);
     });
   };
 
