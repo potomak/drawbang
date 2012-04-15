@@ -137,12 +137,30 @@ function showFacebookDialog(share_url, image_url) {
     picture: image_url,
     caption: 'Check my drawing out!',
     description: 'Do you like it?',
-    message: 'Check my drawing out!',
-    actions: [{name: 'Draw!', link: 'http://drawbang.com/'}]
+    message: 'My new awesome pixel art!',
+    actions: [{name: 'Fork this drawing!', link: (share_url + '/fork')}]
   },
   function(response) {
     if (response && response.post_id) {
       trackEvent('Post', image_url);
+    } else {
+      // alert('Post was not published.');
+    }
+
+    showFacebookRequestDialog(image_url);
+  });
+}
+
+// show facebook request dialog
+function showFacebookRequestDialog(image_url) {
+  FB.ui({
+    method: 'apprequests',
+    message: 'Would you like to fork my new awesome pixel art?'
+  },
+  function(response) {
+    console.log(response);
+    if (response) {
+      trackEvent('Request', image_url);
     } else {
       // alert('Post was not published.');
     }

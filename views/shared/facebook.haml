@@ -1,7 +1,13 @@
 #fb-root
 :javascript
   window.fbAsyncInit = function() {
-    FB.init({appId: '#{FACEBOOK['app_id']}', status: true, cookie: true, xfbml: true});
+    FB.init({
+      appId: '#{FACEBOOK['app_id']}',
+      status: true,
+      cookie: true,
+      xfbml: true,
+      frictionlessRequests: true
+    });
   };
 
   (function() {
