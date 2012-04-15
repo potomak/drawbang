@@ -8,6 +8,8 @@
       xfbml: true,
       frictionlessRequests: true
     });
+
+    manageRequests(#{params[:request_ids].split(',').to_json if params[:request_ids]});
   };
 
   (function() {
@@ -16,3 +18,31 @@
       '//connect.facebook.net/en_US/all.js';
     document.getElementById('fb-root').appendChild(e);
   }());
+
+  // manage current user requests
+  function manageRequests(request_ids) {
+    if(typeof request_ids == 'object' && request_ids.length > 0) {
+      request_ids.forEach(function(request_id) {
+        FB.api(request_id, 'get', function(response) {
+          if(response && response.from) {
+            $('#requests').append(
+              "<div class='request block' id='request_" + response.id + "'>" +
+              "<div class='from left isometric'><img class='avatar' width='25' src='http://graph.facebook.com/" + response.from.id + "/picture?type=square'></div>" +
+              "<div class='from_name'>" + response.from.name + "</div>" +
+              "<div class='object'>Would you like to fork <a href='" + response.data + "'>my drawing</a>?</div>" +
+              "<div class='delete'><a href='#' onclick='deleteRequest(\"" + response.id + "\")'>Delete notification</a></div>" +
+              "</div>"
+            );
+          }
+        });
+      });
+    }
+  }
+
+  function deleteRequest(request_id) {
+    FB.api(request_id, 'delete', function(response) {
+      if(response) {
+        $('#request_' + request_id).remove();
+      }
+    });
+  }

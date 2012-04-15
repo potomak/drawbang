@@ -145,16 +145,17 @@ function showFacebookDialog(share_url, image_url) {
       trackEvent('Post', image_url);
     }
 
-    showFacebookRequestDialog(image_url);
+    showFacebookRequestDialog(share_url, image_url);
   });
 }
 
 // show facebook request dialog
-function showFacebookRequestDialog(image_url) {
+function showFacebookRequestDialog(share_url, image_url) {
   FB.ui({
     method: 'apprequests',
     message: 'Would you like to fork my new awesome pixel art?',
-    title: 'Draw pixel art with your friends'
+    title: 'Draw pixel art with your friends',
+    data: share_url
   },
   function(response) {
     if (response && response.to) {
