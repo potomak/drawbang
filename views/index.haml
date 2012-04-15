@@ -27,3 +27,8 @@
   #images
     = haml :'drawings/gallery', :locals => {:drawings => @drawings}
   %a{:id => "more", :href => "#"} More
+
+- if params[:request_ids]
+  - params[:request_ids].split(',').each do |request_id|
+    :javascript
+      FB.api('#{request_id}', 'delete');
