@@ -31,4 +31,4 @@
 - if params[:request_ids]
   - params[:request_ids].split(',').each do |request_id|
     :javascript
-      FB.api('#{request_id}', 'delete');
+      $(document).ready(function() {FB.api('#{request_id}', 'delete', function() {})});
