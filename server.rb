@@ -198,9 +198,9 @@ get '/drawings/:id' do |id|
 end
 
 #
-# POST /drawings/:id/fork
+# GET /drawings/:id/fork
 #
-post '/drawings/:id/fork' do |id|
+get '/drawings/:id/fork' do |id|
   @drawing = Drawing.find(id)
   
   if @drawing
