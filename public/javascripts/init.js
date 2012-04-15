@@ -143,8 +143,6 @@ function showFacebookDialog(share_url, image_url) {
   function(response) {
     if (response && response.post_id) {
       trackEvent('Post', image_url);
-    } else {
-      // alert('Post was not published.');
     }
 
     showFacebookRequestDialog(image_url);
@@ -155,14 +153,12 @@ function showFacebookDialog(share_url, image_url) {
 function showFacebookRequestDialog(image_url) {
   FB.ui({
     method: 'apprequests',
-    message: 'Would you like to fork my new awesome pixel art?'
+    message: 'Would you like to fork my new awesome pixel art?',
+    title: 'Draw pixel art with your friends'
   },
   function(response) {
-    console.log(response);
-    if (response) {
+    if (response && response.to) {
       trackEvent('Request', image_url);
-    } else {
-      // alert('Post was not published.');
     }
   });
 }
