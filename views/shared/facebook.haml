@@ -9,7 +9,7 @@
       frictionlessRequests: true
     });
 
-    $(document).ready(
+    $(document).ready(function() {
       setTimeout(function() {
         manageRequests(#{params[:request_ids].split(',').to_json if params[:request_ids]});
       }, 1000);
