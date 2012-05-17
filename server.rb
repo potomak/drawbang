@@ -448,10 +448,11 @@ end
 
 #
 # GET /about
+# GET /faq
 # GET /privacy
 # GET /tos
 #
-[:about, :privacy, :tos].each do |action|
+[:about, :faq, :privacy, :tos].each do |action|
   get "/#{action}" do
     haml action
   end
