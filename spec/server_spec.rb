@@ -401,6 +401,7 @@ describe "Draw! app" do
   
   {
     :about => 'Credits',
+    :faq => 'Frequently',
     :privacy => 'Privacy',
     :tos => 'Terms of Service'
   }.each do |action, content|
