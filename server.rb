@@ -18,15 +18,15 @@ configure do
   # NOTE: this is the new form of the :sessions setting
   #set :sessions, :expire_after => 2592000 #30 days in seconds
   use Rack::Session::Cookie, :expire_after => 2592000,
-                             :secret => settings.session_secret
+                             :secret       => settings.session_secret
 end
 
 use OmniAuth::Builder do
   options = {:scope => '', :display => "popup"}
   # NOTE: https://github.com/technoweenie/faraday/wiki/Setting-up-SSL-certificates
   options.merge!({:client_options => {:ssl => {:ca_file => '/usr/lib/ssl/certs/ca-certificates.crt'}}})
-  provider :facebook, FACEBOOK['app_id'], FACEBOOK['app_secret'], options
-  provider :twitter, TWITTER['consumer_key'], TWITTER['consumer_secret']
+  provider :facebook, FACEBOOK['app_id'],      FACEBOOK['app_secret'], options
+  provider :twitter,  TWITTER['consumer_key'], TWITTER['consumer_secret']
 end
 
 use Rack::Flash
@@ -45,21 +45,25 @@ helpers do
   end
 end
 
+# authentication
 before do
-  # authentication
   if params[:uid] && params[:token]
-    user = User.find(params[:uid])
+    user          = User.find(params[:uid])
     @current_user = user if user && user['credentials'] && user['credentials']['token'] == params[:token]
   else
     @current_user = User.find_by_key(session[:user]) if session[:user]
   end
+end
 
-  # respond with json if accepted
+# respond with json if accepted
+before do
   content_type :json if json_request?
+end
 
-  # pagination
+# pagination
+before do
   @current_page = (params[:page] || 1).to_i
-  @page = @current_page - 1
+  @page         = @current_page - 1
 end
 
 not_found do
