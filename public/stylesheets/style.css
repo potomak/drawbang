@@ -168,16 +168,19 @@ p.sep a {
 	float: right;
 }
 
+#header .sponsor a {
+	height: 48px;
+}
+
 #header .sponsor a.redistogo {
 	background: url(/images/redistogo.png);
 	width: 48px;
-	height: 48px;
+	margin-right: 3px;
 }
 
 #header .sponsor a.desall {
 	background: url(/images/desall.png);
 	width: 68px;
-	height: 48px;
 }
 
 #header .sponsor p {
