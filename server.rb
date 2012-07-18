@@ -22,9 +22,9 @@ configure do
 end
 
 use OmniAuth::Builder do
-  options = {:scope => '', :display => "popup"}
+  options = {:scope => 'publish_actions', :display => 'popup'}
   # NOTE: https://github.com/technoweenie/faraday/wiki/Setting-up-SSL-certificates
-  options.merge!({:client_options => {:ssl => {:ca_file => '/usr/lib/ssl/certs/ca-certificates.crt'}}})
+  options.merge!(:client_options => {:ssl => {:ca_file => '/usr/lib/ssl/certs/ca-certificates.crt'}})
   provider :facebook, FACEBOOK['app_id'],      FACEBOOK['app_secret'], options
   provider :twitter,  TWITTER['consumer_key'], TWITTER['consumer_secret']
 end
