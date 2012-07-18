@@ -8,10 +8,11 @@ function postUploadCallback(data) {
     
     clearAll();
     trackEvent('Save', data.url);
+    postDrawAction(data.share_url);
     showFacebookDialog(data.share_url, data.url);
   }
   else {
-    alert(data);
+    trackEvent('Error', data);
   }
 }
 
@@ -143,9 +144,8 @@ function showFacebookDialog(share_url, image_url) {
   function(response) {
     if (response && response.post_id) {
       trackEvent('Post', image_url);
+      showFacebookRequestDialog(share_url, image_url);
     }
-
-    showFacebookRequestDialog(share_url, image_url);
   });
 }
 
@@ -162,6 +162,19 @@ function showFacebookRequestDialog(share_url, image_url) {
       trackEvent('Request', image_url);
     }
   });
+}
+
+function postDrawAction(share_url) {
+  FB.api(
+    '/me/drawbang:draw',
+    'post',
+    { drawing: share_url },
+    function(response) {
+      if (!response || response.error) {
+        console && console.log(response);
+      }
+    }
+  );
 }
 
 // returns mouse or tap event relative coordinates
