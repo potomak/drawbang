@@ -163,12 +163,24 @@ p.sep a {
 }
 
 #header .sponsor a {
-	background: url(/images/redistogo.png);
-	width: 48px;
-	height: 48px;
 	text-indent: -9000px;
 	display: block;
 	float: right;
+}
+
+#header .sponsor a {
+	height: 48px;
+}
+
+#header .sponsor a.redistogo {
+	background: url(/images/redistogo.png);
+	width: 48px;
+	margin-right: 3px;
+}
+
+#header .sponsor a.desall {
+	background: url(/images/desall.png);
+	width: 68px;
 }
 
 #header .sponsor p {
@@ -254,26 +266,15 @@ p.sep a {
 	user-select: none;
 }
 
-#adv-left {
-	width: 160px;
-	float: left;
-	margin-right: 20px;
-}
-#adv-right {
+#adv_right {
 	width: 160px;
 	float: right;
 }
 
-#adv.top_banner {
+#adv_top {
 	width: 728px;
 	margin: 0 auto;
 	margin-bottom: 10px;
-}
-
-.adv2 {
-	float: left;
-	margin-top: 72px;
-	margin-right: 20px;
 }
 
 /* CONTROLS */

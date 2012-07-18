@@ -45,17 +45,18 @@
       .content_wrapper
         .sponsor
           %p Sponsored by
-          %a{:href => "http://redistogo.com", :title => "Redis To Go"} Redis To Go
+          %a{:href => "http://desall.com", :title => "Desall", :class => "desall"} Desall
+          %a{:href => "http://redistogo.com", :title => "Redis To Go", :class => "redistogo"} Redis To Go
         %a{:href => "/" == request.path_info ? "/about" : "/", :title => "/" == request.path_info ? "Learn more about Draw!" : "Return to gallery"}
           %h1 DRAW!
           %h2 16x16 animated pixelart pictures
-        
-    #adv.top_banner
+
+    #adv_top
       = haml :'shared/adsense', :locals => {:slot => "9403034170", :width => 728, :height => 90}
-    
+
     #container.wrapper
       = yield
-    
+
     #footer
     
     = haml :'shared/facebook'
