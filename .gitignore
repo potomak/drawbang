@@ -2,6 +2,7 @@
 /public/images/drawings/*.gif
 /config/facebook.yml
 /config/twitter.yml
+/config/redis_backup.conf
 /db/*.rdb
 /log/*.log
 .DS_Store
