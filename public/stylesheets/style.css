@@ -58,9 +58,9 @@ p.flash.notice {
 	margin-top: 10px;
 }
 
-.share .flattr_button {
-	margin-right: 14px;
-	margin-top: 12px;
+.share .plus_button {
+	margin-top: 10px;
+	margin-left: 10px;
 }
 
 p.sep {
@@ -882,7 +882,8 @@ p.sep a {
 	height: 20px;
 }
 
-#drawing .share .tweet_button {
+#drawing .share .tweet_button,
+#drawing .share .plus_button {
 	margin-top: 0;
 }
 

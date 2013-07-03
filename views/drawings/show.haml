@@ -33,6 +33,8 @@
             %a{:href => "http://twitter.com/share", :class => "twitter-share-button", :'data-url' => @drawing[:share_url], :'data-text' => "Check this drawing out!", :'data-count' => "horizontal", :'data-via' => "drawbang", :'data-related' => "drawbang"} Tweet
           .left.like_button
             %fb:like{:href => @drawing[:share_url], :send => "false", :layout => "button_count", :width => "110", :show_faces => "false", :font => ""}
+          .left.plus_button
+            .g-plusone{:'data-size' => "medium", :'data-href' => @drawing[:share_url]}
         .block
 
       #info
