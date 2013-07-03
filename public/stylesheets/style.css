@@ -157,6 +157,24 @@ p.sep a {
 	position: relative;
 }
 
+#header .download_app {
+	position: absolute;
+	left: 0;
+}
+
+#header .download_app a {
+	text-indent: -9000px;
+	display: block;
+}
+
+#header .download_app a.download_app_badge {
+	background: url(/images/download_app_badge.png);
+	width: 135px;
+	height: 40px;
+	margin-top: 20px;
+	margin-left: -20px;
+}
+
 #header .sponsor {
 	position: absolute;
 	right: 0;
