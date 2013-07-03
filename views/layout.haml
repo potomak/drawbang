@@ -28,6 +28,8 @@
                 %a{:href => "http://twitter.com/share", :class => "twitter-share-button", :'data-url' => "http://drawbang.com", :'data-text' => "Have fun drawing!", :'data-count' => "horizontal", :'data-via' => "drawbang", :'data-related' => "drawbang"} Tweet
               .left.like_button
                 %fb:like{:href => "http://drawbang.com", :send => "false", :layout => "button_count", :width => "110", :show_faces => "false", :font => ""}
+              .left.plus_button
+                .g-plusone{:'data-size' => "medium", :'data-href' => "http://drawbang.com"}
           .right
             - if logged_in?
               :javascript
@@ -61,3 +63,4 @@
     #footer
     
     = haml :'shared/facebook'
+    = haml :'shared/google_plus'
