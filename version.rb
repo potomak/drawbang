@@ -1,1 +1,1 @@
-DRAW_VERSION = "0.5.17".freeze unless defined?(DRAW_VERSION)
+DRAW_VERSION = "0.5.18".freeze unless defined?(DRAW_VERSION)
