@@ -31,21 +31,23 @@ task :stats do
   puts "Users: #{resource_count('user')}"
 end
 
-desc "Compile javascript pixel library"
+desc "Compile javascript files"
 task :compile do
-  library_path = 'public/javascripts/pixel.js'
-  output_path = "#{library_path.gsub(/\.js$/, '')}.min.js"
-  
-  puts "Compiling #{library_path}"
-  uri = URI('http://closure-compiler.appspot.com/compile')
-  options = {
-    'js_code'           => File.open(library_path).read,
-    'compilation_level' => 'SIMPLE_OPTIMIZATIONS',
-    'output_format'     => 'text',
-    'output_info'       => 'compiled_code'
-  }
-  res = Net::HTTP.post_form(uri, options)
-  
-  puts "Writing compiled code to #{output_path}"
-  File.open(output_path, 'w') {|f| f.write(res.body)}
+  ['pixel.js', 'init.js'].each do |file|
+    library_path = "public/javascripts/#{file}"
+    output_path = "#{library_path.gsub(/\.js$/, '')}.min.js"
+    
+    puts "Compiling #{library_path}"
+    uri = URI('http://closure-compiler.appspot.com/compile')
+    options = {
+      'js_code'           => File.open(library_path).read,
+      'compilation_level' => 'SIMPLE_OPTIMIZATIONS',
+      'output_format'     => 'text',
+      'output_info'       => 'compiled_code'
+    }
+    res = Net::HTTP.post_form(uri, options)
+    
+    puts "Writing compiled code to #{output_path}"
+    File.open(output_path, 'w') {|f| f.write(res.body)}
+  end
 end
