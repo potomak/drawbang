@@ -5,7 +5,7 @@ html, body {
 
 body {
 	font-family: 'Inconsolata', sans-serif;
-	background-image: url(/images/bg.gif);
+	background-image: url(/images/bg.png);
 	color: #333;
 }
 
@@ -211,7 +211,7 @@ p.sep a {
 	text-indent: -9000px;
 	width: 324px;
 	height: 62px;
-	background-image: url(/images/drawbang_logo.gif);
+	background-image: url(/images/drawbang_logo.png);
 	margin: 20px auto 0;
 }
 
@@ -321,7 +321,7 @@ p.sep a {
 	float: left;
 	width: 40px;
 	height: 40px;
-	background-image: url(/images/tools_sprite.gif);
+	background-image: url(/images/tools_sprite.png);
 	background-color: #F9F9F9;
 	cursor: pointer;
 }
@@ -540,7 +540,7 @@ p.sep a {
 	cursor: crosshair;
 	width: 320px;
 	height: 320px;
-	background-image: url(/images/canvas_bg.gif);
+	background-image: url(/images/canvas_bg.png);
 	margin: 0 auto;
 }
 
@@ -641,7 +641,7 @@ p.sep a {
 	float: left;
 	width: 80px;
 	height: 40px;
-	background: url(/images/play_stop.gif) 0 0 #F9F9F9;
+	background: url(/images/play_stop.png) 0 0 #F9F9F9;
 	margin-right: 30px;
 	cursor: pointer;
 }
@@ -697,7 +697,7 @@ p.sep a {
 	height: 40px;
 	color: #999;
 	text-align: center;
-	background: url(/images/frames.gif) no-repeat 0 0;
+	background: url(/images/frames.png) no-repeat 0 0;
 	cursor: pointer;
 }
 

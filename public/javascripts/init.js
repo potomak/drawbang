@@ -286,26 +286,11 @@ $(document).ready(function() {
   // undo / redo
   $(document).keydown(function(e) {
     if(ctrlKey(e) && e.keyCode == zKey) {
-      if(e.shiftKey) {
-        // NOTE: deprecated
-        // PIXEL.redo();
-      }
-      else {
-        PIXEL.undo();
-      }
+      PIXEL.undo();
       
       return false;
     }
   });
-  
-  // NOTE: deprecated
-  /*
-  ["undo", "redo"].forEach(function(action) {
-    $("." + action).click(function() {
-      pixel[action].call();
-    });
-  });
-  */
   
   $(".undo").click(function() {
     PIXEL.undo();
@@ -357,21 +342,6 @@ $(document).ready(function() {
       PIXEL.log(['remove_frame, done', frames]);
     }
   });
-  
-  // NOTE: deprecated
-  /*
-  $(".onion").click(function() {
-    if($(this).data().frame == PIXEL.getCurrentOnionFrameId()) {
-      PIXEL.setOnionFrame(null);
-    }
-    else {
-      PIXEL.setOnionFrame($(this).data().frame);
-      $(".onion.active").toggleClass("active");
-    }
-    
-    $(this).toggleClass("active");
-  });
-  */
   
   $(".play_stop").click(function() {
     if($(this).hasClass("stop")) {
