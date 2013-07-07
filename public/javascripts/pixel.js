@@ -11,9 +11,6 @@ var PIXEL = function() {
       frames          = [],
       animation       = null,
       currentFrame    = 0,
-      /* NOTE: deprecated
-      onionFrame   = null,
-      */
       mainCanvas      = null,
       previewCanvases = [],
       drawing         = false,
@@ -100,26 +97,6 @@ var PIXEL = function() {
     // Draws canvas using `m` as bitmap data.
     this.draw = function(m) {
       this.clearCanvas();
-
-      /* NOTE: deprecated
-
-      if(onionFrame != null && typeof frames[onionFrame] != 'undefined' && frames[onionFrame] != null) {
-        for(var i = 0; i < frames[onionFrame].length; i++) {
-          for(var j = 0; j < frames[onionFrame][i].length; j++) {
-            c = frames[onionFrame][i][j];
-            if(c != TRANSPARENT) {
-              components = c.match(/#([a-fA-F0-9]{2})([a-fA-F0-9]{2})([a-fA-F0-9]{2})/);
-              c = "rgba(" +
-                  new Number("0x" + components[1]) + ", " +
-                  new Number("0x" + components[2]) + ", " +
-                  new Number("0x" + components[3]) + ", 0.5)";
-            }
-            ctx.fillStyle = c;
-            ctx.fillRect(i*pixelSize, j*pixelSize, pixelSize, pixelSize);
-          }
-        }
-      }
-      */
 
       for(var i = 0; i < m.length; i++) {
         for(var j = 0; j < m[i].length; j++) {
@@ -436,30 +413,10 @@ var PIXEL = function() {
   // global `matrix` if `m` is `undefined`.
   var draw = function(m) {
     typeof m == 'undefined' ? m = matrix : matrix = copyMatrix(m);
-    
+
     mainCanvas.clearCanvas();
     previewCanvases[currentFrame].clearCanvas();
-    
-    /* NOTE: deprecated
-    
-    if(onionFrame != null && typeof frames[onionFrame] != 'undefined' && frames[onionFrame] != null) {
-      for(var i = 0; i < frames[onionFrame].length; i++) {
-        for(var j = 0; j < frames[onionFrame][i].length; j++) {
-          c = frames[onionFrame][i][j];
-          if(c != TRANSPARENT) {
-            components = c.match(/#([a-fA-F0-9]{2})([a-fA-F0-9]{2})([a-fA-F0-9]{2})/);
-            c = "rgba(" +
-                new Number("0x" + components[1]) + ", " +
-                new Number("0x" + components[2]) + ", " +
-                new Number("0x" + components[3]) + ", 0.5)";
-          }
-          ctx.fillStyle = c;
-          ctx.fillRect(i*pixelSize, j*pixelSize, pixelSize, pixelSize);
-        }
-      }
-    }
-    */
-    
+
     mainCanvas.draw(m);
     previewCanvases[currentFrame].draw(m);
   }
@@ -768,15 +725,8 @@ var PIXEL = function() {
     doAction: doAction,
     getHistory: getHistory,
     undo: undo,
-    /* NOTE: deprecated
-    redo: redo,
-    */
     getFrame: getFrame,
     setCurrentFrame: setCurrentFrame,
-    /* NOTE: deprecated
-    setOnionFrame: setOnionFrame,
-    getCurrentOnionFrameId: getCurrentOnionFrameId,
-    */
     getCurrentFrame: getCurrentFrame,
     getCurrentFrameId: getCurrentFrameId,
     play: play,
