@@ -1,6 +1,6 @@
 var currentColor = "#000000",
     copyFrameIndex = -1,
-    frames = 1;
+    tips = true;
 
 function postUploadCallback(data) {
   if(typeof data.thumb != 'undefined') {
@@ -17,38 +17,12 @@ function postUploadCallback(data) {
 }
 
 function performUpload() {
-  var data = {image: null},
-      lastFrameNotNull = -1,
-      lastFrameNotNullFound = false;
-  
-  for(var i = 1; i < maxFrames && !lastFrameNotNullFound; i++) {
-    if(PIXEL.getFrame(i) == null) {
-      lastFrameNotNull = i-1;
-      lastFrameNotNullFound = true;
-    }
-  }
-  
-  PIXEL.log(['lastFrameNotNull', lastFrameNotNull]);
-  
-  if(0 != lastFrameNotNull) {
-    -1 == lastFrameNotNull && (lastFrameNotNull = 15);
-    
-    // NOTE: workaround to populate frames matrix
-    for(var i = 0; i < lastFrameNotNull+1; i++) {
-      PIXEL.setCurrentFrame((PIXEL.getCurrentFrameId()+1) % (lastFrameNotNull+1));
-    }
-    
-    data['image'] = {frames: []};
-    for(var i = 0; i < lastFrameNotNull+1; i++) {
-      data['image']['frames'].push(PIXEL.getFrame(i));
-    }
-  }
-  else {
-    data['image'] = {frame: PIXEL.getCurrentFrame()};
-  }
+  var data = PIXEL.toObject();
 
-  if(typeof parent_id != 'undefined') {
-    data['parent'] = parent_id;
+  PIXEL.log(data);
+
+  if(typeof parentId != 'undefined') {
+    data['parent'] = parentId;
   }
   
   $.ajax({
@@ -67,11 +41,11 @@ function performUpload() {
 
 function upload() {
   if(confirm("Want to save?")) {
-    if(typeof user_uid != 'undefined') {
+    if(typeof userUid != 'undefined') {
       performUpload();
     }
     else {
-      trying_to_save = true;
+      tryingToSave = true;
       $("a.popup").trigger('click');
     }
   }
@@ -85,18 +59,22 @@ function ctrlKey(e) {
 
 // clear all frames, disable all frames except the first one and make first frame active
 function clearAll() {
-  for(var i = 0; i < frames; i++) {
-    PIXEL.setCurrentFrame(i);
-    PIXEL.clearCanvas();
+  var framesLength = PIXEL.getFramesLength();
+  for(var i = framesLength-1; i >= 0; i--) {
+    PIXEL.log('REMOVE ' + i + ' FRAME OF ' + PIXEL.getFramesLength() + ' FRAMES!');
+    PIXEL.clearCanvasAt(i);
+    PIXEL.removeFrame(i);
     disable($(".frame[data-frame=" + i + "]"));
   }
+  PIXEL.setCurrentFrame(0);
+
   deactivate($(".frame.active"));
   activate($(".frame[data-frame=0]"));
   enable($(".frame[data-frame=0]"));
   disable($(".remove_frame"));
-  PIXEL.setCurrentFrame(0);
+  enable($(".add_frame"));
+  
   copyFrameIndex = -1;
-  frames = 1;
 }
 
 // deactivate element
@@ -121,7 +99,7 @@ function enable($el) {
 
 // is element enabled?
 function isEnabled($el) {
-  return !$el.hasClass("disabled");
+  return $el.size() > 0 && !$el.hasClass("disabled");
 }
 
 // track event
@@ -213,26 +191,99 @@ function mouseUpCallback() {
   PIXEL.setDraw(false);
 }
 
+// play/stop event
+function playStop() {
+  if($(".play_stop").hasClass("stop")) {
+    PIXEL.stop();
+  }
+  else {
+    PIXEL.play(5, function(frame) {
+      deactivate($(".frame.active"));
+      $(".frame").each(function() {
+        $(this).data('frame') == frame && activate($(this));
+      });
+    });
+  }
+  
+  $(".play_stop").toggleClass("stop");
+}
+
+// add frame event
+function addFrame() {
+  if(isEnabled($(".add_frame"))) {
+    PIXEL.setCurrentFrame(PIXEL.getFramesLength());
+    maxFrames == PIXEL.getFramesLength() && disable($(".add_frame"));
+    enable($(".remove_frame"));
+    
+    enable($(".frame[data-frame=" + (PIXEL.getFramesLength()-1) + "]"));
+    $(".frame.active").toggleClass("active");
+    $(".frame[data-frame=" + (PIXEL.getFramesLength()-1) + "]").toggleClass("active");
+    
+    PIXEL.log(['add_frame', PIXEL.getFramesLength()]);
+  }
+}
+
+// remove frame event
+function removeFrame() {
+  if(isEnabled($(".remove_frame"))) {
+    PIXEL.clearCanvasAt(PIXEL.getFramesLength()-1);
+    PIXEL.removeFrame(PIXEL.getFramesLength()-1);
+    PIXEL.setCurrentFrame(PIXEL.getFramesLength()-1);
+
+    1 == PIXEL.getFramesLength() && disable($(".remove_frame"));
+    enable($(".add_frame"));
+    
+    disable($(".frame[data-frame=" + PIXEL.getFramesLength() + "]"));
+    $(".frame.active").toggleClass("active");
+    $(".frame[data-frame=" + (PIXEL.getFramesLength()-1) + "]").toggleClass("active");
+    
+    PIXEL.log(['remove_frame, done', PIXEL.getFramesLength()]);
+  }
+}
+
+// set frame event
+function setFrame(index) {
+  if(isEnabled($(".frame[data-frame=" + index + "]"))) {
+    PIXEL.setCurrentFrame(index);
+  
+    deactivate($(".frame.active"));
+    activate($(".frame[data-frame=" + index + "]"));
+  }
+}
+
 $(document).ready(function() {
   var canvas = $("#canvas canvas"),
       previewCanvases = $('.frames canvas'),
-      zKey = 90;
+      zKey = 90,          // undo
+      cKey = 67,          // copy
+      vKey = 86,          // paste
+      eKey = 69,          // eraser
+      bKey = 66,          // brush
+      gKey = 71,          // bucket
+      sKey = 83,          // save
+      rightArrowKey = 39, // move right
+      upArrowKey = 38,    // move up
+      spaceBarKey = 32,   // play/stop
+      commaKey = 188,     // remove frame
+      markKey = 190,      // add frame
+      pageUpKey = 33,     // next frame
+      pageDownKey = 34;   // previous frame
+
 
   if(typeof imageData != 'undefined') {
-    PIXEL.init(canvas[0], previewCanvases, !production_env, imageData);
+    PIXEL.init(canvas[0], previewCanvases, !productionEnv, imageData);
 
     if(imageData.length > 1) {
-      frames = imageData.length;
-      maxFrames == frames && disable($(".add_frame"));
-      frames > 1 && enable($(".remove_frame"));
+      maxFrames == PIXEL.getFramesLength() && disable($(".add_frame"));
+      PIXEL.getFramesLength() > 1 && enable($(".remove_frame"));
       
-      for(var i = 1; i < frames; i++) {
+      for(var i = 1; i < PIXEL.getFramesLength(); i++) {
         enable($(".frame[data-frame=" + i + "]"));
       }
     }
   }
   else {
-    PIXEL.init(canvas[0], previewCanvases, !production_env);
+    PIXEL.init(canvas[0], previewCanvases, !productionEnv);
   }
 
   // set drawing on mousedown
@@ -242,22 +293,6 @@ $(document).ready(function() {
   // reset drawing on mouseup
   $(document).mouseup(mouseUpCallback);
   $(document).bind('touchend', mouseUpCallback);
-  
-  // if shift is pressed set color to transparent
-  $(document).keydown(function(e) {
-    if(!ctrlKey(e) && e.shiftKey) {
-      currentColor = "rgba(0, 0, 0, 0)";
-      activate($(".clearPixel"));
-    }
-  });
-  
-  // reset color to current active color
-  $(document).keyup(function(e) {
-    currentColor = $(".color.active").data('color');
-    if("clearPixel" != $(".action.selectable.active").data('action')) {
-      deactivate($(".clearPixel"));
-    }
-  });
 
   // controls
   $("#clear").click(function() {
@@ -283,81 +318,21 @@ $(document).ready(function() {
     activate($(this));
   });
 
-  // undo / redo
-  $(document).keydown(function(e) {
-    if(ctrlKey(e) && e.keyCode == zKey) {
-      PIXEL.undo();
-      
-      return false;
-    }
-  });
-  
+  // undo
   $(".undo").click(function() {
     PIXEL.undo();
   });
   
+  // frame click
   $(".frame").click(function() {
-    if(isEnabled($(this))) {
-      PIXEL.setCurrentFrame($(this).data('frame'));
-    
-      deactivate($(".frame.active"));
-      activate($(this));
-    }
+    setFrame($(this).data('frame'));
   });
   
-  // add frame
-  $(".add_frame").click(function() {
-    if(isEnabled($(this))) {
-      frames++;
-      maxFrames == frames && disable($(this));
-      enable($(".remove_frame"));
-      
-      enable($(".frame[data-frame=" + (frames-1) + "]"));
-      $(".frame.active").toggleClass("active");
-      $(".frame[data-frame=" + (frames-1) + "]").toggleClass("active");
-      
-      PIXEL.setCurrentFrame(frames-1);
-      
-      PIXEL.log(['add_frame', frames]);
-    }
-  });
+  $(".add_frame").click(addFrame);
   
-  // remove frame
-  $(".remove_frame").click(function() {
-    PIXEL.log(['remove_frame', this]);
-    
-    if(isEnabled($(this))) {
-      frames--;
-      1 == frames && disable($(this));
-      enable($(".add_frame"));
-      
-      disable($(".frame[data-frame=" + frames + "]"));
-      $(".frame.active").toggleClass("active");
-      $(".frame[data-frame=" + (frames-1) + "]").toggleClass("active");
-      
-      PIXEL.clearCanvasAt(frames);
-      PIXEL.removeFrame(frames);
-      PIXEL.setCurrentFrame(frames-1);
-      
-      PIXEL.log(['remove_frame, done', frames]);
-    }
-  });
+  $(".remove_frame").click(removeFrame);
   
-  $(".play_stop").click(function() {
-    if($(this).hasClass("stop")) {
-      PIXEL.stop();
-    }
-    else {
-      PIXEL.play(5, function(frame) {
-        deactivate($(".frame.active"));
-        $(".frame").each(function() {
-          $(this).data('frame') == frame && activate($(this));
-        });
-      });
-    }
-    
-    $(this).toggleClass("stop");
-  });
+  $(".play_stop").click(playStop);
   
   $(".move_right").click(function() {
     PIXEL.moveRight();
@@ -375,15 +350,116 @@ $(document).ready(function() {
     PIXEL.flipVertical();
   });
   
+  // copy
   $(".copy").click(function() {
     copyFrameIndex = PIXEL.getCurrentFrameId();
   });
   
   $(".paste").click(function() {
-    copyFrameIndex > -1 && copyFrameIndex < frames && PIXEL.copyFrameAt(copyFrameIndex);
+    if(copyFrameIndex > -1 && copyFrameIndex < PIXEL.getFramesLength()) {
+      PIXEL.pasteFrameAt(copyFrameIndex);
+    }
   });
   
   $(".rotate").click(function() {
     PIXEL.rotate();
+  });
+
+  // key bindings
+  $(document).keydown(function(e) {
+    if(ctrlKey(e)) {
+      switch(e.keyCode) {
+        case zKey:
+          PIXEL.undo();
+          return false;
+        case cKey:
+          copyFrameIndex = PIXEL.getCurrentFrameId();
+          return false;
+        case vKey:
+          if(copyFrameIndex > -1 && copyFrameIndex < PIXEL.getFramesLength()) {
+            PIXEL.pasteFrameAt(copyFrameIndex);
+          }
+          return false;
+        case sKey:
+          isEnabled($("#upload")) && upload();
+          return false;
+      }
+    }
+
+    switch(e.keyCode) {
+      case bKey:
+        PIXEL.setAction('pixel');
+        deactivate($(".action.selectable.active"));
+        activate($(".action.selectable.pixel"));
+        return false;
+      case gKey:
+        PIXEL.setAction('fill');
+        deactivate($(".action.selectable.active"));
+        activate($(".action.selectable.fill"));
+        return false;
+      case eKey:
+        PIXEL.setAction('clearPixel');
+        deactivate($(".action.selectable.active"));
+        activate($(".action.selectable.clearPixel"));
+        return false;
+      case upArrowKey:
+        PIXEL.moveTop();
+        return false;
+      case rightArrowKey:
+        PIXEL.moveRight();
+        return false;
+      case spaceBarKey:
+        playStop();
+        return false;
+      case commaKey:
+        removeFrame();
+        return false;
+      case markKey:
+        addFrame();
+        return false;
+      case pageUpKey:
+        setFrame(PIXEL.getCurrentFrameId()-1);
+        return false;
+      case pageDownKey:
+        setFrame(PIXEL.getCurrentFrameId()+1);
+        return false;
+    }
+  });
+
+  // tips
+  $("#toggle_tips").change(function() {
+    tips = $(this).is(':checked');
+  });
+
+  $.each([
+    '.pixel',
+    '.fill',
+    '.clearPixel',
+    '.copy',
+    '.paste',
+    '.undo',
+    '.move_top',
+    '.move_right',
+    '.flip_horizontal',
+    '.flip_vertical',
+    '.rotate',
+    '.play_stop',
+    '.frames',
+    '.remove_frame',
+    '.add_frame',
+    '#upload',
+    '#clear'
+  ], function(i, selector) {
+    $(selector).tipsy({
+      gravity: 'nw',
+      title: function() {
+        if(tips) {
+          return this.getAttribute('original-title');
+        }
+        else {
+          return '';
+        }
+      }
+    });
   });
 });

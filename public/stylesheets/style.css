@@ -107,16 +107,15 @@ p.sep a {
 	left: 0;
 	background-color: #999999;
 	-webkit-transform: skew(45deg);
+		 -moz-transform: skew(45deg);
+			-ms-transform: skew(45deg);
+			 -o-transform: skew(45deg);
+					transform: skew(45deg);
 	-webkit-transform-origin: top;
-	-moz-transform: skew(45deg);
-	-moz-transform-origin: top;
-	-ms-transform: skew(45deg);
-	-ms-transform-origin: top;
-	-o-transform: skew(45deg);
-	-o-transform-origin: top;
-	transform: skew(45deg);
-	transform-origin: top;
-	z-index: -1;
+		 -moz-transform-origin: top;
+			-ms-transform-origin: top;
+			 -o-transform-origin: top;
+					transform-origin: top;
 	-webkit-transform-origin-x: 50%;
 	-webkit-transform-origin-y: 0%;
 }
@@ -128,16 +127,15 @@ p.sep a {
 	right: -10px;
 	background-color: #cccccc;
 	-webkit-transform: skewY(45deg);
+		 -moz-transform: skewY(45deg);
+			-ms-transform: skewY(45deg);
+			 -o-transform: skewY(45deg);
+					transform: skewY(45deg);
 	-webkit-transform-origin: top;
-	-moz-transform: skewY(45deg);
-	-moz-transform-origin: top;
-	-ms-transform: skewY(45deg);
-	-ms-transform-origin: top;
-	-o-transform: skewY(45deg);
-	-o-transform-origin: top;
-	transform: skewY(45deg);
-	transform-origin: top;
-	z-index: -1;
+		 -moz-transform-origin: top;
+			-ms-transform-origin: top;
+			 -o-transform-origin: top;
+					transform-origin: top;
 	-webkit-transform-origin-x: 50%;
 	-webkit-transform-origin-y: 0%;
 }
@@ -256,12 +254,10 @@ p.sep a {
 #auth .isometric::after {
 	width: 25px;
 	height: 10px;
-	z-index: 1;
 }
 #auth .isometric::before {
 	width: 10px;
 	height: 25px;
-	z-index: 1;
 }
 
 #auth p {
@@ -350,123 +346,57 @@ p.sep a {
 	background-color: #EEE;
 	top: 10px;
 	left: 10px;
-	z-index: -2;
 }
 
 .actions .action {
 	float: left;
 }
 
-.action.pixel {
-	background-position: 0px 0px;
-}
+.action.pixel { background-position: 0px 0px; }
+.action.pixel.active { background-position: 40px 0px; }
 
-.action.pixel.active {
-	background-position: 40px 0px;
-}
+.action.fill { background-position: 0px -40px; }
+.action.fill.active { background-position: 40px -40px; }
 
-.action.fill {
-	background-position: 0px -40px;
-}
+.action.clearPixel { background-position: 0px -80px; }
+.action.clearPixel.active { background-position: 40px -80px; }
 
-.action.fill.active {
-	background-position: 40px -40px;
-}
+.action.undo { background-position: 0 -480px; }
+.action.undo.active { background-position: 40px -480px; }
 
-.action.clearPixel {
-	background-position: 0px -80px;
-}
+.action.move_top { background-position: 0 -120px; }
+.action.move_top.active { background-position: 40px -120px; }
 
-.action.clearPixel.active {
-	background-position: 40px -80px;
-}
+.action.move_right { background-position: 0 -160px; }
+.action.move_right.active { background-position: 40px -160px; }
 
-.action.undo {
-	background-position: 0 -480px;
-}
+.action.flip_horizontal { background-position: 0 -240px; }
+.action.flip_horizontal.active { background-position: 40px -240px; }
 
-.action.undo.active {
-	background-position: 40px -480px;
-}
+.action.flip_vertical { background-position: 0 -200px; }
+.action.flip_vertical.active { background-position: 40px -200px; }
 
-/*
-.action.redo {
-	background-position: 16px 96px;
-}
+.action.copy { background-position: 0 -280px; }
+.action.copy.active { background-position: 40px -280px; }
 
-.action.redo.active {
-	background-position: 0 96px;
-}
-*/
+.action.paste { background-position: 0 -320px; }
+.action.paste.active { background-position: 40px -320px; }
 
-.action.move_top {
-	background-position: 0 -120px;
-}
-
-.action.move_top.active {
-	background-position: 40px -120px;
-}
-
-.action.move_right {
-	background-position: 0 -160px;
-}
-
-.action.move_right.active {
-	background-position: 40px -160px;
-}
-
-.action.flip_horizontal {
-	background-position: 0 -240px;
-}
-
-.action.flip_horizontal.active {
-	background-position: 40px -240px;
-}
-
-.action.flip_vertical {
-	background-position: 0 -200px;
-}
-
-.action.flip_vertical.active {
-	background-position: 40px -200px;
-}
-
-.action.copy {
-	background-position: 0 -280px;
-}
-
-.action.copy.active {
-	background-position: 40px -280px;
-}
-
-.action.paste {
-	background-position: 0 -320px;
-}
-
-.action.paste.active {
-	background-position: 40px -320px;
-}
-
-.action.rotate {
-	background-position: 0 -360px;
-}
-
-.action.rotate.active {
-	background-position: 40px -360px;
-}
+.action.rotate { background-position: 0 -360px; }
+.action.rotate.active { background-position: 40px -360px; }
 
 #colors {
 	overflow: hidden;
 	width: 90px;
-	height: 90px;
+	height: 330px;
 	margin-left: 30px;
 	float: left;
 }
 
 #colors .color {
 	float: left;
-	width: 20px;
-	height: 20px;
+	width: 40px;
+	height: 40px;
 }
 
 #colors .color div {
@@ -474,15 +404,6 @@ p.sep a {
 	height: 100%;
   cursor: pointer;
 }
-
-/*#colors .color #color_4::before { background-color: #3333cc; }
-#colors .color #color_8::before { background-color: #33cccc; }
-#colors .color #color_12::before { background-color: #cc33cc; }
-#colors .color #color_16::before { background-color: #cccccc; }
-#colors .color #color_16::after { background-color: #999999; }
-#colors .color #color_15::after { background-color: #666666; }
-#colors .color #color_14::after { background-color: #666622; }
-#colors .color #color_13::after { background-color: #663300; }*/
 
 #colors .color #color_1::before { background-color: #000000; }
 #colors .color #color_1::after { background-color: #000000; }
@@ -518,22 +439,21 @@ p.sep a {
 #colors .color #color_16::after { background-color: #8f8f8f; }
 
 #colors .color .isometric::after {
-	width: 20px;
+	width: 40px;
 	height: 10px;
 }
 #colors .color .isometric::before {
 	width: 10px;
-	height: 20px;
+	height: 40px;
 }
 
 
 #colors .color.active div {
 	top: 10px;
 	left: 10px;
-	z-index: -2;
 }
 
-/* canvas */
+/* CANVAS */
 
 #canvas {
 	float: left;
@@ -559,31 +479,19 @@ p.sep a {
 #commands {
 	float: left;
 	width: 91px;
-	margin-left: 30px;
-	margin-top: 145px;
+	margin-left: 20px;
 	height: 95px;
 }
 
 #commands .actions .action {
-	float: none;
-	margin-bottom: 5px;
+	margin-right: 1px;
 }
 
-#upload.action {
-	background-position: 0 -400px;
-}
+#upload.action { background-position: 0 -400px; }
+#upload.action.disabled { background-position: 40px -400px; }
 
-#upload.action.disabled {
-	background-position: 40px -400px;
-}
-
-#clear.action {
-	background-position: 0 -440px;
-}
-
-#clear.action.disabled {
-	background-position: 40px -440px;
-}
+#clear.action { background-position: 0 -440px; }
+#clear.action.disabled { background-position: 40px -440px; }
 
 #size {
 	float: left;
@@ -725,9 +633,17 @@ p.sep a {
 #animation .frame div {}
 
 /* ADD AND REMOVE FRAMES */
+
 .frames_container {
+	float: left;
 	overflow: hidden;
+	width: 330px;
 	height: 90px;
+}
+
+#toggle_tips_container {
+	float: left;
+	margin-top: 20px;
 }
 
 #animation #add_frames {
@@ -746,15 +662,11 @@ p.sep a {
 	padding-top: 3px;
 	cursor: pointer;
 	color: #999;
-}
-
-#animation .add_frame {
 	float: left;
-	margin-right: 1px;
 }
 
 #animation .remove_frame {
-	float: right;
+	margin-right: 1px;
 }
 
 #animation .add_frame.isometric::after,
@@ -768,21 +680,6 @@ p.sep a {
 	width: 10px;
 	height: 20px;
 }
-
-/*#animation .add_frame.isometric:active::after,
-#animation .add_frame.isometric:active::before,
-#animation .remove_frame.isometric:active::after,
-#animation .remove_frame.isometric:active::before {
-	width: 0px;
-	height: 0px;
-}
-
-#animation .add_frame.isometric:active,
-#animation .remove_frame.isometric:active {
-	top: 10px;
-	left: 10px;
-	z-index: -2;
-}*/
 
 #images {
 	overflow: hidden;
@@ -932,6 +829,7 @@ p.sep a {
 }
 
 /* TWEET FORM */
+
 .new_profile_image {
 	width: 240px;
 }
@@ -957,7 +855,7 @@ p.sep a {
 	font-size: 16px;
 }
 
-/* requests */
+/* REQUESTS */
 
 #requests .request {
 	margin-bottom: 10px;
@@ -972,12 +870,10 @@ p.sep a {
 #requests .isometric::after {
 	width: 25px;
 	height: 10px;
-	z-index: 1;
 }
 #requests .isometric::before {
 	width: 10px;
 	height: 25px;
-	z-index: 1;
 }
 
 #footer {

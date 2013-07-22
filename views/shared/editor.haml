@@ -4,19 +4,19 @@
 #desktop
   #controls
     .actions.block
-      .isometric.action.left.selectable.pixel.first.active{'data-action' => 'pixel'}
-      .isometric.action.left.selectable.fill{'data-action' => 'fill'}
-      .isometric.action.left.selectable.clearPixel.first{'data-action' => 'clearPixel'}
+      .isometric.action.left.selectable.pixel.first.active{'data-action' => 'pixel', 'original-title' => 'Brush (b)'}
+      .isometric.action.left.selectable.fill{'data-action' => 'fill', 'original-title' => 'Bucket (g)'}
+      .isometric.action.left.selectable.clearPixel.first{'data-action' => 'clearPixel', 'original-title' => 'Eraser (e)'}
     .actions.block
-      .isometric.action.left.copy.first
-      .isometric.action.left.paste
-      .isometric.action.left.undo.first
+      .isometric.action.left.copy.first{'original-title' => 'Copy (ctrl+c)'}
+      .isometric.action.left.paste{'original-title' => 'Paste (ctrl+v)'}
+      .isometric.action.left.undo.first{'original-title' => 'Undo (ctrl+z)'}
     .actions.block
-      .isometric.action.left.move_top.first
-      .isometric.action.left.move_right
-      .isometric.action.left.flip_horizontal.first
-      .isometric.action.left.flip_vertical
-      .isometric.action.left.rotate.first
+      .isometric.action.left.move_top.first{'original-title' => 'Move up (↑)'}
+      .isometric.action.left.move_right{'original-title' => 'Move right (→)'}
+      .isometric.action.left.flip_horizontal.first{'original-title' => 'Flip horizontal'}
+      .isometric.action.left.flip_vertical{'original-title' => 'Flip vertical'}
+      .isometric.action.left.rotate.first{'original-title' => 'Rotate by 90°'}
 
   #canvas.isometric
     %canvas{:width => "320", :height => "320", :onselectstart => "this.style.cursor='crosshair'; return false;"}
@@ -34,24 +34,26 @@
     - EGA_PALETTE.each_with_index do |color, i|
       .color{:'data-color' => color, :class => "#{"active" if color == "#000000"}"}
         .isometric{:style => "background-color: #{color}", :id => "color_#{i+1}"}
-    
-  #commands
-    .actions.block
-      #upload.isometric.action.disabled
-      #clear.isometric.action.disabled
   
   .block
     #animation
-      .play_stop.active.isometric
+      .play_stop.active.isometric{'original-title' => 'Play/Stop (space bar)'}
       .frames_container
-        .frames.isometric
+        .frames.isometric{'original-title' => 'Select frame (next: page up, prev: page down)'}
           - MAX_FRAMES.times do |frame|
             .frame{:'data-frame' => frame, :href => "#", :class => (0 == frame ? "active" : "disabled")}
               %canvas{:height => "16", :width => "16"}
               %div= frame+1
+        #toggle_tips_container
+          %input#toggle_tips{:type => "checkbox", :checked => "checked"}
+          %label{:for => "toggle_tips"} Toggle tips
         #add_frames
-          .isometric.add_frame +
-          .isometric.remove_frame.disabled -
+          .isometric.remove_frame.disabled{'original-title' => 'Remove frame (,)'} -
+          .isometric.add_frame{'original-title' => 'Add frame (.)'} +
+      #commands
+        .actions.block
+          #upload.isometric.action.disabled{'original-title' => 'Save (ctrl+s)'}
+          #clear.isometric.action.disabled{'original-title' => 'Clear all'}
   
   .fb-facepile{:'data-width' => "550", :style => "margin-top: 85px"}
 

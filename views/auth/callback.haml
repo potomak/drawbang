@@ -1,6 +1,6 @@
 :javascript
   if(window.opener) {
     window.opener.reload(#{haml(:'shared/user_header').to_json});
-    window.opener.user_uid = #{@current_user['uid']};
+    window.opener.userUid = #{@current_user['uid']};
     window.close();
   }
