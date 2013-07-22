@@ -1,7 +1,7 @@
 - if drawings.size > 0
   .block.page
     %p.sep
-      %a{:href => "/?page=#{@current_page}"}
+      %a{:href => "#{gallery_path}?page=#{@current_page}"}
         = (PER_PAGE*(@current_page-1))+1
         \/
         = PER_PAGE*@current_page

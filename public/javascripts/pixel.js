@@ -30,88 +30,9 @@ var PIXEL = function() {
         }
       },
       history = {
-        action:  [],
-        undo:    [],
-        oldUndo: [],
-        redo:    []
+        undo:    []
       };
   
-  // ## Canvas(canvas, settings)
-  //
-  // A canvas object.
-  //
-  // `canvas` a canvas element.<br/>
-  // `settings` an object with settings to draw this canvas.
-  function Canvas(canvas, settings) {
-    // A canvas element.
-    this.canvas = canvas;
-    
-    // Context element of `canvas`
-    this.ctx = canvas.getContext("2d");
-    
-    // An object with canvas settings.
-    //
-    // Example settings:
-    //
-    //     {
-    //       pixelSize: 1,
-    //       size:      16,
-    //       gridColor: "#eeeeee",
-    //       showGrid:  false
-    //     }
-    this.settings = settings;
-    
-    // ## clearCanvas()
-    //
-    // Clears canvas.
-    this.clearCanvas = function() {
-      this.canvas.width = this.canvas.width;
-    }
-    
-    // ## drawGrid()
-    //
-    // Draws canvas grid.
-    this.drawGrid = function() {
-      var correction = 0.5;
-
-      for (var x = correction+this.settings.pixelSize; x < this.settings.size; x += this.settings.pixelSize) {
-        this.ctx.moveTo(x, 0);
-        this.ctx.lineTo(x, this.settings.size);
-        this.ctx.moveTo(0, x);
-        this.ctx.lineTo(this.settings.size, x);
-      }
-
-      this.ctx.strokeStyle = this.settings.gridColor;
-      this.ctx.stroke();
-    }
-    
-    // ## getDataURL()
-    //
-    // Returns canvas data url string as `image/png`.
-    this.getDataURL = function() {
-      return this.canvas.toDataURL("image/png");
-    }
-    
-    // ## draw(m)
-    //
-    // Draws canvas using `m` as bitmap data.
-    this.draw = function(m) {
-      this.clearCanvas();
-
-      for(var i = 0; i < m.length; i++) {
-        for(var j = 0; j < m[i].length; j++) {
-          this.ctx.fillStyle = m[i][j];
-          this.ctx.fillRect(i*this.settings.pixelSize, j*this.settings.pixelSize, this.settings.pixelSize, this.settings.pixelSize);
-        }
-      }
-
-      this.settings.showGrid && this.drawGrid();
-    }
-  }
-  
-  
-  // ## init(mainCanvas, previewCanvases, debug)
-  //
   // Initializes Pixel library.
   //
   // `mainCanvas` is a HTML5 canvas elements.<br/>
@@ -125,150 +46,76 @@ var PIXEL = function() {
     }
     typeof aDebug != 'undefined' ? debug = aDebug : null;
 
-    initMatrix();
+    initFrame();
     typeof imageData != 'undefined' ? loadImageData(imageData) : null;
     initCanvas();
   }
   
-  // ## initMatrix()
-  //
-  // Initializes matrix values to transparent.
-  var initMatrix = function() {
+  // Initializes current frame bitmap values to `TRANSPARENT`.
+  var initFrame = function() {
     var length = settings.mainCanvas.size/settings.mainCanvas.pixelSize;
-    matrix = [];
-    
-    for(var i = 0; i < length; i++) {
-      matrix.push(new Array(length));
-    }
-    
-    for(var i = 0; i < matrix.length; i++) {
-      for(var j = 0; j < matrix[i].length; j++) {
-        matrix[i][j] = TRANSPARENT;
-      }
-    }
+    frames[currentFrame] = new Bitmap(length, length);
   }
   
-  // ## initCanvas()
-  //
   // Initializes canvas and history.
   var initCanvas = function() {
     history = {
-      action: [],
-      undo: [],
-      oldUndo: [],
-      redo: []
+      undo: []
     };
     
     draw();
   }
 
-  // ## loadImageData()
-  //
   // Loads image data.
   var loadImageData = function(imageData) {
     // Copy image data first frame to main canvas bitmap data.
-    matrix = copyMatrix(imageData[0]);
     mainCanvas.clearCanvas();
     mainCanvas.draw(imageData[0]);
 
     for(var i = 0; i < imageData.length; i++) {
-      frames[i] = copyMatrix(imageData[i]);
+      frames[i] = new Bitmap(imageData[i].length, imageData.length);
+      frames[i].importBitmapData(imageData[i]);
 
       previewCanvases[i].clearCanvas();
       previewCanvases[i].draw(imageData[i]);
     }
   }
   
-  // ## log(obj)
-  //
   // Logs `obj` to `console` if `debug` flag is `true`.
   var log = function(obj) {
     debug && console.log([(new Date()).toString(), obj]);
   }
   
-  // ## printMatrix(m)
-  //
-  // Returns a formatted string representing `m`, where `m` is a matrix composed by
-  // an *array of arrays*.
-  var printMatrix = function(m) {
-    mString = "";
-    
-    for(var i = 0; i < m.length; i++) {
-      for(var j = 0; j < m[i].length; j++) {
-        mString += (TRANSPARENT == m[i][j] ? "0" : "X") + ", ";
-      }
-      
-      mString += "\n";
-    }
-    
-    return mString;
-  }
-  
-  // ## setDraw(flag)
-  //
   // Sets `drawing` attribute.
   var setDraw = function(wantToDraw) {
     drawing = wantToDraw;
   }
   
-  // ## setAction(action)
-  //
   // Sets `action` attribute.
   var setAction = function(wantedAction) {
     action = wantedAction;
   }
   
-  // ## clearCanvasAt(index)
-  //
   // Clears canvas at `index`.
   var clearCanvasAt = function(index) {
+    log("clearCanvasAt:" + index + ", frames.length: " + frames.length);
+
     previewCanvases[index].clearCanvas();
-    
-    if(currentFrame == index) {
-      mainCanvas.clearCanvas();
-      frames[currentFrame] = null;
-      initMatrix();
-      initCanvas();
-    }
+    currentFrame == index && mainCanvas.clearCanvas();
   }
   
-  // ## clearCanvas()
-  //
-  // Clears current frame canvas.
-  var clearCanvas = function() {
-    clearCanvasAt(currentFrame);
-  }
-  
-  // ## removeFrame(index)
-  //
   // Removes frame object from `frames` at `index`.
   var removeFrame = function(index) {
     frames.splice(index, 1);
+    log("removeFrame:" + index + ", frames.length: " + frames.length);
   }
   
-  // ## copyMatrix(m)
-  //
-  // Returns an object copied from `m` matrix.
-  var copyMatrix = function(m) {
-    if(typeof m != 'undefined') {
-      var copy = m.slice();
-
-      for(var i = 0; i < m.length; i++) {
-        copy[i] = m[i].slice();
-      }
-
-      return copy;
-    }
-  }
-  
-  // ## doAction(x, y, color)
-  //
   // Executes `action` at (`x`, `y`) with `color`.
   var doAction = function(x, y, color) {
     if(drawing) {
       var coords = {
-        x: pixelify(x, settings.mainCanvas.pixelSize),
-        y: pixelify(y, settings.mainCanvas.pixelSize)
+        x: mainCanvas.quantize(x),
+        y: mainCanvas.quantize(y)
       }
       
       switch(action) {
@@ -278,10 +125,6 @@ var PIXEL = function() {
           if(startColor != false) {
             history.undo.push(function() {
               drawPixel(coords.x, coords.y, startColor);
-            });
-
-            history.action.push(function() {
-              drawPixel(coords.x, coords.y, color);
             });
           }
           
@@ -294,24 +137,16 @@ var PIXEL = function() {
             history.undo.push(function() {
               drawPixel(coords.x, coords.y, startColor);
             });
-
-            history.action.push(function() {
-              drawPixel(coords.x, coords.y, TRANSPARENT);
-            });
           }
           
           break;
           
         case "fill":
-          var startMatrix = fillPixels(coords.x, coords.y, color);
+          var startBitmap = fillPixels(coords.x, coords.y, color);
           
           if(startColor != false) {
             history.undo.push(function() {
-              draw(startMatrix);
-            });
-
-            history.action.push(function() {
-              fillPixels(coords.x, coords.y, color)
+              draw(startBitmap);
             });
           }
           
@@ -322,30 +157,13 @@ var PIXEL = function() {
       }
     }
   }
-  
-  // ## pixelify(val)
-  //
-  // Returns quantized value of `val` by `pixelSize`.
-  //
-  // `val` a number.<br/>
-  // `pixelSize` a number representing *pixel size in pixels*
-  var pixelify = function(val, pixelSize) {
-    var i = Math.floor(val/pixelSize);
-    
-    i >= matrix.length && (i = matrix.length-1);
-    i <= 0 && (i = 0);
-    
-    return i;
-  }
 
-  // ## drawPixel(x, y, color)
-  //
   // Draws pixel at (`x`, `y`) of `color`.
   var drawPixel = function(x, y, color) {
-    var startColor = matrix[x][y];
+    var startColor = getCurrentFrame().data[x][y];
     
     if(startColor != color) {
-      matrix[x][y] = color;
+      getCurrentFrame().data[x][y] = color;
       draw();
       
       return startColor;
@@ -354,40 +172,26 @@ var PIXEL = function() {
     return false;
   }
   
-  // ## getColorAt(x, y)
-  //
-  // Returns color string at (`x`, `y`).
-  //
-  // Color string format:getColorAt
-  //
-  //     /#([a-fA-F0-9]{2})([a-fA-F0-9]{2})([a-fA-F0-9]{2})/
-  var getColorAt = function(x, y) {
-    return TRANSPARENT == matrix[x][y] ? null : matrix[x][y];
-  }
-  
-  // ## fillPixels(x, y, color)
-  //
   // Fills pixels.
   var fillPixels = function(x, y, color) {
-    var startColor = getColorAt(x, y);
+    var startColor = getCurrentFrame().getColorAt(x, y);
+    log("flood fill startColor: " + startColor + ", color: " + color + ", (" + x + ", " + y + ")");
     
     if(startColor != color) {
-      var startMatrix = copyMatrix(matrix),
-          start = (new Date()).getTime();
+      var startBitmap = getCurrentFrame().clone();
+      var t0 = new Date().getTime();
           
       fillPixel(x, y, startColor, color);
-      log("flood fill time: " + ((new Date()).getTime()-start));
+      log("flood fill time: " + (new Date().getTime()-t0));
 
       draw();
       
-      return startMatrix;
+      return startBitmap.data;
     }
     
     return false;
   }
   
-  // ## fillPixel(x, y, startColor, endColor)
-  //
   // Recursive part of `fillPixels` function.
   //
   // `x`<br/>
@@ -395,9 +199,9 @@ var PIXEL = function() {
   // `startColor` a hex representation of starting color.<br/>
   // `endColor` a hex representation of target color.
   var fillPixel = function(x, y, startColor, endColor) {
-    if(x >= 0 && x < matrix[0].length && y >= 0 && y < matrix.length) {
-      if(getColorAt(x, y) == startColor) {
-        matrix[x][y] = endColor;
+    if(x >= 0 && x < getCurrentFrame().data.length && y >= 0 && y < getCurrentFrame().data.length) {
+      if(getCurrentFrame().getColorAt(x, y) == startColor) {
+        getCurrentFrame().data[x][y] = endColor;
 
         fillPixel(x+1, y, startColor, endColor);
         fillPixel(x-1, y, startColor, endColor);
@@ -407,132 +211,67 @@ var PIXEL = function() {
     }
   }
   
-  // ## draw(m)
-  //
-  // Draws main canvas and preview canvas at `currentFrame` using `m` as matrix or
-  // global `matrix` if `m` is `undefined`.
-  var draw = function(m) {
-    typeof m == 'undefined' ? m = matrix : matrix = copyMatrix(m);
+  // Draws main canvas and preview canvas at `currentFrame` using `bitmap` as
+  // bitmap data or `getCurrentFrame().data` if `bitmap` is `undefined`.
+  var draw = function(bitmap) {
+    if(typeof bitmap == 'undefined') {
+      bitmap = getCurrentFrame().data;
+    }
+    else {
+      frames[currentFrame] = new Bitmap(bitmap.length, bitmap.length);
+      getCurrentFrame().importBitmapData(bitmap);
+    }
 
     mainCanvas.clearCanvas();
     previewCanvases[currentFrame].clearCanvas();
 
-    mainCanvas.draw(m);
-    previewCanvases[currentFrame].draw(m);
+    mainCanvas.draw(bitmap);
+    previewCanvases[currentFrame].draw(bitmap);
   }
   
-  // ## getHistory()
-  //
   // Returns history object.
   var getHistory = function() {
     return history;
   }
   
-  // ## undo()
-  //
   // Undoes latest action.
   var undo = function() {
     if(history.undo.length > 0) {
       var todo = history.undo.pop();
       todo.call();
-      history.redo.push(history.action.pop());
-      history.oldUndo.push(todo);
     }
-  }
-  
-  // ## redo()
-  //
-  // Viceversa of `undo()`.
-  //
-  // **Deprecation warning**
-  var redo = function() {
-    if(history.redo.length > 0) {
-      var todo = history.redo.pop();
-      todo.call();
-      history.undo.push(history.oldUndo.pop());
-      history.action.push(todo);
-    }
-  }
-  
-  // ## getFrame(frame)
-  //
-  // Returns data matrix for frame at index `frame`.
-  var getFrame = function(frame) {
-    log("DEPRECATED");
-    log("Use getFrameAt(index) instead");
-    return currentFrame == frame ? matrix : frames[frame];
   }
 
-  // ## getFrameAt(index)
-  //
+  // Returns `frames` length.
+  var getFramesLength = function() {
+    return frames.length;
+  }
+
   // Returns bitmat data for frame at `index`.
   var getFrameAt = function(index) {
     return frames[index];
   }
   
-  // ## getCurrentFrame()
-  //
   // Returns current frame data matrix.
   var getCurrentFrame = function() {
-    return matrix;
+    return frames[currentFrame];
   }
   
-  // ## getCurrentFrameId()
-  //
   // Returns current frame id.
   var getCurrentFrameId = function() {
     return currentFrame;
   }
   
-  // ## setCurrentFrame(frame)
-  //
-  // Sets current frame and matrix to object at index `frame`.
-  var setCurrentFrame = function(frame) {
-    log("setCurrentFrame: " + frame);
+  // Sets current frame at `index`.
+  var setCurrentFrame = function(index) {
+    log("setCurrentFrame: " + index);
+    var prevFrame = currentFrame;
     
-    if(frame != currentFrame) {
-      frames[currentFrame] = copyMatrix(matrix);
-      matrix = copyMatrix(frames[frame]);
-
-      // a new frame
-      if(typeof matrix == 'undefined') {
-        // set current frame placeholder
-        frames[frame] = null;
-        // initialize matrix
-        initMatrix();
-      }
-      
-      currentFrame = frame;
-
-      initCanvas();
-      
-      log("setCurrentFrame - frames.length: " + frames.length);
-    }
+    currentFrame = index;
+    typeof getCurrentFrame() == 'undefined' && initFrame();
+    prevFrame != currentFrame && initCanvas();
   }
   
-  // ## setOnionFrame(frame)
-  //
-  // Sets `frame` as onion frame and draws canvas.
-  //
-  // **Deprecation warning**
-  var setOnionFrame = function(frame) {
-    log("DEPRECATED");
-    onionFrame = frame;
-    draw();
-  }
-  
-  // ## getCurrentOnionFrameId()
-  //
-  // Returns current onion frame index.
-  //
-  // **Deprecation warning**
-  var getCurrentOnionFrameId = function() {
-    log("DEPRECATED");
-    return onionFrame;
-  }
-  
-  // ## play(fps, callback)
-  //
   // Plays animation at `fps` frames per second.
   //
   // At every frame redraw `callback` is called.
@@ -552,180 +291,149 @@ var PIXEL = function() {
     }
   }
   
-  // ## stop()
-  //
   // Stops animation.
   var stop = function() {
     clearInterval(animation);
     animation = null;
   }
   
-  // ## moveTop()
-  //
   // Moves canvas top by one pixel.
   var moveTop = function() {
-    var startMatrix = copyMatrix(matrix),
-        start = (new Date()).getTime();
-    
-    // For each column of pixels
-    for(var i = 0; i < matrix.length; i++) {
-      // push at beginning of column latest array element.
-      matrix[i].push(matrix[i].shift());
-    }
-    
-    log("move top time: " + ((new Date()).getTime()-start));
-    
-    draw();
-    
-    history.undo.push(function() {
-      draw(startMatrix);
+    applyTransformation(function() {
+      // For each column of pixels
+      for(var i = 0; i < getCurrentFrame().data.length; i++) {
+        // push at beginning of column latest array element.
+        getCurrentFrame().data[i].push(getCurrentFrame().data[i].shift());
+      }
     });
   }
   
-  // ## moveRight()
-  //
   // Moves canvas right by one pixel.
   var moveRight = function() {
-    var startMatrix = copyMatrix(matrix),
-        start = (new Date()).getTime();
-    
-    // For each row of pixels:
-    for(j = 0; j < matrix[0].length; j++) {
-      // save latest row pixel to `temp` buffer,
-      var temp = matrix[matrix.length-1][j];
-      
-      // shift elements by row,
-      for(i = matrix.length - 1; i > 0; i--) {
-        matrix[i][j] = matrix[i-1][j];
+    applyTransformation(function() {
+      // For each row of pixels:
+      for(j = 0; j < getCurrentFrame().data[0].length; j++) {
+        // save latest row pixel to `temp` buffer,
+        var temp = getCurrentFrame().data[getCurrentFrame().data.length-1][j];
+        
+        // shift elements by row,
+        for(i = getCurrentFrame().data.length - 1; i > 0; i--) {
+          getCurrentFrame().data[i][j] = getCurrentFrame().data[i-1][j];
+        }
+        
+        // set first row element as `temp`.
+        getCurrentFrame().data[0][j] = temp;
       }
-      
-      // set first row element as `temp`.
-      matrix[0][j] = temp;
-    }
-    
-    log("move right time: " + ((new Date()).getTime()-start));
-    
-    draw();
-    
-    history.undo.push(function() {
-      draw(startMatrix);
     });
   }
   
-  // ## flipVertical()
-  //
   // Flips canvas vertically.
   var flipVertical = function() {
-    var startMatrix = copyMatrix(matrix),
-        start = (new Date()).getTime();
-    
-    // For each column of pixels,
-    for(var i = 0; i < matrix.length; i++) {
-      // for half of each row of pixels,
-      for(var j = 0; j < matrix[i].length/2; j++) {
-        var temp = matrix[i][j],
-            length = matrix[i].length;
-        
-        // swap first half column with second half.
-        matrix[i][j] = matrix[i][length-1-j];
-        matrix[i][length-1-j] = temp;
+    applyTransformation(function() {
+      // For each column of pixels,
+      for(var i = 0; i < getCurrentFrame().data.length; i++) {
+        // for half of each row of pixels,
+        for(var j = 0; j < getCurrentFrame().data[i].length/2; j++) {
+          var temp = getCurrentFrame().data[i][j];
+          var length = getCurrentFrame().data[i].length;
+          
+          // swap first half column with second half.
+          getCurrentFrame().data[i][j] = getCurrentFrame().data[i][length-1-j];
+          getCurrentFrame().data[i][length-1-j] = temp;
+        }
       }
-    }
-    
-    log("flip vertical time: " + ((new Date()).getTime()-start));
-    
-    draw();
-    
-    history.undo.push(function() {
-      draw(startMatrix);
     });
   }
   
-  // ## flipHorizontal()
-  //
   // Flips canvas horizontally.
   var flipHorizontal = function() {
-    var startMatrix = copyMatrix(matrix),
-        start = (new Date()).getTime();
-    
-    // For half of each column of pixels,
-    for(var i = 0; i < matrix.length/2; i++) {
-      // for each row of pixels,
-      for(var j = 0; j < matrix[i].length; j++) {
-        var temp = matrix[i][j],
-            length = matrix.length;
+    applyTransformation(function() {
+      var length = getCurrentFrame().data.length;
 
-        // swap first half row with second half.
-        matrix[i][j] = matrix[length-1-i][j];
-        matrix[length-1-i][j] = temp;
+      // For half of each column of pixels,
+      for(var i = 0; i < getCurrentFrame().data.length/2; i++) {
+        // for each row of pixels,
+        for(var j = 0; j < getCurrentFrame().data[i].length; j++) {
+          var temp = getCurrentFrame().data[i][j];
+
+          // swap first half row with second half.
+          getCurrentFrame().data[i][j] = getCurrentFrame().data[length-1-i][j];
+          getCurrentFrame().data[length-1-i][j] = temp;
+        }
       }
-    }
-    
-    log("flip vertical time: " + ((new Date()).getTime()-start));
-    
-    draw();
-    
-    history.undo.push(function() {
-      draw(startMatrix);
     });
   }
   
-  // ## rotate()
-  //
   // Rotates canvas left by 90 degrees.
   var rotate = function() {
-    var startMatrix = copyMatrix(matrix),
-        start = (new Date()).getTime();
-    
-    // For each column of pixels,
-    for(var i = 0; i < matrix.length; i++) {
-      // for each row of pixels,
-      for(var j = 0; j < matrix[i].length; j++) {
-        // swap each element to swap row with column.
-        matrix[i][j] = startMatrix[matrix[i].length-1 - j][i];
+    applyTransformation(function(startBitmap) {
+      // For each column of pixels,
+      for(var i = 0; i < getCurrentFrame().data.length; i++) {
+        // for each row of pixels,
+        for(var j = 0; j < getCurrentFrame().data[i].length; j++) {
+          // swap each element to swap row with column.
+          getCurrentFrame().data[i][j] = startBitmap.data[getCurrentFrame().data[i].length-1 - j][i];
+        }
       }
-    }
-    
-    log("rotate time: " + ((new Date()).getTime()-start));
-    
-    draw();
-    
-    history.undo.push(function() {
-      draw(startMatrix);
     });
   }
   
-  // ## copyFrameAt(index)
-  //
   // Copies frame at `index` to current frame.
   //
   // `index` an integer representing an index of `frames` array.
-  var copyFrameAt = function(index) {
-    var startMatrix = copyMatrix(matrix),
-        start = (new Date()).getTime();
+  var pasteFrameAt = function(index) {
+    applyTransformation(function(startBitmap, index) {
+      frames[currentFrame] = getFrameAt(index).clone();
+    }, index);
+  }
+
+  // Makes a copy of current frame, applies f and redraw canvas.
+  //
+  // `f` a transformation function.
+  var applyTransformation = function(f) {
+    var t0 = (new Date()).getTime();
+    var args = Array.prototype.slice.call(arguments, 1);
+    var startBitmap = getCurrentFrame().clone();
     
-    matrix = copyMatrix(getFrame(index));
+    f.apply(this, [startBitmap].concat(args));
     
-    log("copyFrameAt " + index + ": " + ((new Date()).getTime()-start));
+    log("applyTransformation, " + args + " - " + ((new Date()).getTime()-t0));
     
     draw();
     
     history.undo.push(function() {
-      draw(startMatrix);
+      draw(startBitmap.data);
     });
+  }
+
+  // Returns an object representation of the drawing.
+  var toObject = function() {
+    var data = {image: null};
+
+    if(frames.length > 1) {
+      data['image'] = {frames: []};
+      for(var i = 0; i < frames.length; i++) {
+        data['image']['frames'].push(getFrameAt(i).data);
+      }
+    }
+    else {
+      data['image'] = {frame: getCurrentFrame().data};
+    }
+
+    return data;
   }
   
   return {
+    TRANSPARENT: TRANSPARENT,
     init: init,
     clearCanvasAt: clearCanvasAt,
-    clearCanvas: clearCanvas,
     removeFrame: removeFrame,
     setDraw: setDraw,
     setAction: setAction,
     doAction: doAction,
     getHistory: getHistory,
     undo: undo,
-    getFrame: getFrame,
+    getFramesLength: getFramesLength,
     setCurrentFrame: setCurrentFrame,
     getCurrentFrame: getCurrentFrame,
     getCurrentFrameId: getCurrentFrameId,
@@ -736,7 +444,151 @@ var PIXEL = function() {
     flipHorizontal: flipHorizontal,
     flipVertical: flipVertical,
     rotate: rotate,
-    copyFrameAt: copyFrameAt,
+    pasteFrameAt: pasteFrameAt,
+    toObject: toObject,
     log: log
   };
 }();
+
+
+// A canvas object.
+//
+// `canvas` a canvas element.<br/>
+// `settings` an object with settings to draw this canvas.
+function Canvas(canvas, settings) {
+  // A canvas element.
+  this.canvas = canvas;
+  
+  // Context element of `canvas`
+  this.ctx = canvas.getContext("2d");
+  
+  // An object with canvas settings.
+  //
+  // Example settings:
+  //
+  //     {
+  //       pixelSize: 1,
+  //       size:      16,
+  //       gridColor: "#eeeeee",
+  //       showGrid:  false
+  //     }
+  this.settings = settings;
+  
+  // Clears canvas.
+  this.clearCanvas = function() {
+    this.canvas.width = this.canvas.width;
+  }
+  
+  // Draws canvas grid.
+  this.drawGrid = function() {
+    var correction = 0.5;
+
+    for (var x = correction+this.settings.pixelSize; x < this.settings.size; x += this.settings.pixelSize) {
+      this.ctx.moveTo(x, 0);
+      this.ctx.lineTo(x, this.settings.size);
+      this.ctx.moveTo(0, x);
+      this.ctx.lineTo(this.settings.size, x);
+    }
+
+    this.ctx.strokeStyle = this.settings.gridColor;
+    this.ctx.stroke();
+  }
+  
+  // Returns canvas data url string as `image/png`.
+  this.getDataURL = function() {
+    return this.canvas.toDataURL("image/png");
+  }
+  
+  // Draws canvas using `bitmap` as bitmap data.
+  this.draw = function(bitmap) {
+    this.clearCanvas();
+
+    for(var i = 0; i < bitmap.length; i++) {
+      for(var j = 0; j < bitmap[i].length; j++) {
+        this.ctx.fillStyle = bitmap[i][j];
+        this.ctx.fillRect(i*this.settings.pixelSize, j*this.settings.pixelSize, this.settings.pixelSize, this.settings.pixelSize);
+      }
+    }
+
+    this.settings.showGrid && this.drawGrid();
+  }
+
+  // Returns quantized value of `val` by `settings.pixelSize`.
+  //
+  // `val` a number.
+  this.quantize = function(val) {
+    var i = Math.floor(val/this.settings.pixelSize);
+    var max = this.settings.size/this.settings.pixelSize;
+    
+    i >= max && (i = max-1);
+    i <= 0 && (i = 0);
+    
+    return i;
+  }
+}
+
+
+// A bitmap object.
+//
+// `width` bitmap width.<br/>
+// `height` bitmap height.
+function Bitmap(width, height) {
+  // Bitmap size.
+  this.width = width;
+  this.height = height;
+
+  // Bitmap data.
+  this.data = [];
+  
+  for(var x = 0; x < width; x++) {
+    this.data.push(new Array(height));
+
+    for(var y = 0; y < this.data[x].length; y++) {
+      this.data[x][y] = PIXEL.TRANSPARENT;
+    }
+  }
+
+  // Returns a formatted string representing the bitmap.
+  this.toString = function() {
+    var string = "";
+
+    for(var x = 0; x < this.data.length; x++) {
+      for(var y = 0; y < this.data[x].length; y++) {
+        string += (PIXEL.TRANSPARENT == this.data[x][y] ? " " : "X") + ", ";
+      }
+      
+      string += "\n";
+    }
+    
+    return string;
+  }
+
+  // Returns a clone object.
+  this.clone = function() {
+    var clone = new Bitmap(this.width, this.height);
+
+    for(var x = 0; x < this.data.length; x++) {
+      clone.data[x] = this.data[x].slice();
+    }
+
+    return clone;
+  }
+
+  // Imports bitmap data from `bitmapData`.
+  this.importBitmapData = function(bitmapData) {
+    this.data = bitmapData.slice();
+
+    for(var x = 0; x < bitmapData.length; x++) {
+      this.data[x] = bitmapData[x].slice();
+    }
+  }
+
+  // Returns color string at (`x`, `y`).
+  //
+  // Color string format:getColorAt
+  //
+  //     /#([a-fA-F0-9]{2})([a-fA-F0-9]{2})([a-fA-F0-9]{2})/
+  this.getColorAt = function(x, y) {
+    return PIXEL.TRANSPARENT == this.data[x][y] ? null : this.data[x][y];
+  }
+}

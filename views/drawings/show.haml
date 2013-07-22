@@ -45,6 +45,6 @@
         - unless @drawing[:children].empty?
           %h3 Children
           #images
-            = haml :'drawings/gallery', :locals => {:drawings => @drawing[:children]}
+            = haml :'drawings/gallery', :locals => {:drawings => @drawing[:children], :gallery_path => "/drawings/#{params[:id]}"}
 
       .fb-comments{:'data-href' => @drawing[:share_url], :'data-num-posts' => 2, :'data-width' => 595}

@@ -24,7 +24,7 @@ describe "drawings/show.haml" do
 
     it "should display children" do
       assigns[:drawing] = @drawing
-      render("/views/drawings/show.haml")
+      render("/views/drawings/show.haml", :params => {:id => 123})
       rendered.should match(/Children/)
     end
   end

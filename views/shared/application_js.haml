@@ -1,5 +1,5 @@
 :javascript
-  var trying_to_save = false;
+  var tryingToSave = false;
 
   function popupCenter(url, width, height, name) {
     var left = (screen.width/2)-(width/2);
@@ -10,11 +10,11 @@
   function reload(user_header) {
     $("#auth .right").html(user_header);
     $("#flash_wrapper").html("");
-    trying_to_save && performUpload();
+    tryingToSave && performUpload();
   }
 
   function flash(html) {
-    trying_to_save = false;
+    tryingToSave = false;
     $("#flash_wrapper").html(html);
   }
 
