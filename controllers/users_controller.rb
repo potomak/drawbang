@@ -9,7 +9,7 @@ class UsersController
       @drawings = Drawing.all(:user_id => id, :page => @page, :per_page => PER_PAGE, :host => request.host)
       
       if request.xhr?
-        haml :'drawings/gallery', :locals => {:drawings => @drawings}, :layout => false
+        haml :'drawings/gallery', :locals => {:drawings => @drawings, :gallery_path => "/users/#{id}"}, :layout => false
       else
         if json_request?
           {
