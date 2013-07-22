@@ -1,6 +1,8 @@
 .content_wrapper
   %p
-    Draw! is an online pixel art editor that lets you draw little 16x16 animations using only 16 colors.
+    Draw! is a web based pixel art editor.
+    %br
+    It lets you draw little 16x16 pixel drawings and GIF animations using only 16 colors of the EGA palette.
   %p
     Follow updates
     %a{:href => "http://twitter.com/drawbang"} @drawbang
@@ -10,14 +12,10 @@
 
   %p
     Feel free to ask any question at
-    %a{:href => "http://drawbang.com/faq"} http://drawbang.com/faq
+    %a{:href => "/faq"} http://drawbang.com/faq
 
   %p
-    This app makes use of
-    = succeed '.' do
-      %a{:href => "http://github.com/potomak/jquery-pixel"} Pixel library
-    %br
-    It's released under the MIT license and you can fork it at
+    Draw! web app is released under the MIT license and you can fork it at
     = succeed '.' do
       %a{:href => "http://github.com/potomak/drawbang"} http://github.com/potomak/drawbang
 
@@ -28,12 +26,19 @@
     %br
     Design:
     %a{:href => "http://twitter.com/pinakes"} Francesco Fraioli
+  %h4 iOS app
+  %p
+    Programming:
+    %a{:href => "http://twitter.com/sono_la_gii"} Giorgia Marenda
+    %br
+    Design:
+    %a{:href => "http://twitter.com/pinakes"} Francesco Fraioli
   %h4 Old contributors
   %p
     Design:
     %a{:href => "http://twitter.com/amphigoryglory"} Ashley Farrand
   
-  %h3 Info about app
+  %h3 Info
   %p
     Version: #{DRAW_VERSION}
   %p
