@@ -4,7 +4,7 @@ Draw 16 x 16 animated pictures. Draw! is a social flavored online pixel art edit
 
 Draw! it's also an experiment app about:
 
-* html5 canvas element through the [pixel library](http://github.com/potomak/jquery-pixel).
+* html5 canvas element.
 * redis
 
 Follow [@drawbang](http://twitter.com/drawbang) and read the blog at [http://blog.drawbang.com](http://github.com/potomak/jquery-pixel).
@@ -55,10 +55,10 @@ $ rake s
 
 ### Start the app console
 
-Run
+Run rake task `console`, alias `c`
 
 ```bash
-$ irb -r server.rb
+$ rake c
 ```
 
 ## How to use Heroku
@@ -121,13 +121,7 @@ $ heroku logs
 Run
 
 ```bash
-    $ heroku console
-```
-
-or run rake task `console`, alias `c`
-
-```bash
-$ rake c
+$ heroku console
 ```
 
 ### Get application users and drawings stats
