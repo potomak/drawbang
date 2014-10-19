@@ -5,16 +5,15 @@ Bundler.require
 
 require 'models/user'
 require 'models/drawing'
-require 'lib/middlewares/no_www'
 require 'lib/middlewares/no_heroku'
 
 configure do
   require 'version'
   require 'config/config'
   require "config/environments/#{settings.environment}"
-  
+
   set :haml, :format => :html5
-  
+
   # NOTE: this is the new form of the :sessions setting
   #set :sessions, :expire_after => 2592000 #30 days in seconds
   use Rack::Session::Cookie, :expire_after => 2592000,
@@ -32,7 +31,6 @@ end
 use Rack::Flash
 use Rack::MethodOverride
 
-use NoWWW
 use NoHeroku
 
 helpers do
