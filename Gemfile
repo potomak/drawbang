@@ -1,4 +1,5 @@
 source :rubygems
+ruby '1.8.7'
 
 gem 'rake'
 gem 'sinatra'
