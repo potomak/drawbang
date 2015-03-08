@@ -17,7 +17,8 @@ gem 'rmagick'
 gem 'fbgraph'
 gem 'color'
 gem 'newrelic_rpm'
-gem 'twitter'
+gem 'twitter',
+  :path => 'vendor/gems/twitter-1.6.0'
 
 group :test do
   gem 'rack-test'
