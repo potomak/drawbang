@@ -6,7 +6,7 @@ GIT
       sinatra
 
 GEM
-  remote: http://rubygems.org/
+  remote: https://rubygems.org/
   specs:
     activesupport (3.0.9)
     addressable (2.2.6)
