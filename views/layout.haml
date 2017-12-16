@@ -8,7 +8,7 @@
 
     %link{:href => '//fonts.googleapis.com/css?family=Inconsolata', :rel => 'stylesheet', :type => 'text/css'}
     %link{:href => '/stylesheets/style.css', :media => 'all', :rel => 'stylesheet', :type => 'text/css'}
-    
+
     %script{:src => '//ajax.googleapis.com/ajax/libs/jquery/1.4/jquery.min.js', :type => 'text/javascript'}
     = haml :'shared/application_js'
 
@@ -37,7 +37,7 @@
     .wrapper
       #flash_wrapper
         = haml :'shared/flash'
-  
+
     #requests.content_wrapper
 
     #header
@@ -59,8 +59,9 @@
       = yield
 
     #footer
-    
+
     = haml :'shared/facebook'
     = haml :'shared/google_plus'
     = haml :'shared/twitter'
     = haml :'shared/analytics'
+    = haml :'shared/cookies'
