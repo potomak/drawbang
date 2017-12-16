@@ -68,7 +68,7 @@ class SessionsController
 
     @current_user = User.new(user).save
     @drawings = Drawing.all(:user_id => me.data.id, :page => 0, :per_page => PER_PAGE, :host => request.host)
-    
+
     {
       :uid        => @current_user[:uid],
       :first_name => @current_user[:user_info][:first_name],
