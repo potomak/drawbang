@@ -37,7 +37,7 @@ describe "Draw! app" do
   def app
     @app ||= Sinatra::Application
   end
-  
+
   describe "POST /" do
     it "should be tested"
   end
@@ -48,18 +48,18 @@ describe "Draw! app" do
       get '/'
       last_response.should be_ok
     end
-    
+
     it "should create session" do
       get '/'
       last_response.header['Set-Cookie'].should match /rack\.session/
     end
-    
+
     it "should set session expiration date" do
       get '/'
       last_response.header['Set-Cookie'].should match /expires/i
     end
   end
-  
+
   describe "GET /feed.rss" do
     it "should respond" do
       Drawing.should_receive(:all).and_return([])
@@ -68,20 +68,20 @@ describe "Draw! app" do
       last_response.should be_ok
     end
   end
-  
+
   describe "GET /users/123" do
     before :each do
       @id = "123"
       @user = {'uid' => "123", 'user_info' => {'first_name' => "John"}}
       @drawing = {'url' => "/the/drawing.png"}
     end
-    
+
     describe "user found" do
       before(:each) do
         User.should_receive(:find).with(@id).and_return(@user)
         Drawing.should_receive(:all).with(:user_id => @id, :page => 0, :per_page => PER_PAGE, :host => 'example.org').and_return([@drawing])
       end
-      
+
       it "should respond 200 if a user is found" do
         get "/users/#{@id}"
         last_response.should be_ok
@@ -138,17 +138,17 @@ describe "Draw! app" do
         end
       end
     end
-    
+
     describe "user not found" do
       before(:each) do
         User.should_receive(:find).with(@id).and_return(nil)
       end
-      
+
       it "should respond 404 if a user is not found" do
         get "/users/#{@id}"
         last_response.should be_not_found
       end
-      
+
       it "should display 'not found'" do
         get "/users/#{@id}"
         last_response.should match /not found/
@@ -167,7 +167,7 @@ describe "Draw! app" do
 
       get "/drawings"
     end
-      
+
     it "should respond" do
       last_response.should be_ok
     end
@@ -188,23 +188,23 @@ describe "Draw! app" do
       last_response.should match /current_page/
     end
   end
-  
+
   describe "GET /drawings/123.png" do
     before :each do
       @id = "123.png"
       @drawing = {'url' => "/the/drawing.png", :children => []}
     end
-    
+
     describe "drawing found" do
       before(:each) do
         Drawing.should_receive(:find).with(@id).and_return(@drawing)
       end
-      
+
       it "should respond 200 if a drawing is found" do
         get "/drawings/#{@id}"
         last_response.should be_ok
       end
-      
+
       it "should respond with json if accept header is set to 'application/json'" do
         header 'Accept', 'application/json'
         get "/drawings/#{@id}"
@@ -216,23 +216,23 @@ describe "Draw! app" do
         last_response.should match @drawing['url']
       end
     end
-    
+
     describe "drawing not found" do
       before(:each) do
         Drawing.should_receive(:find).with(@id).and_return(nil)
         get "/drawings/#{@id}"
       end
-      
+
       it "should respond 404 if a drawing is not found" do
         last_response.should be_not_found
       end
-      
+
       it "should display 'not found'" do
         last_response.should match /not found/
       end
     end
   end
-  
+
   describe "POST /upload" do
     describe "guest user" do
       it "should redirect to '/'" do
@@ -327,7 +327,7 @@ describe "Draw! app" do
           post "/upload?uid=wrong_uid&token=wrong_token", @png_drawing.to_json
           last_response.status.should == 403
         end
-        
+
         it "should respond unauthorized with wrong auth params" do
           post "/upload", @png_drawing.to_json
           last_response.status.should == 403
@@ -335,7 +335,7 @@ describe "Draw! app" do
       end
     end
   end
-  
+
   describe "GET /auth/facebook/callback" do
     # #
     # # GET /auth/facebook/callback
@@ -345,60 +345,60 @@ describe "Draw! app" do
     #   @user = User.new(request.env['omniauth.auth'].merge(:key => session[:user])).save
     #   haml :callback
     # end
-    
+
     before(:each) do
       get '/auth/facebook/callback'
     end
-    
+
     it "should set user auth session" do
       last_request.session['user'].should match /user:/
     end
-    
+
     it "should save authenticated user" do
       pending
-      
+
       @user = Object.new
       @user.should_receive(:save)
       User.should_receive(:new).and_return(@user)
     end
-    
+
     it "should render callback template" do
       last_response.body.should match /window\.close/
     end
   end
-  
+
   describe "GET /auth/failure" do
     before(:each) do
       get '/auth/failure'
     end
-    
+
     it "should show an error message" do
       last_response.body.should match /There was an error trying to access to your Facebook data/
     end
-    
+
     it "should clear session" do
       last_request.session['user'].should be_nil
     end
   end
-  
+
   describe "GET /logout" do
     it "should redirect" do
       get '/logout'
       last_response.should be_redirect
     end
-    
+
     it "should redirect to origin if param[:origin] is set" do
       get '/logout', :origin => "/origin"
       last_response.should be_redirect
       last_response.header['Location'].should match /\/origin/
     end
-    
+
     it "should clear session" do
       get '/logout'
       last_request.session['user'].should be_nil
     end
   end
-  
+
   {
     :about => 'Credits',
     :faq => 'Frequently',
@@ -409,11 +409,11 @@ describe "Draw! app" do
       before(:each) do
         get "/#{action}"
       end
-      
+
       it "should respond" do
         last_response.should be_ok
       end
-      
+
       it "should render #{action} template" do
         last_response.body.should match /#{content}/
       end
@@ -430,6 +430,7 @@ describe "Draw! app" do
 
       @client.stub!(:selection).and_return(@selection)
       @selection.stub!(:me).and_return(@me)
+      @me.stub!(:with_fields).and_return(@me)
       @me.stub!(:info!).and_return(@info)
       @info.stub!(:data).and_return(@data)
       @data.stub!(:id).and_return("123")
@@ -487,24 +488,24 @@ describe "Draw! app" do
       end
     end
   end
-  
+
   describe "DELETE /drawings/123.png" do
     before(:each) do
       @id = "123.png"
     end
-    
+
     describe "guest user" do
       before(:each) do
         @user = nil
         delete '/drawings/123.png'
       end
-      
+
       it "should redirect to '/drawings/123.png'" do
         last_response.should be_redirect
         last_response.header['Location'].should match /\/drawings\/123\.png/
       end
     end
-    
+
     describe "authenticated user" do
       before(:each) do
         @user_id = "user:xxx"
@@ -527,7 +528,7 @@ describe "Draw! app" do
           last_response.should match /not found/
         end
       end
-      
+
       describe "drawing found" do
         describe "unauthorized user" do
           before(:each) do
@@ -535,7 +536,7 @@ describe "Draw! app" do
             Drawing.should_receive(:find).with(@id, :shallow => true).and_return(@drawing)
             delete '/drawings/123.png'
           end
-          
+
           it "should respond 403" do
             last_response.status.should == 403
           end
@@ -544,7 +545,7 @@ describe "Draw! app" do
             last_response.should match /Access forbidden/
           end
         end
-        
+
         describe "authorized user" do
           before(:each) do
             @drawing = {'user' => @user}
@@ -552,7 +553,7 @@ describe "Draw! app" do
             Drawing.should_receive(:destroy).with(@id, @user['uid'])
             delete '/drawings/123.png'
           end
-          
+
           it "should redirect to '/'" do
             last_response.should be_redirect
             last_response.header['Location'].should match /\//

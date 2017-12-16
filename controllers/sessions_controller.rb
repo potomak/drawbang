@@ -44,7 +44,7 @@ class SessionsController
 
     begin
       client = FBGraph::Client.new(:client_id => FACEBOOK['app_id'], :secret_id => FACEBOOK['app_secret'], :token => params[:token])
-      me = client.selection.me.info!
+      me = client.selection.me.with_fields('first_name', 'last_name').info!
 
       raise RuntimeError if params[:uid] != me.data.id
 
@@ -68,7 +68,7 @@ class SessionsController
 
     @current_user = User.new(user).save
     @drawings = Drawing.all(:user_id => me.data.id, :page => 0, :per_page => PER_PAGE, :host => request.host)
-    
+
     {
       :uid        => @current_user[:uid],
       :first_name => @current_user[:user_info][:first_name],
