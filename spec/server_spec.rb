@@ -430,6 +430,7 @@ describe "Draw! app" do
 
       @client.stub!(:selection).and_return(@selection)
       @selection.stub!(:me).and_return(@me)
+      @me.stub!(:with_fields).and_return(@me)
       @me.stub!(:info!).and_return(@info)
       @info.stub!(:data).and_return(@data)
       @data.stub!(:id).and_return("123")

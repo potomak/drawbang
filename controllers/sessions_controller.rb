@@ -44,7 +44,7 @@ class SessionsController
 
     begin
       client = FBGraph::Client.new(:client_id => FACEBOOK['app_id'], :secret_id => FACEBOOK['app_secret'], :token => params[:token])
-      me = client.selection.me.info!
+      me = client.selection.me.with_fields('first_name', 'last_name').info!
 
       raise RuntimeError if params[:uid] != me.data.id
 
