@@ -1,8 +1,16 @@
-/public/images/drawings/*.png
-/public/images/drawings/*.gif
-/config/facebook.yml
-/config/twitter.yml
-/config/redis_backup.conf
-/db/*.rdb
-/log/*.log
+node_modules/
+dist/
+.vite/
+.cache/
+.env
+.env.*
+!.env.example
+*.log
 .DS_Store
+
+# Fixtures
+fixtures/*.gif
+fixtures/*.json
+
+# Builder output (generated from inbox)
+builder/out/

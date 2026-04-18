@@ -1,0 +1,94 @@
+:root {
+  --bg: #111;
+  --fg: #eee;
+  --panel: #1a1a1a;
+  --border: #333;
+  --accent: #ff55ff;
+}
+
+* { box-sizing: border-box; }
+body {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  background: var(--bg);
+  color: var(--fg);
+  margin: 0;
+  padding: 1rem;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+header h1 { margin: 0; letter-spacing: 0.1em; }
+header a { color: var(--fg); text-decoration: none; border-bottom: 1px dashed var(--fg); }
+
+main {
+  display: grid;
+  grid-template-columns: auto 220px 220px;
+  gap: 1.5rem;
+}
+
+.stage { display: flex; flex-direction: column; gap: 0.75rem; }
+#main {
+  background: #000;
+  image-rendering: pixelated;
+  width: 384px;
+  height: 384px;
+  border: 1px solid var(--border);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.tools { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+button {
+  font: inherit;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+}
+button.on, button:hover { border-color: var(--accent); }
+
+.palette { display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; }
+.swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border);
+}
+.swatch.selected { outline: 2px solid var(--accent); }
+
+.frames { background: var(--panel); padding: 0.75rem; border: 1px solid var(--border); }
+.frames h2 { margin-top: 0; font-size: 0.9rem; }
+#frameList { display: flex; flex-direction: column; gap: 0.25rem; }
+.frame {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.frame.selected { border-color: var(--accent); }
+.frame canvas {
+  image-rendering: pixelated;
+  background: #000;
+  width: 64px;
+  height: 64px;
+}
+
+.publish { background: var(--panel); padding: 0.75rem; border: 1px solid var(--border); }
+.publish button { display: block; width: 100%; margin-bottom: 0.35rem; }
+#status { font-size: 0.8rem; color: #aaa; min-height: 2em; word-break: break-all; }
+
+dialog {
+  background: var(--panel);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  padding: 1rem;
+}
+#baseGrid { display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; }
+.base-cell { width: 18px; height: 18px; padding: 0; border: 1px solid #000; }

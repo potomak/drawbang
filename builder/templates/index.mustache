@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>drawbang</title>
+    <link rel="stylesheet" href="/static/gallery.css" />
+  </head>
+  <body>
+    <header>
+      <h1>drawbang</h1>
+      <nav>
+        <a href="/editor">draw</a>
+      </nav>
+    </header>
+    <main>
+      <h2>latest — {{today}}</h2>
+      <ul class="grid">
+        {{#drawings}}
+          <li>
+            <a href="/d/{{id}}">
+              <img src="/drawings/{{id}}.gif" alt="drawing {{id_short}}" width="128" height="128" loading="lazy" />
+            </a>
+          </li>
+        {{/drawings}}
+      </ul>
+      <h2>archive</h2>
+      <ul class="archive">
+        {{#days}}
+          <li><a href="/days/{{date}}/p/1">{{date}}</a> · {{count}} drawings</li>
+        {{/days}}
+      </ul>
+    </main>
+  </body>
+</html>

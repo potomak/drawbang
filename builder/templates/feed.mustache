@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>drawbang</title>
+    <link>{{base_url}}/</link>
+    <description>Latest pixel art from drawbang</description>
+    <lastBuildDate>{{build_date}}</lastBuildDate>
+    {{#drawings}}
+    <item>
+      <title>{{id_short}}</title>
+      <link>{{base_url}}/d/{{id}}</link>
+      <guid isPermaLink="true">{{base_url}}/d/{{id}}</guid>
+      <pubDate>{{pub_date}}</pubDate>
+      <description><![CDATA[<img src="{{base_url}}/drawings/{{id}}.gif" width="128" height="128" style="image-rendering:pixelated" />]]></description>
+    </item>
+    {{/drawings}}
+  </channel>
+</rss>

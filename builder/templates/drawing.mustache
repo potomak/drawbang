@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>drawbang · {{id_short}}</title>
+    <link rel="stylesheet" href="/static/gallery.css" />
+    <meta property="og:image" content="/drawings/{{id}}.gif" />
+  </head>
+  <body>
+    <header>
+      <h1><a href="/">drawbang</a></h1>
+    </header>
+    <main class="drawing-page">
+      <img src="/drawings/{{id}}.gif" alt="drawing {{id_short}}" width="320" height="320" />
+      <dl>
+        <dt>id</dt><dd><code>{{id}}</code></dd>
+        <dt>minted</dt><dd>{{created_at}}</dd>
+        <dt>proof of work</dt><dd>{{required_bits}} bits in {{solve_ms}}ms ({{bench_hps}} hps)</dd>
+        {{#parent}}<dt>parent</dt><dd><a href="/d/{{parent}}">{{parent_short}}</a></dd>{{/parent}}
+      </dl>
+      <p>
+        <a href="/?fork={{id}}">fork this drawing</a>
+      </p>
+    </main>
+  </body>
+</html>

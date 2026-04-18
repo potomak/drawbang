@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>drawbang · {{date}} · page {{page}}</title>
+    <link rel="stylesheet" href="/static/gallery.css" />
+  </head>
+  <body>
+    <header>
+      <h1><a href="/">drawbang</a></h1>
+      <nav><a href="/days/{{date}}/p/1">{{date}}</a></nav>
+    </header>
+    <main>
+      <h2>{{date}} — page {{page}} of {{total_pages}}</h2>
+      <ul class="grid">
+        {{#drawings}}
+          <li>
+            <a href="/d/{{id}}">
+              <img src="/drawings/{{id}}.gif" alt="drawing {{id_short}}" width="128" height="128" loading="lazy" />
+            </a>
+          </li>
+        {{/drawings}}
+      </ul>
+      <nav class="pager">
+        {{#prev_page}}<a href="/days/{{date}}/p/{{prev_page}}">← prev</a>{{/prev_page}}
+        {{#next_page}}<a href="/days/{{date}}/p/{{next_page}}">next →</a>{{/next_page}}
+      </nav>
+    </main>
+  </body>
+</html>
