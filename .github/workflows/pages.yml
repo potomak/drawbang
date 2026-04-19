@@ -2,7 +2,7 @@ name: demo (github pages)
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   workflow_dispatch:
 
 # Pages publishes the editor as a standalone demo. Publish-to-gallery is
