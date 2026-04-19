@@ -24,12 +24,12 @@ test("powHash is deterministic across equivalent inputs", async () => {
 });
 
 test("requiredBits picks the right bracket", () => {
-  assert.equal(requiredBits(5), 28);
-  assert.equal(requiredBits(30), 26);
-  assert.equal(requiredBits(90), 24);
-  assert.equal(requiredBits(1200), 22);
-  assert.equal(requiredBits(7200), 20);
-  assert.equal(requiredBits(Number.POSITIVE_INFINITY), 20);
+  assert.equal(requiredBits(5), 24);
+  assert.equal(requiredBits(30), 22);
+  assert.equal(requiredBits(90), 20);
+  assert.equal(requiredBits(1200), 18);
+  assert.equal(requiredBits(7200), 16);
+  assert.equal(requiredBits(Number.POSITIVE_INFINITY), 16);
 });
 
 test("solve finds a nonce at a low difficulty and the hash matches", async () => {
