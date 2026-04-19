@@ -28,6 +28,7 @@ const PREVIEW_PIXEL_SIZE = 4;
 
 const INGEST_URL = import.meta.env.VITE_INGEST_URL ?? "/ingest";
 const STATE_URL = import.meta.env.VITE_STATE_URL ?? "/state/last-publish.json";
+const DRAWING_BASE_URL = import.meta.env.VITE_DRAWING_BASE_URL ?? "";
 
 // -- Editor state -----------------------------------------------------------
 
@@ -384,7 +385,7 @@ async function boot(): Promise<void> {
 
   if (forkId) {
     try {
-      const res = await fetch(`/drawings/${forkId}.gif`);
+      const res = await fetch(`${DRAWING_BASE_URL}/drawings/${forkId}.gif`);
       if (!res.ok) throw new Error(`fork fetch failed: ${res.status}`);
       const buf = new Uint8Array(await res.arrayBuffer());
       const decoded = decodeGif(buf);

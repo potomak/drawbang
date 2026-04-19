@@ -14,3 +14,10 @@ fixtures/*.json
 
 # Builder output (generated from inbox)
 builder/out/
+
+# Wrangler / Cloudflare
+.wrangler/
+.dev.vars
+
+# Local FS storage when running ingest:dev
+dev-bucket/

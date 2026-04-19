@@ -1,21 +1,17 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import Mustache from "mustache";
 import { PER_PAGE } from "../config/constants.js";
-import { FsStorage } from "../ingest/storage.js";
 import type { Storage } from "../ingest/storage.js";
 import { validateGif } from "../ingest/gif-validate.js";
 import { hashHex, leadingZeroBits, powHash } from "../src/pow.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TEMPLATE_DIR = path.join(__dirname, "templates");
 
 export interface BuildOptions {
   storage: Storage;
   today?: string; // YYYY-MM-DD, defaults to real today
   publicBaseUrl: string;
   logger?: (msg: string) => void;
+  // Mustache template strings. The Node CLI loads them from disk; the
+  // Cloudflare Worker inlines them at bundle time.
+  templates?: Templates;
 }
 
 interface DrawingMetadata {
@@ -42,7 +38,7 @@ export async function build(opts: BuildOptions): Promise<{
 }> {
   const log = opts.logger ?? (() => {});
   const today = opts.today ?? new Date().toISOString().slice(0, 10);
-  const templates = await loadTemplates();
+  const templates = opts.templates ?? (await loadTemplatesFromFs());
 
   const inboxPrefixes = await opts.storage.listPrefix("inbox");
   const days = inboxPrefixes
@@ -62,7 +58,7 @@ export async function build(opts: BuildOptions): Promise<{
     const drawings: DrawingMetadata[] = [];
 
     for (const gifKey of gifs) {
-      const id = path.basename(gifKey, ".gif");
+      const id = gifKey.split("/").pop()!.replace(/\.gif$/, "");
       const metaKey = gifKey.replace(/\.gif$/, ".json");
       const gifBytes = await opts.storage.getBytes(gifKey);
       const meta = await opts.storage.getJSON<DrawingMetadata & { nonce: string; baseline: string }>(metaKey);
@@ -144,19 +140,26 @@ export async function build(opts: BuildOptions): Promise<{
   return { sweptDrawings: sweptCount, touchedDays };
 }
 
-interface Templates {
+export interface Templates {
   dayGallery: string;
   drawing: string;
   index: string;
   feed: string;
 }
 
-async function loadTemplates(): Promise<Templates> {
+// Lazy-imported so this file stays Worker-friendly. The Worker passes
+// `opts.templates` and never enters this branch.
+async function loadTemplatesFromFs(): Promise<Templates> {
+  const { promises: fs } = await import("node:fs");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const dir = path.join(here, "templates");
   return {
-    dayGallery: await fs.readFile(path.join(TEMPLATE_DIR, "day-gallery.mustache"), "utf8"),
-    drawing: await fs.readFile(path.join(TEMPLATE_DIR, "drawing.mustache"), "utf8"),
-    index: await fs.readFile(path.join(TEMPLATE_DIR, "index.mustache"), "utf8"),
-    feed: await fs.readFile(path.join(TEMPLATE_DIR, "feed.mustache"), "utf8"),
+    dayGallery: await fs.readFile(path.join(dir, "day-gallery.mustache"), "utf8"),
+    drawing: await fs.readFile(path.join(dir, "drawing.mustache"), "utf8"),
+    index: await fs.readFile(path.join(dir, "index.mustache"), "utf8"),
+    feed: await fs.readFile(path.join(dir, "feed.mustache"), "utf8"),
   };
 }
 
@@ -236,6 +239,8 @@ async function rebuildRolling(
 // --- CLI entrypoint --------------------------------------------------------
 
 async function cli(): Promise<void> {
+  const path = await import("node:path");
+  const { FsStorage } = await import("../ingest/storage.js");
   const root = process.env.DRAWBANG_BUCKET ?? path.join(process.cwd(), "dev-bucket");
   const publicBaseUrl = process.env.DRAWBANG_PUBLIC_BASE ?? "http://localhost:5173";
   const today = process.env.DRAWBANG_TODAY;
@@ -249,7 +254,10 @@ async function cli(): Promise<void> {
   console.log(`swept ${result.sweptDrawings} drawings, touched days: ${result.touchedDays.join(", ") || "(none)"}`);
 }
 
-const invokedFromCli = import.meta.url === `file://${process.argv[1]}`;
+const invokedFromCli =
+  typeof process !== "undefined" &&
+  Array.isArray(process.argv) &&
+  import.meta.url === `file://${process.argv[1]}`;
 if (invokedFromCli) {
   void cli();
 }

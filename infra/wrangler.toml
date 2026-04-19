@@ -1,0 +1,41 @@
+# Cloudflare Worker for the drawbang ingest endpoint and the daily builder
+# cron. Both run from the same Worker so they share R2 bindings, types, and
+# the rolling baseline-history grace window.
+
+name = "drawbang-ingest"
+main = "../ingest/worker.ts"
+compatibility_date = "2025-09-01"
+
+# Lets us `import tpl from "*.mustache"` and get the file's text. Wrangler
+# inlines the template strings into the bundle.
+rules = [
+  { type = "Text", globs = ["**/*.mustache"], fallthrough = true },
+]
+
+# Bind the same R2 bucket the builder writes to. Override per-environment
+# below if you want a separate dev bucket.
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "drawbang"
+
+# Daily builder run at 06:00 UTC. Tune as needed; the builder is idempotent
+# and incremental so running more often is harmless.
+[triggers]
+crons = ["0 6 * * *"]
+
+# Public-facing values exposed to the Worker. PUBLIC_BASE_URL is what shows
+# up in the share_url returned to the editor; ALLOWED_ORIGIN gates CORS.
+[vars]
+PUBLIC_BASE_URL = "https://drawbang.example"
+ALLOWED_ORIGIN = "*"
+
+# --- Environment overrides -------------------------------------------------
+
+[env.staging]
+name = "drawbang-ingest-staging"
+[[env.staging.r2_buckets]]
+binding = "BUCKET"
+bucket_name = "drawbang-staging"
+[env.staging.vars]
+PUBLIC_BASE_URL = "https://staging.drawbang.example"
+ALLOWED_ORIGIN = "*"
