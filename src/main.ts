@@ -49,6 +49,7 @@ let strokeDirty = false;
 let playing = false;
 let playTimer: ReturnType<typeof setInterval> | null = null;
 let frameBeforePlay = 0;
+let clipboard: Bitmap | null = null;
 const history = new History();
 let localId: string | null = null;
 const PLAY_DELAY_MS = 200;
@@ -94,7 +95,8 @@ app.innerHTML = /* html */ `
       <div id="frameList"></div>
       <div class="frame-actions">
         <button data-action="add-frame" class="text-btn" title="add frame">+ frame</button>
-        <button data-action="duplicate-frame" class="text-btn" title="duplicate current frame">duplicate</button>
+        <button data-action="copy-frame" class="text-btn" title="copy current frame">copy</button>
+        <button data-action="paste-frame" class="text-btn" title="paste into current frame">paste</button>
         <button data-action="play" class="text-btn" id="playBtn" title="play animation">▶ play</button>
       </div>
     </section>
@@ -264,14 +266,24 @@ function addFrame(): void {
   persist();
 }
 
-function duplicateFrame(): void {
+function copyFrame(): void {
+  clipboard = frames[currentFrame].clone();
+  flashStatus(`copied frame ${currentFrame + 1}`);
+}
+
+function pasteFrame(): void {
   stopPlay();
-  if (frames.length >= MAX_FRAMES) {
-    flashStatus(`max ${MAX_FRAMES} frames`);
+  if (!clipboard) {
+    flashStatus("nothing to paste — copy a frame first");
     return;
   }
-  frames.splice(currentFrame + 1, 0, frames[currentFrame].clone());
-  currentFrame += 1;
+  const before = frames[currentFrame].clone();
+  const frameIdx = currentFrame;
+  frames[currentFrame] = clipboard.clone();
+  history.push(() => {
+    frames[frameIdx] = before;
+    render();
+  });
   render();
   persist();
 }
@@ -459,7 +471,8 @@ document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>
       case "shift-right": handleTransform(shiftRight); break;
       case "shift-up": handleTransform(shiftUp); break;
       case "add-frame": addFrame(); break;
-      case "duplicate-frame": duplicateFrame(); break;
+      case "copy-frame": copyFrame(); break;
+      case "paste-frame": pasteFrame(); break;
       case "play": togglePlay(); break;
       case "edit-color": openPickerForSlot(selectedSlot); break;
       case "export-gif": stopPlay(); downloadGif(); break;
