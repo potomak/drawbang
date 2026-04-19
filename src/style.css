@@ -54,9 +54,23 @@ button {
   padding: 0.3rem 0.6rem;
   cursor: pointer;
 }
-button.on { border-color: var(--accent); }
+button.on { border-color: var(--accent); color: var(--accent); }
 @media (hover: hover) {
   button:hover { border-color: var(--accent); }
+}
+
+.icon-btn {
+  padding: 0.4rem;
+  line-height: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn svg { display: block; }
+
+.publish button svg {
+  vertical-align: middle;
+  margin-right: 0.35rem;
 }
 
 .palette { display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; }

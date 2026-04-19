@@ -22,6 +22,7 @@ import {
 import { decodeShare, encodeShare } from "./share.js";
 import * as local from "./local.js";
 import { submit } from "./submit.js";
+import { ICONS } from "./icons.js";
 
 const MAIN_PIXEL_SIZE = 24;
 const PREVIEW_PIXEL_SIZE = 4;
@@ -61,28 +62,28 @@ app.innerHTML = /* html */ `
     <section class="stage">
       <canvas id="main" aria-label="drawing canvas"></canvas>
       <div class="tools">
-        <button data-tool="pixel" class="on">pencil</button>
-        <button data-tool="erase">erase</button>
-        <button data-tool="fill">fill</button>
-        <button data-action="undo">undo</button>
-        <button data-action="clear">clear</button>
-        <button data-action="flip-h">flip h</button>
-        <button data-action="flip-v">flip v</button>
-        <button data-action="rotate">rotate</button>
-        <button data-action="shift-right">shift →</button>
-        <button data-action="shift-up">shift ↑</button>
+        <button data-tool="pixel" class="on icon-btn" title="pencil" aria-label="pencil">${ICONS.pencil}</button>
+        <button data-tool="erase" class="icon-btn" title="erase" aria-label="erase">${ICONS.erase}</button>
+        <button data-tool="fill" class="icon-btn" title="fill" aria-label="fill">${ICONS.fill}</button>
+        <button data-action="undo" class="icon-btn" title="undo" aria-label="undo">${ICONS.undo}</button>
+        <button data-action="clear" class="icon-btn" title="clear" aria-label="clear">${ICONS.clear}</button>
+        <button data-action="flip-h" class="icon-btn" title="flip horizontal" aria-label="flip horizontal">${ICONS["flip-h"]}</button>
+        <button data-action="flip-v" class="icon-btn" title="flip vertical" aria-label="flip vertical">${ICONS["flip-v"]}</button>
+        <button data-action="rotate" class="icon-btn" title="rotate" aria-label="rotate">${ICONS.rotate}</button>
+        <button data-action="shift-right" class="icon-btn" title="shift right" aria-label="shift right">${ICONS["shift-right"]}</button>
+        <button data-action="shift-up" class="icon-btn" title="shift up" aria-label="shift up">${ICONS["shift-up"]}</button>
       </div>
       <div id="palette" class="palette" role="toolbar" aria-label="active palette"></div>
     </section>
     <section class="frames">
       <h2>frames</h2>
       <div id="frameList"></div>
-      <button data-action="add-frame">+ frame</button>
+      <button data-action="add-frame" class="icon-btn" title="add frame" aria-label="add frame">${ICONS["add-frame"]}</button>
     </section>
     <section class="publish">
-      <button data-action="export-gif">download gif</button>
-      <button data-action="share">copy share link</button>
-      ${PUBLISH_DISABLED ? "" : `<button data-action="publish">publish to gallery</button>`}
+      <button data-action="export-gif">${ICONS.download} download gif</button>
+      <button data-action="share">${ICONS.share} copy share link</button>
+      ${PUBLISH_DISABLED ? "" : `<button data-action="publish">${ICONS.publish} publish to gallery</button>`}
       <p id="status">${PUBLISH_DISABLED ? "demo mode — draw, export a gif, or copy a share link" : ""}</p>
     </section>
   </main>
