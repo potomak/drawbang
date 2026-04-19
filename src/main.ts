@@ -360,23 +360,23 @@ function pointerToPixel(ev: PointerEvent): { x: number; y: number } {
 }
 
 mainCanvasEl.addEventListener("pointerdown", (ev) => {
-  mainCanvasEl.setPointerCapture(ev.pointerId);
+  ev.preventDefault();
   painting = true;
   beginStroke();
   const { x, y } = pointerToPixel(ev);
   applyTool(x, y);
 });
-mainCanvasEl.addEventListener("pointermove", (ev) => {
+window.addEventListener("pointermove", (ev) => {
   if (!painting) return;
   const { x, y } = pointerToPixel(ev);
   applyTool(x, y);
 });
-mainCanvasEl.addEventListener("pointerup", () => {
+window.addEventListener("pointerup", () => {
   if (!painting) return;
   painting = false;
   endStroke();
 });
-mainCanvasEl.addEventListener("pointercancel", () => {
+window.addEventListener("pointercancel", () => {
   if (!painting) return;
   painting = false;
   endStroke();

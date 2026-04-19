@@ -19,7 +19,9 @@ body {
   margin: 0;
   padding: 1rem;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
+button, .swatch, .frame { touch-action: manipulation; }
 
 header {
   display: flex;
