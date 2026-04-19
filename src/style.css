@@ -6,20 +6,19 @@
   --accent: #ff55ff;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
 body {
   font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
   background: var(--bg);
   color: var(--fg);
   margin: 0;
   padding: 1rem;
-  -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
-}
-button, .swatch, .frame, .tools, .palette, #frameList {
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
 }
 
 header {
@@ -78,17 +77,39 @@ button.on { border-color: var(--accent); color: var(--accent); }
   button:hover { border-color: var(--accent); }
 }
 
-.icon-btn {
+.sprite-btn {
+  --cell: 40px;
+  width: var(--cell);
+  height: var(--cell);
   padding: 0;
-  width: 44px;
-  height: 44px;
-  line-height: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  background-image: url("./assets/tools_sprite.png");
+  background-repeat: no-repeat;
+  background-size: calc(2 * var(--cell)) calc(13 * var(--cell));
+  background-color: var(--panel);
+  image-rendering: pixelated;
+  filter: invert(1);
+  background-position-x: 0;
 }
-.icon-btn svg { display: block; width: 28px; height: 28px; }
-.publish button svg { width: 16px; height: 16px; }
+.sprite-btn.on {
+  background-position-x: calc(-1 * var(--cell));
+  border-color: var(--accent);
+}
+
+.sprite-pencil      { background-position-y: calc(0 * var(--cell)); }
+.sprite-fill        { background-position-y: calc(-1 * var(--cell)); }
+.sprite-erase       { background-position-y: calc(-2 * var(--cell)); }
+.sprite-shift-up    { background-position-y: calc(-3 * var(--cell)); }
+.sprite-shift-right { background-position-y: calc(-4 * var(--cell)); }
+.sprite-flip-v      { background-position-y: calc(-5 * var(--cell)); }
+.sprite-flip-h      { background-position-y: calc(-6 * var(--cell)); }
+.sprite-rotate      { background-position-y: calc(-9 * var(--cell)); }
+.sprite-undo        { background-position-y: calc(-12 * var(--cell)); }
+
+.text-btn {
+  min-width: 40px;
+  height: 40px;
+  padding: 0 0.6rem;
+}
 
 .publish button svg {
   vertical-align: middle;
@@ -148,7 +169,7 @@ dialog {
     gap: 1rem;
   }
   .stage { align-items: center; }
-  .palette { width: 100%; }
+  .palette { width: 100%; grid-template-columns: repeat(8, 1fr); }
   .swatch { width: 100%; height: auto; aspect-ratio: 1 / 1; min-width: 0; }
   .frames #frameList {
     flex-direction: row;
@@ -156,6 +177,6 @@ dialog {
   }
   .frames .frame canvas { width: 48px; height: 48px; }
   .tools { justify-content: center; gap: 0.5rem; }
-  .icon-btn { width: 48px; height: 48px; }
-  .icon-btn svg { width: 32px; height: 32px; }
+  .sprite-btn { --cell: 48px; }
+  .text-btn { height: 48px; }
 }

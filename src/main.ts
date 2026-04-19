@@ -22,7 +22,6 @@ import {
 import { decodeShare, encodeShare } from "./share.js";
 import * as local from "./local.js";
 import { submit } from "./submit.js";
-import { ICONS } from "./icons.js";
 
 const MAIN_PIXEL_SIZE = 24;
 const PREVIEW_PIXEL_SIZE = 4;
@@ -65,22 +64,22 @@ app.innerHTML = /* html */ `
       <canvas id="main" aria-label="drawing canvas"></canvas>
       <div class="tools">
         <div class="tool-group">
-          <button data-tool="pixel" class="on icon-btn" title="pencil" aria-label="pencil">${ICONS.pencil}</button>
-          <button data-tool="erase" class="icon-btn" title="erase" aria-label="erase">${ICONS.erase}</button>
-          <button data-tool="fill" class="icon-btn" title="fill" aria-label="fill">${ICONS.fill}</button>
+          <button data-tool="pixel" class="on sprite-btn sprite-pencil" title="pencil" aria-label="pencil"></button>
+          <button data-tool="erase" class="sprite-btn sprite-erase" title="erase" aria-label="erase"></button>
+          <button data-tool="fill" class="sprite-btn sprite-fill" title="fill" aria-label="fill"></button>
         </div>
         <div class="tool-group">
-          <button data-action="undo" class="icon-btn" title="undo" aria-label="undo">${ICONS.undo}</button>
-          <button data-action="clear" class="icon-btn" title="clear" aria-label="clear">${ICONS.clear}</button>
+          <button data-action="undo" class="sprite-btn sprite-undo" title="undo" aria-label="undo"></button>
+          <button data-action="clear" class="text-btn" title="clear" aria-label="clear">clear</button>
         </div>
         <div class="tool-group">
-          <button data-action="flip-h" class="icon-btn" title="flip horizontal" aria-label="flip horizontal">${ICONS["flip-h"]}</button>
-          <button data-action="flip-v" class="icon-btn" title="flip vertical" aria-label="flip vertical">${ICONS["flip-v"]}</button>
-          <button data-action="rotate" class="icon-btn" title="rotate" aria-label="rotate">${ICONS.rotate}</button>
+          <button data-action="flip-h" class="sprite-btn sprite-flip-h" title="flip horizontal" aria-label="flip horizontal"></button>
+          <button data-action="flip-v" class="sprite-btn sprite-flip-v" title="flip vertical" aria-label="flip vertical"></button>
+          <button data-action="rotate" class="sprite-btn sprite-rotate" title="rotate" aria-label="rotate"></button>
         </div>
         <div class="tool-group">
-          <button data-action="shift-right" class="icon-btn" title="shift right" aria-label="shift right">${ICONS["shift-right"]}</button>
-          <button data-action="shift-up" class="icon-btn" title="shift up" aria-label="shift up">${ICONS["shift-up"]}</button>
+          <button data-action="shift-right" class="sprite-btn sprite-shift-right" title="shift right" aria-label="shift right"></button>
+          <button data-action="shift-up" class="sprite-btn sprite-shift-up" title="shift up" aria-label="shift up"></button>
         </div>
       </div>
       <div id="palette" class="palette" role="toolbar" aria-label="active palette"></div>
@@ -88,12 +87,12 @@ app.innerHTML = /* html */ `
     <section class="frames">
       <h2>frames</h2>
       <div id="frameList"></div>
-      <button data-action="add-frame" class="icon-btn" title="add frame" aria-label="add frame">${ICONS["add-frame"]}</button>
+      <button data-action="add-frame" class="text-btn" title="add frame" aria-label="add frame">+ frame</button>
     </section>
     <section class="publish">
-      <button data-action="export-gif">${ICONS.download} download gif</button>
-      <button data-action="share">${ICONS.share} copy share link</button>
-      ${PUBLISH_DISABLED ? "" : `<button data-action="publish">${ICONS.publish} publish to gallery</button>`}
+      <button data-action="export-gif">download gif</button>
+      <button data-action="share">copy share link</button>
+      ${PUBLISH_DISABLED ? "" : `<button data-action="publish">publish to gallery</button>`}
       <p id="status">${PUBLISH_DISABLED ? "demo mode — draw, export a gif, or copy a share link" : ""}</p>
     </section>
   </main>
