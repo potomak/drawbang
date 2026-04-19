@@ -16,7 +16,6 @@ import {
   activePaletteToRgb,
 } from "./editor/palette.js";
 import {
-  clearAll,
   drawPixel,
   fillArea,
   flipHorizontal,
@@ -305,6 +304,16 @@ function deleteCurrentFrame(): void {
   persist();
 }
 
+function clearAllFrames(): void {
+  if (!confirm("Clear everything? All frames and undo history will be lost.")) return;
+  stopPlay();
+  state.frames = [new Bitmap()];
+  state.current = 0;
+  history.clear();
+  render();
+  persist();
+}
+
 function togglePlay(): void {
   if (playing) stopPlay();
   else startPlay();
@@ -327,8 +336,15 @@ function startPlay(): void {
   updatePlayButton();
   playTimer = setInterval(() => {
     state.current = (state.current + 1) % state.frames.length;
-    render();
+    renderPlayTick();
   }, PLAY_DELAY_MS);
+}
+
+function renderPlayTick(): void {
+  mainCanvas.draw(state.frames[state.current], activePaletteToRgb(activePalette));
+  frameListEl.querySelectorAll<HTMLElement>(".frame").forEach((w, i) => {
+    w.classList.toggle("selected", i === state.current);
+  });
 }
 
 function stopPlay(): void {
@@ -483,7 +499,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>
   b.addEventListener("click", () => {
     switch (b.dataset.action) {
       case "undo": history.undo(); render(); break;
-      case "clear": handleTransform(clearAll); break;
+      case "clear": clearAllFrames(); break;
       case "flip-h": handleTransform(flipHorizontal); break;
       case "flip-v": handleTransform(flipVertical); break;
       case "rotate": handleTransform(rotateLeft); break;
