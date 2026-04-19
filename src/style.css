@@ -38,6 +38,8 @@ main {
   image-rendering: pixelated;
   width: 384px;
   height: 384px;
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
   border: 1px solid var(--border);
   cursor: crosshair;
   touch-action: none;
@@ -52,7 +54,10 @@ button {
   padding: 0.3rem 0.6rem;
   cursor: pointer;
 }
-button.on, button:hover { border-color: var(--accent); }
+button.on { border-color: var(--accent); }
+@media (hover: hover) {
+  button:hover { border-color: var(--accent); }
+}
 
 .palette { display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; }
 .swatch {
@@ -89,6 +94,31 @@ dialog {
   color: var(--fg);
   border: 1px solid var(--border);
   padding: 1rem;
+  max-width: 95vw;
 }
 #baseGrid { display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; }
-.base-cell { width: 18px; height: 18px; padding: 0; border: 1px solid #000; }
+.base-cell {
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid #000;
+}
+
+@media (max-width: 720px) {
+  body { padding: 0.5rem; }
+  main {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .stage { align-items: center; }
+  .palette { width: 100%; }
+  .swatch { width: 100%; height: auto; aspect-ratio: 1 / 1; min-width: 0; }
+  .frames #frameList {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .frames .frame canvas { width: 48px; height: 48px; }
+  .tools { justify-content: center; }
+  button { padding: 0.5rem 0.75rem; }
+}
