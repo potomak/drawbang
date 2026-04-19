@@ -1,8 +1,14 @@
-import { HEIGHT, MAX_FRAMES, WIDTH } from "../config/constants.js";
+import { MAX_FRAMES } from "../config/constants.js";
 import { Bitmap, TRANSPARENT } from "./editor/bitmap.js";
 import { PixelCanvas } from "./editor/canvas.js";
 import { decodeGif, encodeGif } from "./editor/gif.js";
 import { History } from "./editor/history.js";
+import {
+  addFrame as addFrameOp,
+  pasteIntoCurrent,
+  removeCurrentFrame,
+  type FrameState,
+} from "./editor/frames.js";
 import {
   BASE_PALETTE,
   DEFAULT_ACTIVE_PALETTE,
@@ -38,9 +44,8 @@ function truthy(v: string | undefined): boolean {
 
 // -- Editor state -----------------------------------------------------------
 
-let frames: Bitmap[] = [new Bitmap(WIDTH, HEIGHT)];
+const state: FrameState = { frames: [new Bitmap()], current: 0 };
 let activePalette: Uint8Array = new Uint8Array(DEFAULT_ACTIVE_PALETTE);
-let currentFrame = 0;
 let selectedSlot = 1; // start on the second active slot (first is usually black)
 let tool: "pixel" | "erase" | "fill" = "pixel";
 let painting = false;
@@ -132,7 +137,7 @@ const baseGridEl = document.getElementById("baseGrid")!;
 // -- Rendering --------------------------------------------------------------
 
 function render(): void {
-  mainCanvas.draw(frames[currentFrame], activePaletteToRgb(activePalette));
+  mainCanvas.draw(state.frames[state.current], activePaletteToRgb(activePalette));
   renderFrameStrip();
   renderPalette();
 }
@@ -163,9 +168,9 @@ function renderPalette(): void {
 function renderFrameStrip(): void {
   frameListEl.innerHTML = "";
   const palette = activePaletteToRgb(activePalette);
-  frames.forEach((frame, idx) => {
+  state.frames.forEach((frame, idx) => {
     const wrap = document.createElement("div");
-    wrap.className = "frame" + (idx === currentFrame ? " selected" : "");
+    wrap.className = "frame" + (idx === state.current ? " selected" : "");
     const cv = document.createElement("canvas");
     const preview = new PixelCanvas(cv, {
       pixelSize: PREVIEW_PIXEL_SIZE,
@@ -179,7 +184,7 @@ function renderFrameStrip(): void {
     wrap.appendChild(label);
     wrap.addEventListener("click", () => {
       stopPlay();
-      currentFrame = idx;
+      state.current = idx;
       render();
     });
     frameListEl.appendChild(wrap);
@@ -196,14 +201,15 @@ function setActiveTool(next: "pixel" | "erase" | "fill"): void {
 }
 
 function applyTool(x: number, y: number): void {
-  const b = frames[currentFrame];
+  const frameIdx = state.current;
+  const b = state.frames[frameIdx];
   const value = tool === "erase" ? TRANSPARENT : selectedSlot;
   if (tool === "fill") {
     const before = fillArea(b, x, y, value);
     if (before) {
-      const snapshot = before;
       history.push(() => {
-        frames[currentFrame] = snapshot;
+        state.frames[frameIdx] = before;
+        state.current = Math.min(frameIdx, state.frames.length - 1);
         render();
       });
       strokeDirty = true;
@@ -216,16 +222,17 @@ function applyTool(x: number, y: number): void {
 }
 
 function beginStroke(): void {
-  strokeSnapshot = frames[currentFrame].clone();
+  strokeSnapshot = state.frames[state.current].clone();
   strokeDirty = false;
 }
 
 function endStroke(): void {
   if (strokeDirty && strokeSnapshot && tool !== "fill") {
     const snapshot = strokeSnapshot;
-    const frameIdx = currentFrame;
+    const frameIdx = state.current;
     history.push(() => {
-      frames[frameIdx] = snapshot;
+      state.frames[frameIdx] = snapshot;
+      state.current = Math.min(frameIdx, state.frames.length - 1);
       render();
     });
   }
@@ -236,10 +243,12 @@ function endStroke(): void {
 
 function handleTransform(f: (b: Bitmap) => void): void {
   stopPlay();
-  const before = frames[currentFrame].clone();
-  f(frames[currentFrame]);
+  const frameIdx = state.current;
+  const before = state.frames[frameIdx].clone();
+  f(state.frames[frameIdx]);
   history.push(() => {
-    frames[currentFrame] = before;
+    state.frames[frameIdx] = before;
+    state.current = Math.min(frameIdx, state.frames.length - 1);
     render();
   });
   render();
@@ -248,19 +257,22 @@ function handleTransform(f: (b: Bitmap) => void): void {
 
 function addFrame(): void {
   stopPlay();
-  if (frames.length >= MAX_FRAMES) {
+  const undo = addFrameOp(state, MAX_FRAMES);
+  if (!undo) {
     flashStatus(`max ${MAX_FRAMES} frames`);
     return;
   }
-  frames.push(new Bitmap(WIDTH, HEIGHT));
-  currentFrame = frames.length - 1;
+  history.push(() => {
+    undo();
+    render();
+  });
   render();
   persist();
 }
 
 function copyFrame(): void {
-  clipboard = frames[currentFrame].clone();
-  flashStatus(`copied frame ${currentFrame + 1}`);
+  clipboard = state.frames[state.current].clone();
+  flashStatus(`copied frame ${state.current + 1}`);
 }
 
 function pasteFrame(): void {
@@ -269,11 +281,9 @@ function pasteFrame(): void {
     flashStatus("nothing to paste — copy a frame first");
     return;
   }
-  const before = frames[currentFrame].clone();
-  const frameIdx = currentFrame;
-  frames[currentFrame] = clipboard.clone();
+  const undo = pasteIntoCurrent(state, clipboard);
   history.push(() => {
-    frames[frameIdx] = before;
+    undo();
     render();
   });
   render();
@@ -282,12 +292,15 @@ function pasteFrame(): void {
 
 function deleteCurrentFrame(): void {
   stopPlay();
-  if (frames.length === 1) {
+  const undo = removeCurrentFrame(state);
+  if (!undo) {
     flashStatus("can't delete the only frame");
     return;
   }
-  frames.splice(currentFrame, 1);
-  currentFrame = Math.min(currentFrame, frames.length - 1);
+  history.push(() => {
+    undo();
+    render();
+  });
   render();
   persist();
 }
@@ -299,7 +312,7 @@ function togglePlay(): void {
 
 function startPlay(): void {
   if (playing) return;
-  if (frames.length < 2) {
+  if (state.frames.length < 2) {
     flashStatus("add a second frame to play");
     return;
   }
@@ -308,12 +321,12 @@ function startPlay(): void {
     playTimer = null;
   }
   playing = true;
-  frameBeforePlay = currentFrame;
-  currentFrame = 0;
+  frameBeforePlay = state.current;
+  state.current = 0;
   render();
   updatePlayButton();
   playTimer = setInterval(() => {
-    currentFrame = (currentFrame + 1) % frames.length;
+    state.current = (state.current + 1) % state.frames.length;
     render();
   }, PLAY_DELAY_MS);
 }
@@ -325,7 +338,7 @@ function stopPlay(): void {
   }
   if (!playing) return;
   playing = false;
-  currentFrame = Math.min(frameBeforePlay, frames.length - 1);
+  state.current = Math.min(frameBeforePlay, state.frames.length - 1);
   render();
   updatePlayButton();
 }
@@ -370,7 +383,7 @@ function openPickerForSlot(slot: number): void {
 // -- Publishing / export ----------------------------------------------------
 
 async function handlePublish(): Promise<void> {
-  const gif = encodeGif({ frames, activePalette });
+  const gif = encodeGif({ frames: state.frames, activePalette });
   setStatus("starting proof of work…");
   try {
     const result = await submit({
@@ -387,7 +400,7 @@ async function handlePublish(): Promise<void> {
     if (localId) {
       await local.save({
         id: localId,
-        frames,
+        frames: state.frames,
         activePalette,
         publishedId: result.id,
       });
@@ -398,7 +411,7 @@ async function handlePublish(): Promise<void> {
 }
 
 function downloadGif(): void {
-  const bytes = encodeGif({ frames, activePalette });
+  const bytes = encodeGif({ frames: state.frames, activePalette });
   const copy = new Uint8Array(bytes);
   const blob = new Blob([copy as unknown as BlobPart], { type: "image/gif" });
   const url = URL.createObjectURL(blob);
@@ -410,7 +423,7 @@ function downloadGif(): void {
 }
 
 function copyShareLink(): void {
-  const hash = encodeShare({ frames, activePalette });
+  const hash = encodeShare({ frames: state.frames, activePalette });
   const url = `${location.origin}${location.pathname}#d=${hash}`;
   navigator.clipboard?.writeText(url);
   setStatus(`share link copied (${hash.length} chars)`);
@@ -429,7 +442,7 @@ function flashStatus(msg: string): void {
 
 function persist(): void {
   if (!localId) localId = local.uuid();
-  local.save({ id: localId, frames, activePalette }).catch(() => {});
+  local.save({ id: localId, frames: state.frames, activePalette }).catch(() => {});
 }
 
 // -- Events -----------------------------------------------------------------
@@ -512,18 +525,18 @@ async function boot(): Promise<void> {
       if (!res.ok) throw new Error(`fork fetch failed: ${res.status}`);
       const buf = new Uint8Array(await res.arrayBuffer());
       const decoded = decodeGif(buf);
-      frames = decoded.frames;
+      state.frames = decoded.frames;
       if (decoded.activePalette) activePalette = decoded.activePalette;
-      currentFrame = 0;
+      state.current = 0;
     } catch (err) {
       setStatus(`fork failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   } else if (hash) {
     try {
       const d = decodeShare(hash);
-      frames = d.frames;
+      state.frames = d.frames;
       activePalette = d.activePalette;
-      currentFrame = 0;
+      state.current = 0;
     } catch (err) {
       setStatus(`invalid share link: ${err instanceof Error ? err.message : String(err)}`);
     }
