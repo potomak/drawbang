@@ -46,8 +46,12 @@ let tool: "pixel" | "erase" | "fill" = "pixel";
 let painting = false;
 let strokeSnapshot: Bitmap | null = null;
 let strokeDirty = false;
+let playing = false;
+let playTimer: ReturnType<typeof setInterval> | null = null;
+let frameBeforePlay = 0;
 const history = new History();
 let localId: string | null = null;
+const PLAY_DELAY_MS = 200;
 
 // -- DOM setup --------------------------------------------------------------
 
@@ -83,11 +87,16 @@ app.innerHTML = /* html */ `
         </div>
       </div>
       <div id="palette" class="palette" role="toolbar" aria-label="active palette"></div>
+      <button data-action="edit-color" class="text-btn" title="change color of selected slot">edit color</button>
     </section>
     <section class="frames">
       <h2>frames</h2>
       <div id="frameList"></div>
-      <button data-action="add-frame" class="text-btn" title="add frame" aria-label="add frame">+ frame</button>
+      <div class="frame-actions">
+        <button data-action="add-frame" class="text-btn" title="add frame">+ frame</button>
+        <button data-action="duplicate-frame" class="text-btn" title="duplicate current frame">duplicate</button>
+        <button data-action="play" class="text-btn" id="playBtn" title="play animation">▶ play</button>
+      </div>
     </section>
     <section class="publish">
       <button data-action="export-gif">download gif</button>
@@ -175,6 +184,7 @@ function renderFrameStrip(): void {
       wrap.appendChild(rm);
     }
     wrap.addEventListener("click", () => {
+      stopPlay();
       currentFrame = idx;
       render();
     });
@@ -231,6 +241,7 @@ function endStroke(): void {
 }
 
 function handleTransform(f: (b: Bitmap) => void): void {
+  stopPlay();
   const before = frames[currentFrame].clone();
   f(frames[currentFrame]);
   history.push(() => {
@@ -242,6 +253,7 @@ function handleTransform(f: (b: Bitmap) => void): void {
 }
 
 function addFrame(): void {
+  stopPlay();
   if (frames.length >= MAX_FRAMES) {
     flashStatus(`max ${MAX_FRAMES} frames`);
     return;
@@ -252,12 +264,61 @@ function addFrame(): void {
   persist();
 }
 
+function duplicateFrame(): void {
+  stopPlay();
+  if (frames.length >= MAX_FRAMES) {
+    flashStatus(`max ${MAX_FRAMES} frames`);
+    return;
+  }
+  frames.splice(currentFrame + 1, 0, frames[currentFrame].clone());
+  currentFrame += 1;
+  render();
+  persist();
+}
+
 function removeFrame(idx: number): void {
+  stopPlay();
   if (frames.length === 1) return;
   frames.splice(idx, 1);
   currentFrame = Math.min(currentFrame, frames.length - 1);
   render();
   persist();
+}
+
+function togglePlay(): void {
+  if (playing) stopPlay();
+  else startPlay();
+}
+
+function startPlay(): void {
+  if (frames.length < 2) {
+    flashStatus("add a second frame to play");
+    return;
+  }
+  playing = true;
+  frameBeforePlay = currentFrame;
+  currentFrame = 0;
+  render();
+  updatePlayButton();
+  playTimer = setInterval(() => {
+    currentFrame = (currentFrame + 1) % frames.length;
+    render();
+  }, PLAY_DELAY_MS);
+}
+
+function stopPlay(): void {
+  if (!playing) return;
+  playing = false;
+  if (playTimer !== null) clearInterval(playTimer);
+  playTimer = null;
+  currentFrame = Math.min(frameBeforePlay, frames.length - 1);
+  render();
+  updatePlayButton();
+}
+
+function updatePlayButton(): void {
+  const btn = document.getElementById("playBtn");
+  if (btn) btn.textContent = playing ? "■ stop" : "▶ play";
 }
 
 // -- Palette picker ---------------------------------------------------------
@@ -360,6 +421,7 @@ function pointerToPixel(ev: PointerEvent): { x: number; y: number } {
 }
 
 mainCanvasEl.addEventListener("pointerdown", (ev) => {
+  if (playing) return;
   ev.preventDefault();
   painting = true;
   beginStroke();
@@ -397,9 +459,12 @@ document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>
       case "shift-right": handleTransform(shiftRight); break;
       case "shift-up": handleTransform(shiftUp); break;
       case "add-frame": addFrame(); break;
-      case "export-gif": downloadGif(); break;
-      case "share": copyShareLink(); break;
-      case "publish": void handlePublish(); break;
+      case "duplicate-frame": duplicateFrame(); break;
+      case "play": togglePlay(); break;
+      case "edit-color": openPickerForSlot(selectedSlot); break;
+      case "export-gif": stopPlay(); downloadGif(); break;
+      case "share": stopPlay(); copyShareLink(); break;
+      case "publish": stopPlay(); void handlePublish(); break;
     }
   }),
 );
