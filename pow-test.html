@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Draw! — PoW test bed</title>
+    <link rel="stylesheet" href="./src/style.css" />
+    <style>
+      body { padding: 1rem; max-width: 720px; margin: 0 auto; }
+      h1 { font-size: 1.2rem; letter-spacing: 0.1em; margin: 0 0 1rem; }
+      .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.75rem; }
+      label { display: flex; gap: 0.35rem; align-items: center; }
+      input, select {
+        font: inherit; color: var(--fg); background: var(--panel);
+        border: 1px solid var(--border); padding: 0.3rem 0.5rem;
+      }
+      input[type="number"] { width: 5.5rem; }
+      table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+      th, td { border-bottom: 1px solid var(--border); padding: 0.35rem 0.5rem; text-align: left; }
+      th { color: #aaa; font-weight: normal; }
+      td.mono { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; }
+      td.hash { word-break: break-all; }
+      #status { color: #aaa; font-size: 0.85rem; min-height: 1.2em; margin: 0.5rem 0; }
+      .danger { color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <h1>PoW test bed</h1>
+    <p style="color:#aaa; font-size: 0.85rem;">
+      Solves a fake PoW challenge using <code>src/pow.ts</code> in a Web Worker.
+      Pick the difficulty in bits, optionally re-run the benchmark, and click
+      Solve. Results stack newest-first below.
+    </p>
+
+    <div class="row">
+      <label>bits
+        <input id="bits" type="number" min="1" max="40" value="20" />
+      </label>
+      <label>payload bytes
+        <input id="payload" type="number" min="0" max="65536" value="256" />
+      </label>
+      <label>baseline
+        <select id="baseline">
+          <option value="now">now (fresh)</option>
+          <option value="fixed">fixed test string</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="row">
+      <label>bench ms
+        <input id="benchMs" type="number" min="50" max="2000" value="200" />
+      </label>
+      <button id="benchBtn">run benchmark</button>
+      <button id="solveBtn">solve</button>
+      <button id="stopBtn" disabled>stop</button>
+      <button id="clearBtn">clear results</button>
+    </div>
+
+    <p id="status"></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>bits</th>
+          <th>hps</th>
+          <th>hashes</th>
+          <th>solve ms</th>
+          <th>nonce</th>
+          <th>hash</th>
+        </tr>
+      </thead>
+      <tbody id="results"></tbody>
+    </table>
+
+    <script type="module" src="./src/pow-test.ts"></script>
+  </body>
+</html>
