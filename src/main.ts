@@ -29,6 +29,12 @@ const PREVIEW_PIXEL_SIZE = 4;
 const INGEST_URL = import.meta.env.VITE_INGEST_URL ?? "/ingest";
 const STATE_URL = import.meta.env.VITE_STATE_URL ?? "/state/last-publish.json";
 const DRAWING_BASE_URL = import.meta.env.VITE_DRAWING_BASE_URL ?? "";
+const PUBLISH_DISABLED = truthy(import.meta.env.VITE_DISABLE_PUBLISH);
+
+function truthy(v: string | undefined): boolean {
+  if (!v) return false;
+  return v !== "0" && v.toLowerCase() !== "false";
+}
 
 // -- Editor state -----------------------------------------------------------
 
@@ -76,8 +82,8 @@ app.innerHTML = /* html */ `
     <section class="publish">
       <button data-action="export-gif">download gif</button>
       <button data-action="share">copy share link</button>
-      <button data-action="publish">publish to gallery</button>
-      <p id="status"></p>
+      ${PUBLISH_DISABLED ? "" : `<button data-action="publish">publish to gallery</button>`}
+      <p id="status">${PUBLISH_DISABLED ? "demo mode — draw, export a gif, or copy a share link" : ""}</p>
     </section>
   </main>
   <dialog id="palettePicker">
