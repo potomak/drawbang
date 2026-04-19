@@ -45,9 +45,12 @@ export class PixelCanvas {
     for (let y = 0; y < bitmap.height; y++) {
       for (let x = 0; x < bitmap.width; x++) {
         const v = bitmap.get(x, y);
-        if (v === TRANSPARENT) continue;
-        const [r, g, b] = palette[v];
-        this.ctx.fillStyle = `rgb(${r},${g},${b})`;
+        if (v === TRANSPARENT) {
+          this.ctx.fillStyle = (x + y) % 2 === 0 ? "#0e0e0e" : "#1c1c1c";
+        } else {
+          const [r, g, b] = palette[v];
+          this.ctx.fillStyle = `rgb(${r},${g},${b})`;
+        }
         this.ctx.fillRect(x * ps, y * ps, ps, ps);
       }
     }
