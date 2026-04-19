@@ -59,7 +59,7 @@ const PLAY_DELAY_MS = 200;
 const app = document.getElementById("app")!;
 app.innerHTML = /* html */ `
   <header>
-    <h1>drawbang</h1>
+    <h1>Draw!</h1>
     <nav>
       <a href="/">gallery</a>
     </nav>
@@ -75,7 +75,7 @@ app.innerHTML = /* html */ `
         </div>
         <div class="tool-group">
           <button data-action="undo" class="sprite-btn sprite-undo" title="undo" aria-label="undo"></button>
-          <button data-action="clear" class="text-btn" title="clear" aria-label="clear">clear</button>
+          <button data-action="clear" class="sprite-btn sprite-clear" title="clear" aria-label="clear"></button>
         </div>
         <div class="tool-group">
           <button data-action="flip-h" class="sprite-btn sprite-flip-h" title="flip horizontal" aria-label="flip horizontal"></button>
@@ -95,9 +95,10 @@ app.innerHTML = /* html */ `
       <div id="frameList"></div>
       <div class="frame-actions">
         <button data-action="add-frame" class="text-btn" title="add frame">+ frame</button>
-        <button data-action="copy-frame" class="text-btn" title="copy current frame">copy</button>
-        <button data-action="paste-frame" class="text-btn" title="paste into current frame">paste</button>
-        <button data-action="play" class="text-btn" id="playBtn" title="play animation">▶ play</button>
+        <button data-action="delete-frame" class="text-btn" title="delete current frame">− frame</button>
+        <button data-action="copy-frame" class="sprite-btn sprite-copy" title="copy current frame" aria-label="copy"></button>
+        <button data-action="paste-frame" class="sprite-btn sprite-paste" title="paste into current frame" aria-label="paste"></button>
+        <button data-action="play" class="sprite-btn sprite-play" id="playBtn" title="play animation" aria-label="play"></button>
       </div>
     </section>
     <section class="publish">
@@ -176,15 +177,6 @@ function renderFrameStrip(): void {
     const label = document.createElement("span");
     label.textContent = String(idx + 1);
     wrap.appendChild(label);
-    if (frames.length > 1) {
-      const rm = document.createElement("button");
-      rm.textContent = "×";
-      rm.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        removeFrame(idx);
-      });
-      wrap.appendChild(rm);
-    }
     wrap.addEventListener("click", () => {
       stopPlay();
       currentFrame = idx;
@@ -288,10 +280,13 @@ function pasteFrame(): void {
   persist();
 }
 
-function removeFrame(idx: number): void {
+function deleteCurrentFrame(): void {
   stopPlay();
-  if (frames.length === 1) return;
-  frames.splice(idx, 1);
+  if (frames.length === 1) {
+    flashStatus("can't delete the only frame");
+    return;
+  }
+  frames.splice(currentFrame, 1);
   currentFrame = Math.min(currentFrame, frames.length - 1);
   render();
   persist();
@@ -303,9 +298,14 @@ function togglePlay(): void {
 }
 
 function startPlay(): void {
+  if (playing) return;
   if (frames.length < 2) {
     flashStatus("add a second frame to play");
     return;
+  }
+  if (playTimer !== null) {
+    clearInterval(playTimer);
+    playTimer = null;
   }
   playing = true;
   frameBeforePlay = currentFrame;
@@ -319,10 +319,12 @@ function startPlay(): void {
 }
 
 function stopPlay(): void {
+  if (playTimer !== null) {
+    clearInterval(playTimer);
+    playTimer = null;
+  }
   if (!playing) return;
   playing = false;
-  if (playTimer !== null) clearInterval(playTimer);
-  playTimer = null;
   currentFrame = Math.min(frameBeforePlay, frames.length - 1);
   render();
   updatePlayButton();
@@ -330,7 +332,11 @@ function stopPlay(): void {
 
 function updatePlayButton(): void {
   const btn = document.getElementById("playBtn");
-  if (btn) btn.textContent = playing ? "■ stop" : "▶ play";
+  if (!btn) return;
+  btn.classList.toggle("sprite-play", !playing);
+  btn.classList.toggle("sprite-stop", playing);
+  btn.setAttribute("aria-label", playing ? "stop" : "play");
+  btn.setAttribute("title", playing ? "stop animation" : "play animation");
 }
 
 // -- Palette picker ---------------------------------------------------------
@@ -471,6 +477,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>
       case "shift-right": handleTransform(shiftRight); break;
       case "shift-up": handleTransform(shiftUp); break;
       case "add-frame": addFrame(); break;
+      case "delete-frame": deleteCurrentFrame(); break;
       case "copy-frame": copyFrame(); break;
       case "paste-frame": pasteFrame(); break;
       case "play": togglePlay(); break;

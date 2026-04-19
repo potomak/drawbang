@@ -42,7 +42,13 @@ main {
 
 .stage { display: flex; flex-direction: column; gap: 0.75rem; }
 #main {
-  background: #000;
+  --checker-size: 48px;
+  background-color: #0e0e0e;
+  background-image:
+    linear-gradient(45deg, #1c1c1c 25%, transparent 25%, transparent 75%, #1c1c1c 75%),
+    linear-gradient(45deg, #1c1c1c 25%, transparent 25%, transparent 75%, #1c1c1c 75%);
+  background-size: var(--checker-size) var(--checker-size);
+  background-position: 0 0, calc(var(--checker-size) / 2) calc(var(--checker-size) / 2);
   image-rendering: pixelated;
   width: 384px;
   height: 384px;
@@ -104,8 +110,26 @@ button.on { border-color: var(--accent); color: var(--accent); }
 .sprite-shift-right { background-position-y: calc(-4 * var(--cell)); }
 .sprite-flip-v      { background-position-y: calc(-5 * var(--cell)); }
 .sprite-flip-h      { background-position-y: calc(-6 * var(--cell)); }
+.sprite-copy        { background-position-y: calc(-7 * var(--cell)); }
+.sprite-paste       { background-position-y: calc(-8 * var(--cell)); }
 .sprite-rotate      { background-position-y: calc(-9 * var(--cell)); }
+.sprite-clear       { background-position-y: calc(-11 * var(--cell)); }
 .sprite-undo        { background-position-y: calc(-12 * var(--cell)); }
+
+.sprite-play, .sprite-stop {
+  --cell: 40px;
+  width: var(--cell);
+  height: var(--cell);
+  padding: 0;
+  background-image: url("./assets/play_stop.png");
+  background-repeat: no-repeat;
+  background-size: var(--cell) calc(2 * var(--cell));
+  background-color: var(--panel);
+  image-rendering: pixelated;
+  filter: invert(1);
+}
+.sprite-play { background-position-y: 0; }
+.sprite-stop { background-position-y: calc(-1 * var(--cell)); }
 
 .text-btn {
   min-width: 40px;
@@ -129,21 +153,39 @@ button.on { border-color: var(--accent); color: var(--accent); }
 
 .frames { background: var(--panel); padding: 0.75rem; border: 1px solid var(--border); }
 .frames h2 { margin-top: 0; font-size: 0.9rem; }
-#frameList { display: flex; flex-direction: column; gap: 0.25rem; }
+#frameList {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
 .frame-actions { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.5rem; }
 .frame-actions .text-btn { flex: 1 1 auto; }
 .frame {
-  display: flex; align-items: center; gap: 0.5rem;
-  padding: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.2rem;
   border: 1px solid var(--border);
   cursor: pointer;
+  background: transparent;
 }
 .frame.selected { border-color: var(--accent); }
+.frame.selected span { color: var(--accent); }
+.frame span { font-size: 0.7rem; color: #888; line-height: 1; }
 .frame canvas {
+  --checker-size: 8px;
+  background-color: #0e0e0e;
+  background-image:
+    linear-gradient(45deg, #1c1c1c 25%, transparent 25%, transparent 75%, #1c1c1c 75%),
+    linear-gradient(45deg, #1c1c1c 25%, transparent 25%, transparent 75%, #1c1c1c 75%);
+  background-size: var(--checker-size) var(--checker-size);
+  background-position: 0 0, calc(var(--checker-size) / 2) calc(var(--checker-size) / 2);
   image-rendering: pixelated;
-  background: #000;
-  width: 64px;
-  height: 64px;
+  width: 48px;
+  height: 48px;
+  display: block;
 }
 
 .publish { background: var(--panel); padding: 0.75rem; border: 1px solid var(--border); }
