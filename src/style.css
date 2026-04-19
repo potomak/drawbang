@@ -13,6 +13,13 @@ body {
   color: var(--fg);
   margin: 0;
   padding: 1rem;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+button, .swatch, .frame, .tools, .palette, #frameList {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 header {
@@ -45,7 +52,19 @@ main {
   touch-action: none;
 }
 
-.tools { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+.tool-group {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+}
 button {
   font: inherit;
   color: var(--fg);
@@ -60,13 +79,16 @@ button.on { border-color: var(--accent); color: var(--accent); }
 }
 
 .icon-btn {
-  padding: 0.4rem;
+  padding: 0;
+  width: 44px;
+  height: 44px;
   line-height: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
-.icon-btn svg { display: block; }
+.icon-btn svg { display: block; width: 28px; height: 28px; }
+.publish button svg { width: 16px; height: 16px; }
 
 .publish button svg {
   vertical-align: middle;
@@ -133,6 +155,7 @@ dialog {
     flex-wrap: wrap;
   }
   .frames .frame canvas { width: 48px; height: 48px; }
-  .tools { justify-content: center; }
-  button { padding: 0.5rem 0.75rem; }
+  .tools { justify-content: center; gap: 0.5rem; }
+  .icon-btn { width: 48px; height: 48px; }
+  .icon-btn svg { width: 32px; height: 32px; }
 }

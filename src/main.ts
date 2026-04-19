@@ -45,6 +45,8 @@ let currentFrame = 0;
 let selectedSlot = 1; // start on the second active slot (first is usually black)
 let tool: "pixel" | "erase" | "fill" = "pixel";
 let painting = false;
+let strokeSnapshot: Bitmap | null = null;
+let strokeDirty = false;
 const history = new History();
 let localId: string | null = null;
 
@@ -62,16 +64,24 @@ app.innerHTML = /* html */ `
     <section class="stage">
       <canvas id="main" aria-label="drawing canvas"></canvas>
       <div class="tools">
-        <button data-tool="pixel" class="on icon-btn" title="pencil" aria-label="pencil">${ICONS.pencil}</button>
-        <button data-tool="erase" class="icon-btn" title="erase" aria-label="erase">${ICONS.erase}</button>
-        <button data-tool="fill" class="icon-btn" title="fill" aria-label="fill">${ICONS.fill}</button>
-        <button data-action="undo" class="icon-btn" title="undo" aria-label="undo">${ICONS.undo}</button>
-        <button data-action="clear" class="icon-btn" title="clear" aria-label="clear">${ICONS.clear}</button>
-        <button data-action="flip-h" class="icon-btn" title="flip horizontal" aria-label="flip horizontal">${ICONS["flip-h"]}</button>
-        <button data-action="flip-v" class="icon-btn" title="flip vertical" aria-label="flip vertical">${ICONS["flip-v"]}</button>
-        <button data-action="rotate" class="icon-btn" title="rotate" aria-label="rotate">${ICONS.rotate}</button>
-        <button data-action="shift-right" class="icon-btn" title="shift right" aria-label="shift right">${ICONS["shift-right"]}</button>
-        <button data-action="shift-up" class="icon-btn" title="shift up" aria-label="shift up">${ICONS["shift-up"]}</button>
+        <div class="tool-group">
+          <button data-tool="pixel" class="on icon-btn" title="pencil" aria-label="pencil">${ICONS.pencil}</button>
+          <button data-tool="erase" class="icon-btn" title="erase" aria-label="erase">${ICONS.erase}</button>
+          <button data-tool="fill" class="icon-btn" title="fill" aria-label="fill">${ICONS.fill}</button>
+        </div>
+        <div class="tool-group">
+          <button data-action="undo" class="icon-btn" title="undo" aria-label="undo">${ICONS.undo}</button>
+          <button data-action="clear" class="icon-btn" title="clear" aria-label="clear">${ICONS.clear}</button>
+        </div>
+        <div class="tool-group">
+          <button data-action="flip-h" class="icon-btn" title="flip horizontal" aria-label="flip horizontal">${ICONS["flip-h"]}</button>
+          <button data-action="flip-v" class="icon-btn" title="flip vertical" aria-label="flip vertical">${ICONS["flip-v"]}</button>
+          <button data-action="rotate" class="icon-btn" title="rotate" aria-label="rotate">${ICONS.rotate}</button>
+        </div>
+        <div class="tool-group">
+          <button data-action="shift-right" class="icon-btn" title="shift right" aria-label="shift right">${ICONS["shift-right"]}</button>
+          <button data-action="shift-up" class="icon-btn" title="shift up" aria-label="shift up">${ICONS["shift-up"]}</button>
+        </div>
       </div>
       <div id="palette" class="palette" role="toolbar" aria-label="active palette"></div>
     </section>
@@ -193,17 +203,31 @@ function applyTool(x: number, y: number): void {
         frames[currentFrame] = snapshot;
         render();
       });
+      strokeDirty = true;
     }
   } else {
     const prev = drawPixel(b, x, y, value);
-    if (prev !== null) {
-      history.push(() => {
-        b.set(x, y, prev);
-        render();
-      });
-    }
+    if (prev !== null) strokeDirty = true;
   }
   render();
+}
+
+function beginStroke(): void {
+  strokeSnapshot = frames[currentFrame].clone();
+  strokeDirty = false;
+}
+
+function endStroke(): void {
+  if (strokeDirty && strokeSnapshot && tool !== "fill") {
+    const snapshot = strokeSnapshot;
+    const frameIdx = currentFrame;
+    history.push(() => {
+      frames[frameIdx] = snapshot;
+      render();
+    });
+  }
+  strokeSnapshot = null;
+  strokeDirty = false;
   persist();
 }
 
@@ -339,6 +363,7 @@ function pointerToPixel(ev: PointerEvent): { x: number; y: number } {
 mainCanvasEl.addEventListener("pointerdown", (ev) => {
   mainCanvasEl.setPointerCapture(ev.pointerId);
   painting = true;
+  beginStroke();
   const { x, y } = pointerToPixel(ev);
   applyTool(x, y);
 });
@@ -348,7 +373,14 @@ mainCanvasEl.addEventListener("pointermove", (ev) => {
   applyTool(x, y);
 });
 mainCanvasEl.addEventListener("pointerup", () => {
+  if (!painting) return;
   painting = false;
+  endStroke();
+});
+mainCanvasEl.addEventListener("pointercancel", () => {
+  if (!painting) return;
+  painting = false;
+  endStroke();
 });
 
 document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach((b) =>
