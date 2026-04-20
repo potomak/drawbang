@@ -18,7 +18,7 @@ config/               Shared constants + POW difficulty table
   constants.ts        WIDTH=16, HEIGHT=16, MAX_FRAMES=16, PER_PAGE=36, etc.
   pow.json            Difficulty brackets (20..28 bits), baseline_grace_s
 
-src/                  Vite + TypeScript editor (ships to CDN / Pages)
+src/                  Vite + TypeScript editor (ships to Pages static assets)
   editor/             bitmap, canvas, tools, history, palette, gif
     palette.ts        256-color BASE_PALETTE + 16-slot active palette
     gif.ts            Encode/decode + DRAWBANG Application Extension
@@ -27,15 +27,21 @@ src/                  Vite + TypeScript editor (ships to CDN / Pages)
   share.ts            URL-hash share codec (5 bpp, 17 pixel states)
   local.ts            IndexedDB "My drawings" store
   submit.ts           Bench, solve, POST to /ingest
-  main.ts             Editor UI; reads VITE_* env vars
+  main.ts             Editor UI
 
-ingest/               Ingest endpoint (stateless, deployable to Lambda or Workers)
+functions/            Pages Functions (same-origin /ingest, /state, R2 proxy)
+  ingest.ts           POST /ingest -> handleIngest
+  state/last-publish.json.ts  GET current baseline + difficulty
+  [[path]].ts         Catchall: serves gallery HTML and gifs from R2;
+                      falls through to static assets for /, /assets/*, etc.
+
+ingest/               Shared ingest logic (used by Pages Functions + tests)
   handler.ts          Core logic: validate -> PoW check -> content-addressed write
   gif-validate.ts     GIF89a header check, 16x16, <=16 frames, DRAWBANG ext
   storage.ts          Storage interface + FsStorage (local dev + tests)
-  r2-storage.ts       R2Storage (Cloudflare Worker runtime)
+  r2-storage.ts       R2Storage (Cloudflare Worker + Pages Functions runtime)
   dev-server.ts       Node HTTP shim for `npm run ingest:dev`
-  worker.ts           Cloudflare Worker: fetch (ingest) + scheduled (builder)
+  worker.ts           Cloudflare Worker: scheduled (cron) + POST /_build
 
 builder/              Daily batch job (incremental, day-partitioned)
   build.ts            Sweeps inbox/, publishes to public/, renders HTML
@@ -43,6 +49,7 @@ builder/              Daily batch job (incremental, day-partitioned)
 
 infra/
   wrangler.toml       Cloudflare Worker config: R2 binding + cron
+wrangler.toml         Pages project config (R2 binding for functions/)
 
 test/                 node:test suites (gif, pow, share, ingest, builder)
 .github/workflows/
@@ -68,7 +75,9 @@ legacy/               Archived Ruby app; read-only reference, never imported
   `public/feed.rss`.
 - **Difficulty is computed against `req.baseline`, not current state.** Concurrent
   solvers racing on the same baseline must both succeed. The rolling
-  `baselineHistory` array (last 8 accepted baselines) bounds staleness.
+  `baselineHistory` array (last 8 accepted baselines) bounds staleness. The
+  array lives in `functions/ingest.ts` at module scope so it survives within
+  a single Pages Function isolate but is not shared across isolates.
 - **`public/state/last-publish.json`** is written only by the ingest handler,
   never by the builder. It's the single source of truth for the current
   baseline + difficulty.
@@ -93,25 +102,32 @@ finish in <2s — run them alone when iterating: `node --test --import tsx 'test
 ## Environment variables
 
 Editor (build-time, read by Vite — see `.env.example`):
-- `VITE_INGEST_URL` — Worker URL, e.g. `https://drawbang-ingest.example.workers.dev/ingest`
-- `VITE_STATE_URL` — Worker URL for the state JSON
-- `VITE_DRAWING_BASE_URL` — R2 public origin for fork gif fetches
-- `VITE_DISABLE_PUBLISH` — truthy hides the publish button (GitHub Pages demo build)
+- `VITE_INGEST_URL` — defaults to same-origin `/ingest`; override only for
+  standalone demos hosted elsewhere (e.g. the GitHub Pages preview).
+- `VITE_STATE_URL` — defaults to same-origin `/state/last-publish.json`.
+- `VITE_DRAWING_BASE_URL` — defaults to same-origin; R2 gifs are proxied
+  through Pages Functions at `/drawings/*`.
+- `VITE_DISABLE_PUBLISH` — truthy hides the publish button (GitHub Pages demo).
+
+Pages (runtime, in root `wrangler.toml` `[vars]`):
+- `PUBLIC_BASE_URL` — goes into `share_url` in the ingest response.
 
 Worker (runtime, in `infra/wrangler.toml` `[vars]`):
-- `PUBLIC_BASE_URL` — goes into `share_url` in the ingest response
-- `ALLOWED_ORIGIN` — CORS allowlist (default `*`)
+- `PUBLIC_BASE_URL` — RSS feed self-link.
+- `BUILD_SECRET` — optional; if set, `POST /_build?secret=...` runs the builder.
 
 ## Cloudflare deployment
 
-One-time setup:
-1. `wrangler r2 bucket create drawbang` and attach a public custom domain
-2. Create a Pages project named `drawbang`
-3. GitHub secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
-4. GitHub repo vars: `VITE_INGEST_URL`, `VITE_STATE_URL`, `VITE_DRAWING_BASE_URL`
-5. Update `PUBLIC_BASE_URL` in `infra/wrangler.toml`
+Same-origin layout: editor, gallery HTML, gifs, `/ingest`, and `/state`
+all serve from `drawbang.pages.dev`. The Worker only runs the daily cron.
 
-CI deploys on every push to `main` via `.github/workflows/deploy.yml`.
+One-time setup:
+1. `wrangler r2 bucket create drawbang`
+2. Create a Pages project named `drawbang` (production branch `master`)
+3. GitHub secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
+4. Update `PUBLIC_BASE_URL` in `wrangler.toml` and `infra/wrangler.toml`
+
+CI deploys on every push to `master` via `.github/workflows/deploy.yml`.
 
 ## Conventions
 

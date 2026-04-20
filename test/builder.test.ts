@@ -63,7 +63,7 @@ test("builder sweeps inbox, renders per-day pages, is incremental", async () => 
     assert.ok(await fs.stat(path.join(root, `public/d/${id}.html`)));
   }
   const dayPage = await fs.readFile(path.join(root, "public/days/2026-04-17/p/1.html"), "utf8");
-  assert.ok(dayPage.includes("drawbang"));
+  assert.ok(dayPage.includes("Draw!"));
   const indexHtml = await fs.readFile(path.join(root, "public/index.html"), "utf8");
   assert.ok(indexHtml.includes("2026-04-17"));
 

@@ -1,6 +1,6 @@
-# Cloudflare Worker for the drawbang ingest endpoint and the daily builder
-# cron. Both run from the same Worker so they share R2 bindings, types, and
-# the rolling baseline-history grace window.
+# Cloudflare Worker for the daily builder cron. Ingest and state endpoints
+# live in Pages Functions (see functions/); this Worker's only job is
+# scheduled rebuilds plus a manual POST /_build trigger.
 
 name = "drawbang-ingest"
 main = "../ingest/worker.ts"
@@ -24,11 +24,10 @@ bucket_name = "drawbang"
 [triggers]
 crons = ["0 6 * * *"]
 
-# Public-facing values exposed to the Worker. PUBLIC_BASE_URL is what shows
-# up in the share_url returned to the editor; ALLOWED_ORIGIN gates CORS.
+# PUBLIC_BASE_URL ends up in the RSS feed's self-link. Not used by /ingest
+# anymore — that's in Pages Functions.
 [vars]
 PUBLIC_BASE_URL = "https://drawbang.pages.dev"
-ALLOWED_ORIGIN = "*"
 
 # --- Environment overrides -------------------------------------------------
 
@@ -39,4 +38,3 @@ binding = "BUCKET"
 bucket_name = "drawbang-staging"
 [env.staging.vars]
 PUBLIC_BASE_URL = "https://staging.drawbang.example"
-ALLOWED_ORIGIN = "*"
