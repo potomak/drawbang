@@ -1,32 +1,54 @@
-export default `<!doctype html>
+import { esc } from "./_escape.js";
+
+export interface DayGalleryView {
+  date: string;
+  page: number;
+  total_pages: number;
+  drawings: { id: string; id_short: string }[];
+  prev_page: { prev_page: number; date: string } | null;
+  next_page: { next_page: number; date: string } | null;
+}
+
+export default function renderDayGallery(v: DayGalleryView): string {
+  const items = v.drawings
+    .map(
+      (d) => `          <li>
+            <a href="/d/${esc(d.id)}">
+              <img src="/drawings/${esc(d.id)}.gif" alt="drawing ${esc(d.id_short)}" width="128" height="128" loading="lazy" />
+            </a>
+          </li>`,
+    )
+    .join("\n");
+  const prev = v.prev_page
+    ? `<a href="/days/${esc(v.prev_page.date)}/p/${esc(v.prev_page.prev_page)}">← prev</a>`
+    : "";
+  const next = v.next_page
+    ? `<a href="/days/${esc(v.next_page.date)}/p/${esc(v.next_page.next_page)}">next →</a>`
+    : "";
+  return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Draw! · {{date}} · page {{page}}</title>
+    <title>Draw! · ${esc(v.date)} · page ${esc(v.page)}</title>
     <link rel="stylesheet" href="/gallery.css" />
   </head>
   <body>
     <header>
       <h1><a href="/">Draw!</a></h1>
-      <nav><a href="/days/{{date}}/p/1">{{date}}</a></nav>
+      <nav><a href="/days/${esc(v.date)}/p/1">${esc(v.date)}</a></nav>
     </header>
     <main>
-      <h2>{{date}} — page {{page}} of {{total_pages}}</h2>
+      <h2>${esc(v.date)} — page ${esc(v.page)} of ${esc(v.total_pages)}</h2>
       <ul class="grid">
-        {{#drawings}}
-          <li>
-            <a href="/d/{{id}}">
-              <img src="/drawings/{{id}}.gif" alt="drawing {{id_short}}" width="128" height="128" loading="lazy" />
-            </a>
-          </li>
-        {{/drawings}}
+${items}
       </ul>
       <nav class="pager">
-        {{#prev_page}}<a href="/days/{{date}}/p/{{prev_page}}">← prev</a>{{/prev_page}}
-        {{#next_page}}<a href="/days/{{date}}/p/{{next_page}}">next →</a>{{/next_page}}
+        ${prev}
+        ${next}
       </nav>
     </main>
   </body>
 </html>
 `;
+}

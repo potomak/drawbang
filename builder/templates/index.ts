@@ -1,4 +1,27 @@
-export default `<!doctype html>
+import { esc } from "./_escape.js";
+
+export interface IndexView {
+  today: string;
+  drawings: { id: string; id_short: string }[];
+  days: { date: string; count: number; pages: number }[];
+}
+
+export default function renderIndex(v: IndexView): string {
+  const items = v.drawings
+    .map(
+      (d) => `          <li>
+            <a href="/d/${esc(d.id)}">
+              <img src="/drawings/${esc(d.id)}.gif" alt="drawing ${esc(d.id_short)}" width="128" height="128" loading="lazy" />
+            </a>
+          </li>`,
+    )
+    .join("\n");
+  const archive = v.days
+    .map(
+      (d) => `        <li><a href="/days/${esc(d.date)}/p/1">${esc(d.date)}</a> · ${esc(d.count)} drawings</li>`,
+    )
+    .join("\n");
+  return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -11,23 +34,16 @@ export default `<!doctype html>
       <h1><a href="/">Draw!</a></h1>
     </header>
     <main>
-      <h2>latest — {{today}}</h2>
+      <h2>latest — ${esc(v.today)}</h2>
       <ul class="grid">
-        {{#drawings}}
-          <li>
-            <a href="/d/{{id}}">
-              <img src="/drawings/{{id}}.gif" alt="drawing {{id_short}}" width="128" height="128" loading="lazy" />
-            </a>
-          </li>
-        {{/drawings}}
+${items}
       </ul>
       <h2>archive</h2>
       <ul class="archive">
-        {{#days}}
-          <li><a href="/days/{{date}}/p/1">{{date}}</a> · {{count}} drawings</li>
-        {{/days}}
+${archive}
       </ul>
     </main>
   </body>
 </html>
 `;
+}

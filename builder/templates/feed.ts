@@ -1,19 +1,32 @@
-export default `<?xml version="1.0" encoding="UTF-8"?>
+import { esc } from "./_escape.js";
+
+export interface FeedView {
+  base_url: string;
+  build_date: string;
+  drawings: { id: string; id_short: string; pub_date: string }[];
+}
+
+export default function renderFeed(v: FeedView): string {
+  const items = v.drawings
+    .map(
+      (d) => `    <item>
+      <title>${esc(d.id_short)}</title>
+      <link>${esc(v.base_url)}/d/${esc(d.id)}</link>
+      <guid isPermaLink="true">${esc(v.base_url)}/d/${esc(d.id)}</guid>
+      <pubDate>${esc(d.pub_date)}</pubDate>
+      <description><![CDATA[<img src="${v.base_url}/drawings/${d.id}.gif" width="128" height="128" style="image-rendering:pixelated" />]]></description>
+    </item>`,
+    )
+    .join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
     <title>drawbang</title>
-    <link>{{base_url}}/</link>
+    <link>${esc(v.base_url)}/</link>
     <description>Latest pixel art from drawbang</description>
-    <lastBuildDate>{{build_date}}</lastBuildDate>
-    {{#drawings}}
-    <item>
-      <title>{{id_short}}</title>
-      <link>{{base_url}}/d/{{id}}</link>
-      <guid isPermaLink="true">{{base_url}}/d/{{id}}</guid>
-      <pubDate>{{pub_date}}</pubDate>
-      <description><![CDATA[<img src="{{base_url}}/drawings/{{id}}.gif" width="128" height="128" style="image-rendering:pixelated" />]]></description>
-    </item>
-    {{/drawings}}
+    <lastBuildDate>${esc(v.build_date)}</lastBuildDate>
+${items}
   </channel>
 </rss>
 `;
+}

@@ -1,7 +1,6 @@
-import Mustache from "mustache";
 import { INITIAL_STATE, ageSecondsBetween, hashHex, leadingZeroBits, powHash, requiredBits } from "../src/pow.js";
 import type { LastPublishState } from "../src/pow.js";
-import drawingTpl from "../builder/templates/drawing.js";
+import renderDrawing from "../builder/templates/drawing.js";
 import { validateGif } from "./gif-validate.js";
 import type { Storage } from "./storage.js";
 
@@ -136,7 +135,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     parent: req.parent ?? null,
   };
   const enc = new TextEncoder();
-  const drawingHtml = Mustache.render(drawingTpl, {
+  const drawingHtml = renderDrawing({
     id,
     id_short: id.slice(0, 8),
     created_at: nowISO,

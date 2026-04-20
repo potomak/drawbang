@@ -25,9 +25,7 @@
     "wrangler": "^4.83.0"
   },
   "dependencies": {
-    "@types/mustache": "^4.2.5",
     "gifenc": "^1.0.3",
-    "mustache": "^4.2.0",
     "omggif": "^1.0.10"
   }
 }

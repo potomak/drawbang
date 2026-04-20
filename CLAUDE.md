@@ -45,7 +45,7 @@ ingest/               Shared ingest logic (used by Pages Functions + tests)
 
 builder/              Daily batch job (incremental, day-partitioned)
   build.ts            Sweeps inbox/, publishes to public/, renders HTML
-  templates/*.mustache  Page templates (inlined into the Worker at build time)
+  templates/*.ts        Compiled render functions (tagged-literal HTML, no runtime template engine)
 
 infra/
   wrangler.toml       Cloudflare Worker config: R2 binding + cron

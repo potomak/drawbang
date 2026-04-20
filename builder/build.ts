@@ -1,12 +1,15 @@
-import Mustache from "mustache";
 import { PER_PAGE } from "../config/constants.js";
 import type { Storage } from "../ingest/storage.js";
 import { validateGif } from "../ingest/gif-validate.js";
 import { hashHex, leadingZeroBits, powHash } from "../src/pow.js";
-import dayGalleryTpl from "./templates/day-gallery.js";
-import drawingTpl from "./templates/drawing.js";
-import indexTpl from "./templates/index.js";
-import feedTpl from "./templates/feed.js";
+import renderDayGallery from "./templates/day-gallery.js";
+import renderDrawing from "./templates/drawing.js";
+import renderIndex from "./templates/index.js";
+import renderFeed from "./templates/feed.js";
+import type { DayGalleryView } from "./templates/day-gallery.js";
+import type { DrawingView } from "./templates/drawing.js";
+import type { IndexView } from "./templates/index.js";
+import type { FeedView } from "./templates/feed.js";
 
 export interface BuildOptions {
   storage: Storage;
@@ -20,10 +23,10 @@ export interface BuildOptions {
 }
 
 export const DEFAULT_TEMPLATES: Templates = {
-  dayGallery: dayGalleryTpl,
-  drawing: drawingTpl,
-  index: indexTpl,
-  feed: feedTpl,
+  dayGallery: renderDayGallery,
+  drawing: renderDrawing,
+  index: renderIndex,
+  feed: renderFeed,
 };
 
 interface DrawingMetadata {
@@ -131,7 +134,7 @@ export async function build(opts: BuildOptions): Promise<{
     // every known drawing for the day so template changes propagate.
     const drawingsToRender = opts.forceRerender ? allForDay : drawings;
     for (const d of drawingsToRender) {
-      const html = Mustache.render(templates.drawing, drawingViewModel(d));
+      const html = templates.drawing(drawingViewModel(d));
       await opts.storage.put(`public/d/${d.id}.html`, enc.encode(html), "text/html");
     }
 
@@ -140,7 +143,7 @@ export async function build(opts: BuildOptions): Promise<{
     const totalPages = Math.max(1, Math.ceil(allForDay.length / PER_PAGE));
     for (let page = 1; page <= totalPages; page++) {
       const slice = allForDay.slice((page - 1) * PER_PAGE, page * PER_PAGE);
-      const html = Mustache.render(templates.dayGallery, {
+      const html = templates.dayGallery({
         date: day,
         page,
         total_pages: totalPages,
@@ -166,13 +169,13 @@ export async function build(opts: BuildOptions): Promise<{
 }
 
 export interface Templates {
-  dayGallery: string;
-  drawing: string;
-  index: string;
-  feed: string;
+  dayGallery: (v: DayGalleryView) => string;
+  drawing: (v: DrawingView) => string;
+  index: (v: IndexView) => string;
+  feed: (v: FeedView) => string;
 }
 
-export function drawingViewModel(d: DrawingMetadata): Record<string, unknown> {
+export function drawingViewModel(d: DrawingMetadata): DrawingView {
   return {
     id: d.id,
     id_short: d.id.slice(0, 8),
@@ -217,7 +220,7 @@ async function rebuildRolling(
   todayDrawings.sort((a, b) => b.created_at.localeCompare(a.created_at));
   const latest = todayDrawings.slice(0, PER_PAGE);
 
-  const indexHtml = Mustache.render(templates.index, {
+  const indexHtml = templates.index({
     today,
     drawings: latest.map((d) => ({ id: d.id, id_short: d.id.slice(0, 8) })),
     days,
@@ -233,7 +236,7 @@ async function rebuildRolling(
     if (allRecent.length >= 200) break;
   }
   allRecent.sort((a, b) => b.created_at.localeCompare(a.created_at));
-  const feed = Mustache.render(templates.feed, {
+  const feed = templates.feed({
     base_url: opts.publicBaseUrl,
     build_date: new Date().toUTCString(),
     drawings: allRecent.slice(0, 100).map((d) => ({
