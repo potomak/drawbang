@@ -12,6 +12,9 @@ export interface BuildOptions {
   // Mustache template strings. The Node CLI loads them from disk; the
   // Cloudflare Worker inlines them at bundle time.
   templates?: Templates;
+  // Re-render every day's HTML from existing index.jsonl even if no new
+  // drawings arrived. Used after template changes.
+  forceRerender?: boolean;
 }
 
 interface DrawingMetadata {
@@ -41,10 +44,17 @@ export async function build(opts: BuildOptions): Promise<{
   const templates = opts.templates ?? (await loadTemplatesFromFs());
 
   const inboxPrefixes = await opts.storage.listPrefix("inbox");
-  const days = inboxPrefixes
-    .map((p) => p.split("/").pop()!)
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
-    .sort();
+  const inboxDays = new Set(
+    inboxPrefixes
+      .map((p) => p.split("/").pop()!)
+      .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)),
+  );
+  const existingDayDirs = opts.forceRerender
+    ? (await opts.storage.listPrefix("public/days"))
+        .map((p) => p.split("/").pop()!)
+        .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+    : [];
+  const days = [...new Set([...inboxDays, ...existingDayDirs])].sort();
 
   const touchedDays: string[] = [];
   let sweptCount = 0;
@@ -52,9 +62,9 @@ export async function build(opts: BuildOptions): Promise<{
   for (const day of days) {
     const dayFiles = await opts.storage.listPrefix(`inbox/${day}`);
     const gifs = dayFiles.filter((k) => k.endsWith(".gif"));
-    if (gifs.length === 0) continue;
+    if (gifs.length === 0 && !opts.forceRerender) continue;
 
-    log(`sweeping inbox/${day}: ${gifs.length} drawings`);
+    if (gifs.length > 0) log(`sweeping inbox/${day}: ${gifs.length} drawings`);
     const drawings: DrawingMetadata[] = [];
 
     for (const gifKey of gifs) {
@@ -95,22 +105,28 @@ export async function build(opts: BuildOptions): Promise<{
       sweptCount++;
     }
 
-    if (drawings.length === 0) continue;
+    if (drawings.length === 0 && !opts.forceRerender) continue;
 
     // Append to the day's index.jsonl (preserving any prior lines).
     const existing = (await opts.storage.getBytes(`public/days/${day}/index.jsonl`)) ?? new Uint8Array();
     let merged = dec.decode(existing);
     for (const d of drawings) merged += JSON.stringify(d) + "\n";
-    await opts.storage.put(`public/days/${day}/index.jsonl`, enc.encode(merged), "application/jsonl");
+    if (drawings.length > 0) {
+      await opts.storage.put(`public/days/${day}/index.jsonl`, enc.encode(merged), "application/jsonl");
+    }
 
-    // Render the day's per-drawing pages (these are forever-immutable).
-    for (const d of drawings) {
+    const allForDay = parseJsonl(merged);
+    if (allForDay.length === 0) continue;
+
+    // Render per-drawing pages. Normally only fresh drawings; on forceRerender,
+    // every known drawing for the day so template changes propagate.
+    const drawingsToRender = opts.forceRerender ? allForDay : drawings;
+    for (const d of drawingsToRender) {
       const html = Mustache.render(templates.drawing, drawingViewModel(d));
       await opts.storage.put(`public/d/${d.id}.html`, enc.encode(html), "text/html");
     }
 
     // Render the day's paginated gallery. Sort newest-first.
-    const allForDay = parseJsonl(merged);
     allForDay.sort((a, b) => b.created_at.localeCompare(a.created_at));
     const totalPages = Math.max(1, Math.ceil(allForDay.length / PER_PAGE));
     for (let page = 1; page <= totalPages; page++) {

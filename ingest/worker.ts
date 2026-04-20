@@ -55,7 +55,8 @@ export default {
       if (!env.BUILD_SECRET || secret !== env.BUILD_SECRET) {
         return new Response("unauthorized", { status: 401 });
       }
-      const result = await runBuild(env);
+      const force = url.searchParams.get("force") === "1";
+      const result = await runBuild(env, force);
       return jsonResponse(200, result, corsOrigin);
     }
 
@@ -82,12 +83,13 @@ export default {
   },
 };
 
-async function runBuild(env: Env): Promise<{ sweptDrawings: number; touchedDays: string[] }> {
+async function runBuild(env: Env, forceRerender = false): Promise<{ sweptDrawings: number; touchedDays: string[] }> {
   const result = await build({
     storage: new R2Storage(env.BUCKET),
     publicBaseUrl: env.PUBLIC_BASE_URL,
     templates: TEMPLATES,
     logger: (m) => console.log(m),
+    forceRerender,
   });
   console.log(
     `swept ${result.sweptDrawings} drawings, touched days: ${result.touchedDays.join(", ") || "(none)"}`,
