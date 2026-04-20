@@ -177,6 +177,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
 .publish { background: var(--panel); padding: 0.75rem; border: 1px solid var(--border); }
 .publish button { display: block; width: 100%; margin-bottom: 0.35rem; }
 #status { font-size: 0.8rem; color: #aaa; min-height: 2em; word-break: break-all; }
+#status a { color: var(--fg); -webkit-user-select: text; user-select: text; }
 
 dialog {
   background: var(--panel);

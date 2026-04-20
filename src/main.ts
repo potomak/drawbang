@@ -414,7 +414,17 @@ async function handlePublish(): Promise<void> {
         setStatus(`solving… ${p.hashes.toLocaleString()} hashes (${rate}/s)`);
       },
     });
-    setStatus(`published: ${result.share_url} (${result.required_bits} bits in ${result.solve_ms}ms)`);
+    statusEl.innerHTML = "";
+    statusEl.appendChild(document.createTextNode("published: "));
+    const link = document.createElement("a");
+    link.href = result.share_url;
+    link.textContent = result.share_url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    statusEl.appendChild(link);
+    statusEl.appendChild(
+      document.createTextNode(` (${result.required_bits} bits in ${result.solve_ms}ms)`),
+    );
     if (localId) {
       await local.save({
         id: localId,
