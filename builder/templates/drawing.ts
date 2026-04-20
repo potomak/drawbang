@@ -1,4 +1,5 @@
-<!doctype html>
+// Mustache template. Rendered with the drawingViewModel shape.
+export default `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -25,3 +26,4 @@
     </main>
   </body>
 </html>
+`;

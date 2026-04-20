@@ -7,12 +7,6 @@ main = "../ingest/worker.ts"
 compatibility_date = "2025-09-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Lets us `import tpl from "*.mustache"` and get the file's text. Wrangler
-# inlines the template strings into the bundle.
-rules = [
-  { type = "Text", globs = ["**/*.mustache"], fallthrough = true },
-]
-
 # Bind the same R2 bucket the builder writes to. Override per-environment
 # below if you want a separate dev bucket.
 [[r2_buckets]]

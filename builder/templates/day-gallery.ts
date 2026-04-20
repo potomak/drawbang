@@ -1,17 +1,18 @@
-<!doctype html>
+export default `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Draw!</title>
+    <title>Draw! · {{date}} · page {{page}}</title>
     <link rel="stylesheet" href="/gallery.css" />
   </head>
   <body>
     <header>
       <h1><a href="/">Draw!</a></h1>
+      <nav><a href="/days/{{date}}/p/1">{{date}}</a></nav>
     </header>
     <main>
-      <h2>latest — {{today}}</h2>
+      <h2>{{date}} — page {{page}} of {{total_pages}}</h2>
       <ul class="grid">
         {{#drawings}}
           <li>
@@ -21,12 +22,11 @@
           </li>
         {{/drawings}}
       </ul>
-      <h2>archive</h2>
-      <ul class="archive">
-        {{#days}}
-          <li><a href="/days/{{date}}/p/1">{{date}}</a> · {{count}} drawings</li>
-        {{/days}}
-      </ul>
+      <nav class="pager">
+        {{#prev_page}}<a href="/days/{{date}}/p/{{prev_page}}">← prev</a>{{/prev_page}}
+        {{#next_page}}<a href="/days/{{date}}/p/{{next_page}}">next →</a>{{/next_page}}
+      </nav>
     </main>
   </body>
 </html>
+`;

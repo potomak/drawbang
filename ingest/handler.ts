@@ -1,5 +1,7 @@
+import Mustache from "mustache";
 import { INITIAL_STATE, ageSecondsBetween, hashHex, leadingZeroBits, powHash, requiredBits } from "../src/pow.js";
 import type { LastPublishState } from "../src/pow.js";
+import drawingTpl from "../builder/templates/drawing.js";
 import { validateGif } from "./gif-validate.js";
 import type { Storage } from "./storage.js";
 
@@ -120,7 +122,9 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   }
 
   // -- 5. Persist ------------------------------------------------------------
-  await cfg.storage.put(gifKey, gif, "image/gif");
+  // Inbox copy keeps the builder's queue semantics (day rollup, gallery
+  // pagination). Public gif + rendered drawing page make the share URL work
+  // immediately instead of waiting for the daily cron.
   const metadata = {
     id,
     nonce: req.nonce,
@@ -131,7 +135,22 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     created_at: nowISO,
     parent: req.parent ?? null,
   };
-  await cfg.storage.put(jsonKey, new TextEncoder().encode(JSON.stringify(metadata)), "application/json");
+  const enc = new TextEncoder();
+  const drawingHtml = Mustache.render(drawingTpl, {
+    id,
+    id_short: id.slice(0, 8),
+    created_at: nowISO,
+    required_bits: bits,
+    solve_ms: req.solve_ms ?? "unknown",
+    bench_hps: req.bench_hps ?? "unknown",
+    parent: req.parent ? { parent: req.parent, parent_short: req.parent.slice(0, 8) } : null,
+  });
+  await Promise.all([
+    cfg.storage.put(gifKey, gif, "image/gif"),
+    cfg.storage.put(jsonKey, enc.encode(JSON.stringify(metadata)), "application/json"),
+    cfg.storage.put(publishedKey, gif, "image/gif"),
+    cfg.storage.put(`public/d/${id}.html`, enc.encode(drawingHtml), "text/html"),
+  ]);
 
   // -- 6. Update last-publish.json (and keep baseline history window) --------
   const newState: LastPublishState = {

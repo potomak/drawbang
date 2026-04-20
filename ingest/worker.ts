@@ -1,10 +1,10 @@
 /// <reference types="@cloudflare/workers-types" />
 import { R2Storage } from "./r2-storage.js";
 import { build } from "../builder/build.js";
-import dayGalleryTpl from "../builder/templates/day-gallery.mustache";
-import drawingTpl from "../builder/templates/drawing.mustache";
-import indexTpl from "../builder/templates/index.mustache";
-import feedTpl from "../builder/templates/feed.mustache";
+import dayGalleryTpl from "../builder/templates/day-gallery.js";
+import drawingTpl from "../builder/templates/drawing.js";
+import indexTpl from "../builder/templates/index.js";
+import feedTpl from "../builder/templates/feed.js";
 
 export interface Env {
   BUCKET: R2Bucket;

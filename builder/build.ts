@@ -3,19 +3,28 @@ import { PER_PAGE } from "../config/constants.js";
 import type { Storage } from "../ingest/storage.js";
 import { validateGif } from "../ingest/gif-validate.js";
 import { hashHex, leadingZeroBits, powHash } from "../src/pow.js";
+import dayGalleryTpl from "./templates/day-gallery.js";
+import drawingTpl from "./templates/drawing.js";
+import indexTpl from "./templates/index.js";
+import feedTpl from "./templates/feed.js";
 
 export interface BuildOptions {
   storage: Storage;
   today?: string; // YYYY-MM-DD, defaults to real today
   publicBaseUrl: string;
   logger?: (msg: string) => void;
-  // Mustache template strings. The Node CLI loads them from disk; the
-  // Cloudflare Worker inlines them at bundle time.
   templates?: Templates;
   // Re-render every day's HTML from existing index.jsonl even if no new
   // drawings arrived. Used after template changes.
   forceRerender?: boolean;
 }
+
+export const DEFAULT_TEMPLATES: Templates = {
+  dayGallery: dayGalleryTpl,
+  drawing: drawingTpl,
+  index: indexTpl,
+  feed: feedTpl,
+};
 
 interface DrawingMetadata {
   id: string;
@@ -41,7 +50,7 @@ export async function build(opts: BuildOptions): Promise<{
 }> {
   const log = opts.logger ?? (() => {});
   const today = opts.today ?? new Date().toISOString().slice(0, 10);
-  const templates = opts.templates ?? (await loadTemplatesFromFs());
+  const templates = opts.templates ?? DEFAULT_TEMPLATES;
 
   const inboxPrefixes = await opts.storage.listPrefix("inbox");
   const inboxDays = new Set(
@@ -163,31 +172,7 @@ export interface Templates {
   feed: string;
 }
 
-// Lazy-imported so this file stays Worker-friendly. The Worker passes
-// `opts.templates` and never enters this branch.
-async function loadTemplatesFromFs(): Promise<Templates> {
-  const { promises: fs } = await import("node:fs");
-  const path = await import("node:path");
-  const { fileURLToPath } = await import("node:url");
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  const dir = path.join(here, "templates");
-  return {
-    dayGallery: await fs.readFile(path.join(dir, "day-gallery.mustache"), "utf8"),
-    drawing: await fs.readFile(path.join(dir, "drawing.mustache"), "utf8"),
-    index: await fs.readFile(path.join(dir, "index.mustache"), "utf8"),
-    feed: await fs.readFile(path.join(dir, "feed.mustache"), "utf8"),
-  };
-}
-
-function parseJsonl(text: string): DrawingMetadata[] {
-  return text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => JSON.parse(line) as DrawingMetadata);
-}
-
-function drawingViewModel(d: DrawingMetadata): Record<string, unknown> {
+export function drawingViewModel(d: DrawingMetadata): Record<string, unknown> {
   return {
     id: d.id,
     id_short: d.id.slice(0, 8),
@@ -197,6 +182,14 @@ function drawingViewModel(d: DrawingMetadata): Record<string, unknown> {
     bench_hps: d.bench_hps ?? "unknown",
     parent: d.parent ? { parent: d.parent, parent_short: d.parent.slice(0, 8) } : null,
   };
+}
+
+function parseJsonl(text: string): DrawingMetadata[] {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as DrawingMetadata);
 }
 
 async function rebuildRolling(
