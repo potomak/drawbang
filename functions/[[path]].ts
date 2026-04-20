@@ -4,17 +4,17 @@ interface Env {
   BUCKET: R2Bucket;
 }
 
-// Serves everything the daily builder writes under `public/` in R2. The specific
-// /ingest and /state/last-publish.json routes take precedence; the editor's
-// static assets (dist/) also win over this catchall for `/` and `/assets/*`.
+// Serves everything the daily builder writes under `public/` in R2. Paths that
+// don't map to R2 fall through to the editor's static assets (dist/), which
+// is how `/`, `/assets/*`, etc. get served.
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const url = new URL(context.request.url);
   const pathname = url.pathname;
   const key = r2KeyFor(pathname);
-  if (!key) return new Response("not found", { status: 404 });
+  if (!key) return context.next();
 
   const obj = await context.env.BUCKET.get(key);
-  if (!obj) return new Response("not found", { status: 404 });
+  if (!obj) return context.next();
 
   const contentType = obj.httpMetadata?.contentType ?? "application/octet-stream";
   const cacheControl = pathname.startsWith("/drawings/")
