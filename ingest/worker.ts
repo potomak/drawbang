@@ -11,6 +11,7 @@ export interface Env {
   BUCKET: R2Bucket;
   PUBLIC_BASE_URL: string; // editor URL, e.g. https://drawbang.pages.dev
   ALLOWED_ORIGIN?: string; // CORS allowlist; defaults to "*"
+  BUILD_SECRET?: string; // optional; if set, POST /_build?secret=... runs the builder
 }
 
 const TEMPLATES = {
@@ -49,6 +50,15 @@ export default {
       return jsonResponse(result.status, result.body, corsOrigin);
     }
 
+    if (request.method === "POST" && url.pathname === "/_build") {
+      const secret = url.searchParams.get("secret");
+      if (!env.BUILD_SECRET || secret !== env.BUILD_SECRET) {
+        return new Response("unauthorized", { status: 401 });
+      }
+      const result = await runBuild(env);
+      return jsonResponse(200, result, corsOrigin);
+    }
+
     if (request.method === "GET" && url.pathname === "/state/last-publish.json") {
       const obj = await env.BUCKET.get("public/state/last-publish.json");
       const body = obj
@@ -72,7 +82,7 @@ export default {
   },
 };
 
-async function runBuild(env: Env): Promise<void> {
+async function runBuild(env: Env): Promise<{ sweptDrawings: number; touchedDays: string[] }> {
   const result = await build({
     storage: new R2Storage(env.BUCKET),
     publicBaseUrl: env.PUBLIC_BASE_URL,
@@ -82,6 +92,7 @@ async function runBuild(env: Env): Promise<void> {
   console.log(
     `swept ${result.sweptDrawings} drawings, touched days: ${result.touchedDays.join(", ") || "(none)"}`,
   );
+  return result;
 }
 
 function corsHeaders(origin: string): Record<string, string> {
