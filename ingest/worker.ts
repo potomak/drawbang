@@ -1,23 +1,12 @@
 /// <reference types="@cloudflare/workers-types" />
 import { R2Storage } from "./r2-storage.js";
 import { build } from "../builder/build.js";
-import dayGalleryTpl from "../builder/templates/day-gallery.js";
-import drawingTpl from "../builder/templates/drawing.js";
-import indexTpl from "../builder/templates/index.js";
-import feedTpl from "../builder/templates/feed.js";
 
 export interface Env {
   BUCKET: R2Bucket;
   PUBLIC_BASE_URL: string;
   BUILD_SECRET?: string;
 }
-
-const TEMPLATES = {
-  dayGallery: dayGalleryTpl,
-  drawing: drawingTpl,
-  index: indexTpl,
-  feed: feedTpl,
-};
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -43,7 +32,6 @@ async function runBuild(env: Env, forceRerender = false): Promise<{ sweptDrawing
   const result = await build({
     storage: new R2Storage(env.BUCKET),
     publicBaseUrl: env.PUBLIC_BASE_URL,
-    templates: TEMPLATES,
     logger: (m) => console.log(m),
     forceRerender,
   });
