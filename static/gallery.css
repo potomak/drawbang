@@ -21,6 +21,7 @@ header {
   padding-bottom: 0.5rem;
 }
 header h1 a { color: var(--fg); text-decoration: none; }
+main { margin-top: 1rem; }
 
 .grid {
   list-style: none;
