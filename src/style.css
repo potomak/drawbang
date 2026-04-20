@@ -40,7 +40,7 @@ main {
   gap: 1.5rem;
 }
 
-.stage { display: flex; flex-direction: column; gap: 0.75rem; }
+.stage { display: flex; flex-direction: column; gap: 0.75rem; align-items: flex-start; }
 #main {
   image-rendering: pixelated;
   width: 384px;
@@ -135,7 +135,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
   margin-right: 0.35rem;
 }
 
-.palette { display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; }
+.palette { display: grid; grid-template-columns: repeat(16, 22px); gap: 2px; }
 .swatch {
   width: 22px;
   height: 22px;

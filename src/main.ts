@@ -115,9 +115,11 @@ app.innerHTML = /* html */ `
   <dialog id="palettePicker">
     <p>pick a color from the 256-color base palette</p>
     <div id="baseGrid"></div>
-    <menu>
-      <button value="cancel">cancel</button>
-    </menu>
+    <form method="dialog">
+      <menu>
+        <button value="cancel">cancel</button>
+      </menu>
+    </form>
   </dialog>
 `;
 
