@@ -213,17 +213,19 @@ async function rebuildRolling(
   }
   days.sort((a, b) => b.date.localeCompare(a.date));
 
-  // Landing: latest 36 from today's page 1.
-  const todayLine =
-    (await opts.storage.getBytes(`public/days/${today}/index.jsonl`)) ?? new Uint8Array();
-  const todayDrawings = parseJsonl(dec.decode(todayLine));
-  todayDrawings.sort((a, b) => b.created_at.localeCompare(a.created_at));
-  const latest = todayDrawings.slice(0, PER_PAGE);
+  // Landing shows the most recent day that has drawings. Fall back to today
+  // so the page still renders cleanly on a brand-new bucket.
+  const latestDay = days[0]?.date ?? today;
+  const latestLine =
+    (await opts.storage.getBytes(`public/days/${latestDay}/index.jsonl`)) ?? new Uint8Array();
+  const latestDrawings = parseJsonl(dec.decode(latestLine));
+  latestDrawings.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const latest = latestDrawings.slice(0, PER_PAGE);
 
   const indexHtml = templates.index({
-    today,
+    today: latestDay,
     drawings: latest.map((d) => ({ id: d.id, id_short: d.id.slice(0, 8) })),
-    days,
+    days: days.filter((d) => d.date !== latestDay),
   });
   await opts.storage.put("public/index.html", enc.encode(indexHtml), "text/html");
 
