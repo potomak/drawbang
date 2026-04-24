@@ -1,4 +1,4 @@
-import { INITIAL_STATE, ageSecondsBetween, hashHex, leadingZeroBits, powHash, requiredBits } from "../src/pow.js";
+import { INITIAL_STATE, ageSecondsBetween, contentHash, hashHex, leadingZeroBits, powHash, requiredBits } from "../src/pow.js";
 import type { LastPublishState } from "../src/pow.js";
 import renderDrawing from "../builder/templates/drawing.js";
 import { validateGif } from "./gif-validate.js";
@@ -84,8 +84,8 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
 
   // -- 3. Compute required bits and verify PoW -------------------------------
   const bits = requiredBits(baselineAge);
-  const hash = await powHash(gif, req.baseline, req.nonce);
-  const actualBits = leadingZeroBits(hash);
+  const pow = await powHash(gif, req.baseline, req.nonce);
+  const actualBits = leadingZeroBits(pow);
   if (actualBits < bits) {
     return err400(`pow insufficient: ${actualBits} < ${bits}`);
   }
@@ -102,7 +102,10 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   }
 
   // -- 4. Content-addressed id, idempotency check ----------------------------
-  const id = hashHex(hash);
+  // id is derived from the gif bytes alone: same drawing => same id, regardless
+  // of how many times someone grinds a fresh PoW for it.
+  const id = hashHex(await contentHash(gif));
+  const powHex = hashHex(pow);
   const day = nowISO.slice(0, 10);
   const gifKey = `inbox/${day}/${id}.gif`;
   const jsonKey = `inbox/${day}/${id}.json`;
@@ -126,6 +129,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   // immediately instead of waiting for the daily cron.
   const metadata = {
     id,
+    pow: powHex,
     nonce: req.nonce,
     baseline: req.baseline,
     solve_ms: req.solve_ms ?? null,

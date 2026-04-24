@@ -1,7 +1,7 @@
 import { PER_PAGE } from "../config/constants.js";
 import type { Storage } from "../ingest/storage.js";
 import { validateGif } from "../ingest/gif-validate.js";
-import { hashHex, leadingZeroBits, powHash } from "../src/pow.js";
+import { contentHash, hashHex, leadingZeroBits, powHash } from "../src/pow.js";
 import renderDayGallery from "./templates/day-gallery.js";
 import renderDrawing from "./templates/drawing.js";
 import renderIndex from "./templates/index.js";
@@ -31,6 +31,7 @@ export const DEFAULT_TEMPLATES: Templates = {
 
 interface DrawingMetadata {
   id: string;
+  pow: string;
   created_at: string;
   required_bits: number;
   solve_ms: number | null;
@@ -89,15 +90,19 @@ export async function build(opts: BuildOptions): Promise<{
         continue;
       }
 
-      // Defense in depth: re-verify PoW before publishing to the public tree.
+      // Defense in depth: re-verify content id + PoW before publishing.
       try {
         validateGif(gifBytes);
       } catch (err) {
         log(`  reject ${id}: ${(err as Error).message}`);
         continue;
       }
-      const hash = await powHash(gifBytes, meta.baseline, meta.nonce);
-      if (leadingZeroBits(hash) < meta.required_bits || hashHex(hash) !== meta.id) {
+      if (hashHex(await contentHash(gifBytes)) !== meta.id) {
+        log(`  reject ${id}: content hash mismatch`);
+        continue;
+      }
+      const pow = await powHash(gifBytes, meta.baseline, meta.nonce);
+      if (leadingZeroBits(pow) < meta.required_bits || hashHex(pow) !== meta.pow) {
         log(`  reject ${id}: pow re-verification failed`);
         continue;
       }
@@ -105,6 +110,7 @@ export async function build(opts: BuildOptions): Promise<{
       await opts.storage.put(`public/drawings/${id}.gif`, gifBytes, "image/gif");
       drawings.push({
         id,
+        pow: meta.pow,
         created_at: meta.created_at,
         required_bits: meta.required_bits,
         solve_ms: meta.solve_ms,

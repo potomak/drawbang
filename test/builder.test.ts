@@ -6,7 +6,7 @@ import os from "node:os";
 import { Bitmap } from "../src/editor/bitmap.js";
 import { encodeGif } from "../src/editor/gif.js";
 import { DEFAULT_ACTIVE_PALETTE } from "../src/editor/palette.js";
-import { hashHex, powHash, solve } from "../src/pow.js";
+import { contentHash, hashHex, powHash, solve } from "../src/pow.js";
 import { FsStorage } from "../ingest/storage.js";
 import { build } from "../builder/build.js";
 
@@ -18,7 +18,8 @@ async function seedDrawing(root: string, day: string, marker: number): Promise<s
   const gif = encodeGif({ frames: [frame], activePalette: DEFAULT_ACTIVE_PALETTE });
   const baseline = "1970-01-01T00:00:00.000Z";
   const sol = await solve(gif, baseline, 12); // cheap for tests
-  const id = hashHex(await powHash(gif, baseline, sol.nonce));
+  const id = hashHex(await contentHash(gif));
+  const pow = hashHex(await powHash(gif, baseline, sol.nonce));
 
   const gifPath = path.join(root, "inbox", day, `${id}.gif`);
   const jsonPath = path.join(root, "inbox", day, `${id}.json`);
@@ -28,6 +29,7 @@ async function seedDrawing(root: string, day: string, marker: number): Promise<s
     jsonPath,
     JSON.stringify({
       id,
+      pow,
       nonce: sol.nonce,
       baseline,
       solve_ms: sol.solveMs,

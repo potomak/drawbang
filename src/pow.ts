@@ -65,6 +65,14 @@ export async function powHash(
   return new Uint8Array(digest);
 }
 
+// Content-addressed identity: SHA-256 of the gif bytes alone. Independent of
+// the PoW nonce/baseline so the same drawing always gets the same id.
+export async function contentHash(gif: Uint8Array): Promise<Uint8Array> {
+  if (nodeCreateHash) return nodeCreateHash(gif);
+  const digest = await crypto.subtle.digest("SHA-256", gif as BufferSource);
+  return new Uint8Array(digest);
+}
+
 function preimage(gif: Uint8Array, baseline: string, nonce: string): Uint8Array {
   const baselineBytes = enc.encode(baseline);
   const nonceBytes = enc.encode(nonce);

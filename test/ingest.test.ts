@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { Bitmap } from "../src/editor/bitmap.js";
 import { encodeGif } from "../src/editor/gif.js";
 import { DEFAULT_ACTIVE_PALETTE } from "../src/editor/palette.js";
-import { INITIAL_STATE, hashHex, leadingZeroBits, powHash, requiredBits, solve } from "../src/pow.js";
+import { INITIAL_STATE, contentHash, hashHex, leadingZeroBits, powHash, requiredBits, solve } from "../src/pow.js";
 import type { Storage } from "../ingest/storage.js";
 import { handleIngest } from "../ingest/handler.js";
 
@@ -75,11 +75,49 @@ test("ingest accepts a valid submission with virgin state", async () => {
   assert.equal(res.status, 202);
   assert.equal(res.body && "id" in res.body, true);
   const id = (res.body as { id: string }).id;
-  assert.equal(id, sol.hashHex);
+  assert.equal(id, hashHex(await contentHash(gif)));
   assert.ok(await storage.exists(`inbox/2026-04-18/${id}.gif`));
+  const meta = await storage.getJSON<{ id: string; pow: string }>(`inbox/2026-04-18/${id}.json`);
+  assert.equal(meta?.id, id);
+  assert.equal(meta?.pow, sol.hashHex);
   const state = await storage.getJSON<{ last_publish_at: string; last_difficulty_bits: number }>("public/state/last-publish.json");
   assert.equal(state?.last_publish_at, "2026-04-18T12:00:00.000Z");
   assert.equal(state?.last_difficulty_bits, 16);
+});
+
+test("ingest id is stable across different nonce/baseline for the same gif", async () => {
+  const gif = makeGif();
+  const id1 = hashHex(await contentHash(gif));
+  const id2 = hashHex(await contentHash(gif));
+  assert.equal(id1, id2);
+
+  const storage = new MemoryStorage();
+  const cfg = {
+    storage,
+    publicBaseUrl: "https://example.test",
+    now: () => new Date("2026-04-18T12:00:00.000Z"),
+  };
+
+  const baselineA = INITIAL_STATE.last_publish_at;
+  const solA = await solve(gif, baselineA, 16);
+  const first = await handleIngest(
+    { gif: Buffer.from(gif).toString("base64"), nonce: solA.nonce, baseline: baselineA, solve_ms: solA.solveMs, bench_hps: 5000 },
+    cfg,
+  );
+  assert.equal(first.status, 202);
+
+  // Second submit uses a fresh baseline (the one the first submit just set)
+  // and a brand new PoW nonce. Same gif bytes, so same id.
+  const baselineB = "2026-04-18T12:00:00.000Z";
+  const solB = await solve(gif, baselineB, 16);
+  const second = await handleIngest(
+    { gif: Buffer.from(gif).toString("base64"), nonce: solB.nonce, baseline: baselineB, solve_ms: solB.solveMs, bench_hps: 5000 },
+    { ...cfg, now: () => new Date("2026-04-18T13:00:01.000Z") },
+  );
+  assert.equal(second.status, 200, "second submit should be idempotent");
+  assert.equal((first.body as { id: string }).id, id1);
+  assert.equal((second.body as { id: string }).id, id1);
+  assert.notEqual(solA.hashHex, solB.hashHex, "sanity: PoW hashes differ");
 });
 
 test("ingest is idempotent — identical submission returns 200 with same id", async () => {
