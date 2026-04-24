@@ -23,6 +23,13 @@ Parameters:
     Type: String
     Default: https://github.com/potomak/drawbang
     Description: GitHub repo URL shown in the footer of the drawing page.
+  DrawingPageBaseUrl:
+    Type: String
+    Default: https://drawbang-assets.s3.us-east-1.amazonaws.com/public/d
+    Description: |
+      Absolute prefix for the share_url returned to the client. Points at S3
+      directly so newly-published drawings are reachable immediately (GH Pages
+      only picks them up on the next daily rebuild).
   AllowedOrigin:
     Type: String
     Default: https://potomak.github.io
@@ -84,6 +91,7 @@ Resources:
           DRAWINGS_BASE_URL: !Ref DrawingsBaseUrl
           SITE_BASE: !Ref SiteBase
           REPO_URL: !Ref RepoUrl
+          DRAWING_PAGE_BASE_URL: !Ref DrawingPageBaseUrl
           NODE_OPTIONS: "--enable-source-maps"
       Policies:
         - S3CrudPolicy:

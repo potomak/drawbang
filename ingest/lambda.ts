@@ -11,6 +11,7 @@ const publicBaseUrl = required("PUBLIC_BASE_URL");
 const drawingsBaseUrl = required("DRAWINGS_BASE_URL");
 const siteBase = required("SITE_BASE");
 const repoUrl = required("REPO_URL");
+const drawingPageBaseUrl = required("DRAWING_PAGE_BASE_URL");
 
 // Reused across invocations in a warm Lambda container. Cold start pays the
 // SDK init cost once; subsequent requests reuse the connection pool.
@@ -45,6 +46,7 @@ export async function handler(
     drawingsBaseUrl,
     siteBase,
     repoUrl,
+    drawingPageBaseUrl,
     baselineHistory,
   });
   return json(result.status, result.body);

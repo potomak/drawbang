@@ -39,6 +39,12 @@ export interface HandlerConfig {
   siteBase?: string;
   // GitHub repo URL for the footer link on the synchronous drawing page.
   repoUrl?: string;
+  // Absolute URL prefix where the drawing HTML is actually served from — used
+  // to build the share_url returned to the client. Points straight at S3
+  // because GH Pages doesn't see a newly-ingested drawing until the daily
+  // rebuild syncs it in. Defaults to `${publicBaseUrl}/d` (same-origin /
+  // Cloudflare-style catchall).
+  drawingPageBaseUrl?: string;
   now?: () => Date;
   baselineHistory?: string[]; // optional: last N baselines to accept
 }
@@ -50,6 +56,8 @@ const defaultBaselineHistory: string[] = [];
 export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Promise<IngestResult> {
   const now = cfg.now ? cfg.now() : new Date();
   const nowISO = now.toISOString();
+  const shareBase = cfg.drawingPageBaseUrl ?? `${cfg.publicBaseUrl}/d`;
+  const shareUrlFor = (id: string): string => `${shareBase}/${id}.html`;
 
   // -- 1. Parse gif from base64 and validate structure -----------------------
   let gif: Uint8Array;
@@ -124,7 +132,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
       status: 200,
       body: {
         id,
-        share_url: `${cfg.publicBaseUrl}/d/${id}`,
+        share_url: shareUrlFor(id),
         required_bits: bits,
         solve_ms: req.solve_ms ?? 0,
       },
