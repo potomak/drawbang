@@ -31,6 +31,9 @@ export type IngestResult = IngestSuccess | IngestError;
 export interface HandlerConfig {
   storage: Storage;
   publicBaseUrl: string; // e.g. https://drawbang.example
+  // Absolute origin for drawing gif URLs in the synchronous drawing page.
+  // Defaults to "/drawings" if unset.
+  drawingsBaseUrl?: string;
   now?: () => Date;
   baselineHistory?: string[]; // optional: last N baselines to accept
 }
@@ -147,6 +150,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     solve_ms: req.solve_ms ?? "unknown",
     bench_hps: req.bench_hps ?? "unknown",
     parent: req.parent ? { parent: req.parent, parent_short: req.parent.slice(0, 8) } : null,
+    drawings_base_url: cfg.drawingsBaseUrl ?? "/drawings",
   });
   await Promise.all([
     cfg.storage.put(gifKey, gif, "image/gif"),

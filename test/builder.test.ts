@@ -66,7 +66,7 @@ test("builder sweeps inbox, renders per-day pages, is incremental", async () => 
   }
   const dayPage = await fs.readFile(path.join(root, "public/days/2026-04-17/p/1.html"), "utf8");
   assert.ok(dayPage.includes("Draw!"));
-  const indexHtml = await fs.readFile(path.join(root, "public/index.html"), "utf8");
+  const indexHtml = await fs.readFile(path.join(root, "public/gallery.html"), "utf8");
   assert.ok(indexHtml.includes("2026-04-17"));
 
   // Capture mtimes before running again.
@@ -75,7 +75,7 @@ test("builder sweeps inbox, renders per-day pages, is incremental", async () => 
     "public/days/2026-04-17/p/1.html",
     "public/days/2026-04-17/manifest.json",
     "public/days/2026-04-17/index.jsonl",
-    "public/index.html",
+    "public/gallery.html",
     "public/feed.rss",
   ]) {
     const stat = await fs.stat(path.join(root, rel));
@@ -92,6 +92,6 @@ test("builder sweeps inbox, renders per-day pages, is incremental", async () => 
     const stat = await fs.stat(path.join(root, rel));
     assert.equal(stat.mtimeMs, snapshot.get(rel), `${rel} must not be rewritten`);
   }
-  const indexStat = await fs.stat(path.join(root, "public/index.html"));
-  assert.ok(indexStat.mtimeMs >= snapshot.get("public/index.html")!, "index.html is rolling");
+  const indexStat = await fs.stat(path.join(root, "public/gallery.html"));
+  assert.ok(indexStat.mtimeMs >= snapshot.get("public/gallery.html")!, "index.html is rolling");
 });

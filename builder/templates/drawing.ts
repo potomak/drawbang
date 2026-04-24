@@ -8,6 +8,7 @@ export interface DrawingView {
   solve_ms: number | string;
   bench_hps: number | string;
   parent: { parent: string; parent_short: string } | null;
+  drawings_base_url: string;
 }
 
 export default function renderDrawing(v: DrawingView): string {
@@ -21,14 +22,14 @@ export default function renderDrawing(v: DrawingView): string {
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Draw! · ${esc(v.id_short)}</title>
     <link rel="stylesheet" href="/gallery.css" />
-    <meta property="og:image" content="/drawings/${esc(v.id)}.gif" />
+    <meta property="og:image" content="${esc(v.drawings_base_url)}/${esc(v.id)}.gif" />
   </head>
   <body>
     <header>
       <h1><a href="/">Draw!</a></h1>
     </header>
     <main class="drawing-page">
-      <img src="/drawings/${esc(v.id)}.gif" alt="drawing ${esc(v.id_short)}" width="320" height="320" />
+      <img src="${esc(v.drawings_base_url)}/${esc(v.id)}.gif" alt="drawing ${esc(v.id_short)}" width="320" height="320" />
       <dl>
         <dt>id</dt><dd><code>${esc(v.id)}</code></dd>
         <dt>minted</dt><dd>${esc(v.created_at)}</dd>

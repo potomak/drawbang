@@ -4,6 +4,7 @@ export interface IndexView {
   today: string;
   drawings: { id: string; id_short: string }[];
   days: { date: string; count: number; pages: number }[];
+  drawings_base_url: string;
 }
 
 export default function renderIndex(v: IndexView): string {
@@ -11,7 +12,7 @@ export default function renderIndex(v: IndexView): string {
     .map(
       (d) => `          <li>
             <a href="/d/${esc(d.id)}">
-              <img src="/drawings/${esc(d.id)}.gif" alt="drawing ${esc(d.id_short)}" width="128" height="128" loading="lazy" />
+              <img src="${esc(v.drawings_base_url)}/${esc(d.id)}.gif" alt="drawing ${esc(d.id_short)}" width="128" height="128" loading="lazy" />
             </a>
           </li>`,
     )

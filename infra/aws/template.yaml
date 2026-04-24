@@ -11,6 +11,10 @@ Parameters:
     Type: String
     Default: https://potomak.github.io/drawbang
     Description: Origin that shows up in share URLs.
+  DrawingsBaseUrl:
+    Type: String
+    Default: https://drawbang-assets.s3.us-east-1.amazonaws.com/public/drawings
+    Description: Absolute URL where drawing gifs are served from (S3).
   AllowedOrigin:
     Type: String
     Default: https://potomak.github.io
@@ -69,6 +73,7 @@ Resources:
         Variables:
           DRAWBANG_BUCKET: !Ref AssetsBucket
           PUBLIC_BASE_URL: !Ref PublicBaseUrl
+          DRAWINGS_BASE_URL: !Ref DrawingsBaseUrl
           NODE_OPTIONS: "--enable-source-maps"
       Policies:
         - S3CrudPolicy:

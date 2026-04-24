@@ -15,9 +15,8 @@ export interface S3StorageOptions {
   clientConfig?: S3ClientConfig;
 }
 
-// S3-backed Storage. Same API surface as FsStorage and R2Storage. Also works
-// against Cloudflare R2 via its S3-compatible endpoint by passing an endpoint
-// URL + region "auto" in clientConfig.
+// S3-backed Storage. Same API surface as FsStorage. Also works against R2's
+// S3-compatible endpoint by passing endpoint + region "auto" in clientConfig.
 export class S3Storage implements Storage {
   private readonly client: S3Client;
   private readonly bucket: string;

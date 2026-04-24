@@ -7,6 +7,7 @@ export interface DayGalleryView {
   drawings: { id: string; id_short: string }[];
   prev_page: { prev_page: number; date: string } | null;
   next_page: { next_page: number; date: string } | null;
+  drawings_base_url: string;
 }
 
 export default function renderDayGallery(v: DayGalleryView): string {
@@ -14,7 +15,7 @@ export default function renderDayGallery(v: DayGalleryView): string {
     .map(
       (d) => `          <li>
             <a href="/d/${esc(d.id)}">
-              <img src="/drawings/${esc(d.id)}.gif" alt="drawing ${esc(d.id_short)}" width="128" height="128" loading="lazy" />
+              <img src="${esc(v.drawings_base_url)}/${esc(d.id)}.gif" alt="drawing ${esc(d.id_short)}" width="128" height="128" loading="lazy" />
             </a>
           </li>`,
     )

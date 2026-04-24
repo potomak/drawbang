@@ -3,11 +3,22 @@ name: deploy
 on:
   push:
     branches: [master]
+  schedule:
+    - cron: "0 6 * * *" # daily gallery rebuild
   workflow_dispatch:
 
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  BUCKET_NAME: drawbang-assets
+  INGEST_URL: https://0blf98navf.execute-api.us-east-1.amazonaws.com/ingest
+  DRAWINGS_BASE: https://drawbang-assets.s3.us-east-1.amazonaws.com/public/drawings
+  STATE_URL: https://drawbang-assets.s3.us-east-1.amazonaws.com/public/state/last-publish.json
+  PUBLIC_BASE: https://potomak.github.io/drawbang
+  VITE_BASE: /drawbang/
 
 jobs:
   test:
@@ -22,12 +33,39 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
-  deploy-editor:
+  deploy-lambda:
+    needs: test
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run lambda:build
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: sam deploy
+        run: sam deploy --config-file infra/aws/samconfig.toml -t infra/aws/template.yaml --no-fail-on-empty-changeset
+
+  build-and-pages:
     needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      deployments: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,33 +73,37 @@ jobs:
           node-version: "22"
           cache: "npm"
       - run: npm ci
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
       - name: Build editor
         env:
-          VITE_INGEST_URL: ${{ vars.VITE_INGEST_URL }}
-          VITE_STATE_URL: ${{ vars.VITE_STATE_URL }}
-          VITE_DRAWING_BASE_URL: ${{ vars.VITE_DRAWING_BASE_URL }}
+          VITE_INGEST_URL: ${{ env.INGEST_URL }}
+          VITE_STATE_URL: ${{ env.STATE_URL }}
+          VITE_DRAWING_BASE_URL: ${{ env.DRAWINGS_BASE }}
+          VITE_BASE: ${{ env.VITE_BASE }}
         run: npm run build
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=drawbang --branch=master
 
-  deploy-worker:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Run gallery builder against S3
+        env:
+          DRAWBANG_S3_BUCKET: ${{ env.BUCKET_NAME }}
+          DRAWBANG_PUBLIC_BASE: ${{ env.PUBLIC_BASE }}
+          DRAWBANG_DRAWINGS_BASE: ${{ env.DRAWINGS_BASE }}
+        run: npm run builder
+
+      - name: Sync gallery HTML into Pages artifact
+        run: |
+          aws s3 sync s3://${{ env.BUCKET_NAME }}/public/ dist/ \
+            --exclude "drawings/*" \
+            --exclude "state/*" \
+            --exclude "*.jsonl"
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
         with:
-          node-version: "22"
-          cache: "npm"
-      - run: npm ci
-      - name: Deploy ingest Worker
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: infra
-          command: deploy
+          path: dist
+      - id: pages
+        uses: actions/deploy-pages@v4

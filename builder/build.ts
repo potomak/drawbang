@@ -15,6 +15,10 @@ export interface BuildOptions {
   storage: Storage;
   today?: string; // YYYY-MM-DD, defaults to real today
   publicBaseUrl: string;
+  // Absolute origin where drawing gifs are served from. With S3 as the asset
+  // bucket this is e.g. "https://drawbang-assets.s3.us-east-1.amazonaws.com/
+  // public/drawings". Falls back to same-origin "/drawings" for dev.
+  drawingsBaseUrl?: string;
   logger?: (msg: string) => void;
   templates?: Templates;
   // Re-render every day's HTML from existing index.jsonl even if no new
@@ -55,6 +59,7 @@ export async function build(opts: BuildOptions): Promise<{
   const log = opts.logger ?? (() => {});
   const today = opts.today ?? new Date().toISOString().slice(0, 10);
   const templates = opts.templates ?? DEFAULT_TEMPLATES;
+  const drawingsBaseUrl = opts.drawingsBaseUrl ?? "/drawings";
 
   const inboxPrefixes = await opts.storage.listPrefix("inbox");
   const inboxDays = new Set(
@@ -140,7 +145,7 @@ export async function build(opts: BuildOptions): Promise<{
     // every known drawing for the day so template changes propagate.
     const drawingsToRender = opts.forceRerender ? allForDay : drawings;
     for (const d of drawingsToRender) {
-      const html = templates.drawing(drawingViewModel(d));
+      const html = templates.drawing({ ...drawingViewModel(d), drawings_base_url: drawingsBaseUrl });
       await opts.storage.put(`public/d/${d.id}.html`, enc.encode(html), "text/html");
     }
 
@@ -156,6 +161,7 @@ export async function build(opts: BuildOptions): Promise<{
         drawings: slice.map((d) => ({ id: d.id, id_short: d.id.slice(0, 8) })),
         prev_page: page > 1 ? { prev_page: page - 1, date: day } : null,
         next_page: page < totalPages ? { next_page: page + 1, date: day } : null,
+        drawings_base_url: drawingsBaseUrl,
       });
       await opts.storage.put(`public/days/${day}/p/${page}.html`, enc.encode(html), "text/html");
     }
@@ -169,7 +175,7 @@ export async function build(opts: BuildOptions): Promise<{
   }
 
   // Rebuild rolling surfaces: landing page and RSS feed.
-  await rebuildRolling(opts, templates, today);
+  await rebuildRolling(opts, templates, today, drawingsBaseUrl);
 
   return { sweptDrawings: sweptCount, touchedDays };
 }
@@ -181,7 +187,7 @@ export interface Templates {
   feed: (v: FeedView) => string;
 }
 
-export function drawingViewModel(d: DrawingMetadata): DrawingView {
+export function drawingViewModel(d: DrawingMetadata): Omit<DrawingView, "drawings_base_url"> {
   return {
     id: d.id,
     id_short: d.id.slice(0, 8),
@@ -205,6 +211,7 @@ async function rebuildRolling(
   opts: BuildOptions,
   templates: Templates,
   today: string,
+  drawingsBaseUrl: string,
 ): Promise<void> {
   const days: DayRollup[] = [];
   const dayKeys = await opts.storage.listPrefix("public/days");
@@ -232,8 +239,11 @@ async function rebuildRolling(
     today: latestDay,
     drawings: latest.map((d) => ({ id: d.id, id_short: d.id.slice(0, 8) })),
     days: days.filter((d) => d.date !== latestDay),
+    drawings_base_url: drawingsBaseUrl,
   });
-  await opts.storage.put("public/index.html", enc.encode(indexHtml), "text/html");
+  // Gallery landing lives at /gallery.html to avoid colliding with the
+  // editor's index.html when everything is co-hosted on GitHub Pages.
+  await opts.storage.put("public/gallery.html", enc.encode(indexHtml), "text/html");
 
   // RSS: latest 100 across all days.
   const allRecent: DrawingMetadata[] = [];
@@ -252,6 +262,7 @@ async function rebuildRolling(
       id_short: d.id.slice(0, 8),
       pub_date: new Date(d.created_at).toUTCString(),
     })),
+    drawings_base_url: drawingsBaseUrl,
   });
   await opts.storage.put("public/feed.rss", enc.encode(feed), "application/rss+xml");
 }
@@ -260,15 +271,28 @@ async function rebuildRolling(
 
 async function cli(): Promise<void> {
   const path = await import("node:path");
-  const { FsStorage } = await import("../ingest/storage.js");
-  const root = process.env.DRAWBANG_BUCKET ?? path.join(process.cwd(), "dev-bucket");
+  const s3Bucket = process.env.DRAWBANG_S3_BUCKET;
   const publicBaseUrl = process.env.DRAWBANG_PUBLIC_BASE ?? "http://localhost:5173";
+  const drawingsBaseUrl = process.env.DRAWBANG_DRAWINGS_BASE ?? undefined;
   const today = process.env.DRAWBANG_TODAY;
-  const storage = new FsStorage(root);
+  const forceRerender = process.env.DRAWBANG_FORCE_RERENDER === "1";
+
+  let storage: Storage;
+  if (s3Bucket) {
+    const { S3Storage } = await import("../ingest/s3-storage.js");
+    storage = new S3Storage({ bucket: s3Bucket });
+  } else {
+    const { FsStorage } = await import("../ingest/storage.js");
+    const root = process.env.DRAWBANG_BUCKET ?? path.join(process.cwd(), "dev-bucket");
+    storage = new FsStorage(root);
+  }
+
   const result = await build({
     storage,
     publicBaseUrl,
+    drawingsBaseUrl,
     today,
+    forceRerender,
     logger: (m) => console.log(m),
   });
   console.log(`swept ${result.sweptDrawings} drawings, touched days: ${result.touchedDays.join(", ") || "(none)"}`);
