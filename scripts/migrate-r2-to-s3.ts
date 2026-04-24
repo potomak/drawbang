@@ -1,45 +1,47 @@
-// One-shot migration: download everything from the old R2 bucket, re-ID
-// each drawing with the new content-addressed scheme (issue #55), and
-// upload to the new S3 bucket. Only drawings + metadata are migrated —
-// the builder will regenerate all HTML afterwards.
+// One-shot migration: pull drawings from the old R2 bucket via the
+// Cloudflare REST API, re-ID each with the new content-addressed scheme
+// (issue #55), and upload to the new S3 bucket.
+//
+// The old builder consumed the inbox/*.json sidecars on sweep, so the only
+// surviving provenance is in public/days/<d>/index.jsonl. The old `id`
+// happens to equal the PoW hash — we preserve it as `pow` in the new
+// metadata. nonce/baseline are unrecoverable, so we tag them "migrated".
+//
+// We bypass the builder's inbox sweep (which would reject entries whose
+// PoW we can't re-verify) by writing directly under public/:
+//   public/drawings/<newId>.gif
+//   public/days/<d>/index.jsonl   (one line per drawing, re-built with newIds)
+//   public/days/<d>/manifest.json ({count, pages})
+// Then the next builder run with DRAWBANG_FORCE_RERENDER=1 renders all the
+// HTML pages.
 //
 // Usage:
-//   R2_ACCOUNT_ID=... R2_ACCESS_KEY_ID=... R2_SECRET_ACCESS_KEY=... \
-//   AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_DEFAULT_REGION=... \
-//   npx tsx scripts/migrate-r2-to-s3.ts
-//
-// Env:
-//   R2_*                Cloudflare R2 S3-compatible credentials (read-only ok)
-//   R2_BUCKET           Default: drawbang
-//   AWS_*               AWS credentials for the new S3 bucket
-//   S3_BUCKET           Default: drawbang-assets
-//   DRY_RUN             If "1", print what would be uploaded without writing
+//   CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... \
+//   AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_DEFAULT_REGION=us-east-1 \
+//   npx tsx scripts/migrate-r2-to-s3.ts [--dry-run]
 
-import { ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
+import { PER_PAGE } from "../config/constants.js";
 import { S3Storage } from "../ingest/s3-storage.js";
-import { contentHash, hashHex, leadingZeroBits, powHash } from "../src/pow.js";
+import { contentHash, hashHex } from "../src/pow.js";
 import { validateGif } from "../ingest/gif-validate.js";
 
-interface OldMetadata {
-  id: string; // old id = pow hash
-  nonce: string;
-  baseline: string;
+interface IndexRowIn {
+  id: string;
+  created_at: string;
+  required_bits: number;
   solve_ms: number | null;
   bench_hps: number | null;
-  required_bits: number;
-  created_at: string;
   parent: string | null;
 }
 
-interface NewMetadata {
+// Must match builder/build.ts DrawingMetadata — the builder reads this back.
+interface IndexRowOut {
   id: string;
   pow: string;
-  nonce: string;
-  baseline: string;
+  created_at: string;
+  required_bits: number;
   solve_ms: number | null;
   bench_hps: number | null;
-  required_bits: number;
-  created_at: string;
   parent: string | null;
 }
 
@@ -49,195 +51,169 @@ function required(name: string): string {
   return v;
 }
 
-const r2AccountId = required("R2_ACCOUNT_ID");
+const cfToken = required("CLOUDFLARE_API_TOKEN");
+const cfAccount = required("CLOUDFLARE_ACCOUNT_ID");
 const r2Bucket = process.env.R2_BUCKET ?? "drawbang";
 const s3Bucket = process.env.S3_BUCKET ?? "drawbang-assets";
-const dryRun = process.env.DRY_RUN === "1";
+const dryRun = process.env.DRY_RUN === "1" || process.argv.includes("--dry-run");
 
-const r2 = new S3Client({
-  region: "auto",
-  endpoint: `https://${r2AccountId}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId: required("R2_ACCESS_KEY_ID"),
-    secretAccessKey: required("R2_SECRET_ACCESS_KEY"),
-  },
-});
-const r2Storage = new S3Storage({ bucket: r2Bucket, client: r2 });
-const s3Storage = new S3Storage({ bucket: s3Bucket });
+const cfR2Base = `https://api.cloudflare.com/client/v4/accounts/${cfAccount}/r2/buckets/${r2Bucket}`;
 
-// Build parent remap table so we can translate old-id references to new ids.
-const oldToNew = new Map<string, string>();
+async function cfFetch(path: string): Promise<Response> {
+  const res = await fetch(`${cfR2Base}${path}`, {
+    headers: { Authorization: `Bearer ${cfToken}` },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`CF API ${res.status} ${res.statusText} on ${path}: ${text}`);
+  }
+  return res;
+}
 
-async function listAll(prefix: string): Promise<string[]> {
+async function r2List(): Promise<string[]> {
   const keys: string[] = [];
-  let continuationToken: string | undefined;
+  let cursor: string | undefined;
   do {
-    const page = await r2.send(
-      new ListObjectsV2Command({
-        Bucket: r2Bucket,
-        Prefix: prefix,
-        ContinuationToken: continuationToken,
-      }),
-    );
-    for (const obj of page.Contents ?? []) if (obj.Key) keys.push(obj.Key);
-    continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
-  } while (continuationToken);
+    const qs = new URLSearchParams({ per_page: "1000" });
+    if (cursor) qs.set("cursor", cursor);
+    const res = await cfFetch(`/objects?${qs}`);
+    const body = (await res.json()) as {
+      result: { key: string }[];
+      result_info?: { cursor?: string; is_truncated?: boolean };
+    };
+    for (const obj of body.result) keys.push(obj.key);
+    cursor = body.result_info?.is_truncated ? body.result_info.cursor : undefined;
+  } while (cursor);
   return keys;
 }
+
+async function r2GetBytes(key: string): Promise<Uint8Array> {
+  const res = await cfFetch(`/objects/${encodeURIComponent(key)}`);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+async function r2GetText(key: string): Promise<string> {
+  const res = await cfFetch(`/objects/${encodeURIComponent(key)}`);
+  return res.text();
+}
+
+const s3Storage = new S3Storage({ bucket: s3Bucket });
+const oldToNew = new Map<string, string>();
 
 interface Drawing {
   oldId: string;
   newId: string;
   day: string;
   gif: Uint8Array;
-  meta: NewMetadata;
-}
-
-async function loadDrawing(gifKey: string): Promise<Drawing | null> {
-  const m = gifKey.match(/^(?:inbox|public\/drawings)\/(?:(\d{4}-\d{2}-\d{2})\/)?([0-9a-f]+)\.gif$/);
-  if (!m) {
-    console.warn(`  skip: cannot parse key ${gifKey}`);
-    return null;
-  }
-  const day = m[1] ?? "unknown";
-  const oldId = m[2];
-
-  const gif = await r2Storage.getBytes(gifKey);
-  if (!gif) {
-    console.warn(`  skip ${oldId}: gif missing`);
-    return null;
-  }
-  try {
-    validateGif(gif);
-  } catch (err) {
-    console.warn(`  skip ${oldId}: invalid gif: ${(err as Error).message}`);
-    return null;
-  }
-
-  const newId = hashHex(await contentHash(gif));
-
-  // Read old metadata if we can find it (only inbox/ has .json; public/drawings/
-  // relies on index.jsonl). For a pre-launch migration we accept that some
-  // entries will only have a gif — rebuild metadata from sensible defaults.
-  let oldMeta: OldMetadata | null = null;
-  const metaKeys = [
-    gifKey.replace(/\.gif$/, ".json"),
-    `inbox/${day}/${oldId}.json`,
-  ];
-  for (const mk of metaKeys) {
-    const candidate = await r2Storage.getJSON<OldMetadata>(mk);
-    if (candidate) {
-      oldMeta = candidate;
-      break;
-    }
-  }
-
-  let meta: NewMetadata;
-  if (oldMeta) {
-    // Re-verify the PoW so we don't carry forward anything we wouldn't accept.
-    const pow = await powHash(gif, oldMeta.baseline, oldMeta.nonce);
-    if (leadingZeroBits(pow) < oldMeta.required_bits) {
-      console.warn(`  skip ${oldId}: PoW re-verification failed`);
-      return null;
-    }
-    meta = {
-      id: newId,
-      pow: hashHex(pow),
-      nonce: oldMeta.nonce,
-      baseline: oldMeta.baseline,
-      solve_ms: oldMeta.solve_ms,
-      bench_hps: oldMeta.bench_hps,
-      required_bits: oldMeta.required_bits,
-      created_at: oldMeta.created_at,
-      parent: oldMeta.parent, // patched after the first pass
-    };
-  } else {
-    console.warn(`  ${oldId}: no metadata — synthesizing minimal record`);
-    const synth_created = day === "unknown" ? new Date().toISOString() : `${day}T00:00:00.000Z`;
-    meta = {
-      id: newId,
-      pow: "migrated",
-      nonce: "migrated",
-      baseline: synth_created,
-      solve_ms: null,
-      bench_hps: null,
-      required_bits: 16,
-      created_at: synth_created,
-      parent: null,
-    };
-  }
-
-  oldToNew.set(oldId, newId);
-  return { oldId, newId, day, gif, meta };
+  out: IndexRowOut;
 }
 
 async function main(): Promise<void> {
   console.log(`r2://${r2Bucket} → s3://${s3Bucket}${dryRun ? " (DRY RUN)" : ""}`);
 
-  console.log("listing source keys…");
-  const gifKeys = [
-    ...(await listAll("inbox/")).filter((k) => k.endsWith(".gif")),
-    ...(await listAll("public/drawings/")).filter((k) => k.endsWith(".gif")),
-  ];
-  // De-dup: the same drawing often appears in both inbox/<d>/ and public/drawings/.
-  const uniqueByOldId = new Map<string, string>();
-  for (const k of gifKeys) {
-    const m = k.match(/([0-9a-f]+)\.gif$/);
-    if (!m) continue;
-    if (!uniqueByOldId.has(m[1])) uniqueByOldId.set(m[1], k);
-  }
-  console.log(`found ${uniqueByOldId.size} unique gifs across ${gifKeys.length} keys`);
+  console.log("listing R2 keys…");
+  const allKeys = await r2List();
+  const indexJsonlKeys = allKeys.filter((k) => /^public\/days\/\d{4}-\d{2}-\d{2}\/index\.jsonl$/.test(k));
+  console.log(`  ${indexJsonlKeys.length} day index files, ${allKeys.length} total keys`);
 
-  // Pass 1: load every drawing, compute new id.
+  // Pass 1: load every drawing via the per-day indexes.
   const loaded: Drawing[] = [];
-  for (const gifKey of uniqueByOldId.values()) {
-    const d = await loadDrawing(gifKey);
-    if (d) loaded.push(d);
+  for (const key of indexJsonlKeys.sort()) {
+    const day = key.match(/\/days\/(\d{4}-\d{2}-\d{2})\//)![1];
+    const text = await r2GetText(key);
+    for (const line of text.split("\n")) {
+      if (!line.trim()) continue;
+      const row = JSON.parse(line) as IndexRowIn;
+      const oldId = row.id;
+      let gif: Uint8Array;
+      try {
+        gif = await r2GetBytes(`public/drawings/${oldId}.gif`);
+      } catch (err) {
+        console.warn(`  skip ${oldId.slice(0, 8)}: ${(err as Error).message}`);
+        continue;
+      }
+      try {
+        validateGif(gif);
+      } catch (err) {
+        console.warn(`  skip ${oldId.slice(0, 8)}: invalid gif: ${(err as Error).message}`);
+        continue;
+      }
+      const newId = hashHex(await contentHash(gif));
+      oldToNew.set(oldId, newId);
+      loaded.push({
+        oldId,
+        newId,
+        day,
+        gif,
+        out: {
+          id: newId,
+          pow: oldId,
+          created_at: row.created_at,
+          required_bits: row.required_bits,
+          solve_ms: row.solve_ms,
+          bench_hps: row.bench_hps,
+          parent: row.parent,
+        },
+      });
+    }
   }
-  console.log(`loaded ${loaded.length} valid drawings`);
+  console.log(`loaded ${loaded.length} drawings`);
 
-  // Pass 2: patch parent references to use new ids.
+  // Pass 2: remap parent references.
   for (const d of loaded) {
-    if (d.meta.parent && oldToNew.has(d.meta.parent)) {
-      d.meta.parent = oldToNew.get(d.meta.parent)!;
-    } else if (d.meta.parent) {
-      console.warn(`  ${d.newId}: parent ${d.meta.parent} not found in migration; keeping as-is`);
+    if (d.out.parent && oldToNew.has(d.out.parent)) {
+      d.out.parent = oldToNew.get(d.out.parent)!;
+    } else if (d.out.parent) {
+      console.warn(`  ${d.newId.slice(0, 8)}: parent ${d.out.parent.slice(0, 8)} not in migration`);
     }
   }
 
-  // Pass 3: group by day and write fresh inbox entries + rebuild index.jsonl.
-  const byDay = new Map<string, Drawing[]>();
+  // Pass 3: detect collisions (two different old gifs hashing to the same
+  // content id — shouldn't happen, but worth knowing). Keep the earliest.
+  const byNewId = new Map<string, Drawing>();
   for (const d of loaded) {
-    const day = d.day === "unknown" ? d.meta.created_at.slice(0, 10) : d.day;
-    if (!byDay.has(day)) byDay.set(day, []);
-    byDay.get(day)!.push(d);
-  }
-
-  const enc = new TextEncoder();
-  let written = 0;
-  for (const [day, drawings] of [...byDay.entries()].sort()) {
-    console.log(`writing ${drawings.length} drawings for ${day}…`);
-    for (const d of drawings) {
-      if (dryRun) continue;
-      // Seed the inbox so the builder picks them up on its next run.
-      await s3Storage.put(`inbox/${day}/${d.newId}.gif`, d.gif, "image/gif");
-      await s3Storage.put(
-        `inbox/${day}/${d.newId}.json`,
-        enc.encode(JSON.stringify(d.meta)),
-        "application/json",
+    const prior = byNewId.get(d.newId);
+    if (prior && prior.oldId !== d.oldId) {
+      if (d.out.created_at < prior.out.created_at) byNewId.set(d.newId, d);
+      console.warn(
+        `  content-id collision: ${prior.oldId.slice(0, 8)} vs ${d.oldId.slice(0, 8)} → ${d.newId.slice(0, 8)}`,
       );
-      written++;
+    } else {
+      byNewId.set(d.newId, d);
     }
   }
+  const deduped = [...byNewId.values()];
 
-  console.log(`done: wrote ${written} drawings (${loaded.length - written} skipped via DRY_RUN)`);
-  console.log(
-    `old→new id map:\n${[...oldToNew.entries()]
-      .slice(0, 5)
-      .map(([a, b]) => `  ${a.slice(0, 8)} → ${b.slice(0, 8)}`)
-      .join("\n")}${oldToNew.size > 5 ? `\n  ... (${oldToNew.size - 5} more)` : ""}`,
-  );
-  console.log(`next: run 'npm run builder' against S3 to publish & render`);
+  // Pass 4: write drawings + rebuild each day's index.jsonl + manifest.json.
+  const enc = new TextEncoder();
+  const byDay = new Map<string, Drawing[]>();
+  for (const d of deduped) {
+    if (!byDay.has(d.day)) byDay.set(d.day, []);
+    byDay.get(d.day)!.push(d);
+  }
+
+  for (const [day, drawings] of [...byDay.entries()].sort()) {
+    drawings.sort((a, b) => a.out.created_at.localeCompare(b.out.created_at));
+    console.log(`writing ${drawings.length} drawings for ${day}…`);
+    if (dryRun) continue;
+
+    for (const d of drawings) {
+      await s3Storage.put(`public/drawings/${d.newId}.gif`, d.gif, "image/gif");
+    }
+    const jsonl = drawings.map((d) => JSON.stringify(d.out)).join("\n") + "\n";
+    await s3Storage.put(`public/days/${day}/index.jsonl`, enc.encode(jsonl), "application/jsonl");
+    const pages = Math.max(1, Math.ceil(drawings.length / PER_PAGE));
+    await s3Storage.put(
+      `public/days/${day}/manifest.json`,
+      enc.encode(JSON.stringify({ count: drawings.length, pages })),
+      "application/json",
+    );
+  }
+
+  console.log(`done: migrated ${deduped.length} drawings across ${byDay.size} days${dryRun ? " (dry run)" : ""}`);
+  if (!dryRun) {
+    console.log(`next: run the builder with DRAWBANG_FORCE_RERENDER=1 to regenerate all HTML`);
+  }
 }
 
 await main();
