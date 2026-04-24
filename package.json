@@ -13,7 +13,7 @@
     "builder": "tsx builder/build.ts",
     "ingest:dev": "tsx ingest/dev-server.ts",
     "lambda:build": "node infra/aws/build-lambda.mjs",
-    "lambda:deploy": "npm run lambda:build && sam deploy --config-file infra/aws/samconfig.toml -t infra/aws/template.yaml"
+    "lambda:deploy": "npm run lambda:build && (cd infra/aws && sam deploy)"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.161",

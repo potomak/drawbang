@@ -55,7 +55,8 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
       - name: sam deploy
-        run: sam deploy --config-file infra/aws/samconfig.toml -t infra/aws/template.yaml --no-fail-on-empty-changeset
+        working-directory: infra/aws
+        run: sam deploy --no-fail-on-empty-changeset
 
   # Build the editor + run the gallery builder against S3, then hand the
   # resulting dist/ to the github-pages environment as an artifact. Split
