@@ -112,6 +112,9 @@ app.innerHTML = /* html */ `
       <p id="status">${PUBLISH_DISABLED ? "demo mode — draw, export a gif, or copy a share link" : ""}</p>
     </section>
   </main>
+  <footer>
+    <a href="https://github.com/potomak/drawbang" target="_blank" rel="noopener">source on github</a>
+  </footer>
   <dialog id="palettePicker">
     <p>pick a color from the 256-color base palette</p>
     <div id="baseGrid"></div>
@@ -306,14 +309,19 @@ function deleteCurrentFrame(): void {
   persist();
 }
 
-function clearAllFrames(): void {
-  if (!confirm("Clear everything? All frames and undo history will be lost.")) return;
+function resetEditor(): void {
   stopPlay();
   state.frames = [new Bitmap()];
   state.current = 0;
   history.clear();
+  localId = null;
   render();
   persist();
+}
+
+function clearAllFrames(): void {
+  if (!confirm("Clear everything? All frames and undo history will be lost.")) return;
+  resetEditor();
 }
 
 function togglePlay(): void {
@@ -433,6 +441,9 @@ async function handlePublish(): Promise<void> {
         publishedId: result.id,
       });
     }
+    // Start a fresh drawing so the editor doesn't keep the just-published
+    // state around and accidentally re-mint a near-duplicate.
+    resetEditor();
   } catch (err) {
     setStatus(`publish failed: ${err instanceof Error ? err.message : String(err)}`);
   }

@@ -9,6 +9,7 @@ export interface DayGalleryView {
   next_page: { next_page: number; date: string } | null;
   drawings_base_url: string;
   site_base: string;
+  repo_url: string;
 }
 
 export default function renderDayGallery(v: DayGalleryView): string {
@@ -50,6 +51,9 @@ ${items}
         ${next}
       </nav>
     </main>
+    <footer>
+      <a href="${esc(v.repo_url)}" target="_blank" rel="noopener">source on github</a>
+    </footer>
   </body>
 </html>
 `;

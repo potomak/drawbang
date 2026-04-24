@@ -45,3 +45,12 @@ main { margin-top: 1rem; }
 .drawing-page dl { display: grid; grid-template-columns: 8rem 1fr; gap: 0.25rem 1rem; }
 .drawing-page dt { color: #888; }
 .drawing-page code { word-break: break-all; }
+
+footer {
+  margin-top: 2rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--border);
+  color: #888;
+  font-size: 0.85rem;
+}
+footer a { color: inherit; }

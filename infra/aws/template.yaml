@@ -19,6 +19,10 @@ Parameters:
     Type: String
     Default: /drawbang/
     Description: Pages-root prefix for in-site links in rendered drawing HTML.
+  RepoUrl:
+    Type: String
+    Default: https://github.com/potomak/drawbang
+    Description: GitHub repo URL shown in the footer of the drawing page.
   AllowedOrigin:
     Type: String
     Default: https://potomak.github.io
@@ -79,6 +83,7 @@ Resources:
           PUBLIC_BASE_URL: !Ref PublicBaseUrl
           DRAWINGS_BASE_URL: !Ref DrawingsBaseUrl
           SITE_BASE: !Ref SiteBase
+          REPO_URL: !Ref RepoUrl
           NODE_OPTIONS: "--enable-source-maps"
       Policies:
         - S3CrudPolicy:

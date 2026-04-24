@@ -6,6 +6,7 @@ export interface IndexView {
   days: { date: string; count: number; pages: number }[];
   drawings_base_url: string;
   site_base: string;
+  repo_url: string;
 }
 
 export default function renderIndex(v: IndexView): string {
@@ -45,6 +46,9 @@ ${items}
 ${archive}
       </ul>
     </main>
+    <footer>
+      <a href="${esc(v.repo_url)}" target="_blank" rel="noopener">source on github</a>
+    </footer>
   </body>
 </html>
 `;

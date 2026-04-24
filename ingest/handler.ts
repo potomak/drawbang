@@ -37,6 +37,8 @@ export interface HandlerConfig {
   // Pages-root prefix used by the rendered drawing page's in-site links.
   // "/drawbang/" on GH Pages. Must end with "/". Defaults to "/".
   siteBase?: string;
+  // GitHub repo URL for the footer link on the synchronous drawing page.
+  repoUrl?: string;
   now?: () => Date;
   baselineHistory?: string[]; // optional: last N baselines to accept
 }
@@ -155,6 +157,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     parent: req.parent ? { parent: req.parent, parent_short: req.parent.slice(0, 8) } : null,
     drawings_base_url: cfg.drawingsBaseUrl ?? "/drawings",
     site_base: cfg.siteBase ?? "/",
+    repo_url: cfg.repoUrl ?? "https://github.com/potomak/drawbang",
   });
   await Promise.all([
     cfg.storage.put(gifKey, gif, "image/gif"),

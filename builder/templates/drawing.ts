@@ -12,6 +12,7 @@ export interface DrawingView {
   // Pages-root prefix, e.g. "/drawbang/" when served from GH Pages. Must end
   // with a "/" so template concatenation like `${site_base}d/<id>` works.
   site_base: string;
+  repo_url: string;
 }
 
 export default function renderDrawing(v: DrawingView): string {
@@ -43,6 +44,9 @@ export default function renderDrawing(v: DrawingView): string {
         <a href="${esc(v.site_base)}?fork=${esc(v.id)}">fork this drawing</a>
       </p>
     </main>
+    <footer>
+      <a href="${esc(v.repo_url)}" target="_blank" rel="noopener">source on github</a>
+    </footer>
   </body>
 </html>
 `;

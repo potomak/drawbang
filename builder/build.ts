@@ -23,6 +23,8 @@ export interface BuildOptions {
   // "/drawbang/" when served under the drawbang project on GH Pages; "/"
   // for local dev at the root. Must end with "/".
   siteBase?: string;
+  // GitHub repo URL shown in the footer of every rendered page.
+  repoUrl?: string;
   logger?: (msg: string) => void;
   templates?: Templates;
   // Re-render every day's HTML from existing index.jsonl even if no new
@@ -65,6 +67,7 @@ export async function build(opts: BuildOptions): Promise<{
   const templates = opts.templates ?? DEFAULT_TEMPLATES;
   const drawingsBaseUrl = opts.drawingsBaseUrl ?? "/drawings";
   const siteBase = opts.siteBase ?? "/";
+  const repoUrl = opts.repoUrl ?? "https://github.com/potomak/drawbang";
 
   const inboxPrefixes = await opts.storage.listPrefix("inbox");
   const inboxDays = new Set(
@@ -154,6 +157,7 @@ export async function build(opts: BuildOptions): Promise<{
         ...drawingViewModel(d),
         drawings_base_url: drawingsBaseUrl,
         site_base: siteBase,
+        repo_url: repoUrl,
       });
       await opts.storage.put(`public/d/${d.id}.html`, enc.encode(html), "text/html");
     }
@@ -172,6 +176,7 @@ export async function build(opts: BuildOptions): Promise<{
         next_page: page < totalPages ? { next_page: page + 1, date: day } : null,
         drawings_base_url: drawingsBaseUrl,
         site_base: siteBase,
+        repo_url: repoUrl,
       });
       await opts.storage.put(`public/days/${day}/p/${page}.html`, enc.encode(html), "text/html");
     }
@@ -185,7 +190,7 @@ export async function build(opts: BuildOptions): Promise<{
   }
 
   // Rebuild rolling surfaces: landing page and RSS feed.
-  await rebuildRolling(opts, templates, today, drawingsBaseUrl, siteBase);
+  await rebuildRolling(opts, templates, today, drawingsBaseUrl, siteBase, repoUrl);
 
   return { sweptDrawings: sweptCount, touchedDays };
 }
@@ -197,7 +202,7 @@ export interface Templates {
   feed: (v: FeedView) => string;
 }
 
-export function drawingViewModel(d: DrawingMetadata): Omit<DrawingView, "drawings_base_url" | "site_base"> {
+export function drawingViewModel(d: DrawingMetadata): Omit<DrawingView, "drawings_base_url" | "site_base" | "repo_url"> {
   return {
     id: d.id,
     id_short: d.id.slice(0, 8),
@@ -223,6 +228,7 @@ async function rebuildRolling(
   today: string,
   drawingsBaseUrl: string,
   siteBase: string,
+  repoUrl: string,
 ): Promise<void> {
   const days: DayRollup[] = [];
   const dayKeys = await opts.storage.listPrefix("public/days");
@@ -252,6 +258,7 @@ async function rebuildRolling(
     days: days.filter((d) => d.date !== latestDay),
     drawings_base_url: drawingsBaseUrl,
     site_base: siteBase,
+    repo_url: repoUrl,
   });
   // Gallery landing lives at /gallery.html to avoid colliding with the
   // editor's index.html when everything is co-hosted on GitHub Pages.
@@ -287,6 +294,7 @@ async function cli(): Promise<void> {
   const publicBaseUrl = process.env.DRAWBANG_PUBLIC_BASE ?? "http://localhost:5173";
   const drawingsBaseUrl = process.env.DRAWBANG_DRAWINGS_BASE ?? undefined;
   const siteBase = process.env.DRAWBANG_SITE_BASE ?? undefined;
+  const repoUrl = process.env.DRAWBANG_REPO_URL ?? undefined;
   const today = process.env.DRAWBANG_TODAY;
   const forceRerender = process.env.DRAWBANG_FORCE_RERENDER === "1";
 
@@ -305,6 +313,7 @@ async function cli(): Promise<void> {
     publicBaseUrl,
     drawingsBaseUrl,
     siteBase,
+    repoUrl,
     today,
     forceRerender,
     logger: (m) => console.log(m),

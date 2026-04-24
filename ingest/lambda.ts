@@ -10,6 +10,7 @@ const bucket = required("DRAWBANG_BUCKET");
 const publicBaseUrl = required("PUBLIC_BASE_URL");
 const drawingsBaseUrl = required("DRAWINGS_BASE_URL");
 const siteBase = required("SITE_BASE");
+const repoUrl = required("REPO_URL");
 
 // Reused across invocations in a warm Lambda container. Cold start pays the
 // SDK init cost once; subsequent requests reuse the connection pool.
@@ -43,6 +44,7 @@ export async function handler(
     publicBaseUrl,
     drawingsBaseUrl,
     siteBase,
+    repoUrl,
     baselineHistory,
   });
   return json(result.status, result.body);

@@ -213,3 +213,13 @@ dialog {
   .sprite-btn { --cell: 48px; }
   .text-btn { height: 48px; }
 }
+
+footer {
+  margin-top: 2rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--border);
+  color: #888;
+  font-size: 0.85rem;
+  text-align: center;
+}
+footer a { color: inherit; }
