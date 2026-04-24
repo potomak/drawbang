@@ -14,17 +14,22 @@
     "ingest:dev": "tsx ingest/dev-server.ts",
     "worker:dev": "wrangler dev --config infra/wrangler.toml --local",
     "worker:deploy": "wrangler deploy --config infra/wrangler.toml",
-    "pages:deploy": "npm run build && wrangler pages deploy dist --project-name=drawbang"
+    "pages:deploy": "npm run build && wrangler pages deploy dist --project-name=drawbang",
+    "lambda:build": "node infra/aws/build-lambda.mjs",
+    "lambda:deploy": "npm run lambda:build && sam deploy --config-file infra/aws/samconfig.toml -t infra/aws/template.yaml"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260418.1",
+    "@types/aws-lambda": "^8.10.161",
     "@types/node": "^22.5.0",
+    "esbuild": "^0.28.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vite": "^5.4.0",
     "wrangler": "^4.83.0"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1036.0",
     "gifenc": "^1.0.3",
     "omggif": "^1.0.10"
   }

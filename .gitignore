@@ -22,3 +22,7 @@ builder/out/
 
 # Local FS storage when running ingest:dev
 dev-bucket/
+
+# AWS SAM
+dist-lambda/
+.aws-sam/

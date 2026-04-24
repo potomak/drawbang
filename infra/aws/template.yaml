@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Drawbang ingest — Lambda + API Gateway + S3 bucket.
+
+Parameters:
+  BucketName:
+    Type: String
+    Default: drawbang-assets
+    Description: S3 bucket for drawings, inbox, and gallery state.
+  PublicBaseUrl:
+    Type: String
+    Default: https://potomak.github.io/drawbang
+    Description: Origin that shows up in share URLs.
+  AllowedOrigin:
+    Type: String
+    Default: https://potomak.github.io
+    Description: Origin allowed by CORS preflight on the ingest endpoint.
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Timeout: 10
+    MemorySize: 256
+    Architectures: [arm64]
+
+Resources:
+  AssetsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: false
+        RestrictPublicBuckets: false
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: [GET, HEAD]
+            AllowedOrigins:
+              - !Ref AllowedOrigin
+            MaxAge: 3600
+
+  # Anonymous read on the /public/* prefix so the gallery HTML served from
+  # GitHub Pages can <img src="..."> gifs directly. inbox/ stays private.
+  AssetsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AssetsBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: PublicReadPublicPrefix
+            Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub "${AssetsBucket.Arn}/public/*"
+
+  IngestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: drawbang-ingest
+      Handler: lambda.handler
+      CodeUri: ../../dist-lambda
+      Environment:
+        Variables:
+          DRAWBANG_BUCKET: !Ref AssetsBucket
+          PUBLIC_BASE_URL: !Ref PublicBaseUrl
+          NODE_OPTIONS: "--enable-source-maps"
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref AssetsBucket
+      Events:
+        Ingest:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: POST
+            Path: /ingest
+
+  IngestApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - !Ref AllowedOrigin
+        AllowMethods: [POST, OPTIONS]
+        AllowHeaders: [content-type]
+        MaxAge: 3600
+
+Outputs:
+  IngestEndpoint:
+    Description: POST here with the IngestRequest body.
+    Value: !Sub "https://${IngestApi}.execute-api.${AWS::Region}.amazonaws.com/ingest"
+  BucketName:
+    Value: !Ref AssetsBucket
