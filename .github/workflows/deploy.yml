@@ -93,6 +93,8 @@ jobs:
           DRAWBANG_S3_BUCKET: ${{ env.BUCKET_NAME }}
           DRAWBANG_PUBLIC_BASE: ${{ env.PUBLIC_BASE }}
           DRAWBANG_DRAWINGS_BASE: ${{ env.DRAWINGS_BASE }}
+          DRAWBANG_SITE_BASE: ${{ env.VITE_BASE }}
+          DRAWBANG_FORCE_RERENDER: "1"
         run: npm run builder
 
       - name: Sync gallery HTML into Pages artifact

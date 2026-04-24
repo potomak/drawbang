@@ -65,7 +65,7 @@ app.innerHTML = /* html */ `
   <header>
     <h1>Draw!</h1>
     <nav>
-      <a href="/gallery">gallery</a>
+      <a href="${import.meta.env.BASE_URL}gallery.html">gallery</a>
     </nav>
   </header>
   <main>

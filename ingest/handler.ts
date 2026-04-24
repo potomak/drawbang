@@ -34,6 +34,9 @@ export interface HandlerConfig {
   // Absolute origin for drawing gif URLs in the synchronous drawing page.
   // Defaults to "/drawings" if unset.
   drawingsBaseUrl?: string;
+  // Pages-root prefix used by the rendered drawing page's in-site links.
+  // "/drawbang/" on GH Pages. Must end with "/". Defaults to "/".
+  siteBase?: string;
   now?: () => Date;
   baselineHistory?: string[]; // optional: last N baselines to accept
 }
@@ -151,6 +154,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     bench_hps: req.bench_hps ?? "unknown",
     parent: req.parent ? { parent: req.parent, parent_short: req.parent.slice(0, 8) } : null,
     drawings_base_url: cfg.drawingsBaseUrl ?? "/drawings",
+    site_base: cfg.siteBase ?? "/",
   });
   await Promise.all([
     cfg.storage.put(gifKey, gif, "image/gif"),

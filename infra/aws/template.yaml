@@ -15,6 +15,10 @@ Parameters:
     Type: String
     Default: https://drawbang-assets.s3.us-east-1.amazonaws.com/public/drawings
     Description: Absolute URL where drawing gifs are served from (S3).
+  SiteBase:
+    Type: String
+    Default: /drawbang/
+    Description: Pages-root prefix for in-site links in rendered drawing HTML.
   AllowedOrigin:
     Type: String
     Default: https://potomak.github.io
@@ -74,6 +78,7 @@ Resources:
           DRAWBANG_BUCKET: !Ref AssetsBucket
           PUBLIC_BASE_URL: !Ref PublicBaseUrl
           DRAWINGS_BASE_URL: !Ref DrawingsBaseUrl
+          SITE_BASE: !Ref SiteBase
           NODE_OPTIONS: "--enable-source-maps"
       Policies:
         - S3CrudPolicy:

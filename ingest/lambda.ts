@@ -9,6 +9,7 @@ import { S3Storage } from "./s3-storage.js";
 const bucket = required("DRAWBANG_BUCKET");
 const publicBaseUrl = required("PUBLIC_BASE_URL");
 const drawingsBaseUrl = required("DRAWINGS_BASE_URL");
+const siteBase = required("SITE_BASE");
 
 // Reused across invocations in a warm Lambda container. Cold start pays the
 // SDK init cost once; subsequent requests reuse the connection pool.
@@ -41,6 +42,7 @@ export async function handler(
     storage,
     publicBaseUrl,
     drawingsBaseUrl,
+    siteBase,
     baselineHistory,
   });
   return json(result.status, result.body);
