@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap");
+
 :root {
   --bg: #111;
   --fg: #eee;
@@ -13,7 +15,7 @@
   -webkit-touch-callout: none;
 }
 body {
-  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-family: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
   background: var(--bg);
   color: var(--fg);
   margin: 0;
