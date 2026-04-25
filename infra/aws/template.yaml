@@ -216,11 +216,13 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       CorsConfiguration:
-        AllowOrigins: !If
-          - HasCustomDomain
-          - - !Sub "https://${DomainName}"
-            - !Sub "https://${AssetsDistribution.DomainName}"
-          - - !Sub "https://${AssetsDistribution.DomainName}"
+        # Both the custom domain (when set) and the cloudfront.net default are
+        # listed: SAM's transform corrupts the CORS config when an !If sits
+        # inside CorsConfiguration, so we keep this as a plain literal list
+        # and accept a harmless duplicate when HasCustomDomain is false.
+        AllowOrigins:
+          - !If [HasCustomDomain, !Sub "https://${DomainName}", !Sub "https://${AssetsDistribution.DomainName}"]
+          - !Sub "https://${AssetsDistribution.DomainName}"
         AllowMethods: [POST, OPTIONS]
         AllowHeaders: [content-type]
         MaxAge: 3600
@@ -232,8 +234,14 @@ Outputs:
   BucketName:
     Value: !Ref AssetsBucket
   CloudFrontDomain:
-    Description: CloudFront domain serving the editor + gallery + drawings.
+    Description: CloudFront-assigned domain (used for OAC reads from S3).
     Value: !GetAtt AssetsDistribution.DomainName
   CloudFrontDistributionId:
     Description: CloudFront distribution ID (for cache invalidations from CI).
     Value: !Ref AssetsDistribution
+  PublicBaseUrl:
+    Description: Canonical site origin — custom domain when configured, otherwise the cloudfront.net default.
+    Value: !If
+      - HasCustomDomain
+      - !Sub "https://${DomainName}"
+      - !Sub "https://${AssetsDistribution.DomainName}"

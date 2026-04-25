@@ -35,9 +35,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: prod
     outputs:
-      cloudfront_domain: ${{ steps.outputs.outputs.cloudfront_domain }}
       cloudfront_id: ${{ steps.outputs.outputs.cloudfront_id }}
       ingest_endpoint: ${{ steps.outputs.outputs.ingest_endpoint }}
+      public_base_url: ${{ steps.outputs.outputs.public_base_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -63,9 +63,9 @@ jobs:
           aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query 'Stacks[0].Outputs' --output json > outputs.json
           jq -r '.[] | "\(.OutputKey)=\(.OutputValue)"' outputs.json
           {
-            echo "cloudfront_domain=$(jq -r '.[]|select(.OutputKey=="CloudFrontDomain").OutputValue' outputs.json)"
             echo "cloudfront_id=$(jq -r '.[]|select(.OutputKey=="CloudFrontDistributionId").OutputValue' outputs.json)"
             echo "ingest_endpoint=$(jq -r '.[]|select(.OutputKey=="IngestEndpoint").OutputValue' outputs.json)"
+            echo "public_base_url=$(jq -r '.[]|select(.OutputKey=="PublicBaseUrl").OutputValue' outputs.json)"
           } >> "$GITHUB_OUTPUT"
 
   build-and-publish:
@@ -97,16 +97,16 @@ jobs:
           aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query 'Stacks[0].Outputs' --output json > outputs.json
           jq -r '.[] | "\(.OutputKey)=\(.OutputValue)"' outputs.json
           {
-            echo "cloudfront_domain=$(jq -r '.[]|select(.OutputKey=="CloudFrontDomain").OutputValue' outputs.json)"
             echo "cloudfront_id=$(jq -r '.[]|select(.OutputKey=="CloudFrontDistributionId").OutputValue' outputs.json)"
             echo "ingest_endpoint=$(jq -r '.[]|select(.OutputKey=="IngestEndpoint").OutputValue' outputs.json)"
+            echo "public_base_url=$(jq -r '.[]|select(.OutputKey=="PublicBaseUrl").OutputValue' outputs.json)"
           } >> "$GITHUB_OUTPUT"
 
       - name: Build editor
         env:
           VITE_INGEST_URL: ${{ steps.stack.outputs.ingest_endpoint }}
-          VITE_STATE_URL: https://${{ steps.stack.outputs.cloudfront_domain }}/state/last-publish.json
-          VITE_DRAWING_BASE_URL: https://${{ steps.stack.outputs.cloudfront_domain }}/drawings
+          VITE_STATE_URL: ${{ steps.stack.outputs.public_base_url }}/state/last-publish.json
+          VITE_DRAWING_BASE_URL: ${{ steps.stack.outputs.public_base_url }}/drawings
         run: npm run build
 
       - name: Upload editor to S3 (public/)
@@ -123,7 +123,7 @@ jobs:
       - name: Run gallery builder
         env:
           DRAWBANG_S3_BUCKET: ${{ env.BUCKET_NAME }}
-          DRAWBANG_PUBLIC_BASE: https://${{ steps.stack.outputs.cloudfront_domain }}
+          DRAWBANG_PUBLIC_BASE: ${{ steps.stack.outputs.public_base_url }}
           DRAWBANG_FORCE_RERENDER: "1"
         run: npm run builder
 
