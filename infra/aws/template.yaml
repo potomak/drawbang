@@ -11,6 +11,17 @@ Parameters:
     Type: String
     Default: https://github.com/potomak/drawbang
     Description: GitHub repo URL shown in the footer of every page.
+  DomainName:
+    Type: String
+    Default: ""
+    Description: |
+      Custom domain to attach to the CloudFront distribution (e.g.
+      pixel.drawbang.com). Leave empty to keep the *.cloudfront.net URL only.
+      An ACM certificate is requested with DNS validation; the validation
+      CNAME shows up in the ACM console — add it to your DNS to finish.
+
+Conditions:
+  HasCustomDomain: !Not [!Equals [!Ref DomainName, ""]]
 
 Globals:
   Function:
@@ -95,6 +106,18 @@ Resources:
           return req;
         }
 
+  # ACM certificate for the custom domain. Lives in us-east-1 because
+  # CloudFront viewer certs must be in us-east-1. DNS validation: ACM
+  # publishes a CNAME under the cert that we (or the operator) must
+  # add at the DNS provider; the stack pauses until the CNAME resolves
+  # and the cert reaches Issued.
+  AssetsCert:
+    Type: AWS::CertificateManager::Certificate
+    Condition: HasCustomDomain
+    Properties:
+      DomainName: !Ref DomainName
+      ValidationMethod: DNS
+
   AssetsDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -135,6 +158,13 @@ Resources:
             CachedMethods: [GET, HEAD]
             # Managed CachingDisabled.
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+        Aliases: !If [HasCustomDomain, [!Ref DomainName], !Ref AWS::NoValue]
+        ViewerCertificate: !If
+          - HasCustomDomain
+          - AcmCertificateArn: !Ref AssetsCert
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - !Ref AWS::NoValue
 
   # Lock down S3: only the CloudFront distribution can read /public/*.
   AssetsBucketPolicy:
@@ -165,7 +195,10 @@ Resources:
       Environment:
         Variables:
           DRAWBANG_BUCKET: !Ref AssetsBucket
-          PUBLIC_BASE_URL: !Sub "https://${AssetsDistribution.DomainName}"
+          PUBLIC_BASE_URL: !If
+            - HasCustomDomain
+            - !Sub "https://${DomainName}"
+            - !Sub "https://${AssetsDistribution.DomainName}"
           REPO_URL: !Ref RepoUrl
           NODE_OPTIONS: "--enable-source-maps"
       Policies:
@@ -183,8 +216,11 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       CorsConfiguration:
-        AllowOrigins:
-          - !Sub "https://${AssetsDistribution.DomainName}"
+        AllowOrigins: !If
+          - HasCustomDomain
+          - - !Sub "https://${DomainName}"
+            - !Sub "https://${AssetsDistribution.DomainName}"
+          - - !Sub "https://${AssetsDistribution.DomainName}"
         AllowMethods: [POST, OPTIONS]
         AllowHeaders: [content-type]
         MaxAge: 3600

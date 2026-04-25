@@ -7,3 +7,4 @@ capabilities = "CAPABILITY_IAM"
 resolve_s3 = true
 confirm_changeset = false
 fail_on_empty_changeset = false
+parameter_overrides = "DomainName=pixel.drawbang.com"
