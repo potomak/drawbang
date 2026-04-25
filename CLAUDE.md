@@ -14,13 +14,17 @@ not imported by any current code.
 ## Deployment shape
 
 ```
-  editor + gallery HTML         →  GitHub Pages (potomak.github.io/drawbang)
-  drawing gifs + inbox + state  →  S3 (drawbang-assets, us-east-1)
-  POST /ingest                  →  AWS Lambda + API Gateway HTTP API
-  daily gallery rebuild         →  GitHub Actions cron (reads/writes S3)
+  editor + gallery + gifs + state  →  S3 (drawbang-assets, us-east-1)
+                                       fronted by CloudFront for HTTPS + cache
+  POST /ingest                     →  AWS Lambda + API Gateway HTTP API
+  daily gallery rebuild            →  GitHub Actions cron (reads/writes S3)
 ```
 
-No Cloudflare anymore. No persistent webserver.
+Single origin: everything serves from the CloudFront distribution (e.g.
+`d3te69flws96uk.cloudfront.net`). The S3 bucket is locked down to the
+distribution via Origin Access Control. CloudFront Function rewrites clean
+URLs (`/gallery`, `/d/<id>`, `/days/<d>/p/<n>`) to the underlying `.html`
+files. No GH Pages, no Cloudflare, no persistent webserver.
 
 ## Repo layout
 
@@ -104,19 +108,18 @@ finish in <2s — iterate with: `node --test --import tsx 'test/gif.test.ts' 'te
 
 Editor (build-time):
 - `VITE_INGEST_URL` — API Gateway URL for the ingest Lambda.
-- `VITE_STATE_URL` — URL of `last-publish.json` on S3.
-- `VITE_DRAWING_BASE_URL` — S3 URL prefix for drawing gifs.
-- `VITE_BASE` — Vite public path; `/drawbang/` on GitHub Pages.
+- `VITE_STATE_URL` — `${cloudfront-domain}/state/last-publish.json`.
+- `VITE_DRAWING_BASE_URL` — `${cloudfront-domain}/drawings`.
 
 Lambda (runtime, set via SAM):
 - `DRAWBANG_BUCKET` — S3 bucket name.
-- `PUBLIC_BASE_URL` — goes into `share_url` in the response.
-- `DRAWINGS_BASE_URL` — absolute URL prefix for drawing gifs in rendered HTML.
+- `PUBLIC_BASE_URL` — `https://${cloudfront-domain}`. Goes into `share_url`.
+- `REPO_URL` — for the footer link on the synchronously-rendered drawing page.
 
 Builder CLI:
 - `DRAWBANG_S3_BUCKET` — if set, uses S3Storage; otherwise FsStorage at `DRAWBANG_BUCKET`.
 - `DRAWBANG_PUBLIC_BASE` — RSS feed self-link + share URL origin.
-- `DRAWBANG_DRAWINGS_BASE` — absolute URL prefix for drawing gifs in rendered HTML.
+- `DRAWBANG_REPO_URL` — repo URL for footer (default: `https://github.com/potomak/drawbang`).
 - `DRAWBANG_TODAY` — override "today" (YYYY-MM-DD) for testing.
 - `DRAWBANG_FORCE_RERENDER` — `1` to re-render every day's HTML from index.jsonl.
 

@@ -15,14 +15,6 @@ export interface BuildOptions {
   storage: Storage;
   today?: string; // YYYY-MM-DD, defaults to real today
   publicBaseUrl: string;
-  // Absolute origin where drawing gifs are served from. With S3 as the asset
-  // bucket this is e.g. "https://drawbang-assets.s3.us-east-1.amazonaws.com/
-  // public/drawings". Falls back to same-origin "/drawings" for dev.
-  drawingsBaseUrl?: string;
-  // Prefix for in-site links (editor, drawing pages, day galleries).
-  // "/drawbang/" when served under the drawbang project on GH Pages; "/"
-  // for local dev at the root. Must end with "/".
-  siteBase?: string;
   // GitHub repo URL shown in the footer of every rendered page.
   repoUrl?: string;
   logger?: (msg: string) => void;
@@ -65,8 +57,6 @@ export async function build(opts: BuildOptions): Promise<{
   const log = opts.logger ?? (() => {});
   const today = opts.today ?? new Date().toISOString().slice(0, 10);
   const templates = opts.templates ?? DEFAULT_TEMPLATES;
-  const drawingsBaseUrl = opts.drawingsBaseUrl ?? "/drawings";
-  const siteBase = opts.siteBase ?? "/";
   const repoUrl = opts.repoUrl ?? "https://github.com/potomak/drawbang";
 
   const inboxPrefixes = await opts.storage.listPrefix("inbox");
@@ -155,8 +145,6 @@ export async function build(opts: BuildOptions): Promise<{
     for (const d of drawingsToRender) {
       const html = templates.drawing({
         ...drawingViewModel(d),
-        drawings_base_url: drawingsBaseUrl,
-        site_base: siteBase,
         repo_url: repoUrl,
       });
       await opts.storage.put(`public/d/${d.id}.html`, enc.encode(html), "text/html");
@@ -174,8 +162,6 @@ export async function build(opts: BuildOptions): Promise<{
         drawings: slice.map((d) => ({ id: d.id, id_short: d.id.slice(0, 8) })),
         prev_page: page > 1 ? { prev_page: page - 1, date: day } : null,
         next_page: page < totalPages ? { next_page: page + 1, date: day } : null,
-        drawings_base_url: drawingsBaseUrl,
-        site_base: siteBase,
         repo_url: repoUrl,
       });
       await opts.storage.put(`public/days/${day}/p/${page}.html`, enc.encode(html), "text/html");
@@ -190,7 +176,7 @@ export async function build(opts: BuildOptions): Promise<{
   }
 
   // Rebuild rolling surfaces: landing page and RSS feed.
-  await rebuildRolling(opts, templates, today, drawingsBaseUrl, siteBase, repoUrl);
+  await rebuildRolling(opts, templates, today, repoUrl);
 
   return { sweptDrawings: sweptCount, touchedDays };
 }
@@ -202,7 +188,7 @@ export interface Templates {
   feed: (v: FeedView) => string;
 }
 
-export function drawingViewModel(d: DrawingMetadata): Omit<DrawingView, "drawings_base_url" | "site_base" | "repo_url"> {
+export function drawingViewModel(d: DrawingMetadata): Omit<DrawingView, "repo_url"> {
   return {
     id: d.id,
     id_short: d.id.slice(0, 8),
@@ -226,8 +212,6 @@ async function rebuildRolling(
   opts: BuildOptions,
   templates: Templates,
   today: string,
-  drawingsBaseUrl: string,
-  siteBase: string,
   repoUrl: string,
 ): Promise<void> {
   const days: DayRollup[] = [];
@@ -256,12 +240,10 @@ async function rebuildRolling(
     today: latestDay,
     drawings: latest.map((d) => ({ id: d.id, id_short: d.id.slice(0, 8) })),
     days: days.filter((d) => d.date !== latestDay),
-    drawings_base_url: drawingsBaseUrl,
-    site_base: siteBase,
     repo_url: repoUrl,
   });
-  // Gallery landing lives at /gallery.html to avoid colliding with the
-  // editor's index.html when everything is co-hosted on GitHub Pages.
+  // Gallery landing lives at /gallery.html (CloudFront rewrites /gallery ->
+  // /gallery.html) so it doesn't shadow the editor's index.html at "/".
   await opts.storage.put("public/gallery.html", enc.encode(indexHtml), "text/html");
 
   // RSS: latest 100 across all days.
@@ -281,7 +263,6 @@ async function rebuildRolling(
       id_short: d.id.slice(0, 8),
       pub_date: new Date(d.created_at).toUTCString(),
     })),
-    drawings_base_url: drawingsBaseUrl,
   });
   await opts.storage.put("public/feed.rss", enc.encode(feed), "application/rss+xml");
 }
@@ -292,8 +273,6 @@ async function cli(): Promise<void> {
   const path = await import("node:path");
   const s3Bucket = process.env.DRAWBANG_S3_BUCKET;
   const publicBaseUrl = process.env.DRAWBANG_PUBLIC_BASE ?? "http://localhost:5173";
-  const drawingsBaseUrl = process.env.DRAWBANG_DRAWINGS_BASE ?? undefined;
-  const siteBase = process.env.DRAWBANG_SITE_BASE ?? undefined;
   const repoUrl = process.env.DRAWBANG_REPO_URL ?? undefined;
   const today = process.env.DRAWBANG_TODAY;
   const forceRerender = process.env.DRAWBANG_FORCE_RERENDER === "1";
@@ -311,8 +290,6 @@ async function cli(): Promise<void> {
   const result = await build({
     storage,
     publicBaseUrl,
-    drawingsBaseUrl,
-    siteBase,
     repoUrl,
     today,
     forceRerender,

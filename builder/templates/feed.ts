@@ -4,7 +4,6 @@ export interface FeedView {
   base_url: string;
   build_date: string;
   drawings: { id: string; id_short: string; pub_date: string }[];
-  drawings_base_url: string;
 }
 
 export default function renderFeed(v: FeedView): string {
@@ -15,7 +14,7 @@ export default function renderFeed(v: FeedView): string {
       <link>${esc(v.base_url)}/d/${esc(d.id)}</link>
       <guid isPermaLink="true">${esc(v.base_url)}/d/${esc(d.id)}</guid>
       <pubDate>${esc(d.pub_date)}</pubDate>
-      <description><![CDATA[<img src="${v.drawings_base_url}/${d.id}.gif" width="128" height="128" style="image-rendering:pixelated" />]]></description>
+      <description><![CDATA[<img src="${v.base_url}/drawings/${d.id}.gif" width="128" height="128" style="image-rendering:pixelated" />]]></description>
     </item>`,
     )
     .join("\n");

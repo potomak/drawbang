@@ -4,7 +4,6 @@ import { resolve } from "node:path";
 export default defineConfig({
   root: ".",
   publicDir: "static",
-  base: process.env.VITE_BASE ?? "/",
   build: {
     outDir: "dist",
     sourcemap: true,

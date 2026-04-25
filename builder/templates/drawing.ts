@@ -8,16 +8,12 @@ export interface DrawingView {
   solve_ms: number | string;
   bench_hps: number | string;
   parent: { parent: string; parent_short: string } | null;
-  drawings_base_url: string;
-  // Pages-root prefix, e.g. "/drawbang/" when served from GH Pages. Must end
-  // with a "/" so template concatenation like `${site_base}d/<id>` works.
-  site_base: string;
   repo_url: string;
 }
 
 export default function renderDrawing(v: DrawingView): string {
   const parentBlock = v.parent
-    ? `<dt>parent</dt><dd><a href="${esc(v.site_base)}d/${esc(v.parent.parent)}">${esc(v.parent.parent_short)}</a></dd>`
+    ? `<dt>parent</dt><dd><a href="/d/${esc(v.parent.parent)}">${esc(v.parent.parent_short)}</a></dd>`
     : "";
   return `<!doctype html>
 <html lang="en">
@@ -25,15 +21,15 @@ export default function renderDrawing(v: DrawingView): string {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Draw! · ${esc(v.id_short)}</title>
-    <link rel="stylesheet" href="${esc(v.site_base)}gallery.css" />
-    <meta property="og:image" content="${esc(v.drawings_base_url)}/${esc(v.id)}.gif" />
+    <link rel="stylesheet" href="/gallery.css" />
+    <meta property="og:image" content="/drawings/${esc(v.id)}.gif" />
   </head>
   <body>
     <header>
-      <h1><a href="${esc(v.site_base)}">Draw!</a></h1>
+      <h1><a href="/">Draw!</a></h1>
     </header>
     <main class="drawing-page">
-      <img src="${esc(v.drawings_base_url)}/${esc(v.id)}.gif" alt="drawing ${esc(v.id_short)}" width="320" height="320" />
+      <img src="/drawings/${esc(v.id)}.gif" alt="drawing ${esc(v.id_short)}" width="320" height="320" />
       <dl>
         <dt>id</dt><dd><code>${esc(v.id)}</code></dd>
         <dt>minted</dt><dd>${esc(v.created_at)}</dd>
@@ -41,7 +37,7 @@ export default function renderDrawing(v: DrawingView): string {
         ${parentBlock}
       </dl>
       <p>
-        <a href="${esc(v.site_base)}?fork=${esc(v.id)}">fork this drawing</a>
+        <a href="/?fork=${esc(v.id)}">fork this drawing</a>
       </p>
     </main>
     <footer>

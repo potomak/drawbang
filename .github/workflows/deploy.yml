@@ -14,11 +14,7 @@ concurrency:
 env:
   AWS_REGION: us-east-1
   BUCKET_NAME: drawbang-assets
-  INGEST_URL: https://0blf98navf.execute-api.us-east-1.amazonaws.com/ingest
-  DRAWINGS_BASE: https://drawbang-assets.s3.us-east-1.amazonaws.com/public/drawings
-  STATE_URL: https://drawbang-assets.s3.us-east-1.amazonaws.com/public/state/last-publish.json
-  PUBLIC_BASE: https://potomak.github.io/drawbang
-  VITE_BASE: /drawbang/
+  STACK_NAME: drawbang-ingest
 
 jobs:
   test:
@@ -38,6 +34,10 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: prod
+    outputs:
+      cloudfront_domain: ${{ steps.outputs.outputs.cloudfront_domain }}
+      cloudfront_id: ${{ steps.outputs.outputs.cloudfront_id }}
+      ingest_endpoint: ${{ steps.outputs.outputs.ingest_endpoint }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -57,14 +57,25 @@ jobs:
       - name: sam deploy
         working-directory: infra/aws
         run: sam deploy --no-fail-on-empty-changeset
+      - id: outputs
+        name: Export stack outputs
+        run: |
+          aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query 'Stacks[0].Outputs' --output json > outputs.json
+          jq -r '.[] | "\(.OutputKey)=\(.OutputValue)"' outputs.json
+          {
+            echo "cloudfront_domain=$(jq -r '.[]|select(.OutputKey=="CloudFrontDomain").OutputValue' outputs.json)"
+            echo "cloudfront_id=$(jq -r '.[]|select(.OutputKey=="CloudFrontDistributionId").OutputValue' outputs.json)"
+            echo "ingest_endpoint=$(jq -r '.[]|select(.OutputKey=="IngestEndpoint").OutputValue' outputs.json)"
+          } >> "$GITHUB_OUTPUT"
 
-  # Build the editor + run the gallery builder against S3, then hand the
-  # resulting dist/ to the github-pages environment as an artifact. Split
-  # from deploy-pages because each job can only bind to one environment:
-  # this one needs the prod env (for AWS creds), the next one needs
-  # github-pages (Pages' required protected environment).
-  build-artifact:
-    needs: test
+  build-and-publish:
+    # On push waits for deploy-lambda so we read freshly-deployed outputs.
+    # On schedule deploy-lambda is skipped — we still run.
+    needs: [test, deploy-lambda]
+    if: |
+      always() &&
+      needs.test.result == 'success' &&
+      (needs.deploy-lambda.result == 'success' || needs.deploy-lambda.result == 'skipped')
     runs-on: ubuntu-latest
     environment: prod
     steps:
@@ -80,45 +91,46 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Resolve stack outputs
+        id: stack
+        run: |
+          aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query 'Stacks[0].Outputs' --output json > outputs.json
+          jq -r '.[] | "\(.OutputKey)=\(.OutputValue)"' outputs.json
+          {
+            echo "cloudfront_domain=$(jq -r '.[]|select(.OutputKey=="CloudFrontDomain").OutputValue' outputs.json)"
+            echo "cloudfront_id=$(jq -r '.[]|select(.OutputKey=="CloudFrontDistributionId").OutputValue' outputs.json)"
+            echo "ingest_endpoint=$(jq -r '.[]|select(.OutputKey=="IngestEndpoint").OutputValue' outputs.json)"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build editor
         env:
-          VITE_INGEST_URL: ${{ env.INGEST_URL }}
-          VITE_STATE_URL: ${{ env.STATE_URL }}
-          VITE_DRAWING_BASE_URL: ${{ env.DRAWINGS_BASE }}
-          VITE_BASE: ${{ env.VITE_BASE }}
+          VITE_INGEST_URL: ${{ steps.stack.outputs.ingest_endpoint }}
+          VITE_STATE_URL: https://${{ steps.stack.outputs.cloudfront_domain }}/state/last-publish.json
+          VITE_DRAWING_BASE_URL: https://${{ steps.stack.outputs.cloudfront_domain }}/drawings
         run: npm run build
 
-      - name: Run gallery builder against S3
+      - name: Upload editor to S3 (public/)
+        run: |
+          # Hashed bundles get long cache; index.html stays short-cached so
+          # CloudFront invalidation can flip in new bundles fast.
+          aws s3 sync dist/ "s3://${BUCKET_NAME}/public/" \
+            --exclude "index.html" \
+            --cache-control "public, max-age=31536000, immutable"
+          aws s3 cp dist/index.html "s3://${BUCKET_NAME}/public/index.html" \
+            --cache-control "public, max-age=60" \
+            --content-type "text/html"
+
+      - name: Run gallery builder
         env:
           DRAWBANG_S3_BUCKET: ${{ env.BUCKET_NAME }}
-          DRAWBANG_PUBLIC_BASE: ${{ env.PUBLIC_BASE }}
-          DRAWBANG_DRAWINGS_BASE: ${{ env.DRAWINGS_BASE }}
-          DRAWBANG_SITE_BASE: ${{ env.VITE_BASE }}
+          DRAWBANG_PUBLIC_BASE: https://${{ steps.stack.outputs.cloudfront_domain }}
           DRAWBANG_FORCE_RERENDER: "1"
         run: npm run builder
 
-      - name: Sync gallery HTML into Pages artifact
+      - name: Invalidate CloudFront cache
+        # Only the rolling pages (and editor index) actually change every run;
+        # day pages are immutable per builder invariant.
         run: |
-          aws s3 sync s3://${{ env.BUCKET_NAME }}/public/ dist/ \
-            --exclude "drawings/*" \
-            --exclude "state/*" \
-            --exclude "*.jsonl"
-
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-  deploy-pages:
-    needs: build-artifact
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.pages.outputs.page_url }}
-    steps:
-      - id: pages
-        uses: actions/deploy-pages@v4
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ steps.stack.outputs.cloudfront_id }}" \
+            --paths "/" "/index.html" "/gallery" "/gallery.html" "/feed.rss"

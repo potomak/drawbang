@@ -1,39 +1,16 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: Drawbang ingest — Lambda + API Gateway + S3 bucket.
+Description: Drawbang ingest — Lambda + API Gateway + S3 bucket + CloudFront.
 
 Parameters:
   BucketName:
     Type: String
     Default: drawbang-assets
-    Description: S3 bucket for drawings, inbox, and gallery state.
-  PublicBaseUrl:
-    Type: String
-    Default: https://potomak.github.io/drawbang
-    Description: Origin that shows up in share URLs.
-  DrawingsBaseUrl:
-    Type: String
-    Default: https://drawbang-assets.s3.us-east-1.amazonaws.com/public/drawings
-    Description: Absolute URL where drawing gifs are served from (S3).
-  SiteBase:
-    Type: String
-    Default: /drawbang/
-    Description: Pages-root prefix for in-site links in rendered drawing HTML.
+    Description: S3 bucket for editor, drawings, inbox, and gallery state.
   RepoUrl:
     Type: String
     Default: https://github.com/potomak/drawbang
-    Description: GitHub repo URL shown in the footer of the drawing page.
-  DrawingPageBaseUrl:
-    Type: String
-    Default: https://drawbang-assets.s3.us-east-1.amazonaws.com/public/d
-    Description: |
-      Absolute prefix for the share_url returned to the client. Points at S3
-      directly so newly-published drawings are reachable immediately (GH Pages
-      only picks them up on the next daily rebuild).
-  AllowedOrigin:
-    Type: String
-    Default: https://potomak.github.io
-    Description: Origin allowed by CORS preflight on the ingest endpoint.
+    Description: GitHub repo URL shown in the footer of every page.
 
 Globals:
   Function:
@@ -43,6 +20,20 @@ Globals:
     Architectures: [arm64]
 
 Resources:
+  # -- Assets bucket -----------------------------------------------------------
+  # Holds:
+  #   public/                    served by CloudFront
+  #     index.html               editor entry
+  #     assets/*                 editor JS/CSS bundles
+  #     gallery.css              gallery stylesheet
+  #     gallery.html             gallery landing
+  #     drawings/<id>.gif        published gifs
+  #     d/<id>.html              per-drawing pages (also accessible at /d/<id>)
+  #     days/<d>/p/<n>.html      per-day galleries
+  #     days/<d>/{index.jsonl,manifest.json}
+  #     feed.rss
+  #     state/last-publish.json  written by the ingest Lambda
+  #   inbox/                     private, ingest writes; builder sweeps
   AssetsBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -50,21 +41,102 @@ Resources:
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         IgnorePublicAcls: true
-        BlockPublicPolicy: false
-        RestrictPublicBuckets: false
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
       OwnershipControls:
         Rules:
           - ObjectOwnership: BucketOwnerEnforced
+      # CORS still needed because the editor's same-origin requests for the
+      # state file go through CloudFront, but cross-origin scripts (e.g. an
+      # embedded view from another site) might also fetch a gif. Keep open
+      # GET/HEAD; everything is public anyway.
       CorsConfiguration:
         CorsRules:
           - AllowedHeaders: ["*"]
             AllowedMethods: [GET, HEAD]
-            AllowedOrigins:
-              - !Ref AllowedOrigin
+            AllowedOrigins: ["*"]
             MaxAge: 3600
 
-  # Anonymous read on the /public/* prefix so the gallery HTML served from
-  # GitHub Pages can <img src="..."> gifs directly. inbox/ stays private.
+  # CloudFront uses Origin Access Control (OAC) to read from S3. The bucket
+  # itself stays private; only this distribution can fetch through it.
+  AssetsOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${BucketName}-oac"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # CloudFront Function: append `.html` to clean URLs like /d/<id>, /gallery,
+  # /days/<d>/p/<n>. Runs at the viewer-request stage so S3 sees the full path.
+  RewriteCleanUrls:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub "${BucketName}-rewrite"
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Append .html to clean gallery URLs.
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var req = event.request;
+          var uri = req.uri;
+          // /d/<64hex>           -> /d/<64hex>.html
+          // /days/YYYY-MM-DD/p/N -> /days/YYYY-MM-DD/p/N.html
+          // /gallery             -> /gallery.html
+          if (/^\/d\/[0-9a-f]{64}$/.test(uri)) {
+            req.uri = uri + ".html";
+          } else if (/^\/days\/\d{4}-\d{2}-\d{2}\/p\/\d+$/.test(uri)) {
+            req.uri = uri + ".html";
+          } else if (uri === "/gallery") {
+            req.uri = "/gallery.html";
+          }
+          return req;
+        }
+
+  AssetsDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: Drawbang editor + gallery + drawings.
+        DefaultRootObject: index.html
+        PriceClass: PriceClass_100
+        HttpVersion: http2and3
+        Origins:
+          - Id: assets
+            DomainName: !GetAtt AssetsBucket.RegionalDomainName
+            # Strip the bucket's `public/` prefix so users can hit clean
+            # URLs like /index.html, /d/<id>.html, /drawings/<id>.gif while
+            # objects sit under public/ in S3.
+            OriginPath: /public
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+            OriginAccessControlId: !GetAtt AssetsOAC.Id
+        DefaultCacheBehavior:
+          TargetOriginId: assets
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          # Managed CachingOptimized: forwards no headers/cookies, caches by URL.
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt RewriteCleanUrls.FunctionMetadata.FunctionARN
+        # Don't cache the state file — the editor needs to see fresh baselines
+        # within seconds of publish. Manifest stays cached at the default TTL.
+        CacheBehaviors:
+          - PathPattern: /state/last-publish.json
+            TargetOriginId: assets
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            # Managed CachingDisabled.
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+
+  # Lock down S3: only the CloudFront distribution can read /public/*.
   AssetsBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -72,11 +144,17 @@ Resources:
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
-          - Sid: PublicReadPublicPrefix
+          - Sid: AllowCloudFrontRead
             Effect: Allow
-            Principal: "*"
+            Principal:
+              Service: cloudfront.amazonaws.com
             Action: s3:GetObject
             Resource: !Sub "${AssetsBucket.Arn}/public/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${AssetsDistribution}"
+
+  # -- Ingest Lambda + API Gateway --------------------------------------------
 
   IngestFunction:
     Type: AWS::Serverless::Function
@@ -87,11 +165,8 @@ Resources:
       Environment:
         Variables:
           DRAWBANG_BUCKET: !Ref AssetsBucket
-          PUBLIC_BASE_URL: !Ref PublicBaseUrl
-          DRAWINGS_BASE_URL: !Ref DrawingsBaseUrl
-          SITE_BASE: !Ref SiteBase
+          PUBLIC_BASE_URL: !Sub "https://${AssetsDistribution.DomainName}"
           REPO_URL: !Ref RepoUrl
-          DRAWING_PAGE_BASE_URL: !Ref DrawingPageBaseUrl
           NODE_OPTIONS: "--enable-source-maps"
       Policies:
         - S3CrudPolicy:
@@ -109,7 +184,7 @@ Resources:
     Properties:
       CorsConfiguration:
         AllowOrigins:
-          - !Ref AllowedOrigin
+          - !Sub "https://${AssetsDistribution.DomainName}"
         AllowMethods: [POST, OPTIONS]
         AllowHeaders: [content-type]
         MaxAge: 3600
@@ -120,3 +195,9 @@ Outputs:
     Value: !Sub "https://${IngestApi}.execute-api.${AWS::Region}.amazonaws.com/ingest"
   BucketName:
     Value: !Ref AssetsBucket
+  CloudFrontDomain:
+    Description: CloudFront domain serving the editor + gallery + drawings.
+    Value: !GetAtt AssetsDistribution.DomainName
+  CloudFrontDistributionId:
+    Description: CloudFront distribution ID (for cache invalidations from CI).
+    Value: !Ref AssetsDistribution
