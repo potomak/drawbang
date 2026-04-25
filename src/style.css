@@ -33,7 +33,7 @@ header {
   padding-bottom: 0.5rem;
   margin-bottom: 1rem;
 }
-header h1 { margin: 0; letter-spacing: 0.1em; }
+header h1 { margin: 0; }
 header a { color: var(--fg); text-decoration: none; border-bottom: 1px dashed var(--fg); }
 
 main {
