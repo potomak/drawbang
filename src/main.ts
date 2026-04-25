@@ -560,7 +560,7 @@ async function boot(): Promise<void> {
 
   if (forkId) {
     try {
-      const res = await fetch(`${DRAWING_BASE_URL}/drawings/${forkId}.gif`);
+      const res = await fetch(`${DRAWING_BASE_URL}/${forkId}.gif`);
       if (!res.ok) throw new Error(`fork fetch failed: ${res.status}`);
       const buf = new Uint8Array(await res.arrayBuffer());
       const decoded = decodeGif(buf);
