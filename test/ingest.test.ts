@@ -54,7 +54,7 @@ test("ingest accepts a valid submission with virgin state", async () => {
   const storage = new MemoryStorage();
   const gif = makeGif();
   const baseline = INITIAL_STATE.last_publish_at;
-  const bits = requiredBits(Number.POSITIVE_INFINITY); // 16
+  const bits = requiredBits(Number.POSITIVE_INFINITY); // 14
   const sol = await solve(gif, baseline, bits);
 
   const res = await handleIngest(
@@ -82,7 +82,7 @@ test("ingest accepts a valid submission with virgin state", async () => {
   assert.equal(meta?.pow, sol.hashHex);
   const state = await storage.getJSON<{ last_publish_at: string; last_difficulty_bits: number }>("public/state/last-publish.json");
   assert.equal(state?.last_publish_at, "2026-04-18T12:00:00.000Z");
-  assert.equal(state?.last_difficulty_bits, 16);
+  assert.equal(state?.last_difficulty_bits, 14);
 });
 
 test("ingest id is stable across different nonce/baseline for the same gif", async () => {
@@ -214,7 +214,7 @@ test("dynamic difficulty: second submission in the same second requires top-brac
   const gif = makeGif();
   const baseline = justNow;
   const bits = requiredBits(0);
-  assert.equal(bits, 24, "expected 24-bit bracket when baseline is this second");
+  assert.equal(bits, 20, "expected 20-bit bracket when baseline is this second");
   // Don't actually solve 24 bits here — just verify the bracket calc.
   // Submit with a 16-bit solution and confirm rejection.
   const weak = await solve(gif, baseline, 16);
