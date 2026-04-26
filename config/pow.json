@@ -2,10 +2,9 @@
   "hash_algo": "sha-256",
   "baseline_grace_s": 60,
   "difficulty_table": [
-    { "max_age_s": 10, "bits": 24 },
-    { "max_age_s": 60, "bits": 22 },
-    { "max_age_s": 600, "bits": 20 },
-    { "max_age_s": 3600, "bits": 18 },
-    { "max_age_s": null, "bits": 16 }
+    { "max_age_s": 10, "bits": 20 },
+    { "max_age_s": 60, "bits": 18 },
+    { "max_age_s": 600, "bits": 16 },
+    { "max_age_s": null, "bits": 14 }
   ]
 }
