@@ -33,14 +33,14 @@ All issues 53–58 are closed.
 Tracking: **#59** (umbrella). 15 sub-issues, ordered by dependency:
 
 ### Phase 0 — account setup
-- #64 Printify account + API access
-- #66 Stripe account in test mode
-- #67 Pick initial product catalog → commits `config/merch.json`
+- #64 Printify account + API access *(external; needs human)*
+- #66 Stripe account in test mode *(external; needs human)*
+- #67 Pick initial product catalog → commits `config/merch.json` *(needs `PRINTIFY_API_TOKEN`)*
 
 ### Phase 1 — backend
-- #68 `merch/printify.ts` wrapper
-- #69 `merch/stripe.ts` helper (adds `stripe` dep)
-- #70 `merch/upscale.ts` (adds `pngjs` dep)
+- ✅ #68 `merch/printify.ts` wrapper — shipped on master @ 9ce68d6
+- ✅ #69 `merch/stripe.ts` helper (adds `stripe` dep) — shipped on master @ de0330c
+- ✅ #70 `merch/upscale.ts` (adds `pngjs` dep) — shipped on master @ 6db5a9f
 - #71 `merch/orders.ts` + DynamoDB `drawbang-orders` table
 - #72 `merch/lambda.ts` + new SAM function + 4 routes (`/merch/products`, `/checkout`, `/webhook/stripe`, `/order/{id}`)
 
@@ -77,6 +77,21 @@ When picking up, start by checking which sub-issues are still open:
 gh issue list --label "" --state open
 ```
 …and tackle them in dependency order (Phase 0 first; within a phase, anything not blocked).
+
+### Working pattern this session has used
+
+- One issue per branch: `claude/issue-<N>-<slug>`.
+- Implement, run `npm run typecheck` + the fast subset (`node --test --import tsx 'test/gif.test.ts' 'test/pow.test.ts' 'test/share.test.ts' 'test/builder.test.ts' 'test/upscale.test.ts' 'test/stripe.test.ts' 'test/printify.test.ts'` plus any new file).
+- Push the branch, then **fast-forward `master`** to it and `git push origin master`. CI auto-deploys on `master`. (Avoid PR ceremony for solo merch work; revisit if collaboration starts.)
+- Comment a DoD-summary on the issue (don't close — the user closes after review).
+- Update this file's Phase-1 list with `✅` + commit hash.
+
+### Known type/build gotchas
+
+- `verbatimModuleSyntax: true` + `moduleResolution: "Bundler"` does **not** propagate the inner namespace through the Stripe SDK's `export { Checkout }` re-export. Use `Parameters<Stripe["checkout"]["sessions"]["create"]>[0]` instead of `Stripe.Checkout.SessionCreateParams`.
+- `tsconfig.json` `include` had to gain `merch/**/*` when that dir was first created — anything else outside the listed roots will need the same.
+- Stripe SDK pin in this repo: `2026-04-22.dahlia` (latest in v22). The merch issues' bodies still mention older `2025-09-30.clover`; they are stale and the latest pin is correct.
+- `pngjs` `pack()` is a stream — collect chunks into a `Uint8Array` and return via Promise (see `merch/upscale.ts`).
 
 ## Credentials available
 
