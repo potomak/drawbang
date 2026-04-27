@@ -25,7 +25,9 @@
     "vite": "^5.4.0"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1037.0",
     "@aws-sdk/client-s3": "^3.1036.0",
+    "@aws-sdk/lib-dynamodb": "^3.1037.0",
     "gifenc": "^1.0.3",
     "omggif": "^1.0.10",
     "pngjs": "^7.0.0",

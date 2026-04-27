@@ -184,6 +184,29 @@ Resources:
               StringEquals:
                 AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${AssetsDistribution}"
 
+  # -- Merch orders DynamoDB table --------------------------------------------
+  # The merch Lambda (added in #72) will need:
+  #   Policies:    - DynamoDBCrudPolicy: { TableName: !Ref OrdersTable }
+  #   Environment: ORDERS_TABLE: !Ref OrdersTable
+  # Table only — no IAM grant or env var until the merch function exists.
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: drawbang-orders
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: order_id,   AttributeType: S }
+        - { AttributeName: status,     AttributeType: S }
+        - { AttributeName: created_at, AttributeType: S }
+      KeySchema:
+        - { AttributeName: order_id, KeyType: HASH }
+      GlobalSecondaryIndexes:
+        - IndexName: status-created_at-index
+          KeySchema:
+            - { AttributeName: status,     KeyType: HASH }
+            - { AttributeName: created_at, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+
   # -- Ingest Lambda + API Gateway --------------------------------------------
 
   IngestFunction:
@@ -228,6 +251,9 @@ Resources:
         MaxAge: 3600
 
 Outputs:
+  OrdersTableName:
+    Description: DynamoDB table for merch orders. Read by merch/orders.ts.
+    Value: !Ref OrdersTable
   IngestEndpoint:
     Description: POST here with the IngestRequest body.
     Value: !Sub "https://${IngestApi}.execute-api.${AWS::Region}.amazonaws.com/ingest"
