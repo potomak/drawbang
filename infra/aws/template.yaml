@@ -19,6 +19,30 @@ Parameters:
       pixel.drawbang.com). Leave empty to keep the *.cloudfront.net URL only.
       An ACM certificate is requested with DNS validation; the validation
       CNAME shows up in the ACM console — add it to your DNS to finish.
+  # Merch Lambda secrets. Default to "" so the deploy stays green before the
+  # operator wires real values in via parameter_overrides. Until they are set,
+  # MerchFunction will throw on init for any request that needs the helpers
+  # (everything except /merch/products), which is the intended fail-loud
+  # behaviour during staging.
+  PrintifyApiToken:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Bearer token for the Printify REST API. Maps to PRINTIFY_API_TOKEN.
+  PrintifyShopId:
+    Type: String
+    Default: ""
+    Description: Printify shop id. Maps to PRINTIFY_SHOP_ID.
+  StripeSecretKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Stripe secret key (sk_test_… in test mode). Maps to STRIPE_SECRET_KEY.
+  StripeWebhookSecret:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Stripe webhook signing secret (whsec_…). Maps to STRIPE_WEBHOOK_SECRET.
 
 Conditions:
   HasCustomDomain: !Not [!Equals [!Ref DomainName, ""]]
@@ -246,9 +270,64 @@ Resources:
         AllowOrigins:
           - !If [HasCustomDomain, !Sub "https://${DomainName}", !Sub "https://${AssetsDistribution.DomainName}"]
           - !Sub "https://${AssetsDistribution.DomainName}"
-        AllowMethods: [POST, OPTIONS]
+        AllowMethods: [GET, POST, OPTIONS]
         AllowHeaders: [content-type]
         MaxAge: 3600
+
+  # -- Merch Lambda + routes --------------------------------------------------
+  # Shares the IngestApi HTTP API (single API Gateway, multiple integrations).
+  # Routes:
+  #   GET  /merch/products
+  #   POST /merch/checkout
+  #   POST /merch/webhook/stripe   (Stripe webhook endpoint; raw body)
+  #   GET  /merch/order/{id}
+  MerchFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: drawbang-merch
+      Handler: merch.handler
+      CodeUri: ../../dist-lambda
+      Environment:
+        Variables:
+          ORDERS_TABLE: !Ref OrdersTable
+          PRINTIFY_API_TOKEN: !Ref PrintifyApiToken
+          PRINTIFY_SHOP_ID: !Ref PrintifyShopId
+          STRIPE_SECRET_KEY: !Ref StripeSecretKey
+          STRIPE_WEBHOOK_SECRET: !Ref StripeWebhookSecret
+          PUBLIC_BASE_URL: !If
+            - HasCustomDomain
+            - !Sub "https://${DomainName}"
+            - !Sub "https://${AssetsDistribution.DomainName}"
+          DRAWINGS_BUCKET: !Ref AssetsBucket
+          NODE_OPTIONS: "--enable-source-maps"
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref OrdersTable }
+        - S3ReadPolicy: { BucketName: !Ref AssetsBucket }
+      Events:
+        Products:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /merch/products
+        Checkout:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: POST
+            Path: /merch/checkout
+        Webhook:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: POST
+            Path: /merch/webhook/stripe
+        Order:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /merch/order/{id}
 
 Outputs:
   OrdersTableName:
@@ -257,6 +336,9 @@ Outputs:
   IngestEndpoint:
     Description: POST here with the IngestRequest body.
     Value: !Sub "https://${IngestApi}.execute-api.${AWS::Region}.amazonaws.com/ingest"
+  MerchEndpoint:
+    Description: Base URL for merch routes. Stripe webhook target = MerchEndpoint + /webhook/stripe.
+    Value: !Sub "https://${IngestApi}.execute-api.${AWS::Region}.amazonaws.com/merch"
   BucketName:
     Value: !Ref AssetsBucket
   CloudFrontDomain:

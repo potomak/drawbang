@@ -10,9 +10,7 @@ const outDir = path.join(repoRoot, "dist-lambda");
 await fs.rm(outDir, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 
-await build({
-  entryPoints: [path.join(repoRoot, "ingest", "lambda.ts")],
-  outfile: path.join(outDir, "lambda.js"),
+const shared = {
   bundle: true,
   platform: "node",
   target: "node22",
@@ -22,4 +20,16 @@ await build({
   // external and ship only our code + non-AWS deps. Keeps the zip small.
   external: ["@aws-sdk/*"],
   logLevel: "info",
+};
+
+await build({
+  ...shared,
+  entryPoints: [path.join(repoRoot, "ingest", "lambda.ts")],
+  outfile: path.join(outDir, "lambda.js"),
+});
+
+await build({
+  ...shared,
+  entryPoints: [path.join(repoRoot, "merch", "lambda.ts")],
+  outfile: path.join(outDir, "merch.js"),
 });

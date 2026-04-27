@@ -41,8 +41,11 @@ Tracking: **#59** (umbrella). 15 sub-issues, ordered by dependency:
 - ✅ #68 `merch/printify.ts` wrapper — shipped on master @ 9ce68d6
 - ✅ #69 `merch/stripe.ts` helper (adds `stripe` dep) — shipped on master @ de0330c
 - ✅ #70 `merch/upscale.ts` (adds `pngjs` dep) — shipped on master @ 6db5a9f
-- ✅ #71 `merch/orders.ts` + DynamoDB `drawbang-orders` table — code + table in SAM. **#72 still owes**: add `DynamoDBCrudPolicy { TableName: !Ref OrdersTable }` and env `ORDERS_TABLE: !Ref OrdersTable` to the new merch Lambda.
-- #72 `merch/lambda.ts` + new SAM function + 4 routes (`/merch/products`, `/checkout`, `/webhook/stripe`, `/order/{id}`)
+- ✅ #71 `merch/orders.ts` + DynamoDB `drawbang-orders` table — table grant + env var hooked up by #72.
+- ✅ #72 `merch/lambda.ts` + 4 HTTP API routes (`/merch/products`, `/checkout`, `/webhook/stripe`, `/order/{id}`) on the existing `IngestApi` — shipped pending **manual setup**:
+  - `config/merch.json` is a placeholder `{"products":[]}` until #67 lands real catalog data. `/merch/products` will return `{"products":[]}` and `/merch/checkout` will 400 on every call until then.
+  - GH secrets needed in the `prod` environment: `PRINTIFY_API_TOKEN`, `PRINTIFY_SHOP_ID`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`. SAM Parameters default to `""` so the deploy stays green without them, but `MerchFunction` will fail at init for any route except `/merch/products` until they are set.
+  - After the first deploy with secrets, point the Stripe dashboard webhook at the new endpoint: `<MerchEndpoint>/webhook/stripe` (CFN output `MerchEndpoint`).
 
 ### Phase 2 — UI
 - #73 "Make merch" button in editor + drawing page
@@ -81,10 +84,10 @@ gh issue list --label "" --state open
 ### Working pattern this session has used
 
 - One issue per branch: `claude/issue-<N>-<slug>`.
-- Implement, run `npm run typecheck` + the fast subset (`node --test --import tsx 'test/gif.test.ts' 'test/pow.test.ts' 'test/share.test.ts' 'test/builder.test.ts' 'test/upscale.test.ts' 'test/stripe.test.ts' 'test/printify.test.ts'` plus any new file).
+- Implement, run `npm run typecheck` + the fast subset (`node --test --import tsx 'test/gif.test.ts' 'test/pow.test.ts' 'test/share.test.ts' 'test/builder.test.ts' 'test/upscale.test.ts' 'test/stripe.test.ts' 'test/printify.test.ts' 'test/orders.test.ts' 'test/merch-lambda.test.ts'`).
 - Push the branch, then **fast-forward `master`** to it and `git push origin master`. CI auto-deploys on `master`. (Avoid PR ceremony for solo merch work; revisit if collaboration starts.)
 - Comment a DoD-summary on the issue (don't close — the user closes after review).
-- Update this file's Phase-1 list with `✅` + commit hash.
+- Update this file's Phase-1 list with `✅` + commit hash, and append any manual follow-ups the human still has to do.
 
 ### Known type/build gotchas
 
@@ -93,6 +96,9 @@ gh issue list --label "" --state open
 - Stripe SDK pin in this repo: `2026-04-22.dahlia` (latest in v22). The merch issues' bodies still mention older `2025-09-30.clover`; they are stale and the latest pin is correct.
 - `pngjs` `pack()` is a stream — collect chunks into a `Uint8Array` and return via Promise (see `merch/upscale.ts`).
 - `DynamoDBDocumentClient.from(client)` shares the underlying client's middleware stack, so it never calls `client.send()`. Stubbing `client.send` won't intercept anything. `OrdersStore` exposes a `docClient?:` test seam for that reason — use it in unit tests; production code still passes `client` and lets `OrdersStore` wrap it.
+- The Lambda bundle (`dist-lambda/*.js`) is CJS, but the parent `package.json` has `"type": "module"`. Local `require('/path/dist-lambda/foo.js')` from inside the project will fail (Node loads it as ESM via parent type). AWS Lambda runtime doesn't see the parent package.json, so it loads the file as CJS and works. To smoke-test exports locally, copy the bundle outside the project tree or import the source directly via `tsx`.
+- HTTP API event `routeKey` already includes the method (e.g. `"GET /merch/products"`); don't prefix it again with `event.requestContext.http.method` — switch on `routeKey` directly.
+- YAML flow-mapping (`{ Path: /foo/{id} }`) chokes on `{id}` — write SAM Event `Properties` in block form when the path has placeholders.
 
 ## Credentials available
 
