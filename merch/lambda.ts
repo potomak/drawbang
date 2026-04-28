@@ -1,6 +1,8 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from "aws-lambda";
+import type Stripe from "stripe";
 import catalog from "../config/merch.json";
 import { OrdersStore, type Order, type OrderStatus } from "./orders.js";
+import type { ShippingAddress } from "./printify.js";
 import { StripeHelper } from "./stripe.js";
 
 export interface MerchVariant {
@@ -144,13 +146,96 @@ async function webhook(
     headers["Stripe-Signature"];
   if (!signature) return json(400, { error: "missing signature" });
   const raw = readRawBody(event);
+  let evt: Stripe.Event;
   try {
-    deps.stripe.parseWebhook(raw, signature);
-  } catch {
-    return json(400, { error: "bad signature" });
+    evt = deps.stripe.parseWebhook(raw, signature);
+  } catch (err) {
+    return text(400, `bad signature: ${(err as Error).message}`);
   }
-  // Real dispatch lands in #77.
+
+  // Always 204 after the signature check passes — surfacing dispatch failures
+  // would just make Stripe retry, which can produce duplicate side effects.
+  // Failures are logged and orders flipped to "failed" inline.
+  try {
+    switch (evt.type) {
+      case "checkout.session.completed":
+        await handleCheckoutCompleted(evt.data.object as Stripe.Checkout.Session, deps);
+        break;
+      case "payment_intent.payment_failed":
+        await handlePaymentFailed(evt.data.object as Stripe.PaymentIntent, deps);
+        break;
+      default:
+        console.log("unhandled stripe event", evt.type);
+    }
+  } catch (err) {
+    console.error("stripe webhook dispatch failed", { type: evt.type, err });
+  }
   return { statusCode: 204, body: "" };
+}
+
+async function handleCheckoutCompleted(
+  session: Stripe.Checkout.Session,
+  deps: MerchHandlerDeps,
+): Promise<void> {
+  const orderId = session.metadata?.order_id;
+  if (!orderId) {
+    console.error("checkout.session.completed missing metadata.order_id", { sessionId: session.id });
+    return;
+  }
+
+  const patch: Partial<Order> = { status: "paid" };
+  const email = session.customer_details?.email;
+  if (email) patch.customer_email = email;
+  const shipping = extractShippingAddress(session, email ?? undefined);
+  if (shipping) patch.shipping_address = shipping;
+
+  const updated = await deps.orders.transition(orderId, "pending", patch);
+  if (!updated) {
+    // Already processed (or never created). Webhook retries land here too.
+    console.log("order not in pending; skipping", { orderId });
+    return;
+  }
+
+  // Printify dispatch lands in #78. Log the intent for now so the handoff is
+  // visible in CloudWatch.
+  console.log("would dispatch printify order", { orderId });
+}
+
+async function handlePaymentFailed(
+  intent: Stripe.PaymentIntent,
+  deps: MerchHandlerDeps,
+): Promise<void> {
+  const orderId = intent.metadata?.order_id;
+  if (!orderId) {
+    console.error("payment_intent.payment_failed missing metadata.order_id", { intentId: intent.id });
+    return;
+  }
+  const updated = await deps.orders.transition(orderId, "pending", { status: "failed" });
+  if (!updated) {
+    console.log("order not in pending; skipping payment_failed", { orderId });
+  }
+}
+
+function extractShippingAddress(
+  session: Stripe.Checkout.Session,
+  email: string | undefined,
+): ShippingAddress | undefined {
+  const details = session.collected_information?.shipping_details;
+  if (!details) return undefined;
+  const addr = details.address;
+  if (!addr || !addr.country || !addr.line1 || !addr.city || !addr.postal_code) return undefined;
+  const [first, ...rest] = (details.name ?? "").trim().split(/\s+/);
+  return {
+    first_name: first ?? "",
+    last_name: rest.join(" "),
+    email: email ?? "",
+    country: addr.country,
+    region: addr.state ?? "",
+    address1: addr.line1,
+    ...(addr.line2 ? { address2: addr.line2 } : {}),
+    city: addr.city,
+    zip: addr.postal_code,
+  };
 }
 
 async function getOrderRoute(

@@ -54,7 +54,7 @@ Tracking: **#59** (umbrella). 15 sub-issues, ordered by dependency:
 - #76 Wire picker → `/merch/checkout` → Stripe redirect (note: server must substitute `{ORDER_ID}` in success_url)
 
 ### Phase 3 — fulfillment
-- #77 Stripe webhook signature verify + dispatch
+- ✅ #77 Stripe webhook signature verify + dispatch — `checkout.session.completed` → orders.transition pending→paid (captures email + shipping); `payment_intent.payment_failed` → pending→failed; idempotent (transition returns null on replay); dispatch errors swallowed so Stripe doesn't retry. Printify dispatch is logged-only until #78.
 - #78 `placePrintifyOrder` (decode gif → upscale → upload → create product → create order)
 - #79 `order.html` status page (CloudFront rewrite for `/merch/order/<id>` needs updating)
 
@@ -99,6 +99,7 @@ gh issue list --label "" --state open
 - The Lambda bundle (`dist-lambda/*.js`) is CJS, but the parent `package.json` has `"type": "module"`. Local `require('/path/dist-lambda/foo.js')` from inside the project will fail (Node loads it as ESM via parent type). AWS Lambda runtime doesn't see the parent package.json, so it loads the file as CJS and works. To smoke-test exports locally, copy the bundle outside the project tree or import the source directly via `tsx`.
 - HTTP API event `routeKey` already includes the method (e.g. `"GET /merch/products"`); don't prefix it again with `event.requestContext.http.method` — switch on `routeKey` directly.
 - YAML flow-mapping (`{ Path: /foo/{id} }`) chokes on `{id}` — write SAM Event `Properties` in block form when the path has placeholders.
+- Stripe SDK v22 moved checkout shipping to `Session.collected_information.shipping_details` (the older top-level `Session.shipping_details` referenced in some merch issue bodies isn't on the type). Same `verbatimModuleSyntax` namespace gotcha applies — use `NonNullable<Stripe.Checkout.Session["customer_details"]>` etc. instead of `Stripe.Checkout.Session.CustomerDetails`.
 
 ## Credentials available
 

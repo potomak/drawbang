@@ -101,7 +101,10 @@ function buildDeps(stub: StubBehavior = {}): {
     parseWebhook: (body: string, sig: string) => {
       stripeCalls.parseWebhook.push({ body, sig });
       if (stub.stripeStub?.parseWebhook) return stub.stripeStub.parseWebhook(body, sig);
-      return { id: "evt_default", type: "checkout.session.completed" } as ReturnType<StripeHelper["parseWebhook"]>;
+      // Default to an unhandled event type so the dispatcher is a clean no-op
+      // for tests focused on signature/transport behavior. Tests that exercise
+      // dispatch live in test/merch-webhook.test.ts.
+      return { id: "evt_default", type: "ping" } as unknown as ReturnType<StripeHelper["parseWebhook"]>;
     },
   } as unknown as StripeHelper;
 
@@ -317,7 +320,9 @@ test("POST /merch/webhook/stripe: 400 when parseWebhook throws", async () => {
     deps,
   );
   assert.equal(statusOf(res), 400);
-  assert.match(JSON.stringify(parseJson(res)), /bad signature/);
+  // bad-sig response is plain text including the underlying error message
+  const body = typeof res === "string" ? res : (res.body ?? "");
+  assert.match(body, /bad signature.*bad sig/);
 });
 
 test("POST /merch/webhook/stripe: 204 on a valid signature; signature passed unchanged", async () => {
