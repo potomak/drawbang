@@ -16,8 +16,10 @@ function buildDeps(stub: {
   parseWebhook?: StripeHelper["parseWebhook"];
   transitionResult?: Order | null;
   realStripeHelper?: StripeHelper;
-}): { deps: MerchHandlerDeps; ordersCalls: OrdersCalls } {
+  dispatch?: (orderId: string) => Promise<void>;
+}): { deps: MerchHandlerDeps; ordersCalls: OrdersCalls; dispatchCalls: string[] } {
   const ordersCalls: OrdersCalls = { transition: [] };
+  const dispatchCalls: string[] = [];
   const orders = {
     transition: async (id: string, expectedStatus: OrderStatus, patch: Partial<Order>) => {
       ordersCalls.transition.push({ id, expectedStatus, patch });
@@ -40,8 +42,13 @@ function buildDeps(stub: {
     shippingCountries: ["US"],
     uuid: () => "ord_test",
     now: () => "2026-04-27T11:00:00.000Z",
+    dispatch:
+      stub.dispatch ??
+      (async (orderId: string) => {
+        dispatchCalls.push(orderId);
+      }),
   };
-  return { deps, ordersCalls };
+  return { deps, ordersCalls, dispatchCalls };
 }
 
 function webhookEvent(body: unknown, sig: string): APIGatewayProxyEventV2 {
@@ -169,6 +176,82 @@ test("checkout.session.completed: missing metadata.order_id is logged but webhoo
   const res = await handle(webhookEvent({}, "sig_x"), deps);
   assert.equal(statusOf(res), 204);
   assert.equal(ordersCalls.transition.length, 0);
+});
+
+test("checkout.session.completed: invokes dispatch after a successful pending->paid transition", async () => {
+  const evt = {
+    id: "evt_dispatch",
+    type: "checkout.session.completed",
+    data: {
+      object: {
+        id: "cs_x",
+        object: "checkout.session",
+        metadata: { order_id: "ord_dispatch" },
+        customer_details: null,
+        collected_information: null,
+      },
+    },
+  } as unknown as Stripe.Event;
+
+  const { deps, dispatchCalls, ordersCalls } = buildDeps({
+    parseWebhook: () => evt,
+    transitionResult: makeFixtureOrder({ order_id: "ord_dispatch" }),
+  });
+
+  await handle(webhookEvent({}, "sig_x"), deps);
+  assert.deepEqual(dispatchCalls, ["ord_dispatch"]);
+  assert.equal(ordersCalls.transition.length, 1);
+});
+
+test("checkout.session.completed: dispatch errors are swallowed by the webhook try/catch", async () => {
+  const evt = {
+    id: "evt_dispatch_err",
+    type: "checkout.session.completed",
+    data: {
+      object: {
+        id: "cs_x",
+        object: "checkout.session",
+        metadata: { order_id: "ord_dispatch" },
+        customer_details: null,
+        collected_information: null,
+      },
+    },
+  } as unknown as Stripe.Event;
+
+  const { deps } = buildDeps({
+    parseWebhook: () => evt,
+    transitionResult: makeFixtureOrder({ order_id: "ord_dispatch" }),
+    dispatch: async () => {
+      throw new Error("dispatch boom");
+    },
+  });
+
+  const res = await handle(webhookEvent({}, "sig_x"), deps);
+  assert.equal(statusOf(res), 204);
+});
+
+test("checkout.session.completed: dispatch is NOT called when the transition is a no-op (replay)", async () => {
+  const evt = {
+    id: "evt_replay",
+    type: "checkout.session.completed",
+    data: {
+      object: {
+        id: "cs_x",
+        object: "checkout.session",
+        metadata: { order_id: "ord_replay" },
+        customer_details: null,
+        collected_information: null,
+      },
+    },
+  } as unknown as Stripe.Event;
+
+  const { deps, dispatchCalls } = buildDeps({
+    parseWebhook: () => evt,
+    transitionResult: null, // already-paid; transition is a no-op
+  });
+
+  await handle(webhookEvent({}, "sig_x"), deps);
+  assert.deepEqual(dispatchCalls, []);
 });
 
 test("checkout.session.completed: idempotent — replay returns 204 even when transition returns null", async () => {

@@ -1,8 +1,10 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from "aws-lambda";
 import type Stripe from "stripe";
 import catalog from "../config/merch.json";
+import { S3Storage } from "../ingest/s3-storage.js";
+import { placePrintifyOrder } from "./dispatch.js";
 import { OrdersStore, type Order, type OrderStatus } from "./orders.js";
-import type { ShippingAddress } from "./printify.js";
+import { PrintifyClient, type ShippingAddress } from "./printify.js";
 import { StripeHelper } from "./stripe.js";
 
 export interface MerchVariant {
@@ -32,6 +34,11 @@ export interface MerchHandlerDeps {
   shippingCountries: string[];
   uuid: () => string;
   now: () => string;
+  // Called from the Stripe webhook after a successful pending->paid transition.
+  // In production this kicks off Printify upload + product + order. Tests stub
+  // it to assert dispatch is invoked. Wrapped in the webhook's try/catch so a
+  // throw still 204s back to Stripe.
+  dispatch?: (orderId: string) => Promise<void>;
 }
 
 const SANITIZED_FIELDS: ReadonlySet<keyof Order> = new Set([
@@ -196,9 +203,9 @@ async function handleCheckoutCompleted(
     return;
   }
 
-  // Printify dispatch lands in #78. Log the intent for now so the handoff is
-  // visible in CloudWatch.
-  console.log("would dispatch printify order", { orderId });
+  if (deps.dispatch) {
+    await deps.dispatch(orderId);
+  }
 }
 
 async function handlePaymentFailed(
@@ -294,16 +301,34 @@ function required(name: string): string {
 let booted: MerchHandlerDeps | null = null;
 function bootDeps(): MerchHandlerDeps {
   if (booted) return booted;
+  const orders = new OrdersStore({ tableName: required("ORDERS_TABLE") });
+  const printify = new PrintifyClient({
+    token: required("PRINTIFY_API_TOKEN"),
+    shopId: required("PRINTIFY_SHOP_ID"),
+  });
+  const drawingsBucket = required("DRAWINGS_BUCKET");
+  const publicBaseUrl = required("PUBLIC_BASE_URL");
+  const s3 = new S3Storage({ bucket: drawingsBucket });
+  const merchCatalog = catalog as MerchCatalog;
+
   booted = {
-    orders: new OrdersStore({ tableName: required("ORDERS_TABLE") }),
+    orders,
     stripe: new StripeHelper({
       secretKey: required("STRIPE_SECRET_KEY"),
       webhookSecret: required("STRIPE_WEBHOOK_SECRET"),
     }),
-    catalog: catalog as MerchCatalog,
+    catalog: merchCatalog,
     shippingCountries: ["US", "CA", "GB"],
     uuid: () => crypto.randomUUID(),
     now: () => new Date().toISOString(),
+    dispatch: (orderId: string) =>
+      placePrintifyOrder(orderId, {
+        orders,
+        printify,
+        catalog: merchCatalog,
+        publicBaseUrl,
+        fetchDrawing: (drawingId) => s3.getBytes(`public/drawings/${drawingId}.gif`),
+      }),
   };
   return booted;
 }

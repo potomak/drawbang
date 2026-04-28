@@ -54,8 +54,8 @@ Tracking: **#59** (umbrella). 15 sub-issues, ordered by dependency:
 - #76 Wire picker → `/merch/checkout` → Stripe redirect (note: server must substitute `{ORDER_ID}` in success_url)
 
 ### Phase 3 — fulfillment
-- ✅ #77 Stripe webhook signature verify + dispatch — `checkout.session.completed` → orders.transition pending→paid (captures email + shipping); `payment_intent.payment_failed` → pending→failed; idempotent (transition returns null on replay); dispatch errors swallowed so Stripe doesn't retry. Printify dispatch is logged-only until #78.
-- #78 `placePrintifyOrder` (decode gif → upscale → upload → create product → create order)
+- ✅ #77 Stripe webhook signature verify + dispatch — `checkout.session.completed` → orders.transition pending→paid (captures email + shipping); `payment_intent.payment_failed` → pending→failed; idempotent (transition returns null on replay); dispatch errors swallowed so Stripe doesn't retry.
+- ✅ #78 `placePrintifyOrder` (`merch/dispatch.ts`) — fetches gif from S3, decodes, upscales the chosen frame to the largest print-area dim rounded down to a multiple of 16, uploads to Printify, creates product + order, transitions paid→submitted. On any error transitions paid→failed (best-effort). Wired into the webhook via `MerchHandlerDeps.dispatch`; bootDeps captures a closure over `S3Storage.getBytes('public/drawings/<id>.gif')`.
 - #79 `order.html` status page (CloudFront rewrite for `/merch/order/<id>` needs updating)
 
 ### Phase 4 — polish
