@@ -28,6 +28,22 @@ See `CLAUDE.md` — already up to date as of the CloudFront migration.
 
 All issues 53–58 are closed.
 
+## Open epic — drawing ownership via Ed25519 keypair
+
+Tracking: **#82** (umbrella). 9 sub-issues. Full design in `.claude/plans/now-i-want-you-quizzical-hopcroft.md`.
+
+- ✅ **X1** `src/identity.ts` — Ed25519 wrapper (generate / export / import / sign / verify). Shipped on master @ **8f65125**.
+- #83 — **X2**: Verify Ed25519 signatures in the ingest handler
+- #84 — **X3**: Add `pubkey` / `signature` to per-day `index.jsonl` schema
+- #85 — **X4**: Editor IndexedDB identity store + sign-on-publish
+- #86 — **X5**: First-visit modal + settings dialog
+- #87 — **X6**: Render owner badge + link on `/d/<id>`
+- #88 — **X7**: Per-owner gallery `/keys/<pk>` (template + builder sweep)
+- #89 — **X8**: CloudFront rewrite for `/keys/<64hex>` → `.html`
+- #90 — **X9**: Operator backfill — sign legacy drawings + force re-render
+
+Dependency order: X2 → X3 → {X4 → X5} || {X6, X7 → X8} → X9. A fresh agent should take the lowest-numbered open sub-issue whose dependencies are met.
+
 ## Open epic — merch storefront
 
 Tracking: **#59** (umbrella). 15 sub-issues, ordered by dependency:
