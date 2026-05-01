@@ -172,6 +172,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     solve_ms: req.solve_ms ?? "unknown",
     bench_hps: req.bench_hps ?? "unknown",
     parent: req.parent ? { parent: req.parent, parent_short: req.parent.slice(0, 8) } : null,
+    owner: { pubkey: req.pubkey, pubkey_short: req.pubkey.slice(0, 8) },
     repo_url: cfg.repoUrl ?? "https://github.com/potomak/drawbang",
   });
   await Promise.all([

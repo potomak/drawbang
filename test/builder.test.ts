@@ -115,7 +115,7 @@ interface IndexLine {
   signature: string | null;
 }
 
-test("builder propagates pubkey + signature from inbox to per-day index.jsonl", async () => {
+test("builder propagates pubkey + signature from inbox to per-day index.jsonl, drawing page renders owner link", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
   const storage = new FsStorage(root);
 
@@ -135,9 +135,16 @@ test("builder propagates pubkey + signature from inbox to per-day index.jsonl", 
   assert.equal(entry.id, id);
   assert.equal(entry.pubkey, pubkey);
   assert.equal(entry.signature, signature);
+
+  // Per-drawing HTML carries an owner badge linking to /keys/<pubkey>.
+  const drawingHtml = await fs.readFile(path.join(root, `public/d/${id}.html`), "utf8");
+  assert.match(drawingHtml, new RegExp(`<a href="/keys/${pubkey}">`));
+  assert.match(drawingHtml, /<dt>owner<\/dt><dd><a href="\/keys\//);
+  // No "anonymous" fallback when the owner is set.
+  assert.equal(drawingHtml.includes("anonymous"), false);
 });
 
-test("builder writes null pubkey + signature for legacy inbox sidecars (pre-feature)", async () => {
+test("builder writes null pubkey + signature for legacy inbox sidecars (pre-feature), drawing page renders 'anonymous'", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
   const storage = new FsStorage(root);
 
@@ -157,4 +164,9 @@ test("builder writes null pubkey + signature for legacy inbox sidecars (pre-feat
   assert.equal(entry.id, id);
   assert.equal(entry.pubkey, null);
   assert.equal(entry.signature, null);
+
+  // Legacy drawing renders the 'anonymous' fallback (no /keys/ link).
+  const drawingHtml = await fs.readFile(path.join(root, `public/d/${id}.html`), "utf8");
+  assert.match(drawingHtml, /<dt>owner<\/dt><dd>anonymous<\/dd>/);
+  assert.equal(/href="\/keys\//.test(drawingHtml), false);
 });

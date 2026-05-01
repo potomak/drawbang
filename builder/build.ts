@@ -204,6 +204,7 @@ export function drawingViewModel(d: DrawingMetadata): Omit<DrawingView, "repo_ur
     solve_ms: d.solve_ms ?? "unknown",
     bench_hps: d.bench_hps ?? "unknown",
     parent: d.parent ? { parent: d.parent, parent_short: d.parent.slice(0, 8) } : null,
+    owner: d.pubkey ? { pubkey: d.pubkey, pubkey_short: d.pubkey.slice(0, 8) } : null,
   };
 }
 
