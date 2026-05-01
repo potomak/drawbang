@@ -10,7 +10,17 @@ import { contentHash, hashHex, powHash, solve } from "../src/pow.js";
 import { FsStorage } from "../ingest/storage.js";
 import { build } from "../builder/build.js";
 
-async function seedDrawing(root: string, day: string, marker: number): Promise<string> {
+interface SeedOpts {
+  pubkey?: string;
+  signature?: string;
+}
+
+async function seedDrawing(
+  root: string,
+  day: string,
+  marker: number,
+  seedOpts: SeedOpts = {},
+): Promise<string> {
   const frame = new Bitmap();
   // Unique pixel per caller so each gif hashes to a different ID (otherwise
   // content-addressing would collapse them into a single drawing).
@@ -25,20 +35,23 @@ async function seedDrawing(root: string, day: string, marker: number): Promise<s
   const jsonPath = path.join(root, "inbox", day, `${id}.json`);
   await fs.mkdir(path.dirname(gifPath), { recursive: true });
   await fs.writeFile(gifPath, gif);
-  await fs.writeFile(
-    jsonPath,
-    JSON.stringify({
-      id,
-      pow,
-      nonce: sol.nonce,
-      baseline,
-      solve_ms: sol.solveMs,
-      bench_hps: 12345,
-      required_bits: 12,
-      created_at: `${day}T10:00:00.000Z`,
-      parent: null,
-    }),
-  );
+  // Sidecar shape mirrors what ingest/handler.ts writes. When seedOpts has
+  // pubkey/signature, include them; otherwise leave them out to model legacy
+  // pre-feature inbox JSONs.
+  const sidecar: Record<string, unknown> = {
+    id,
+    pow,
+    nonce: sol.nonce,
+    baseline,
+    solve_ms: sol.solveMs,
+    bench_hps: 12345,
+    required_bits: 12,
+    created_at: `${day}T10:00:00.000Z`,
+    parent: null,
+  };
+  if (seedOpts.pubkey !== undefined) sidecar.pubkey = seedOpts.pubkey;
+  if (seedOpts.signature !== undefined) sidecar.signature = seedOpts.signature;
+  await fs.writeFile(jsonPath, JSON.stringify(sidecar));
   return id;
 }
 
@@ -94,4 +107,54 @@ test("builder sweeps inbox, renders per-day pages, is incremental", async () => 
   }
   const indexStat = await fs.stat(path.join(root, "public/gallery.html"));
   assert.ok(indexStat.mtimeMs >= snapshot.get("public/gallery.html")!, "index.html is rolling");
+});
+
+interface IndexLine {
+  id: string;
+  pubkey: string | null;
+  signature: string | null;
+}
+
+test("builder propagates pubkey + signature from inbox to per-day index.jsonl", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
+  const storage = new FsStorage(root);
+
+  const pubkey = "a".repeat(64);
+  const signature = "b".repeat(128);
+  const id = await seedDrawing(root, "2026-04-19", 11, { pubkey, signature });
+
+  await build({ storage, publicBaseUrl: "https://example.test", today: "2026-04-20" });
+
+  const jsonl = await fs.readFile(
+    path.join(root, "public/days/2026-04-19/index.jsonl"),
+    "utf8",
+  );
+  const lines = jsonl.split("\n").filter(Boolean);
+  assert.equal(lines.length, 1);
+  const entry = JSON.parse(lines[0]) as IndexLine;
+  assert.equal(entry.id, id);
+  assert.equal(entry.pubkey, pubkey);
+  assert.equal(entry.signature, signature);
+});
+
+test("builder writes null pubkey + signature for legacy inbox sidecars (pre-feature)", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
+  const storage = new FsStorage(root);
+
+  // No seedOpts -> sidecar omits the owner fields, like every drawing
+  // submitted before #83 landed.
+  const id = await seedDrawing(root, "2026-04-19", 12);
+
+  await build({ storage, publicBaseUrl: "https://example.test", today: "2026-04-20" });
+
+  const jsonl = await fs.readFile(
+    path.join(root, "public/days/2026-04-19/index.jsonl"),
+    "utf8",
+  );
+  const lines = jsonl.split("\n").filter(Boolean);
+  assert.equal(lines.length, 1);
+  const entry = JSON.parse(lines[0]) as IndexLine;
+  assert.equal(entry.id, id);
+  assert.equal(entry.pubkey, null);
+  assert.equal(entry.signature, null);
 });

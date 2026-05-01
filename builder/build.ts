@@ -39,6 +39,11 @@ interface DrawingMetadata {
   solve_ms: number | null;
   bench_hps: number | null;
   parent: string | null;
+  // Owner fields land via the inbox JSON sidecar that ingest writes (see #83).
+  // null only for entries that predate the ownership feature; the operator
+  // backfill (#90) signs them with the operator's keypair before re-rendering.
+  pubkey: string | null;
+  signature: string | null;
 }
 
 interface DayRollup {
@@ -119,6 +124,8 @@ export async function build(opts: BuildOptions): Promise<{
         solve_ms: meta.solve_ms,
         bench_hps: meta.bench_hps,
         parent: meta.parent,
+        pubkey: meta.pubkey ?? null,
+        signature: meta.signature ?? null,
       });
 
       await opts.storage.remove(gifKey);
