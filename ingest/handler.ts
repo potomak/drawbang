@@ -1,5 +1,6 @@
 import { INITIAL_STATE, ageSecondsBetween, contentHash, hashHex, leadingZeroBits, powHash, requiredBits } from "../src/pow.js";
 import type { LastPublishState } from "../src/pow.js";
+import { verifyDrawingId } from "../src/identity.js";
 import renderDrawing from "../builder/templates/drawing.js";
 import { validateGif } from "./gif-validate.js";
 import type { Storage } from "./storage.js";
@@ -11,6 +12,8 @@ export interface IngestRequest {
   solve_ms?: number;
   bench_hps?: number;
   parent?: string;
+  pubkey: string;     // 64 hex (Ed25519 raw public key)
+  signature: string;  // 128 hex (Ed25519 signature over hexToBytes(drawing_id))
 }
 
 export interface IngestSuccess {
@@ -104,10 +107,27 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     }
   }
 
-  // -- 4. Content-addressed id, idempotency check ----------------------------
+  // -- 4. Content-addressed id ------------------------------------------------
   // id is derived from the gif bytes alone: same drawing => same id, regardless
   // of how many times someone grinds a fresh PoW for it.
   const id = hashHex(await contentHash(gif));
+
+  // -- 4b. Ownership signature -----------------------------------------------
+  // Editor signs sha256(gif_bytes) with the user's Ed25519 secret key. We
+  // verify with the supplied public key. This runs AFTER content-hash compute
+  // (we sign the id) but BEFORE idempotency: a bad signature should never
+  // surface the existing record.
+  if (typeof req.pubkey !== "string" || !/^[0-9a-f]{64}$/.test(req.pubkey)) {
+    return err400("missing or malformed pubkey");
+  }
+  if (typeof req.signature !== "string" || !/^[0-9a-f]{128}$/.test(req.signature)) {
+    return err400("missing or malformed signature");
+  }
+  if (!(await verifyDrawingId(req.pubkey, id, req.signature))) {
+    return err400("signature does not verify against pubkey");
+  }
+
+  // -- 5. Idempotency check --------------------------------------------------
   const powHex = hashHex(pow);
   const day = nowISO.slice(0, 10);
   const gifKey = `inbox/${day}/${id}.gif`;
@@ -126,7 +146,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     };
   }
 
-  // -- 5. Persist ------------------------------------------------------------
+  // -- 6. Persist ------------------------------------------------------------
   // Inbox copy keeps the builder's queue semantics (day rollup, gallery
   // pagination). Public gif + rendered drawing page make the share URL work
   // immediately instead of waiting for the daily cron.
@@ -140,6 +160,8 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     required_bits: bits,
     created_at: nowISO,
     parent: req.parent ?? null,
+    pubkey: req.pubkey,
+    signature: req.signature,
   };
   const enc = new TextEncoder();
   const drawingHtml = renderDrawing({
@@ -159,7 +181,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     cfg.storage.put(`public/d/${id}.html`, enc.encode(drawingHtml), "text/html"),
   ]);
 
-  // -- 6. Update last-publish.json (and keep baseline history window) --------
+  // -- 7. Update last-publish.json (and keep baseline history window) --------
   const newState: LastPublishState = {
     last_publish_at: nowISO,
     last_difficulty_bits: bits,

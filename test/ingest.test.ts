@@ -4,8 +4,14 @@ import { Bitmap } from "../src/editor/bitmap.js";
 import { encodeGif } from "../src/editor/gif.js";
 import { DEFAULT_ACTIVE_PALETTE } from "../src/editor/palette.js";
 import { INITIAL_STATE, contentHash, hashHex, leadingZeroBits, powHash, requiredBits, solve } from "../src/pow.js";
+import {
+  type DrawbangIdentity,
+  generateIdentity,
+  pubKeyHex,
+  signDrawingId,
+} from "../src/identity.js";
 import type { Storage } from "../ingest/storage.js";
-import { handleIngest } from "../ingest/handler.js";
+import { handleIngest, type IngestRequest } from "../ingest/handler.js";
 
 // In-memory storage for testing — same Storage contract as FsStorage.
 class MemoryStorage implements Storage {
@@ -50,21 +56,38 @@ function makeGif(): Uint8Array {
   return encodeGif({ frames: [frame], activePalette: DEFAULT_ACTIVE_PALETTE });
 }
 
+async function signedBody(
+  gif: Uint8Array,
+  sol: { nonce: string; solveMs: number },
+  baseline: string,
+  identity: DrawbangIdentity,
+  extras: Partial<IngestRequest> = {},
+): Promise<IngestRequest> {
+  const id = hashHex(await contentHash(gif));
+  const pubkey = await pubKeyHex(identity);
+  const signature = await signDrawingId(identity, id);
+  return {
+    gif: Buffer.from(gif).toString("base64"),
+    nonce: sol.nonce,
+    baseline,
+    solve_ms: sol.solveMs,
+    bench_hps: 5000,
+    pubkey,
+    signature,
+    ...extras,
+  };
+}
+
 test("ingest accepts a valid submission with virgin state", async () => {
   const storage = new MemoryStorage();
   const gif = makeGif();
   const baseline = INITIAL_STATE.last_publish_at;
   const bits = requiredBits(Number.POSITIVE_INFINITY); // 14
   const sol = await solve(gif, baseline, bits);
+  const identity = await generateIdentity();
 
   const res = await handleIngest(
-    {
-      gif: Buffer.from(gif).toString("base64"),
-      nonce: sol.nonce,
-      baseline,
-      solve_ms: sol.solveMs,
-      bench_hps: 10000,
-    },
+    await signedBody(gif, sol, baseline, identity, { bench_hps: 10000 }),
     {
       storage,
       publicBaseUrl: "https://example.test",
@@ -77,9 +100,12 @@ test("ingest accepts a valid submission with virgin state", async () => {
   const id = (res.body as { id: string }).id;
   assert.equal(id, hashHex(await contentHash(gif)));
   assert.ok(await storage.exists(`inbox/2026-04-18/${id}.gif`));
-  const meta = await storage.getJSON<{ id: string; pow: string }>(`inbox/2026-04-18/${id}.json`);
+  const meta = await storage.getJSON<{ id: string; pow: string; pubkey: string; signature: string }>(`inbox/2026-04-18/${id}.json`);
   assert.equal(meta?.id, id);
   assert.equal(meta?.pow, sol.hashHex);
+  // Owner fields persisted on the inbox sidecar
+  assert.equal(meta?.pubkey, await pubKeyHex(identity));
+  assert.match(meta?.signature ?? "", /^[0-9a-f]{128}$/);
   const state = await storage.getJSON<{ last_publish_at: string; last_difficulty_bits: number }>("public/state/last-publish.json");
   assert.equal(state?.last_publish_at, "2026-04-18T12:00:00.000Z");
   assert.equal(state?.last_difficulty_bits, 14);
@@ -97,13 +123,11 @@ test("ingest id is stable across different nonce/baseline for the same gif", asy
     publicBaseUrl: "https://example.test",
     now: () => new Date("2026-04-18T12:00:00.000Z"),
   };
+  const identity = await generateIdentity();
 
   const baselineA = INITIAL_STATE.last_publish_at;
   const solA = await solve(gif, baselineA, 16);
-  const first = await handleIngest(
-    { gif: Buffer.from(gif).toString("base64"), nonce: solA.nonce, baseline: baselineA, solve_ms: solA.solveMs, bench_hps: 5000 },
-    cfg,
-  );
+  const first = await handleIngest(await signedBody(gif, solA, baselineA, identity), cfg);
   assert.equal(first.status, 202);
 
   // Second submit uses a fresh baseline (the one the first submit just set)
@@ -111,7 +135,7 @@ test("ingest id is stable across different nonce/baseline for the same gif", asy
   const baselineB = "2026-04-18T12:00:00.000Z";
   const solB = await solve(gif, baselineB, 16);
   const second = await handleIngest(
-    { gif: Buffer.from(gif).toString("base64"), nonce: solB.nonce, baseline: baselineB, solve_ms: solB.solveMs, bench_hps: 5000 },
+    await signedBody(gif, solB, baselineB, identity),
     { ...cfg, now: () => new Date("2026-04-18T13:00:01.000Z") },
   );
   assert.equal(second.status, 200, "second submit should be idempotent");
@@ -125,13 +149,8 @@ test("ingest is idempotent — identical submission returns 200 with same id", a
   const gif = makeGif();
   const baseline = INITIAL_STATE.last_publish_at;
   const sol = await solve(gif, baseline, 16);
-  const body = {
-    gif: Buffer.from(gif).toString("base64"),
-    nonce: sol.nonce,
-    baseline,
-    solve_ms: sol.solveMs,
-    bench_hps: 5000,
-  };
+  const identity = await generateIdentity();
+  const body = await signedBody(gif, sol, baseline, identity);
   const cfg = {
     storage,
     publicBaseUrl: "https://example.test",
@@ -147,22 +166,94 @@ test("ingest is idempotent — identical submission returns 200 with same id", a
   );
 });
 
+test("ingest first-owner-wins: duplicate gif from a different keypair gets the existing id", async () => {
+  // Re-uses the existing idempotency branch; no new code path. This is the
+  // contract that makes the CLAUDE.md content-addressed-id invariant hold
+  // even with ownership added.
+  const storage = new MemoryStorage();
+  const gif = makeGif();
+  const baseline = INITIAL_STATE.last_publish_at;
+  const sol = await solve(gif, baseline, 14);
+  const id = hashHex(await contentHash(gif));
+
+  const alice = await generateIdentity();
+  const bob = await generateIdentity();
+  const cfg = {
+    storage,
+    publicBaseUrl: "https://example.test",
+    now: () => new Date("2026-04-18T12:00:00.000Z"),
+  };
+
+  const first = await handleIngest(await signedBody(gif, sol, baseline, alice), cfg);
+  assert.equal(first.status, 202);
+  // bob signs a fresh submission of the same gif; gets back the existing id.
+  // The on-disk metadata still belongs to alice (first-owner-wins).
+  const second = await handleIngest(await signedBody(gif, sol, baseline, bob), cfg);
+  assert.equal(second.status, 200);
+  assert.equal((second.body as { id: string }).id, id);
+  const meta = await storage.getJSON<{ pubkey: string }>(`inbox/2026-04-18/${id}.json`);
+  assert.equal(meta?.pubkey, await pubKeyHex(alice));
+});
+
+test("ingest rejects a missing pubkey", async () => {
+  const storage = new MemoryStorage();
+  const gif = makeGif();
+  const baseline = INITIAL_STATE.last_publish_at;
+  const sol = await solve(gif, baseline, 14);
+  const identity = await generateIdentity();
+  const body = await signedBody(gif, sol, baseline, identity);
+  // Strip pubkey out of the body, mimicking an old client.
+  const { pubkey: _drop, ...withoutPubkey } = body;
+
+  const res = await handleIngest(
+    withoutPubkey as unknown as IngestRequest,
+    { storage, publicBaseUrl: "https://example.test", now: () => new Date("2026-04-18T12:00:00.000Z") },
+  );
+  assert.equal(res.status, 400);
+  assert.match((res.body as { error: string }).error, /pubkey/i);
+});
+
+test("ingest rejects a tampered signature", async () => {
+  const storage = new MemoryStorage();
+  const gif = makeGif();
+  const baseline = INITIAL_STATE.last_publish_at;
+  const sol = await solve(gif, baseline, 14);
+  const identity = await generateIdentity();
+  const body = await signedBody(gif, sol, baseline, identity);
+
+  // Flip the leading hex digit of the signature to invalidate it.
+  const tampered: IngestRequest = {
+    ...body,
+    signature: (body.signature[0] === "0" ? "1" : "0") + body.signature.slice(1),
+  };
+  const res = await handleIngest(
+    tampered,
+    { storage, publicBaseUrl: "https://example.test", now: () => new Date("2026-04-18T12:00:00.000Z") },
+  );
+  assert.equal(res.status, 400);
+  assert.match((res.body as { error: string }).error, /signature/i);
+  // Must NOT have persisted anything despite the valid PoW.
+  const id = hashHex(await contentHash(gif));
+  assert.equal(await storage.exists(`inbox/2026-04-18/${id}.gif`), false);
+});
+
 test("ingest rejects tampered gifs whose PoW fails", async () => {
   const storage = new MemoryStorage();
   const gif = makeGif();
   const baseline = INITIAL_STATE.last_publish_at;
   const sol = await solve(gif, baseline, 16);
+  const identity = await generateIdentity();
 
   const tampered = new Uint8Array(gif);
   tampered[tampered.length - 2] ^= 0xff;
 
+  // Body claims the (valid) signature for the original gif's id, but the PoW
+  // is computed over the tampered gif (which doesn't satisfy the bits target
+  // for that nonce). PoW check should fire first.
   const res = await handleIngest(
     {
+      ...(await signedBody(gif, sol, baseline, identity)),
       gif: Buffer.from(tampered).toString("base64"),
-      nonce: sol.nonce,
-      baseline,
-      solve_ms: sol.solveMs,
-      bench_hps: 5000,
     },
     { storage, publicBaseUrl: "https://example.test", now: () => new Date() },
   );
@@ -183,15 +274,10 @@ test("ingest requires baseline matching state or history", async () => {
   const gif = makeGif();
   const badBaseline = "2020-01-01T00:00:00.000Z";
   const sol = await solve(gif, badBaseline, 12); // low bits, don't waste time
+  const identity = await generateIdentity();
 
   const res = await handleIngest(
-    {
-      gif: Buffer.from(gif).toString("base64"),
-      nonce: sol.nonce,
-      baseline: badBaseline,
-      solve_ms: sol.solveMs,
-      bench_hps: 5000,
-    },
+    await signedBody(gif, sol, badBaseline, identity),
     { storage, publicBaseUrl: "https://example.test", now: () => new Date("2026-04-18T12:00:00.000Z") },
   );
   assert.equal(res.status, 400);
@@ -218,14 +304,9 @@ test("dynamic difficulty: second submission in the same second requires top-brac
   // Don't actually solve 24 bits here — just verify the bracket calc.
   // Submit with a 16-bit solution and confirm rejection.
   const weak = await solve(gif, baseline, 16);
+  const identity = await generateIdentity();
   const res = await handleIngest(
-    {
-      gif: Buffer.from(gif).toString("base64"),
-      nonce: weak.nonce,
-      baseline,
-      solve_ms: weak.solveMs,
-      bench_hps: 5000,
-    },
+    await signedBody(gif, weak, baseline, identity),
     { storage, publicBaseUrl: pubBase, now: () => new Date("2026-04-18T12:00:02.000Z") },
   );
   assert.equal(res.status, 400);
