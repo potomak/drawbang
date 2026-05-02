@@ -66,6 +66,8 @@ Resources:
   #     d/<id>.html              per-drawing pages (also accessible at /d/<id>)
   #     days/<d>/p/<n>.html      per-day galleries
   #     days/<d>/{index.jsonl,manifest.json}
+  #     keys/<pk>/index.jsonl    per-owner index (append-only)
+  #     keys/<pk>.html           per-owner gallery (mutable)
   #     feed.rss
   #     state/last-publish.json  written by the ingest Lambda
   #   inbox/                     private, ingest writes; builder sweeps

@@ -6,10 +6,12 @@ import renderDayGallery from "./templates/day-gallery.js";
 import renderDrawing from "./templates/drawing.js";
 import renderIndex from "./templates/index.js";
 import renderFeed from "./templates/feed.js";
+import renderOwner from "./templates/owner.js";
 import type { DayGalleryView } from "./templates/day-gallery.js";
 import type { DrawingView } from "./templates/drawing.js";
 import type { IndexView } from "./templates/index.js";
 import type { FeedView } from "./templates/feed.js";
+import type { OwnerView } from "./templates/owner.js";
 
 export interface BuildOptions {
   storage: Storage;
@@ -29,6 +31,7 @@ export const DEFAULT_TEMPLATES: Templates = {
   drawing: renderDrawing,
   index: renderIndex,
   feed: renderFeed,
+  owner: renderOwner,
 };
 
 interface DrawingMetadata {
@@ -79,6 +82,10 @@ export async function build(opts: BuildOptions): Promise<{
 
   const touchedDays: string[] = [];
   let sweptCount = 0;
+  // Drawings swept this run, grouped by owner. Drives the per-owner sweep
+  // after the day loop. Anonymous (legacy) drawings are skipped — the
+  // operator backfill (#90) signs them so they pick up an owner.
+  const newByOwner = new Map<string, DrawingMetadata[]>();
 
   for (const day of days) {
     const dayFiles = await opts.storage.listPrefix(`inbox/${day}`);
@@ -133,6 +140,16 @@ export async function build(opts: BuildOptions): Promise<{
       sweptCount++;
     }
 
+    for (const d of drawings) {
+      if (!d.pubkey) continue;
+      let bucket = newByOwner.get(d.pubkey);
+      if (!bucket) {
+        bucket = [];
+        newByOwner.set(d.pubkey, bucket);
+      }
+      bucket.push(d);
+    }
+
     if (drawings.length === 0 && !opts.forceRerender) continue;
 
     // Append to the day's index.jsonl (preserving any prior lines).
@@ -182,6 +199,11 @@ export async function build(opts: BuildOptions): Promise<{
     touchedDays.push(day);
   }
 
+  // Rebuild per-owner galleries (mutable like /gallery.html, not immutable
+  // like the day pages). New entries land via newByOwner; on forceRerender
+  // every existing owner page is also re-rendered.
+  await rebuildOwners(opts, templates, repoUrl, newByOwner);
+
   // Rebuild rolling surfaces: landing page and RSS feed.
   await rebuildRolling(opts, templates, today, repoUrl);
 
@@ -193,6 +215,7 @@ export interface Templates {
   drawing: (v: DrawingView) => string;
   index: (v: IndexView) => string;
   feed: (v: FeedView) => string;
+  owner: (v: OwnerView) => string;
 }
 
 export function drawingViewModel(d: DrawingMetadata): Omit<DrawingView, "repo_url"> {
@@ -214,6 +237,52 @@ function parseJsonl(text: string): DrawingMetadata[] {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => JSON.parse(line) as DrawingMetadata);
+}
+
+async function rebuildOwners(
+  opts: BuildOptions,
+  templates: Templates,
+  repoUrl: string,
+  newByOwner: Map<string, DrawingMetadata[]>,
+): Promise<void> {
+  // Append fresh entries to each owner's append-only index.
+  for (const [pubkey, fresh] of newByOwner) {
+    const existing = (await opts.storage.getBytes(`public/keys/${pubkey}/index.jsonl`)) ?? new Uint8Array();
+    let merged = dec.decode(existing);
+    for (const d of fresh) merged += JSON.stringify(d) + "\n";
+    await opts.storage.put(
+      `public/keys/${pubkey}/index.jsonl`,
+      enc.encode(merged),
+      "application/jsonl",
+    );
+  }
+
+  // Owners to (re-)render: anyone who got new entries this run; on
+  // forceRerender, every owner whose index already exists.
+  const ownersToRender = new Set<string>(newByOwner.keys());
+  if (opts.forceRerender) {
+    const ownerKeys = await opts.storage.listPrefix("public/keys");
+    for (const k of ownerKeys) {
+      const last = k.split("/").pop()!;
+      // Only the per-owner subdirs (which are 64-hex). Files like
+      // <pk>.html are skipped by the regex (extra suffix).
+      if (/^[0-9a-f]{64}$/.test(last)) ownersToRender.add(last);
+    }
+  }
+
+  for (const pubkey of ownersToRender) {
+    const indexBytes = await opts.storage.getBytes(`public/keys/${pubkey}/index.jsonl`);
+    if (!indexBytes) continue;
+    const all = parseJsonl(dec.decode(indexBytes));
+    all.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    const html = templates.owner({
+      pubkey,
+      pubkey_short: pubkey.slice(0, 8),
+      drawings: all.map((d) => ({ id: d.id, id_short: d.id.slice(0, 8) })),
+      repo_url: repoUrl,
+    });
+    await opts.storage.put(`public/keys/${pubkey}.html`, enc.encode(html), "text/html");
+  }
 }
 
 async function rebuildRolling(

@@ -144,6 +144,83 @@ test("builder propagates pubkey + signature from inbox to per-day index.jsonl, d
   assert.equal(drawingHtml.includes("anonymous"), false);
 });
 
+test("builder per-owner sweep: maintains keys/<pk>/index.jsonl and renders keys/<pk>.html", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
+  const storage = new FsStorage(root);
+  const pubkey = "c".repeat(64);
+  const sig = "d".repeat(128);
+
+  // Two drawings on the same day, same owner.
+  const id1 = await seedDrawing(root, "2026-04-19", 21, { pubkey, signature: sig });
+  const id2 = await seedDrawing(root, "2026-04-19", 22, { pubkey, signature: sig });
+
+  await build({ storage, publicBaseUrl: "https://example.test", today: "2026-04-20" });
+
+  const ownerIndex = await fs.readFile(
+    path.join(root, `public/keys/${pubkey}/index.jsonl`),
+    "utf8",
+  );
+  const lines = ownerIndex.split("\n").filter(Boolean);
+  assert.equal(lines.length, 2);
+  const ids = lines.map((l) => (JSON.parse(l) as { id: string }).id).sort();
+  assert.deepEqual(ids, [id1, id2].sort());
+
+  const ownerHtml = await fs.readFile(path.join(root, `public/keys/${pubkey}.html`), "utf8");
+  // Pubkey shown in full + abbreviated form.
+  assert.match(ownerHtml, new RegExp(pubkey));
+  assert.match(ownerHtml, /cccccccc/);
+  // Both drawings linked by their share URL.
+  assert.match(ownerHtml, new RegExp(`/d/${id1}`));
+  assert.match(ownerHtml, new RegExp(`/d/${id2}`));
+  // Privacy disclaimer rendered.
+  assert.match(ownerHtml, /no account or login/);
+});
+
+test("builder per-owner sweep: separates two distinct owners on the same day", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
+  const storage = new FsStorage(root);
+  const alice = "a".repeat(64);
+  const bob = "b".repeat(64);
+  const sig = "d".repeat(128);
+
+  const aliceId = await seedDrawing(root, "2026-04-19", 31, { pubkey: alice, signature: sig });
+  const bobId = await seedDrawing(root, "2026-04-19", 32, { pubkey: bob, signature: sig });
+
+  await build({ storage, publicBaseUrl: "https://example.test", today: "2026-04-20" });
+
+  const aliceIdx = await fs.readFile(
+    path.join(root, `public/keys/${alice}/index.jsonl`),
+    "utf8",
+  );
+  const bobIdx = await fs.readFile(
+    path.join(root, `public/keys/${bob}/index.jsonl`),
+    "utf8",
+  );
+  assert.equal(aliceIdx.split("\n").filter(Boolean).length, 1);
+  assert.equal(bobIdx.split("\n").filter(Boolean).length, 1);
+
+  const aliceHtml = await fs.readFile(path.join(root, `public/keys/${alice}.html`), "utf8");
+  const bobHtml = await fs.readFile(path.join(root, `public/keys/${bob}.html`), "utf8");
+  // Each owner page links its own drawing only.
+  assert.match(aliceHtml, new RegExp(`/d/${aliceId}`));
+  assert.equal(aliceHtml.includes(bobId), false);
+  assert.match(bobHtml, new RegExp(`/d/${bobId}`));
+  assert.equal(bobHtml.includes(aliceId), false);
+});
+
+test("builder per-owner sweep: skips legacy/anonymous drawings (no /keys/ artifact)", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
+  const storage = new FsStorage(root);
+  // Sidecar without owner fields -> anonymous.
+  await seedDrawing(root, "2026-04-19", 41);
+
+  await build({ storage, publicBaseUrl: "https://example.test", today: "2026-04-20" });
+
+  // No keys/ directory should have been created at all.
+  const keysExists = await fs.stat(path.join(root, "public/keys")).then(() => true, () => false);
+  assert.equal(keysExists, false);
+});
+
 test("builder writes null pubkey + signature for legacy inbox sidecars (pre-feature), drawing page renders 'anonymous'", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
   const storage = new FsStorage(root);
