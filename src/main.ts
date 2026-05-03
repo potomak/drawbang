@@ -31,14 +31,14 @@ import { submit } from "./submit.js";
 const MAIN_PIXEL_SIZE = 24;
 const PREVIEW_PIXEL_SIZE = 4;
 
-const INGEST_URL = import.meta.env.VITE_INGEST_URL ?? "/ingest";
-const STATE_URL = import.meta.env.VITE_STATE_URL ?? "/state/last-publish.json";
-const DRAWING_BASE_URL = import.meta.env.VITE_DRAWING_BASE_URL ?? "";
+const INGEST_URL = import.meta.env.VITE_INGEST_URL?? "/ingest";
+const STATE_URL = import.meta.env.VITE_STATE_URL?? "/state/last-publish.json";
+const DRAWING_BASE_URL = import.meta.env.VITE_DRAWING_BASE_URL?? "";
 const PUBLISH_DISABLED = truthy(import.meta.env.VITE_DISABLE_PUBLISH);
 
 function truthy(v: string | undefined): boolean {
   if (!v) return false;
-  return v !== "0" && v.toLowerCase() !== "false";
+  return v!== "0" && v.toLowerCase()!== "false";
 }
 
 // -- Editor state -----------------------------------------------------------
@@ -108,8 +108,8 @@ app.innerHTML = /* html */ `
     <section class="publish">
       <button data-action="export-gif">download gif</button>
       <button data-action="share">copy share link</button>
-      ${PUBLISH_DISABLED ? "" : `<button data-action="publish">publish to gallery</button>`}
-      <p id="status">${PUBLISH_DISABLED ? "demo mode — draw, export a gif, or copy a share link" : ""}</p>
+      ${PUBLISH_DISABLED? "" : `<button data-action="publish">publish to gallery</button>`}
+      <p id="status">${PUBLISH_DISABLED? "demo mode — draw, export a gif, or copy a share link" : ""}</p>
     </section>
   </main>
   <footer>
@@ -151,7 +151,7 @@ function renderPalette(): void {
   const hex = activePaletteToHex(activePalette);
   for (let i = 0; i < activePalette.length; i++) {
     const b = document.createElement("button");
-    b.className = "swatch" + (i === selectedSlot ? " selected" : "");
+    b.className = "swatch" + (i === selectedSlot? " selected" : "");
     b.style.backgroundColor = hex[i];
     b.title = `slot ${i} — right-click to change color`;
     b.dataset.slot = String(i);
@@ -174,7 +174,7 @@ function renderFrameStrip(): void {
   const palette = activePaletteToRgb(activePalette);
   state.frames.forEach((frame, idx) => {
     const wrap = document.createElement("div");
-    wrap.className = "frame" + (idx === state.current ? " selected" : "");
+    wrap.className = "frame" + (idx === state.current? " selected" : "");
     const cv = document.createElement("canvas");
     const preview = new PixelCanvas(cv, {
       pixelSize: PREVIEW_PIXEL_SIZE,
@@ -207,7 +207,7 @@ function setActiveTool(next: "pixel" | "erase" | "fill"): void {
 function applyTool(x: number, y: number): void {
   const frameIdx = state.current;
   const b = state.frames[frameIdx];
-  const value = tool === "erase" ? TRANSPARENT : selectedSlot;
+  const value = tool === "erase"? TRANSPARENT : selectedSlot;
   if (tool === "fill") {
     const before = fillArea(b, x, y, value);
     if (before) {
@@ -220,7 +220,7 @@ function applyTool(x: number, y: number): void {
     }
   } else {
     const prev = drawPixel(b, x, y, value);
-    if (prev !== null) strokeDirty = true;
+    if (prev!== null) strokeDirty = true;
   }
   render();
 }
@@ -231,7 +231,7 @@ function beginStroke(): void {
 }
 
 function endStroke(): void {
-  if (strokeDirty && strokeSnapshot && tool !== "fill") {
+  if (strokeDirty && strokeSnapshot && tool!== "fill") {
     const snapshot = strokeSnapshot;
     const frameIdx = state.current;
     history.push(() => {
@@ -335,7 +335,7 @@ function startPlay(): void {
     flashStatus("add a second frame to play");
     return;
   }
-  if (playTimer !== null) {
+  if (playTimer!== null) {
     clearInterval(playTimer);
     playTimer = null;
   }
@@ -358,7 +358,7 @@ function renderPlayTick(): void {
 }
 
 function stopPlay(): void {
-  if (playTimer !== null) {
+  if (playTimer!== null) {
     clearInterval(playTimer);
     playTimer = null;
   }
@@ -372,10 +372,10 @@ function stopPlay(): void {
 function updatePlayButton(): void {
   const btn = document.getElementById("playBtn");
   if (!btn) return;
-  btn.classList.toggle("sprite-play", !playing);
+  btn.classList.toggle("sprite-play",!playing);
   btn.classList.toggle("sprite-stop", playing);
-  btn.setAttribute("aria-label", playing ? "stop" : "play");
-  btn.setAttribute("title", playing ? "stop animation" : "play animation");
+  btn.setAttribute("aria-label", playing? "stop" : "play");
+  btn.setAttribute("title", playing? "stop animation" : "play animation");
 }
 
 // -- Palette picker ---------------------------------------------------------
@@ -445,7 +445,7 @@ async function handlePublish(): Promise<void> {
     // state around and accidentally re-mint a near-duplicate.
     resetEditor();
   } catch (err) {
-    setStatus(`publish failed: ${err instanceof Error ? err.message : String(err)}`);
+    setStatus(`publish failed: ${err instanceof Error? err.message : String(err)}`);
   }
 }
 
@@ -554,7 +554,7 @@ window.addEventListener("keydown", (ev) => {
 async function boot(): Promise<void> {
   buildBaseGrid();
 
-  // Load from ?fork=<id>, then from #d=<...>, then fall back to blank.
+  // Load from?fork=<id>, then from #d=<...>, then fall back to blank.
   const hash = location.hash.match(/#d=([A-Za-z0-9_-]+)/)?.[1];
   const forkId = new URL(location.href).searchParams.get("fork");
 
@@ -568,7 +568,7 @@ async function boot(): Promise<void> {
       if (decoded.activePalette) activePalette = decoded.activePalette;
       state.current = 0;
     } catch (err) {
-      setStatus(`fork failed: ${err instanceof Error ? err.message : String(err)}`);
+      setStatus(`fork failed: ${err instanceof Error? err.message : String(err)}`);
     }
   } else if (hash) {
     try {
@@ -577,7 +577,7 @@ async function boot(): Promise<void> {
       activePalette = d.activePalette;
       state.current = 0;
     } catch (err) {
-      setStatus(`invalid share link: ${err instanceof Error ? err.message : String(err)}`);
+      setStatus(`invalid share link: ${err instanceof Error? err.message : String(err)}`);
     }
   }
 
