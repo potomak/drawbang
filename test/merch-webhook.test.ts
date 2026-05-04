@@ -66,11 +66,13 @@ function webhookEvent(body: unknown, sig: string): APIGatewayProxyEventV2 {
   } as unknown as APIGatewayProxyEventV2;
 }
 
-function statusOf(res: APIGatewayProxyResultV2): number | undefined {
-  return typeof res === "string" ? undefined : res.statusCode;
+function statusOf(res: APIGatewayProxyResultV2 | void): number | undefined {
+  if (res === undefined || typeof res === "string") return undefined;
+  return res.statusCode;
 }
 
-function bodyOf(res: APIGatewayProxyResultV2): string {
+function bodyOf(res: APIGatewayProxyResultV2 | void): string {
+  if (res === undefined) return "";
   if (typeof res === "string") return res;
   return res.body ?? "";
 }

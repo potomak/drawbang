@@ -295,12 +295,14 @@ Resources:
       FunctionName: drawbang-merch
       Handler: merch.handler
       CodeUri: ../../dist-lambda
-      # The webhook path runs the Printify dispatch synchronously: image
-      # upload (base64, multi-MB POST) + createProduct + createOrder. Each is
-      # a Printify API round-trip that can stall a few seconds; the global
-      # 10s timeout was clipping the chain on cold starts. Stripe expects a
-      # 2xx within 30s, so 30s is the comfortable ceiling.
-      Timeout: 30
+      # Webhook responses must come back within Stripe's 30s budget. The
+      # webhook handler dispatches Printify work via a fire-and-forget
+      # Lambda self-invoke (InvocationType: Event), so its own runtime is
+      # ~1s. The async dispatch invocation reuses this same function and
+      # can take longer — Printify's createProduct alone has been observed
+      # at 22s for tees, plus uploadImage and createOrder. 60s gives the
+      # async path comfortable headroom.
+      Timeout: 60
       # PNG upscale + base64 encode of a few-MB image briefly spikes memory
       # well above the global 256MB. 1024MB gives headroom and (because
       # Lambda CPU scales with memory) cuts the encode time too.
@@ -317,10 +319,21 @@ Resources:
             - !Sub "https://${DomainName}"
             - !Sub "https://${AssetsDistribution.DomainName}"
           DRAWINGS_BUCKET: !Ref AssetsBucket
+          # Used by the webhook handler to fire-and-forget the async
+          # dispatch self-invoke. Naming the function explicitly avoids a
+          # circular SAM dependency vs. !GetAtt MerchFunction.Arn.
+          MERCH_FUNCTION_NAME: drawbang-merch
           NODE_OPTIONS: "--enable-source-maps"
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref OrdersTable }
         - S3ReadPolicy: { BucketName: !Ref AssetsBucket }
+        # Allow the function to invoke itself (async dispatch path). The
+        # arn:* form scopes to this function only — referencing
+        # !GetAtt MerchFunction.Arn here would be self-referential.
+        - Statement:
+            - Effect: Allow
+              Action: lambda:InvokeFunction
+              Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:drawbang-merch"
       Events:
         Products:
           Type: HttpApi

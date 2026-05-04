@@ -153,13 +153,14 @@ function event(
   } as unknown as APIGatewayProxyEventV2;
 }
 
-function parseJson(res: APIGatewayProxyResultV2): unknown {
-  if (typeof res === "string") return JSON.parse(res);
+function parseJson(res: APIGatewayProxyResultV2 | void): unknown {
+  if (res === undefined || typeof res === "string") return null;
   return res.body ? JSON.parse(res.body) : null;
 }
 
-function statusOf(res: APIGatewayProxyResultV2): number | undefined {
-  return typeof res === "string" ? undefined : res.statusCode;
+function statusOf(res: APIGatewayProxyResultV2 | void): number | undefined {
+  if (res === undefined || typeof res === "string") return undefined;
+  return res.statusCode;
 }
 
 test("GET /merch/products returns the catalog", async () => {
@@ -346,7 +347,8 @@ test("POST /merch/webhook/stripe: 400 when parseWebhook throws", async () => {
   );
   assert.equal(statusOf(res), 400);
   // bad-sig response is plain text including the underlying error message
-  const body = typeof res === "string" ? res : (res.body ?? "");
+  const body =
+    res === undefined ? "" : typeof res === "string" ? res : (res.body ?? "");
   assert.match(body, /bad signature.*bad sig/);
 });
 
@@ -410,4 +412,23 @@ test("Unmatched routes return 405", async () => {
   const { deps } = buildDeps();
   const res = await handle(event("DELETE /merch/products"), deps);
   assert.equal(statusOf(res), 405);
+});
+
+test("async dispatch event invokes dispatchSync(orderId) and returns void", async () => {
+  const calls: string[] = [];
+  const { deps } = buildDeps();
+  deps.dispatchSync = async (id: string) => {
+    calls.push(id);
+  };
+  // Async self-invoke event shape: bypasses routing, calls dispatchSync.
+  const res = await handle({ async_dispatch_order_id: "ord_async_42" }, deps);
+  assert.equal(res, undefined);
+  assert.deepEqual(calls, ["ord_async_42"]);
+});
+
+test("async dispatch event with no dispatchSync configured is a no-op", async () => {
+  const { deps } = buildDeps();
+  // dispatchSync intentionally omitted — async path should not throw.
+  const res = await handle({ async_dispatch_order_id: "ord_async_99" }, deps);
+  assert.equal(res, undefined);
 });

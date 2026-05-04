@@ -1,4 +1,5 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from "aws-lambda";
+import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import type Stripe from "stripe";
 import catalog from "../config/merch.json";
 import { S3Storage } from "../ingest/s3-storage.js";
@@ -46,11 +47,32 @@ export interface MerchHandlerDeps {
   shippingCountries: string[];
   uuid: () => string;
   now: () => string;
-  // Called from the Stripe webhook after a successful pending->paid transition.
-  // In production this kicks off Printify upload + product + order. Tests stub
-  // it to assert dispatch is invoked. Wrapped in the webhook's try/catch so a
-  // throw still 204s back to Stripe.
+  // Called from the Stripe webhook after a successful pending->paid
+  // transition. In production this is a fire-and-forget Lambda self-invoke
+  // (returns in ~30ms), so the webhook response can fit Stripe's 30s
+  // timeout even when Printify's createProduct alone takes 20+s. Tests
+  // pass a synchronous stub to assert the dispatch is invoked.
   dispatch?: (orderId: string) => Promise<void>;
+  // The synchronous dispatch entry point invoked by the async self-call.
+  // In production this is placePrintifyOrder(...). Tests don't need it
+  // because they exercise the dispatch path directly via dispatch.test.ts.
+  dispatchSync?: (orderId: string) => Promise<void>;
+}
+
+// The merch Lambda handles two event shapes:
+//   1. APIGatewayProxyEventV2 — sync invocation from API Gateway routes.
+//   2. AsyncDispatchEvent — fire-and-forget self-invoke from the webhook
+//      handler, carrying the order id whose Printify dispatch should run.
+export interface AsyncDispatchEvent {
+  async_dispatch_order_id: string;
+}
+
+type MerchEvent = APIGatewayProxyEventV2 | AsyncDispatchEvent;
+
+function isAsyncDispatchEvent(event: MerchEvent): event is AsyncDispatchEvent {
+  return (
+    typeof (event as AsyncDispatchEvent).async_dispatch_order_id === "string"
+  );
 }
 
 const SANITIZED_FIELDS: ReadonlySet<keyof Order> = new Set([
@@ -60,9 +82,15 @@ const SANITIZED_FIELDS: ReadonlySet<keyof Order> = new Set([
 ]);
 
 export async function handle(
-  event: APIGatewayProxyEventV2,
+  event: MerchEvent,
   deps: MerchHandlerDeps,
-): Promise<APIGatewayProxyResultV2> {
+): Promise<APIGatewayProxyResultV2 | void> {
+  if (isAsyncDispatchEvent(event)) {
+    if (deps.dispatchSync) {
+      await deps.dispatchSync(event.async_dispatch_order_id);
+    }
+    return;
+  }
   switch (event.routeKey) {
     case "GET /merch/products":
       return json(200, deps.catalog);
@@ -324,8 +352,34 @@ function bootDeps(): MerchHandlerDeps {
   });
   const drawingsBucket = required("DRAWINGS_BUCKET");
   const publicBaseUrl = required("PUBLIC_BASE_URL");
+  const merchFunctionName = required("MERCH_FUNCTION_NAME");
   const s3 = new S3Storage({ bucket: drawingsBucket });
   const merchCatalog = catalog as MerchCatalog;
+  const lambdaClient = new LambdaClient({});
+
+  const dispatchSync = (orderId: string) =>
+    placePrintifyOrder(orderId, {
+      orders,
+      printify,
+      catalog: merchCatalog,
+      publicBaseUrl,
+      fetchDrawing: (drawingId) => s3.getBytes(`public/drawings/${drawingId}.gif`),
+    });
+
+  // Fire-and-forget self-invoke: returns once Lambda has accepted the
+  // payload, leaving the async invocation to run with the full Lambda
+  // timeout (60s). This keeps the webhook handler under Stripe's 30s
+  // ceiling even when Printify's createProduct alone takes 20s+.
+  const dispatchAsync = async (orderId: string) => {
+    const payload: AsyncDispatchEvent = { async_dispatch_order_id: orderId };
+    await lambdaClient.send(
+      new InvokeCommand({
+        FunctionName: merchFunctionName,
+        InvocationType: "Event",
+        Payload: Buffer.from(JSON.stringify(payload)),
+      }),
+    );
+  };
 
   booted = {
     orders,
@@ -337,18 +391,12 @@ function bootDeps(): MerchHandlerDeps {
     shippingCountries: ["US", "CA", "GB"],
     uuid: () => crypto.randomUUID(),
     now: () => new Date().toISOString(),
-    dispatch: (orderId: string) =>
-      placePrintifyOrder(orderId, {
-        orders,
-        printify,
-        catalog: merchCatalog,
-        publicBaseUrl,
-        fetchDrawing: (drawingId) => s3.getBytes(`public/drawings/${drawingId}.gif`),
-      }),
+    dispatch: dispatchAsync,
+    dispatchSync,
   };
   return booted;
 }
 
 export const handler = (
-  event: APIGatewayProxyEventV2,
-): Promise<APIGatewayProxyResultV2> => handle(event, bootDeps());
+  event: MerchEvent,
+): Promise<APIGatewayProxyResultV2 | void> => handle(event, bootDeps());
