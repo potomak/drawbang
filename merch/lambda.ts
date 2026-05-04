@@ -24,6 +24,14 @@ export interface MerchProduct {
   // ["front"] when missing — fine for tees/mugs. Sticker sheets need
   // ["front_1","front_2","front_3","front_4"]; some apparel may add "neck".
   placeholder_positions?: string[];
+  // Flat US shipping fee added at checkout as a separate Stripe line so the
+  // customer sees "+ shipping" instead of paying it bundled into the unit
+  // price. Per-product because mug shipping >> tee >> sticker.
+  // TODO: replace with the real Printify shipping calc:
+  //   POST /v1/shops/{shop_id}/orders/shipping.json
+  // — needs blueprint_id, print_provider_id, variants, address. That call
+  // can run inside the merch checkout handler before we hit Stripe.
+  shipping_cents: number;
   variants: MerchVariant[];
 }
 
@@ -139,6 +147,7 @@ async function checkout(
     orderId,
     productName: variant.label,
     amountCents: variant.retail_cents,
+    shippingCents: product.shipping_cents,
     successUrl,
     cancelUrl: body.cancel_url,
     ...(customerEmail ? { customerEmail } : {}),

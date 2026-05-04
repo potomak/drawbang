@@ -13,6 +13,7 @@ const FIXTURE_CATALOG: MerchCatalog = {
       blueprint_id: 6,
       print_provider_id: 99,
       print_area_px: { width: 4500, height: 5400 },
+      shipping_cents: 500,
       variants: [
         { id: 18395, label: "S / Black", base_cost_cents: 1199, retail_cents: 2400 },
         { id: 18396, label: "M / Black", base_cost_cents: 1199, retail_cents: 2400 },
@@ -285,6 +286,7 @@ test("POST /merch/checkout: happy path persists, calls Stripe, transitions, retu
   const stripeArgs = stripeCalls.createCheckoutSession[0];
   assert.equal(stripeArgs.orderId, "ord_test_1");
   assert.equal(stripeArgs.amountCents, 2400);
+  assert.equal(stripeArgs.shippingCents, 500);
   assert.equal(stripeArgs.productName, "M / Black");
   assert.equal(stripeArgs.customerEmail, "buyer@example.com");
   assert.deepEqual(stripeArgs.shippingCountries, ["US", "CA", "GB"]);

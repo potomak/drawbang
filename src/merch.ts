@@ -16,6 +16,7 @@ interface MerchProduct {
   blueprint_id: number;
   print_provider_id: number;
   print_area_px: { width: number; height: number };
+  shipping_cents: number;
   variants: MerchVariant[];
 }
 
@@ -135,7 +136,10 @@ function renderCatalog(catalog: MerchCatalog): void {
     name.textContent = product.name;
     const price = document.createElement("span");
     const min = lowestPrice(product);
-    price.textContent = `from ${formatUsd(min)}`;
+    price.textContent =
+      product.shipping_cents > 0
+        ? `from ${formatUsd(min)} + ${formatUsd(product.shipping_cents)} shipping`
+        : `from ${formatUsd(min)}`;
     card.append(name, price);
     card.addEventListener("click", () => selectProduct(product));
     productGridEl.appendChild(card);
@@ -181,6 +185,12 @@ function renderVariantPicker(): void {
     label.textContent = `${variant.label} — ${formatUsd(variant.retail_cents)}`;
     wrap.append(radio, label);
     variantPickerEl.appendChild(wrap);
+  }
+  if (selectedProduct.shipping_cents > 0) {
+    const note = document.createElement("p");
+    note.className = "shipping-note";
+    note.textContent = `+ ${formatUsd(selectedProduct.shipping_cents)} standard shipping & handling, added at checkout.`;
+    variantPickerEl.appendChild(note);
   }
 }
 

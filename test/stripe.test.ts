@@ -30,6 +30,7 @@ test("createCheckoutSession sends the expected request shape", async () => {
     productName: "Drawbang Mug",
     productImageUrl: "https://example.com/mug.png",
     amountCents: 2400,
+    shippingCents: 700,
     successUrl: "https://drawbang.example/merch/success",
     cancelUrl: "https://drawbang.example/merch/cancel",
     customerEmail: "buyer@example.com",
@@ -52,6 +53,13 @@ test("createCheckoutSession sends the expected request shape", async () => {
   assert.equal(li.price_data?.unit_amount, 2400);
   assert.equal(li.price_data?.product_data?.name, "Drawbang Mug");
   assert.deepEqual(li.price_data?.product_data?.images, ["https://example.com/mug.png"]);
+  // Shipping shows up as a separate fixed-amount line on the checkout page.
+  assert.equal(p.shipping_options?.length, 1);
+  const so = p.shipping_options![0];
+  assert.equal(so.shipping_rate_data?.type, "fixed_amount");
+  assert.equal(so.shipping_rate_data?.display_name, "Standard shipping");
+  assert.equal(so.shipping_rate_data?.fixed_amount?.amount, 700);
+  assert.equal(so.shipping_rate_data?.fixed_amount?.currency, "usd");
 });
 
 test("createCheckoutSession omits images and customer_email when not provided", async () => {
@@ -63,6 +71,7 @@ test("createCheckoutSession omits images and customer_email when not provided", 
     orderId: "ord_no_email",
     productName: "Sticker",
     amountCents: 500,
+    shippingCents: 0,
     successUrl: "https://drawbang.example/s",
     cancelUrl: "https://drawbang.example/c",
     shippingCountries: ["US"],
@@ -71,6 +80,8 @@ test("createCheckoutSession omits images and customer_email when not provided", 
   const p = captured.calls[0];
   assert.equal(p.customer_email, undefined);
   assert.equal(p.line_items?.[0].price_data?.product_data?.images, undefined);
+  // shippingCents == 0 should leave shipping_options off entirely.
+  assert.equal(p.shipping_options, undefined);
 });
 
 test("createCheckoutSession throws when Stripe returns a session without a url", async () => {
@@ -84,6 +95,7 @@ test("createCheckoutSession throws when Stripe returns a session without a url",
         orderId: "ord_x",
         productName: "Tee",
         amountCents: 2000,
+        shippingCents: 500,
         successUrl: "https://drawbang.example/s",
         cancelUrl: "https://drawbang.example/c",
         shippingCountries: ["US"],

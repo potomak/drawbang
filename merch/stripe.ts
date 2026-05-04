@@ -11,6 +11,11 @@ export interface CreateCheckoutSessionArgs {
   productName: string;
   productImageUrl?: string;
   amountCents: number;
+  // Flat shipping fee shown to the customer as a separate "Shipping"
+  // line on the Stripe checkout page. Pass 0 to omit. See the TODO in
+  // config/merch.json about replacing this with the Printify shipping
+  // calculator.
+  shippingCents: number;
   successUrl: string;
   cancelUrl: string;
   customerEmail?: string;
@@ -32,6 +37,19 @@ export class StripeHelper {
     type CreateParams = Parameters<Stripe["checkout"]["sessions"]["create"]>[0];
     type AllowedCountry = NonNullable<NonNullable<CreateParams>["shipping_address_collection"]>["allowed_countries"][number];
 
+    const shippingOptions: NonNullable<NonNullable<CreateParams>["shipping_options"]> =
+      args.shippingCents > 0
+        ? [
+            {
+              shipping_rate_data: {
+                type: "fixed_amount",
+                display_name: "Standard shipping",
+                fixed_amount: { amount: args.shippingCents, currency: "usd" },
+              },
+            },
+          ]
+        : [];
+
     const params: CreateParams = {
       mode: "payment",
       line_items: [
@@ -50,6 +68,7 @@ export class StripeHelper {
       shipping_address_collection: {
         allowed_countries: args.shippingCountries as AllowedCountry[],
       },
+      ...(shippingOptions.length > 0 ? { shipping_options: shippingOptions } : {}),
       success_url: `${args.successUrl}?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: args.cancelUrl,
       metadata: { order_id: args.orderId },

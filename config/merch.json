@@ -1,5 +1,6 @@
 {
-  "_pricing_note": "base_cost_cents are Printify Choice / SPOKE / Printed Simply baseline US costs as of 2026-04. The Printify catalog API does not return cost data; values must be verified against the dashboard before flipping to live mode. retail_cents = round(base_cost * 2 / 100) * 100 per the issue formula.",
+  "_pricing_note": "base_cost_cents and shipping_cents are flat estimates pending real values from Printify. The catalog API doesn't expose either; first live test charged USD 6.12 production + USD 5.09 shipping on a sticker that we'd estimated at 369 base + 0 shipping, which is why these numbers are now both larger and per-product. retail_cents stays >= 2x (base + shipping) so we don't lose money even if Printify nudges costs.",
+  "_todo": "Replace shipping_cents with the real Printify shipping calc: POST /v1/shops/{shop_id}/orders/shipping.json with the same payload the dispatch builds. Call it inside merch/lambda.ts checkout() before stripe.createCheckoutSession.",
   "products": [
     {
       "id": "tee",
@@ -7,6 +8,7 @@
       "blueprint_id": 6,
       "print_provider_id": 99,
       "print_area_px": { "width": 3951, "height": 4919 },
+      "shipping_cents": 500,
       "variants": [
         { "id": 12126, "label": "S / Black",  "base_cost_cents": 1150, "retail_cents": 2400 },
         { "id": 12125, "label": "M / Black",  "base_cost_cents": 1150, "retail_cents": 2400 },
@@ -24,8 +26,9 @@
       "blueprint_id": 70,
       "print_provider_id": 1,
       "print_area_px": { "width": 2376, "height": 2024 },
+      "shipping_cents": 700,
       "variants": [
-        { "id": 33765, "label": "15oz", "base_cost_cents": 1450, "retail_cents": 3000 }
+        { "id": 33765, "label": "15oz", "base_cost_cents": 1450, "retail_cents": 3500 }
       ]
     },
     {
@@ -35,13 +38,14 @@
       "print_provider_id": 73,
       "placeholder_positions": ["front_1", "front_2", "front_3", "front_4"],
       "print_area_px": { "width": 1575, "height": 1200 },
+      "shipping_cents": 500,
       "variants": [
-        { "id": 72840, "label": "6\" × 4\" / White",        "base_cost_cents": 369, "retail_cents": 800 },
-        { "id": 72841, "label": "11\" × 8.5\" / White",     "base_cost_cents": 549, "retail_cents": 1200 },
-        { "id": 75561, "label": "6\" × 4\" / Transparent",  "base_cost_cents": 449, "retail_cents": 900 },
-        { "id": 75562, "label": "11\" × 8.5\" / Transparent","base_cost_cents": 649, "retail_cents": 1400 },
-        { "id": 75564, "label": "6\" × 4\" / Holographic",  "base_cost_cents": 599, "retail_cents": 1200 },
-        { "id": 75565, "label": "11\" × 8.5\" / Holographic","base_cost_cents": 849, "retail_cents": 1800 }
+        { "id": 72840, "label": "6\" × 4\" / White",         "base_cost_cents": 612, "retail_cents": 1500 },
+        { "id": 72841, "label": "11\" × 8.5\" / White",      "base_cost_cents": 850, "retail_cents": 2000 },
+        { "id": 75561, "label": "6\" × 4\" / Transparent",   "base_cost_cents": 750, "retail_cents": 1700 },
+        { "id": 75562, "label": "11\" × 8.5\" / Transparent","base_cost_cents": 999, "retail_cents": 2300 },
+        { "id": 75564, "label": "6\" × 4\" / Holographic",   "base_cost_cents": 999, "retail_cents": 2300 },
+        { "id": 75565, "label": "11\" × 8.5\" / Holographic","base_cost_cents": 1299,"retail_cents": 2900 }
       ]
     }
   ]

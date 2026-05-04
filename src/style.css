@@ -293,6 +293,7 @@ footer a { color: inherit; }
 
 .merch-status { font-size: 0.85rem; color: #aaa; min-height: 1.2em; word-break: break-word; }
 .muted { color: #888; font-size: 0.85rem; }
+.shipping-note { margin: 0.5rem 0 0; font-size: 0.8rem; color: #888; }
 
 #checkoutBtn { width: 100%; padding: 0.6rem; }
 #checkoutBtn:disabled { opacity: 0.5; cursor: not-allowed; }
