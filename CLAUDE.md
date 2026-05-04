@@ -127,10 +127,15 @@ Builder CLI:
 
 One-time setup:
 1. Create IAM user with `AWSLambda_FullAccess`, `AmazonS3FullAccess`,
-   `AmazonAPIGatewayAdministrator`, `AWSCloudFormationFullAccess`, `IAMFullAccess`.
-2. GitHub secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`.
+   `AmazonAPIGatewayAdministrator`, `AWSCloudFormationFullAccess`,
+   `IAMFullAccess`, `AmazonDynamoDBFullAccess`, and `CloudFrontFullAccess`.
+   (DynamoDB is needed once the merch stack adds `OrdersTable`; CloudFront is
+   needed for distribution + function updates.)
+2. GitHub secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+   `PRINTIFY_API_TOKEN`, `PRINTIFY_SHOP_ID`, `STRIPE_SECRET_KEY`,
+   `STRIPE_WEBHOOK_SECRET`.
 3. First deploy happens automatically on push to `master`. SAM creates the S3
-   bucket, Lambda, HTTP API, and IAM role.
+   bucket, Lambda, HTTP API, DynamoDB orders table, and IAM role.
 
 API Gateway URL appears in `sam deploy` output as `IngestEndpoint`. Update the
 `INGEST_URL` env in `.github/workflows/deploy.yml` if it ever changes.
