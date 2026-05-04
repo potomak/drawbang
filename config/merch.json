@@ -30,9 +30,10 @@
     },
     {
       "id": "sticker-sheet",
-      "name": "Sticker Sheet",
+      "name": "Sticker Sheet (4-up)",
       "blueprint_id": 661,
       "print_provider_id": 73,
+      "placeholder_positions": ["front_1", "front_2", "front_3", "front_4"],
       "print_area_px": { "width": 1575, "height": 1200 },
       "variants": [
         { "id": 72840, "label": "6\" × 4\" / White",        "base_cost_cents": 369, "retail_cents": 800 },

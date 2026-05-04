@@ -20,6 +20,10 @@ export interface MerchProduct {
   blueprint_id: number;
   print_provider_id: number;
   print_area_px: { width: number; height: number };
+  // Printify placeholder positions to upload the design into. Defaults to
+  // ["front"] when missing — fine for tees/mugs. Sticker sheets need
+  // ["front_1","front_2","front_3","front_4"]; some apparel may add "neck".
+  placeholder_positions?: string[];
   variants: MerchVariant[];
 }
 

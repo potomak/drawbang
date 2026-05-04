@@ -187,6 +187,37 @@ test("happy path: upload -> create product -> create order -> submitted", async 
   });
 });
 
+test("placeholder_positions: each configured position uploads the same image", async () => {
+  // Sticker-sheet style: 4 placements per sheet.
+  const stickerCatalog: MerchCatalog = {
+    products: [
+      {
+        id: "tee",
+        name: "Sticker Sheet",
+        blueprint_id: 661,
+        print_provider_id: 73,
+        print_area_px: { width: 1575, height: 1200 },
+        placeholder_positions: ["front_1", "front_2", "front_3", "front_4"],
+        variants: [{ id: 18395, label: "x", base_cost_cents: 369, retail_cents: 800 }],
+      },
+    ],
+  };
+  const { deps, printifyCalls } = buildDeps();
+  deps.catalog = stickerCatalog;
+  await placePrintifyOrder("ord_42", deps);
+  assert.equal(printifyCalls.createProduct.length, 1);
+  const placeholders = printifyCalls.createProduct[0].print_areas[0].placeholders;
+  assert.deepEqual(
+    placeholders.map((p) => p.position),
+    ["front_1", "front_2", "front_3", "front_4"],
+  );
+  // Same image id repeated in every position.
+  for (const p of placeholders) {
+    assert.equal(p.images.length, 1);
+    assert.equal(p.images[0].id, "img_1");
+  }
+});
+
 test("upscale uses the largest print-area dim rounded down to a multiple of 16", async () => {
   // max(4500, 5400) = 5400; floor(5400/16)*16 = 5392 (a multiple of 16).
   const catalogOdd: MerchCatalog = {

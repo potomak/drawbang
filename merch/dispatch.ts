@@ -59,6 +59,11 @@ export async function placePrintifyOrder(
     );
 
     const drawingUrl = `${deps.publicBaseUrl}/d/${order.drawing_id}`;
+    const positions = product.placeholder_positions ?? ["front"];
+    const placeholders = positions.map((position) => ({
+      position,
+      images: [{ id: image.id, x: 0.5 as const, y: 0.5 as const, scale: 1 as const, angle: 0 as const }],
+    }));
     const printifyProduct = await deps.printify.createProduct({
       title: `Drawbang #${order.drawing_id.slice(0, 8)}`,
       description: `16x16 pixel art from drawbang.\n\nView the source drawing: ${drawingUrl}`,
@@ -68,12 +73,7 @@ export async function placePrintifyOrder(
       print_areas: [
         {
           variant_ids: [variant.id],
-          placeholders: [
-            {
-              position: "front",
-              images: [{ id: image.id, x: 0.5, y: 0.5, scale: 1, angle: 0 }],
-            },
-          ],
+          placeholders,
         },
       ],
     });

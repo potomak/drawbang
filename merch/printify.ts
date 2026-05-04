@@ -28,7 +28,11 @@ export interface CreateProductArgs {
   print_areas: {
     variant_ids: number[];
     placeholders: {
-      position: "front" | "back" | "default";
+      // Common: "front" / "back" / "default". Multi-up products like sticker
+      // sheets use "front_1".."front_N". Some apparel adds "neck" / "sleeve".
+      // Printify validates per blueprint+provider, so we leave it open and
+      // catch invalid values via 422.
+      position: string;
       images: { id: string; x: 0.5; y: 0.5; scale: 1; angle: 0 }[];
     }[];
   }[];
