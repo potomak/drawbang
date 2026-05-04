@@ -142,3 +142,8 @@ API Gateway URL appears in `sam deploy` output as `IngestEndpoint`. Update the
 - Tests use `node:test` + `tsx`; don't introduce a test framework dependency.
 - Storage operations must go through the `Storage` interface so `FsStorage`
   (dev/tests) and `S3Storage` (Lambda/builder) stay interchangeable.
+- **Merge directly to `master`** when a change is green (typecheck + tests
+  pass). No PR review gate, no long-lived feature branches. The deploy
+  workflow runs on every push to `master`. If you do work on a feature
+  branch (e.g. for handoff between sessions), fast-forward merge it into
+  `master` as soon as it's ready and push.

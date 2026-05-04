@@ -1,3 +1,47 @@
 {
-  "products": []
+  "_pricing_note": "base_cost_cents are Printify Choice / SPOKE / Printed Simply baseline US costs as of 2026-04. The Printify catalog API does not return cost data; values must be verified against the dashboard before flipping to live mode. retail_cents = round(base_cost * 2 / 100) * 100 per the issue formula.",
+  "products": [
+    {
+      "id": "tee",
+      "name": "Unisex Heavy Cotton Tee (Gildan 5000)",
+      "blueprint_id": 6,
+      "print_provider_id": 99,
+      "print_area_px": { "width": 3951, "height": 4919 },
+      "variants": [
+        { "id": 12126, "label": "S / Black",  "base_cost_cents": 1150, "retail_cents": 2400 },
+        { "id": 12125, "label": "M / Black",  "base_cost_cents": 1150, "retail_cents": 2400 },
+        { "id": 12124, "label": "L / Black",  "base_cost_cents": 1150, "retail_cents": 2400 },
+        { "id": 12127, "label": "XL / Black", "base_cost_cents": 1250, "retail_cents": 2600 },
+        { "id": 12102, "label": "S / White",  "base_cost_cents": 1099, "retail_cents": 2200 },
+        { "id": 12101, "label": "M / White",  "base_cost_cents": 1099, "retail_cents": 2200 },
+        { "id": 12100, "label": "L / White",  "base_cost_cents": 1099, "retail_cents": 2200 },
+        { "id": 12103, "label": "XL / White", "base_cost_cents": 1199, "retail_cents": 2400 }
+      ]
+    },
+    {
+      "id": "mug",
+      "name": "Stainless Steel Travel Mug (15oz)",
+      "blueprint_id": 70,
+      "print_provider_id": 1,
+      "print_area_px": { "width": 2376, "height": 2024 },
+      "variants": [
+        { "id": 33765, "label": "15oz", "base_cost_cents": 1450, "retail_cents": 3000 }
+      ]
+    },
+    {
+      "id": "sticker-sheet",
+      "name": "Sticker Sheet",
+      "blueprint_id": 661,
+      "print_provider_id": 73,
+      "print_area_px": { "width": 1575, "height": 1200 },
+      "variants": [
+        { "id": 72840, "label": "6\" × 4\" / White",        "base_cost_cents": 369, "retail_cents": 800 },
+        { "id": 72841, "label": "11\" × 8.5\" / White",     "base_cost_cents": 549, "retail_cents": 1200 },
+        { "id": 75561, "label": "6\" × 4\" / Transparent",  "base_cost_cents": 449, "retail_cents": 900 },
+        { "id": 75562, "label": "11\" × 8.5\" / Transparent","base_cost_cents": 649, "retail_cents": 1400 },
+        { "id": 75564, "label": "6\" × 4\" / Holographic",  "base_cost_cents": 599, "retail_cents": 1200 },
+        { "id": 75565, "label": "11\" × 8.5\" / Holographic","base_cost_cents": 849, "retail_cents": 1800 }
+      ]
+    }
+  ]
 }
