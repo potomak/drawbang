@@ -56,6 +56,7 @@ let frameBeforePlay = 0;
 let clipboard: Bitmap | null = null;
 const history = new History();
 let localId: string | null = null;
+let lastPublishedId: string | null = null;
 const PLAY_DELAY_MS = 200;
 
 // -- DOM setup --------------------------------------------------------------
@@ -109,6 +110,7 @@ app.innerHTML = /* html */ `
       <button data-action="export-gif">download gif</button>
       <button data-action="share">copy share link</button>
       ${PUBLISH_DISABLED ? "" : `<button data-action="publish">publish to gallery</button>`}
+      <button data-action="make-merch" id="merchBtn" hidden>make merch</button>
       <p id="status">${PUBLISH_DISABLED ? "demo mode — draw, export a gif, or copy a share link" : ""}</p>
     </section>
   </main>
@@ -137,6 +139,22 @@ const paletteEl = document.getElementById("palette")!;
 const statusEl = document.getElementById("status")!;
 const picker = document.getElementById("palettePicker") as HTMLDialogElement;
 const baseGridEl = document.getElementById("baseGrid")!;
+const merchBtnEl = document.getElementById("merchBtn") as HTMLButtonElement | null;
+
+function setLastPublishedId(id: string | null): void {
+  lastPublishedId = id;
+  if (!merchBtnEl) return;
+  merchBtnEl.hidden = id === null;
+}
+
+function openMerch(): void {
+  if (!lastPublishedId) return;
+  const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "/");
+  const frame = state.current;
+  location.assign(
+    `${base}merch?d=${encodeURIComponent(lastPublishedId)}&frame=${frame}`,
+  );
+}
 
 // -- Rendering --------------------------------------------------------------
 
@@ -309,12 +327,13 @@ function deleteCurrentFrame(): void {
   persist();
 }
 
-function resetEditor(): void {
+function resetEditor(opts: { keepPublishedId?: boolean } = {}): void {
   stopPlay();
   state.frames = [new Bitmap()];
   state.current = 0;
   history.clear();
   localId = null;
+  if (!opts.keepPublishedId) setLastPublishedId(null);
   render();
   persist();
 }
@@ -441,9 +460,11 @@ async function handlePublish(): Promise<void> {
         publishedId: result.id,
       });
     }
+    setLastPublishedId(result.id);
     // Start a fresh drawing so the editor doesn't keep the just-published
-    // state around and accidentally re-mint a near-duplicate.
-    resetEditor();
+    // state around and accidentally re-mint a near-duplicate. The merch
+    // button keeps its state — it lets the user buy what they just published.
+    resetEditor({ keepPublishedId: true });
   } catch (err) {
     setStatus(`publish failed: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -537,6 +558,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>
       case "export-gif": stopPlay(); downloadGif(); break;
       case "share": stopPlay(); copyShareLink(); break;
       case "publish": stopPlay(); void handlePublish(); break;
+      case "make-merch": stopPlay(); openMerch(); break;
     }
   }),
 );
@@ -567,6 +589,7 @@ async function boot(): Promise<void> {
       state.frames = decoded.frames;
       if (decoded.activePalette) activePalette = decoded.activePalette;
       state.current = 0;
+      setLastPublishedId(forkId);
     } catch (err) {
       setStatus(`fork failed: ${err instanceof Error ? err.message : String(err)}`);
     }

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Draw! · make merch</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body class="merch-body">
+    <header>
+      <h1><a href="/">Draw!</a></h1>
+      <nav>
+        <a href="/gallery">gallery</a>
+      </nav>
+    </header>
+    <main class="merch-page">
+      <section class="merch-preview">
+        <canvas id="preview" aria-label="drawing preview"></canvas>
+        <div id="frameStrip" class="frame-strip" hidden></div>
+      </section>
+      <section class="merch-catalog">
+        <h2>pick a product</h2>
+        <div id="productGrid" class="product-grid"></div>
+        <div id="variantPicker" class="variant-picker" hidden></div>
+        <button id="checkoutBtn" type="button" disabled>continue to checkout</button>
+        <p id="status" class="merch-status"></p>
+      </section>
+    </main>
+    <footer>
+      <a href="https://github.com/potomak/drawbang" target="_blank" rel="noopener">source on github</a>
+    </footer>
+    <script type="module" src="./src/merch.ts"></script>
+  </body>
+</html>

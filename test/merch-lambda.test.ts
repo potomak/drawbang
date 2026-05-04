@@ -297,6 +297,29 @@ test("POST /merch/checkout: happy path persists, calls Stripe, transitions, retu
   assert.deepEqual(t.patch, { stripe_session_id: "cs_test_happy" });
 });
 
+test("POST /merch/checkout: substitutes {ORDER_ID} in success_url", async () => {
+  const { deps, stripeCalls } = buildDeps();
+  const res = await handle(
+    event("POST /merch/checkout", {
+      body: {
+        drawing_id: "a".repeat(64),
+        frame: 0,
+        product_id: "tee",
+        variant_id: 18395,
+        success_url: "https://drawbang.example/merch/order/{ORDER_ID}",
+        cancel_url: "https://drawbang.example/merch?d=" + "a".repeat(64),
+      },
+    }),
+    deps,
+  );
+  assert.equal(statusOf(res), 200);
+  assert.equal(stripeCalls.createCheckoutSession.length, 1);
+  assert.equal(
+    stripeCalls.createCheckoutSession[0].successUrl,
+    "https://drawbang.example/merch/order/ord_test_1",
+  );
+});
+
 test("POST /merch/webhook/stripe: 400 when signature header is missing", async () => {
   const { deps, stripeCalls } = buildDeps();
   const res = await handle(event("POST /merch/webhook/stripe", { body: { type: "evt" } }), deps);

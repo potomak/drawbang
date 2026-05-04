@@ -12,6 +12,8 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, "index.html"),
         "pow-test": resolve(__dirname, "pow-test.html"),
+        merch: resolve(__dirname, "merch.html"),
+        order: resolve(__dirname, "order.html"),
       },
     },
   },

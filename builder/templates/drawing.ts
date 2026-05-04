@@ -47,6 +47,9 @@ export default function renderDrawing(v: DrawingView): string {
       <p>
         <a href="/?fork=${esc(v.id)}">fork this drawing</a>
       </p>
+      <p>
+        <a href="/merch?d=${esc(v.id)}&amp;frame=0" rel="nofollow noreferrer">make merch</a>
+      </p>
     </main>
     <footer>
       <a href="${esc(v.repo_url)}" target="_blank" rel="noopener">source on github</a>

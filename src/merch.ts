@@ -1,0 +1,285 @@
+import { Bitmap } from "./editor/bitmap.js";
+import { PixelCanvas } from "./editor/canvas.js";
+import { decodeGif } from "./editor/gif.js";
+import { activePaletteToRgb, DEFAULT_ACTIVE_PALETTE } from "./editor/palette.js";
+
+interface MerchVariant {
+  id: number;
+  label: string;
+  base_cost_cents: number;
+  retail_cents: number;
+}
+
+interface MerchProduct {
+  id: string;
+  name: string;
+  blueprint_id: number;
+  print_provider_id: number;
+  print_area_px: { width: number; height: number };
+  variants: MerchVariant[];
+}
+
+interface MerchCatalog {
+  products: MerchProduct[];
+}
+
+interface CheckoutResponse {
+  order_id: string;
+  checkout_url: string;
+}
+
+const INGEST_URL = import.meta.env.VITE_INGEST_URL ?? "/ingest";
+const DRAWING_BASE_URL = import.meta.env.VITE_DRAWING_BASE_URL ?? "/drawings";
+const API_BASE = INGEST_URL.replace(/\/ingest\/?$/, "");
+
+const PREVIEW_PIXEL_SIZE = 16;
+const THUMB_PIXEL_SIZE = 4;
+
+const statusEl = document.getElementById("status") as HTMLParagraphElement;
+const productGridEl = document.getElementById("productGrid") as HTMLDivElement;
+const variantPickerEl = document.getElementById("variantPicker") as HTMLDivElement;
+const checkoutBtn = document.getElementById("checkoutBtn") as HTMLButtonElement;
+const previewCanvasEl = document.getElementById("preview") as HTMLCanvasElement;
+const frameStripEl = document.getElementById("frameStrip") as HTMLDivElement;
+
+let frames: Bitmap[] = [];
+let activePalette: Uint8Array = new Uint8Array(DEFAULT_ACTIVE_PALETTE);
+let drawingId: string | null = null;
+let currentFrame = 0;
+let selectedProduct: MerchProduct | null = null;
+let selectedVariant: MerchVariant | null = null;
+let checkoutInFlight = false;
+let previewCanvas: PixelCanvas | null = null;
+
+function setStatus(msg: string): void {
+  statusEl.textContent = msg;
+}
+
+function formatUsd(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+function paletteRgb() {
+  return activePaletteToRgb(activePalette);
+}
+
+function renderPreview(): void {
+  if (!previewCanvas) {
+    previewCanvas = new PixelCanvas(previewCanvasEl, {
+      pixelSize: PREVIEW_PIXEL_SIZE,
+      showGrid: false,
+      gridColor: "",
+    });
+  }
+  previewCanvas.draw(frames[currentFrame], paletteRgb());
+}
+
+function renderFrameStrip(): void {
+  if (frames.length <= 1) {
+    frameStripEl.hidden = true;
+    frameStripEl.innerHTML = "";
+    return;
+  }
+  frameStripEl.hidden = false;
+  frameStripEl.innerHTML = "";
+  const palette = paletteRgb();
+  frames.forEach((frame, idx) => {
+    const wrap = document.createElement("button");
+    wrap.type = "button";
+    wrap.className = "frame" + (idx === currentFrame ? " selected" : "");
+    const cv = document.createElement("canvas");
+    const thumb = new PixelCanvas(cv, {
+      pixelSize: THUMB_PIXEL_SIZE,
+      showGrid: false,
+      gridColor: "",
+    });
+    thumb.draw(frame, palette);
+    wrap.appendChild(cv);
+    const label = document.createElement("span");
+    label.textContent = String(idx + 1);
+    wrap.appendChild(label);
+    wrap.addEventListener("click", () => selectFrame(idx));
+    frameStripEl.appendChild(wrap);
+  });
+}
+
+function selectFrame(idx: number): void {
+  if (idx < 0 || idx >= frames.length || idx === currentFrame) return;
+  currentFrame = idx;
+  renderPreview();
+  renderFrameStrip();
+  if (drawingId) {
+    const url = new URL(location.href);
+    url.searchParams.set("d", drawingId);
+    url.searchParams.set("frame", String(currentFrame));
+    history.replaceState(null, "", url.toString());
+  }
+}
+
+function lowestPrice(p: MerchProduct): number {
+  return p.variants.reduce((min, v) => Math.min(min, v.retail_cents), Infinity);
+}
+
+function renderCatalog(catalog: MerchCatalog): void {
+  productGridEl.innerHTML = "";
+  if (catalog.products.length === 0) {
+    productGridEl.innerHTML = "<p class=\"muted\">No products available yet.</p>";
+    return;
+  }
+  for (const product of catalog.products) {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "product-card";
+    card.dataset.productId = product.id;
+    const name = document.createElement("strong");
+    name.textContent = product.name;
+    const price = document.createElement("span");
+    const min = lowestPrice(product);
+    price.textContent = `from ${formatUsd(min)}`;
+    card.append(name, price);
+    card.addEventListener("click", () => selectProduct(product));
+    productGridEl.appendChild(card);
+  }
+}
+
+function selectProduct(product: MerchProduct): void {
+  selectedProduct = product;
+  selectedVariant = null;
+  document.querySelectorAll<HTMLButtonElement>(".product-card").forEach((el) => {
+    el.classList.toggle("selected", el.dataset.productId === product.id);
+  });
+  renderVariantPicker();
+  updateCheckoutButton();
+}
+
+function renderVariantPicker(): void {
+  if (!selectedProduct) {
+    variantPickerEl.hidden = true;
+    variantPickerEl.innerHTML = "";
+    return;
+  }
+  variantPickerEl.hidden = false;
+  variantPickerEl.innerHTML = "";
+  const heading = document.createElement("h3");
+  heading.textContent = `${selectedProduct.name} — pick a variant`;
+  variantPickerEl.appendChild(heading);
+  for (const variant of selectedProduct.variants) {
+    const id = `variant-${variant.id}`;
+    const wrap = document.createElement("label");
+    wrap.className = "variant-option";
+    wrap.htmlFor = id;
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "variant";
+    radio.id = id;
+    radio.value = String(variant.id);
+    radio.addEventListener("change", () => {
+      selectedVariant = variant;
+      updateCheckoutButton();
+    });
+    const label = document.createElement("span");
+    label.textContent = `${variant.label} — ${formatUsd(variant.retail_cents)}`;
+    wrap.append(radio, label);
+    variantPickerEl.appendChild(wrap);
+  }
+}
+
+function updateCheckoutButton(): void {
+  const ready = !!(drawingId && selectedProduct && selectedVariant && !checkoutInFlight);
+  checkoutBtn.disabled = !ready;
+  checkoutBtn.textContent = checkoutInFlight ? "redirecting…" : "continue to checkout";
+}
+
+async function fetchCatalog(): Promise<MerchCatalog> {
+  const res = await fetch(`${API_BASE}/merch/products`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`catalog fetch failed: ${res.status}`);
+  return (await res.json()) as MerchCatalog;
+}
+
+async function fetchDrawing(id: string): Promise<Uint8Array> {
+  const res = await fetch(`${DRAWING_BASE_URL}/${id}.gif`);
+  if (!res.ok) throw new Error(`drawing fetch failed: ${res.status}`);
+  const buf = await res.arrayBuffer();
+  return new Uint8Array(buf);
+}
+
+async function handleCheckout(): Promise<void> {
+  if (!drawingId || !selectedProduct || !selectedVariant || checkoutInFlight) return;
+  checkoutInFlight = true;
+  updateCheckoutButton();
+  setStatus("creating checkout session…");
+  try {
+    // {ORDER_ID} is substituted server-side before redirect to Stripe.
+    const successUrl = `${location.origin}/merch/order/{ORDER_ID}`;
+    const cancelUrl = `${location.origin}/merch?d=${encodeURIComponent(drawingId)}&frame=${currentFrame}`;
+    const res = await fetch(`${API_BASE}/merch/checkout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        drawing_id: drawingId,
+        frame: currentFrame,
+        product_id: selectedProduct.id,
+        variant_id: selectedVariant.id,
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`${res.status} ${(await res.text()) || res.statusText}`);
+    }
+    const body = (await res.json()) as CheckoutResponse;
+    if (!body.checkout_url) throw new Error("server returned no checkout_url");
+    location.href = body.checkout_url;
+  } catch (err) {
+    checkoutInFlight = false;
+    updateCheckoutButton();
+    setStatus(`checkout failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+async function boot(): Promise<void> {
+  const params = new URL(location.href).searchParams;
+  const id = params.get("d");
+  const frameParam = params.get("frame");
+  if (!id || !/^[0-9a-f]{64}$/.test(id)) {
+    setStatus("missing or malformed drawing id (?d=<64 hex>).");
+    return;
+  }
+  drawingId = id;
+
+  setStatus("loading drawing…");
+  try {
+    const bytes = await fetchDrawing(id);
+    const decoded = decodeGif(bytes);
+    frames = decoded.frames;
+    if (decoded.activePalette) activePalette = decoded.activePalette;
+  } catch (err) {
+    setStatus(`failed to load drawing: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  }
+
+  const requested = frameParam ? Number.parseInt(frameParam, 10) : 0;
+  if (!Number.isInteger(requested) || requested < 0 || requested >= frames.length) {
+    setStatus(`frame ${frameParam} is out of range (0–${frames.length - 1}).`);
+    return;
+  }
+  currentFrame = requested;
+
+  renderPreview();
+  renderFrameStrip();
+
+  setStatus("loading catalog…");
+  try {
+    const catalog = await fetchCatalog();
+    renderCatalog(catalog);
+    setStatus("");
+  } catch (err) {
+    setStatus(`failed to load catalog: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  checkoutBtn.addEventListener("click", () => {
+    void handleCheckout();
+  });
+}
+
+void boot();

@@ -119,15 +119,21 @@ Resources:
         function handler(event) {
           var req = event.request;
           var uri = req.uri;
-          // /d/<64hex>           -> /d/<64hex>.html
-          // /days/YYYY-MM-DD/p/N -> /days/YYYY-MM-DD/p/N.html
-          // /gallery             -> /gallery.html
+          // /d/<64hex>                 -> /d/<64hex>.html
+          // /days/YYYY-MM-DD/p/N       -> /days/YYYY-MM-DD/p/N.html
+          // /gallery                   -> /gallery.html
+          // /merch                     -> /merch.html  (catalog picker SPA)
+          // /merch/order/<uuid>        -> /order.html  (order status SPA)
           if (/^\/d\/[0-9a-f]{64}$/.test(uri)) {
             req.uri = uri + ".html";
           } else if (/^\/days\/\d{4}-\d{2}-\d{2}\/p\/\d+$/.test(uri)) {
             req.uri = uri + ".html";
           } else if (uri === "/gallery") {
             req.uri = "/gallery.html";
+          } else if (uri === "/merch") {
+            req.uri = "/merch.html";
+          } else if (/^\/merch\/order\/[0-9a-f-]{36}$/.test(uri)) {
+            req.uri = "/order.html";
           }
           return req;
         }

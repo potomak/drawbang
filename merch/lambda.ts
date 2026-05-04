@@ -128,11 +128,14 @@ async function checkout(
   };
   await deps.orders.createOrder(order);
 
+  // The picker can't know the order id at request time, so it embeds the
+  // literal "{ORDER_ID}" placeholder. Substitute here before Stripe sees it.
+  const successUrl = body.success_url.replace("{ORDER_ID}", orderId);
   const session = await deps.stripe.createCheckoutSession({
     orderId,
     productName: variant.label,
     amountCents: variant.retail_cents,
-    successUrl: body.success_url,
+    successUrl,
     cancelUrl: body.cancel_url,
     ...(customerEmail ? { customerEmail } : {}),
     shippingCountries: deps.shippingCountries,
