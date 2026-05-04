@@ -270,8 +270,11 @@ test("placeholder_positions: each configured position uploads the same image", a
   }
 });
 
-test("upscale uses the largest print-area dim rounded down to a multiple of 16", async () => {
-  // max(4500, 5400) = 5400; floor(5400/16)*16 = 5392 (a multiple of 16).
+test("upscale caps the PNG size so a giant print area doesn't OOM the lambda", async () => {
+  // tee print area is 4500×5400, but the cap kicks in long before that. The
+  // resulting PNG should be small enough to fit in normal Lambda memory:
+  // a 16×16 source upscaled to ≤1600×1600 of mostly-zero pixels compresses
+  // to well under 100KB.
   const catalogOdd: MerchCatalog = {
     products: [
       {
@@ -288,10 +291,14 @@ test("upscale uses the largest print-area dim rounded down to a multiple of 16",
   const { deps, printifyCalls } = buildDeps();
   deps.catalog = catalogOdd;
   await placePrintifyOrder("ord_42", deps);
-  // Asserting the exact PNG bytes is brittle; but the call must have
-  // happened (i.e. the floor-to-multiple-of-16 didn't blow up upscaler).
   assert.equal(printifyCalls.uploadImage.length, 1);
   assert.ok(printifyCalls.uploadImage[0].bytesLen > 0);
+  // 4912×4912 RGBA PNG would be hundreds of KB even after compression.
+  // The cap (≤1600px) keeps it well under that.
+  assert.ok(
+    printifyCalls.uploadImage[0].bytesLen < 200_000,
+    `PNG bytes ${printifyCalls.uploadImage[0].bytesLen} exceeds the cap budget`,
+  );
 });
 
 test("idempotent: order already submitted -> no-op (no Printify calls, no transition)", async () => {

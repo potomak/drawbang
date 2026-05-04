@@ -301,6 +301,10 @@ Resources:
       # 10s timeout was clipping the chain on cold starts. Stripe expects a
       # 2xx within 30s, so 30s is the comfortable ceiling.
       Timeout: 30
+      # PNG upscale + base64 encode of a few-MB image briefly spikes memory
+      # well above the global 256MB. 1024MB gives headroom and (because
+      # Lambda CPU scales with memory) cuts the encode time too.
+      MemorySize: 1024
       Environment:
         Variables:
           ORDERS_TABLE: !Ref OrdersTable
