@@ -105,6 +105,15 @@ export class PrintifyClient {
     );
   }
 
+  // Printify creates orders in "on-hold" status by default. They only enter
+  // production after this is called — without it the order silently stalls.
+  async sendToProduction(printifyOrderId: string): Promise<{ id: string }> {
+    return this.request<{ id: string }>(
+      "POST",
+      `/shops/${this.shopId}/orders/${printifyOrderId}/send_to_production.json`,
+    );
+  }
+
   private async request<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
     const url = `${this.baseUrl}${path}`;
     const init: RequestInit = {

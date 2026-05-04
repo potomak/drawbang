@@ -64,6 +64,7 @@ interface PrintifyCalls {
   uploadImage: Array<{ filename: string; bytesLen: number }>;
   createProduct: Parameters<PrintifyClient["createProduct"]>[0][];
   createOrder: Parameters<PrintifyClient["createOrder"]>[0][];
+  sendToProduction: string[];
 }
 
 interface StubBehavior {
@@ -71,6 +72,7 @@ interface StubBehavior {
   uploadImage?: PrintifyClient["uploadImage"];
   createProduct?: PrintifyClient["createProduct"];
   createOrder?: PrintifyClient["createOrder"];
+  sendToProduction?: PrintifyClient["sendToProduction"];
   transition?: OrdersStore["transition"];
   fetchDrawing?: PlacePrintifyOrderDeps["fetchDrawing"];
 }
@@ -85,6 +87,7 @@ function buildDeps(stub: StubBehavior = {}): {
     uploadImage: [],
     createProduct: [],
     createOrder: [],
+    sendToProduction: [],
   };
 
   const orders = {
@@ -114,6 +117,11 @@ function buildDeps(stub: StubBehavior = {}): {
       printifyCalls.createOrder.push(args);
       if (stub.createOrder) return stub.createOrder(args);
       return { id: "po_1", status: "pending" };
+    },
+    sendToProduction: async (id: string) => {
+      printifyCalls.sendToProduction.push(id);
+      if (stub.sendToProduction) return stub.sendToProduction(id);
+      return { id };
     },
   } as unknown as PrintifyClient;
 
@@ -175,16 +183,58 @@ test("happy path: upload -> create product -> create order -> submitted", async 
   assert.equal(printifyOrder.send_shipping_notification, false);
   assert.equal(printifyOrder.address_to.country, "US");
 
-  // Transition: paid -> submitted with both Printify handles stamped on
-  assert.equal(ordersCalls.transition.length, 1);
-  const t = ordersCalls.transition[0];
-  assert.equal(t.id, "ord_42");
-  assert.equal(t.expectedStatus, "paid");
-  assert.deepEqual(t.patch, {
-    status: "submitted",
-    printify_product_id: "prod_42",
-    printify_order_id: "po_42",
+  // Transitions stamp printify ids incrementally so a Lambda timeout
+  // between API calls leaves a recoverable trail. Then sendToProduction +
+  // a final transition to submitted.
+  assert.equal(printifyCalls.sendToProduction.length, 1);
+  assert.equal(printifyCalls.sendToProduction[0], "po_42");
+  assert.equal(ordersCalls.transition.length, 3);
+  assert.deepEqual(
+    ordersCalls.transition.map((t) => t.patch),
+    [
+      { printify_product_id: "prod_42" },
+      { printify_order_id: "po_42" },
+      { status: "submitted" },
+    ],
+  );
+  for (const t of ordersCalls.transition) {
+    assert.equal(t.id, "ord_42");
+    assert.equal(t.expectedStatus, "paid");
+  }
+});
+
+test("idempotent: prior printify_product_id skips upload + createProduct", async () => {
+  const { deps, printifyCalls, ordersCalls } = buildDeps({
+    order: makeOrder({ printify_product_id: "prod_existing" }),
   });
+  await placePrintifyOrder("ord_42", deps);
+  assert.equal(printifyCalls.uploadImage.length, 0);
+  assert.equal(printifyCalls.createProduct.length, 0);
+  assert.equal(printifyCalls.createOrder.length, 1);
+  assert.equal(printifyCalls.createOrder[0].line_items[0].product_id, "prod_existing");
+  assert.equal(printifyCalls.sendToProduction.length, 1);
+  // Only the order_id stamp + final submitted; no product_id (already set).
+  assert.deepEqual(
+    ordersCalls.transition.map((t) => t.patch),
+    [{ printify_order_id: "po_1" }, { status: "submitted" }],
+  );
+});
+
+test("idempotent: prior printify_order_id skips createOrder, still calls sendToProduction", async () => {
+  const { deps, printifyCalls, ordersCalls } = buildDeps({
+    order: makeOrder({
+      printify_product_id: "prod_existing",
+      printify_order_id: "po_existing",
+    }),
+  });
+  await placePrintifyOrder("ord_42", deps);
+  assert.equal(printifyCalls.createOrder.length, 0);
+  assert.equal(printifyCalls.sendToProduction.length, 1);
+  assert.equal(printifyCalls.sendToProduction[0], "po_existing");
+  assert.deepEqual(
+    ordersCalls.transition.map((t) => t.patch),
+    [{ status: "submitted" }],
+  );
 });
 
 test("placeholder_positions: each configured position uploads the same image", async () => {
@@ -322,6 +372,9 @@ test("createOrder error after a successful uploadImage + createProduct still fli
   assert.equal(printifyCalls.uploadImage.length, 1);
   assert.equal(printifyCalls.createProduct.length, 1);
   assert.equal(printifyCalls.createOrder.length, 1);
-  assert.equal(ordersCalls.transition.length, 1);
-  assert.deepEqual(ordersCalls.transition[0].patch, { status: "failed" });
+  // Two transitions: the early product_id stamp before createOrder, and the
+  // failure flip from the catch block.
+  assert.equal(ordersCalls.transition.length, 2);
+  assert.deepEqual(ordersCalls.transition[0].patch, { printify_product_id: "prod_99" });
+  assert.deepEqual(ordersCalls.transition[1].patch, { status: "failed" });
 });
