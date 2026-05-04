@@ -295,6 +295,12 @@ Resources:
       FunctionName: drawbang-merch
       Handler: merch.handler
       CodeUri: ../../dist-lambda
+      # The webhook path runs the Printify dispatch synchronously: image
+      # upload (base64, multi-MB POST) + createProduct + createOrder. Each is
+      # a Printify API round-trip that can stall a few seconds; the global
+      # 10s timeout was clipping the chain on cold starts. Stripe expects a
+      # 2xx within 30s, so 30s is the comfortable ceiling.
+      Timeout: 30
       Environment:
         Variables:
           ORDERS_TABLE: !Ref OrdersTable
