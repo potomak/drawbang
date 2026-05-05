@@ -1,6 +1,6 @@
 import { decodeGif } from "../src/editor/gif.js";
 import type { OrdersStore, Order } from "./orders.js";
-import type { PrintifyClient } from "./printify.js";
+import { PrintifyError, type PrintifyClient } from "./printify.js";
 import type { MerchCatalog } from "./lambda.js";
 import { upscaleBitmapToPng } from "./upscale.js";
 
@@ -104,18 +104,36 @@ export async function placePrintifyOrder(
     }
 
     if (!printifyOrderId) {
-      const printifyOrder = await deps.printify.createOrder({
-        external_id: order.order_id,
-        label: `drawbang ${order.order_id}`,
-        line_items: [
-          { product_id: printifyProductId, variant_id: variant.id, quantity: 1 },
-        ],
-        shipping_method: 1,
-        is_printify_express: false,
-        send_shipping_notification: false,
-        address_to: order.shipping_address,
-      });
-      printifyOrderId = printifyOrder.id;
+      try {
+        const printifyOrder = await deps.printify.createOrder({
+          external_id: order.order_id,
+          label: `drawbang ${order.order_id}`,
+          line_items: [
+            { product_id: printifyProductId, variant_id: variant.id, quantity: 1 },
+          ],
+          shipping_method: 1,
+          is_printify_express: false,
+          send_shipping_notification: false,
+          address_to: order.shipping_address,
+        });
+        printifyOrderId = printifyOrder.id;
+      } catch (err) {
+        // 409 here means a previous attempt already submitted this
+        // external_id to Printify but we never persisted the resulting
+        // order id (e.g. a Lambda timeout between createOrder and the
+        // transition stamp). Look the existing order up and reuse it.
+        if (err instanceof PrintifyError && err.status === 409) {
+          const existing = await deps.printify.findOrderByExternalId(order.order_id);
+          if (!existing) throw err;
+          console.log("placePrintifyOrder: recovered existing order on 409", {
+            orderId,
+            printifyOrderId: existing.id,
+          });
+          printifyOrderId = existing.id;
+        } else {
+          throw err;
+        }
+      }
       await deps.orders.transition(orderId, "paid", {
         printify_order_id: printifyOrderId,
       });

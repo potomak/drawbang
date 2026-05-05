@@ -6,7 +6,7 @@ import { DEFAULT_ACTIVE_PALETTE } from "../src/editor/palette.js";
 import { placePrintifyOrder, type PlacePrintifyOrderDeps } from "../merch/dispatch.js";
 import type { MerchCatalog } from "../merch/lambda.js";
 import type { Order, OrderStatus, OrdersStore } from "../merch/orders.js";
-import type { PrintifyClient } from "../merch/printify.js";
+import { PrintifyError, type PrintifyClient } from "../merch/printify.js";
 
 const FIXTURE_CATALOG: MerchCatalog = {
   products: [
@@ -66,6 +66,7 @@ interface PrintifyCalls {
   createProduct: Parameters<PrintifyClient["createProduct"]>[0][];
   createOrder: Parameters<PrintifyClient["createOrder"]>[0][];
   sendToProduction: string[];
+  findOrderByExternalId: string[];
 }
 
 interface StubBehavior {
@@ -74,6 +75,7 @@ interface StubBehavior {
   createProduct?: PrintifyClient["createProduct"];
   createOrder?: PrintifyClient["createOrder"];
   sendToProduction?: PrintifyClient["sendToProduction"];
+  findOrderByExternalId?: PrintifyClient["findOrderByExternalId"];
   transition?: OrdersStore["transition"];
   fetchDrawing?: PlacePrintifyOrderDeps["fetchDrawing"];
 }
@@ -89,6 +91,7 @@ function buildDeps(stub: StubBehavior = {}): {
     createProduct: [],
     createOrder: [],
     sendToProduction: [],
+    findOrderByExternalId: [],
   };
 
   const orders = {
@@ -123,6 +126,11 @@ function buildDeps(stub: StubBehavior = {}): {
       printifyCalls.sendToProduction.push(id);
       if (stub.sendToProduction) return stub.sendToProduction(id);
       return { id };
+    },
+    findOrderByExternalId: async (externalId: string) => {
+      printifyCalls.findOrderByExternalId.push(externalId);
+      if (stub.findOrderByExternalId) return stub.findOrderByExternalId(externalId);
+      return null;
     },
   } as unknown as PrintifyClient;
 
@@ -387,4 +395,58 @@ test("createOrder error after a successful uploadImage + createProduct still fli
   assert.equal(ordersCalls.transition.length, 2);
   assert.deepEqual(ordersCalls.transition[0].patch, { printify_product_id: "prod_99" });
   assert.deepEqual(ordersCalls.transition[1].patch, { status: "failed" });
+});
+
+test("createOrder 409 with an existing external_id recovers via findOrderByExternalId", async () => {
+  // The orphan-from-prior-timeout case: createOrder rejects with 409
+  // because Printify already has an order for this external_id. Dispatch
+  // should look it up and treat it as the order id.
+  const { deps, ordersCalls, printifyCalls } = buildDeps({
+    createOrder: async () => {
+      throw new PrintifyError(409, {
+        status: "error",
+        code: 8503,
+        message: "Operation failed.",
+      });
+    },
+    findOrderByExternalId: async () => ({ id: "po_recovered" }),
+  });
+
+  await placePrintifyOrder("ord_42", deps);
+
+  assert.equal(printifyCalls.createOrder.length, 1);
+  assert.deepEqual(printifyCalls.findOrderByExternalId, ["ord_42"]);
+  assert.equal(printifyCalls.sendToProduction.length, 1);
+  assert.equal(printifyCalls.sendToProduction[0], "po_recovered");
+  // Transitions: product_id (after createProduct) -> order_id (recovered)
+  // -> status: submitted.
+  assert.deepEqual(
+    ordersCalls.transition.map((t) => t.patch),
+    [
+      { printify_product_id: "prod_99" },
+      { printify_order_id: "po_recovered" },
+      { status: "submitted" },
+    ],
+  );
+});
+
+test("createOrder 409 with no recoverable order still flips to failed", async () => {
+  // Defensive case: 409 fired but the existing order lives outside the
+  // listing window we search. Re-throws and the outer catch flips to
+  // failed — better than silently submitting a duplicate.
+  const { deps, ordersCalls, printifyCalls } = buildDeps({
+    createOrder: async () => {
+      throw new PrintifyError(409, { code: 8503 });
+    },
+    findOrderByExternalId: async () => null,
+  });
+
+  await placePrintifyOrder("ord_42", deps);
+
+  assert.equal(printifyCalls.createOrder.length, 1);
+  assert.deepEqual(printifyCalls.findOrderByExternalId, ["ord_42"]);
+  assert.equal(printifyCalls.sendToProduction.length, 0);
+  assert.deepEqual(ordersCalls.transition[ordersCalls.transition.length - 1].patch, {
+    status: "failed",
+  });
 });

@@ -114,6 +114,25 @@ export class PrintifyClient {
     );
   }
 
+  // Recover the Printify order created by a previous timed-out attempt.
+  // We send `external_id: order.order_id` on createOrder, but Printify
+  // exposes that on listings as `metadata.shop_order_id` rather than the
+  // top-level `external_id` (always null in shop listings — confirmed
+  // empirically). So we list the most-recent N and filter client-side.
+  // limit defaults to 50 — if a previous attempt's createOrder happened
+  // within the last 50 orders this will find it. Bump if you ever have
+  // more in-flight retries than that.
+  async findOrderByExternalId(
+    externalId: string,
+    limit = 50,
+  ): Promise<{ id: string } | null> {
+    const out = await this.request<{
+      data: { id: string; metadata?: { shop_order_id?: string } }[];
+    }>("GET", `/shops/${this.shopId}/orders.json?limit=${limit}`);
+    const found = out.data.find((o) => o.metadata?.shop_order_id === externalId);
+    return found ? { id: found.id } : null;
+  }
+
   private async request<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
     const url = `${this.baseUrl}${path}`;
     const init: RequestInit = {
