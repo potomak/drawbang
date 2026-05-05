@@ -26,7 +26,18 @@ import {
 } from "./editor/tools.js";
 import { decodeShare, encodeShare } from "./share.js";
 import * as local from "./local.js";
-import { loadStoredIdentity, type StoredIdentity } from "./identity-store.js";
+import {
+  exportIdentity,
+  generateIdentity,
+  importIdentity,
+  pubKeyHex,
+  type ExportedIdentity,
+} from "./identity.js";
+import {
+  loadStoredIdentity,
+  saveStoredIdentity,
+  type StoredIdentity,
+} from "./identity-store.js";
 import { MissingIdentityError, submit } from "./submit.js";
 
 const MAIN_PIXEL_SIZE = 24;
@@ -113,6 +124,7 @@ app.innerHTML = /* html */ `
       <button data-action="share">copy share link</button>
       ${PUBLISH_DISABLED ? "" : `<button data-action="publish">publish to gallery</button>`}
       <button data-action="make-merch" id="merchBtn" hidden>make merch</button>
+      <button data-action="open-identity" id="identityBtn" class="text-btn" title="manage your key" hidden>🔑 key</button>
       <p id="status">${PUBLISH_DISABLED ? "demo mode — draw, export a gif, or copy a share link" : ""}</p>
     </section>
   </main>
@@ -126,6 +138,44 @@ app.innerHTML = /* html */ `
     <form method="dialog">
       <menu>
         <button value="cancel">cancel</button>
+      </menu>
+    </form>
+  </dialog>
+  <dialog id="identityBootstrap" class="identity-dialog">
+    <h2>set up your key</h2>
+    <p>
+      drawbang signs every drawing with a keypair so your work groups under
+      its own owner page. generate a fresh one, or import a key you've used
+      before.
+    </p>
+    <div class="identity-actions">
+      <button id="identityGenerateBtn" data-action="identity-generate">generate new keypair</button>
+      <label class="identity-import-label">
+        import existing keypair
+        <input type="file" id="identityBootstrapImport" accept="application/json,.json" hidden>
+      </label>
+    </div>
+    <p id="identityBootstrapError" class="identity-error" hidden></p>
+  </dialog>
+  <dialog id="identitySettings" class="identity-dialog">
+    <h2>your key</h2>
+    <p class="muted">drawings you publish are signed with this keypair.</p>
+    <div class="identity-pubkey">
+      <code id="identityPubkey"></code>
+      <button id="identityCopyBtn" data-action="identity-copy" class="text-btn" title="copy pubkey">copy</button>
+    </div>
+    <div class="identity-actions">
+      <button data-action="identity-download">download keypair (json)</button>
+      <label class="identity-import-label">
+        import another keypair
+        <input type="file" id="identitySettingsImport" accept="application/json,.json" hidden>
+      </label>
+      <button data-action="identity-regenerate" class="identity-danger">generate a new keypair</button>
+    </div>
+    <p id="identitySettingsError" class="identity-error" hidden></p>
+    <form method="dialog">
+      <menu>
+        <button value="close">close</button>
       </menu>
     </form>
   </dialog>
@@ -144,16 +194,145 @@ const picker = document.getElementById("palettePicker") as HTMLDialogElement;
 const baseGridEl = document.getElementById("baseGrid")!;
 const merchBtnEl = document.getElementById("merchBtn") as HTMLButtonElement | null;
 const identityBadgeEl = document.getElementById("identityBadge") as HTMLSpanElement | null;
+const identityBtnEl = document.getElementById("identityBtn") as HTMLButtonElement | null;
+const identityBootstrapEl = document.getElementById("identityBootstrap") as HTMLDialogElement | null;
+const identityBootstrapImportEl = document.getElementById("identityBootstrapImport") as HTMLInputElement | null;
+const identityBootstrapErrorEl = document.getElementById("identityBootstrapError") as HTMLParagraphElement | null;
+const identitySettingsEl = document.getElementById("identitySettings") as HTMLDialogElement | null;
+const identitySettingsImportEl = document.getElementById("identitySettingsImport") as HTMLInputElement | null;
+const identitySettingsErrorEl = document.getElementById("identitySettingsError") as HTMLParagraphElement | null;
+const identityPubkeyEl = document.getElementById("identityPubkey") as HTMLElement | null;
 
 function renderIdentityBadge(): void {
-  if (!identityBadgeEl) return;
-  if (!identity) {
-    identityBadgeEl.hidden = true;
-    identityBadgeEl.textContent = "";
+  if (identityBadgeEl) {
+    if (identity) {
+      identityBadgeEl.hidden = false;
+      identityBadgeEl.textContent = `you: ${identity.pubkey_hex.slice(0, 8)}…`;
+    } else {
+      identityBadgeEl.hidden = true;
+      identityBadgeEl.textContent = "";
+    }
+  }
+  if (identityBtnEl) identityBtnEl.hidden = identity === null;
+}
+
+function setBootstrapError(msg: string | null): void {
+  if (!identityBootstrapErrorEl) return;
+  if (msg) {
+    identityBootstrapErrorEl.hidden = false;
+    identityBootstrapErrorEl.textContent = msg;
+  } else {
+    identityBootstrapErrorEl.hidden = true;
+    identityBootstrapErrorEl.textContent = "";
+  }
+}
+
+function setSettingsError(msg: string | null): void {
+  if (!identitySettingsErrorEl) return;
+  if (msg) {
+    identitySettingsErrorEl.hidden = false;
+    identitySettingsErrorEl.textContent = msg;
+  } else {
+    identitySettingsErrorEl.hidden = true;
+    identitySettingsErrorEl.textContent = "";
+  }
+}
+
+function isValidJwk(jwk: unknown): jwk is JsonWebKey {
+  if (!jwk || typeof jwk !== "object") return false;
+  const j = jwk as { kty?: unknown; crv?: unknown };
+  return j.kty === "OKP" && j.crv === "Ed25519";
+}
+
+function parseExportedIdentity(text: string): ExportedIdentity {
+  const parsed = JSON.parse(text) as { jwk_public?: unknown; jwk_secret?: unknown };
+  if (!isValidJwk(parsed.jwk_public)) {
+    throw new Error("invalid public key (expected Ed25519 OKP JWK)");
+  }
+  if (!isValidJwk(parsed.jwk_secret)) {
+    throw new Error("invalid secret key (expected Ed25519 OKP JWK)");
+  }
+  return { jwk_public: parsed.jwk_public, jwk_secret: parsed.jwk_secret };
+}
+
+async function persistGeneratedIdentity(): Promise<StoredIdentity> {
+  const live = await generateIdentity();
+  const exported = await exportIdentity(live);
+  const pubkey_hex = await pubKeyHex(live);
+  const record: StoredIdentity = { ...exported, pubkey_hex, created_at: Date.now() };
+  return record;
+}
+
+async function persistImportedIdentity(file: File): Promise<StoredIdentity> {
+  const text = await file.text();
+  const exported = parseExportedIdentity(text);
+  const live = await importIdentity(exported);
+  const pubkey_hex = await pubKeyHex(live);
+  return { ...exported, pubkey_hex, created_at: Date.now() };
+}
+
+async function commitIdentityFromBootstrap(record: StoredIdentity): Promise<void> {
+  // Multi-tab race: if another tab already saved an identity between our
+  // load-on-boot and now, drop ours and reload so every tab agrees.
+  const existing = await loadStoredIdentity();
+  if (existing) {
+    location.reload();
     return;
   }
-  identityBadgeEl.hidden = false;
-  identityBadgeEl.textContent = `you: ${identity.pubkey_hex.slice(0, 8)}…`;
+  await saveStoredIdentity(record);
+  identity = record;
+  renderIdentityBadge();
+  identityBootstrapEl?.close();
+}
+
+async function replaceIdentity(record: StoredIdentity): Promise<void> {
+  await saveStoredIdentity(record);
+  identity = record;
+  renderIdentityBadge();
+  renderIdentitySettings();
+}
+
+function renderIdentitySettings(): void {
+  if (!identityPubkeyEl) return;
+  identityPubkeyEl.textContent = identity?.pubkey_hex ?? "";
+}
+
+function openIdentitySettings(): void {
+  if (!identitySettingsEl || !identity) return;
+  setSettingsError(null);
+  renderIdentitySettings();
+  identitySettingsEl.showModal();
+}
+
+function openIdentityBootstrap(): void {
+  if (!identityBootstrapEl) return;
+  setBootstrapError(null);
+  if (!identityBootstrapEl.open) identityBootstrapEl.showModal();
+}
+
+async function downloadIdentity(): Promise<void> {
+  if (!identity) return;
+  const payload: ExportedIdentity = {
+    jwk_public: identity.jwk_public,
+    jwk_secret: identity.jwk_secret,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `drawbang-identity-${identity.pubkey_hex.slice(0, 8)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function copyPubkey(): Promise<void> {
+  if (!identity) return;
+  try {
+    await navigator.clipboard?.writeText(identity.pubkey_hex);
+    setSettingsError(null);
+  } catch {
+    setSettingsError("clipboard unavailable — select the value manually");
+  }
 }
 
 function setLastPublishedId(id: string | null): void {
@@ -482,7 +661,8 @@ async function handlePublish(): Promise<void> {
     resetEditor({ keepPublishedId: true });
   } catch (err) {
     if (err instanceof MissingIdentityError) {
-      setStatus("set up your key before publishing (key UI coming soon)");
+      setStatus("set up your key before publishing");
+      openIdentityBootstrap();
       return;
     }
     setStatus(`publish failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -578,9 +758,77 @@ document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>
       case "share": stopPlay(); copyShareLink(); break;
       case "publish": stopPlay(); void handlePublish(); break;
       case "make-merch": stopPlay(); openMerch(); break;
+      case "open-identity": openIdentitySettings(); break;
+      case "identity-generate": void handleGenerateFromBootstrap(); break;
+      case "identity-copy": void copyPubkey(); break;
+      case "identity-download": void downloadIdentity(); break;
+      case "identity-regenerate": void handleRegenerateFromSettings(); break;
     }
   }),
 );
+
+async function handleGenerateFromBootstrap(): Promise<void> {
+  setBootstrapError(null);
+  try {
+    const record = await persistGeneratedIdentity();
+    await commitIdentityFromBootstrap(record);
+  } catch (err) {
+    setBootstrapError(`could not generate key: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+async function handleRegenerateFromSettings(): Promise<void> {
+  if (!confirm(
+    "Replace your current keypair? Drawings already published with the old key won't be affected, but new drawings will go to a new owner page.",
+  )) {
+    return;
+  }
+  setSettingsError(null);
+  try {
+    const record = await persistGeneratedIdentity();
+    await replaceIdentity(record);
+  } catch (err) {
+    setSettingsError(`could not generate key: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+identityBootstrapEl?.addEventListener("cancel", (ev) => {
+  // Bootstrap is non-dismissable until the user generates or imports a key.
+  if (!identity) ev.preventDefault();
+});
+
+identityBootstrapImportEl?.addEventListener("change", async () => {
+  const file = identityBootstrapImportEl.files?.[0];
+  if (!file) return;
+  setBootstrapError(null);
+  try {
+    const record = await persistImportedIdentity(file);
+    await commitIdentityFromBootstrap(record);
+  } catch (err) {
+    setBootstrapError(`could not import: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    identityBootstrapImportEl.value = "";
+  }
+});
+
+identitySettingsImportEl?.addEventListener("change", async () => {
+  const file = identitySettingsImportEl.files?.[0];
+  if (!file) return;
+  setSettingsError(null);
+  try {
+    if (!confirm(
+      "Replace your current keypair? Drawings already published with the old key won't be affected, but new drawings will go to a new owner page.",
+    )) {
+      return;
+    }
+    const record = await persistImportedIdentity(file);
+    await replaceIdentity(record);
+  } catch (err) {
+    setSettingsError(`could not import: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    identitySettingsImportEl.value = "";
+  }
+});
 
 window.addEventListener("keydown", (ev) => {
   if ((ev.metaKey || ev.ctrlKey) && ev.key === "z") {
@@ -601,6 +849,7 @@ async function boot(): Promise<void> {
     identity = null;
   }
   renderIdentityBadge();
+  if (!identity && !PUBLISH_DISABLED) openIdentityBootstrap();
 
   // Load from ?fork=<id>, then from #d=<...>, then fall back to blank.
   const hash = location.hash.match(/#d=([A-Za-z0-9_-]+)/)?.[1];

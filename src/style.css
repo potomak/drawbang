@@ -188,6 +188,51 @@ dialog {
   padding: 1rem;
   max-width: 95vw;
 }
+.identity-dialog { max-width: min(480px, 95vw); }
+.identity-dialog h2 { margin: 0 0 0.5rem; font-size: 1rem; }
+.identity-dialog p { font-size: 0.85rem; color: #ccc; }
+.identity-dialog p.muted { color: #888; }
+.identity-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+.identity-actions button { width: 100%; }
+.identity-import-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2rem;
+  padding: 0 0.6rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font: inherit;
+  color: var(--fg);
+  text-align: center;
+}
+@media (hover: hover) {
+  .identity-import-label:hover { border-color: var(--accent); }
+}
+.identity-pubkey {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.identity-pubkey code {
+  flex: 1;
+  font-size: 0.75rem;
+  word-break: break-all;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.identity-danger { border-color: #ff6f6f; color: #ff6f6f; }
+.identity-error { color: #ff6f6f; font-size: 0.8rem; min-height: 1.2em; }
 #baseGrid { display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; }
 .base-cell {
   aspect-ratio: 1 / 1;
