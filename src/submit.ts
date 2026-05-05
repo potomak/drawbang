@@ -1,5 +1,14 @@
+import { importIdentity, signDrawingId } from "./identity.js";
+import { loadStoredIdentity } from "./identity-store.js";
 import type { LastPublishState, SolveProgress } from "./pow.js";
-import { INITIAL_STATE, POW_CONFIG, ageSecondsBetween, requiredBits } from "./pow.js";
+import {
+  INITIAL_STATE,
+  POW_CONFIG,
+  ageSecondsBetween,
+  contentHash,
+  hashHex,
+  requiredBits,
+} from "./pow.js";
 
 export interface IngestResponse {
   id: string;
@@ -18,7 +27,19 @@ export interface SubmitOptions {
   signal?: AbortSignal;
 }
 
+export class MissingIdentityError extends Error {
+  constructor() {
+    super("no identity configured — set up your key before publishing");
+    this.name = "MissingIdentityError";
+  }
+}
+
 export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
+  // Surface the missing-identity case before kicking off the worker so we
+  // don't burn CPU on PoW that the server would reject anyway.
+  const stored = await loadStoredIdentity();
+  if (!stored) throw new MissingIdentityError();
+
   const state = await fetchState(opts.stateUrl);
   const ageS = Math.max(
     0,
@@ -46,6 +67,13 @@ export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
       opts.signal,
     );
 
+    const identity = await importIdentity({
+      jwk_public: stored.jwk_public,
+      jwk_secret: stored.jwk_secret,
+    });
+    const drawingIdHex = hashHex(await contentHash(opts.gif));
+    const signature = await signDrawingId(identity, drawingIdHex);
+
     const res = await fetch(opts.ingestUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -56,6 +84,8 @@ export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
         solve_ms: solved.solveMs,
         bench_hps: benchHps,
         parent: opts.parent,
+        pubkey: stored.pubkey_hex,
+        signature,
       }),
       signal: opts.signal,
     });

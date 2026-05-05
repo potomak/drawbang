@@ -225,6 +225,11 @@ footer {
   text-align: center;
 }
 footer a { color: inherit; }
+footer .identity-badge {
+  margin-left: 1rem;
+  font-family: var(--mono, monospace);
+  color: #aaa;
+}
 
 /* -- Merch picker + order status pages ----------------------------------- */
 .merch-body main { padding-top: 0.5rem; }

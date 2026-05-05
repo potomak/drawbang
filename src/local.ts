@@ -2,9 +2,10 @@ import { Bitmap } from "./editor/bitmap.js";
 
 // IndexedDB-backed "My drawings" store. Replaces what Redis provided in the
 // legacy app for logged-in users.
-const DB_NAME = "drawbang";
-const DB_VERSION = 1;
+export const DB_NAME = "drawbang";
+export const DB_VERSION = 2;
 const STORE = "drawings";
+export const IDENTITY_STORE = "identity";
 
 export interface StoredDrawing {
   id: string; // local uuid (not a PoW hash)
@@ -14,7 +15,7 @@ export interface StoredDrawing {
   publishedId?: string; // PoW hash once submitted
 }
 
-function open(): Promise<IDBDatabase> {
+export function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
@@ -22,6 +23,10 @@ function open(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE)) {
         const store = db.createObjectStore(STORE, { keyPath: "id" });
         store.createIndex("created_at", "created_at");
+      }
+      if (!db.objectStoreNames.contains(IDENTITY_STORE)) {
+        // Single-row store, keyed by the fixed string "current".
+        db.createObjectStore(IDENTITY_STORE);
       }
     };
     req.onsuccess = () => resolve(req.result);

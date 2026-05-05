@@ -26,7 +26,8 @@ import {
 } from "./editor/tools.js";
 import { decodeShare, encodeShare } from "./share.js";
 import * as local from "./local.js";
-import { submit } from "./submit.js";
+import { loadStoredIdentity, type StoredIdentity } from "./identity-store.js";
+import { MissingIdentityError, submit } from "./submit.js";
 
 const MAIN_PIXEL_SIZE = 24;
 const PREVIEW_PIXEL_SIZE = 4;
@@ -57,6 +58,7 @@ let clipboard: Bitmap | null = null;
 const history = new History();
 let localId: string | null = null;
 let lastPublishedId: string | null = null;
+let identity: StoredIdentity | null = null;
 const PLAY_DELAY_MS = 200;
 
 // -- DOM setup --------------------------------------------------------------
@@ -116,6 +118,7 @@ app.innerHTML = /* html */ `
   </main>
   <footer>
     <a href="https://github.com/potomak/drawbang" target="_blank" rel="noopener">source on github</a>
+    <span id="identityBadge" class="identity-badge" hidden></span>
   </footer>
   <dialog id="palettePicker">
     <p>pick a color from the 256-color base palette</p>
@@ -140,6 +143,18 @@ const statusEl = document.getElementById("status")!;
 const picker = document.getElementById("palettePicker") as HTMLDialogElement;
 const baseGridEl = document.getElementById("baseGrid")!;
 const merchBtnEl = document.getElementById("merchBtn") as HTMLButtonElement | null;
+const identityBadgeEl = document.getElementById("identityBadge") as HTMLSpanElement | null;
+
+function renderIdentityBadge(): void {
+  if (!identityBadgeEl) return;
+  if (!identity) {
+    identityBadgeEl.hidden = true;
+    identityBadgeEl.textContent = "";
+    return;
+  }
+  identityBadgeEl.hidden = false;
+  identityBadgeEl.textContent = `you: ${identity.pubkey_hex.slice(0, 8)}…`;
+}
 
 function setLastPublishedId(id: string | null): void {
   lastPublishedId = id;
@@ -466,6 +481,10 @@ async function handlePublish(): Promise<void> {
     // button keeps its state — it lets the user buy what they just published.
     resetEditor({ keepPublishedId: true });
   } catch (err) {
+    if (err instanceof MissingIdentityError) {
+      setStatus("set up your key before publishing (key UI coming soon)");
+      return;
+    }
     setStatus(`publish failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
@@ -575,6 +594,13 @@ window.addEventListener("keydown", (ev) => {
 
 async function boot(): Promise<void> {
   buildBaseGrid();
+
+  try {
+    identity = await loadStoredIdentity();
+  } catch {
+    identity = null;
+  }
+  renderIdentityBadge();
 
   // Load from ?fork=<id>, then from #d=<...>, then fall back to blank.
   const hash = location.hash.match(/#d=([A-Za-z0-9_-]+)/)?.[1];
