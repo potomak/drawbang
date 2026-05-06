@@ -4,9 +4,8 @@ import { decodeGif } from "./editor/gif.js";
 import { activePaletteToRgb, DEFAULT_ACTIVE_PALETTE } from "./editor/palette.js";
 import {
   loadMockupImage,
-  renderMockupPreview,
+  paintMockupPreview,
   type MockupConfig,
-  type PreviewController,
 } from "./merch-preview.js";
 import mockupsConfig from "../config/mockups.json" with { type: "json" };
 
@@ -48,14 +47,22 @@ const productGridEl = document.getElementById("productGrid") as HTMLDivElement;
 const variantPickerEl = document.getElementById("variantPicker") as HTMLDivElement;
 const checkoutBtn = document.getElementById("checkoutBtn") as HTMLButtonElement;
 const previewCanvasEl = document.getElementById("preview") as HTMLCanvasElement;
-const mockupCanvasEl = document.getElementById("mockupPreview") as HTMLCanvasElement | null;
 const frameStripEl = document.getElementById("frameStrip") as HTMLDivElement;
 
 interface MockupsFile {
   products: Record<string, MockupConfig>;
 }
 const MOCKUPS: MockupsFile = mockupsConfig as MockupsFile;
-let mockupController: PreviewController | null = null;
+
+// Per-product card preview state — repainted whenever the user changes
+// frames so each card shows the currently-selected frame composited onto
+// that product's mockup.
+interface CardPreview {
+  canvas: HTMLCanvasElement;
+  config: MockupConfig;
+  mockup: HTMLImageElement;
+}
+const cardPreviews: CardPreview[] = [];
 
 let frames: Bitmap[] = [];
 let activePalette: Uint8Array = new Uint8Array(DEFAULT_ACTIVE_PALETTE);
@@ -123,11 +130,9 @@ function selectFrame(idx: number): void {
   currentFrame = idx;
   renderPreview();
   renderFrameStrip();
-  // The mockup auto-animates multi-frame drawings, so the frame picker is
-  // the user's "if you bought this NOW, this is the frame on the merch"
-  // signal — sync the active frame so a paused single-frame view also
-  // updates if the controller is in pause mode.
-  mockupController?.setActiveFrame(currentFrame);
+  // Per-card thumbnails track the selected frame so each preview shows the
+  // exact image that'll be printed if the user buys that product now.
+  repaintCardPreviews();
   if (drawingId) {
     const url = new URL(location.href);
     url.searchParams.set("d", drawingId);
@@ -142,6 +147,7 @@ function lowestPrice(p: MerchProduct): number {
 
 function renderCatalog(catalog: MerchCatalog): void {
   productGridEl.innerHTML = "";
+  cardPreviews.length = 0;
   if (catalog.products.length === 0) {
     productGridEl.innerHTML = "<p class=\"muted\">No products available yet.</p>";
     return;
@@ -151,6 +157,16 @@ function renderCatalog(catalog: MerchCatalog): void {
     card.type = "button";
     card.className = "product-card";
     card.dataset.productId = product.id;
+
+    const cfg = MOCKUPS.products[product.id];
+    let mockupCanvas: HTMLCanvasElement | null = null;
+    if (cfg) {
+      mockupCanvas = document.createElement("canvas");
+      mockupCanvas.className = "product-mockup";
+      mockupCanvas.style.aspectRatio = `${cfg.mockup_width} / ${cfg.mockup_height}`;
+      card.appendChild(mockupCanvas);
+    }
+
     const name = document.createElement("strong");
     name.textContent = product.name;
     const price = document.createElement("span");
@@ -162,6 +178,29 @@ function renderCatalog(catalog: MerchCatalog): void {
     card.append(name, price);
     card.addEventListener("click", () => selectProduct(product));
     productGridEl.appendChild(card);
+
+    if (mockupCanvas && cfg) {
+      // Fire-and-forget: load the base mockup, paint the current frame onto
+      // it, register for future repaints when the user changes frames.
+      // Asset-load failure leaves the card text-only — no broken state.
+      const canvas = mockupCanvas;
+      void loadMockupImage(cfg.mockup_url)
+        .then((mockup) => {
+          cardPreviews.push({ canvas, config: cfg, mockup });
+          if (frames.length > 0) {
+            paintMockupPreview({
+              canvas,
+              mockup,
+              config: cfg,
+              frame: frames[currentFrame],
+              palette: paletteRgb(),
+            });
+          }
+        })
+        .catch(() => {
+          canvas.remove();
+        });
+    }
   }
 }
 
@@ -173,50 +212,15 @@ function selectProduct(product: MerchProduct): void {
   });
   renderVariantPicker();
   updateCheckoutButton();
-  void renderMockup(product);
 }
 
-async function renderMockup(product: MerchProduct): Promise<void> {
-  if (!mockupCanvasEl) return;
-  const cfg = MOCKUPS.products[product.id];
-  if (!cfg) {
-    // No mockup config for this product yet — fall back to the bare canvas.
-    mockupController?.stop();
-    mockupController = null;
-    mockupCanvasEl.hidden = true;
-    previewCanvasEl.hidden = false;
-    return;
+function repaintCardPreviews(): void {
+  if (frames.length === 0) return;
+  const palette = paletteRgb();
+  const frame = frames[currentFrame];
+  for (const c of cardPreviews) {
+    paintMockupPreview({ canvas: c.canvas, mockup: c.mockup, config: c.config, frame, palette });
   }
-
-  // Tear down any prior animation before kicking off a new fetch.
-  mockupController?.stop();
-  mockupController = null;
-
-  let img: HTMLImageElement;
-  try {
-    img = await loadMockupImage(cfg.mockup_url);
-  } catch {
-    // Asset missing (operator hasn't shipped real mockups yet) — leave the
-    // bare canvas visible.
-    mockupCanvasEl.hidden = true;
-    previewCanvasEl.hidden = false;
-    return;
-  }
-
-  // Race guard: the user may have clicked another product while the mockup
-  // was loading. If so, drop this result.
-  if (selectedProduct?.id !== product.id) return;
-
-  mockupController = renderMockupPreview({
-    canvas: mockupCanvasEl,
-    mockup: img,
-    config: cfg,
-    frames,
-    palette: paletteRgb(),
-    startFrame: currentFrame,
-  });
-  previewCanvasEl.hidden = true;
-  mockupCanvasEl.hidden = false;
 }
 
 function renderVariantPicker(): void {

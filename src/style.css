@@ -285,11 +285,6 @@ footer .identity-badge {
   align-items: start;
 }
 .merch-preview { display: flex; flex-direction: column; gap: 0.75rem; }
-.preview-stage {
-  position: relative;
-  width: 256px;
-  aspect-ratio: 1 / 1;
-}
 #preview {
   image-rendering: pixelated;
   width: 256px;
@@ -297,15 +292,13 @@ footer .identity-badge {
   border: 1px solid var(--border);
   background: var(--panel);
 }
-.mockup-preview {
+.product-card .product-mockup {
   image-rendering: pixelated;
-  width: 256px;
+  width: 100%;
   height: auto;
-  max-height: 320px;
-  object-fit: contain;
-  border: 1px solid var(--border);
-  background: var(--panel);
   display: block;
+  background: var(--bg);
+  margin-bottom: 0.4rem;
 }
 .frame-strip {
   display: flex;
