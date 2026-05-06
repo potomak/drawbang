@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Draw! · share to Reddit</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body class="share-body">
+    <header>
+      <h1><a href="/">Draw!</a></h1>
+      <nav>
+        <a href="/gallery">gallery</a>
+      </nav>
+    </header>
+    <main class="share-page">
+      <section class="share-preview">
+        <canvas id="preview" aria-label="drawing preview"></canvas>
+      </section>
+      <section class="share-form">
+        <h2>share to Reddit</h2>
+        <p class="muted">
+          we'll generate a 320×320 GIF (one pixel becomes a 20×20 block) and
+          download it. on the next page, drag the GIF into Reddit's submit
+          form.
+        </p>
+        <label class="share-field">
+          <span>subreddit</span>
+          <div class="share-input-prefix">
+            <span>r/</span>
+            <input id="subredditInput" type="text" value="PixelArt" autocomplete="off" spellcheck="false" />
+          </div>
+        </label>
+        <label class="share-field">
+          <span>title</span>
+          <input id="titleInput" type="text" value="" placeholder="(optional)" />
+        </label>
+        <button id="shareBtn" type="button">download GIF &amp; open Reddit</button>
+        <p id="status" class="share-status"></p>
+      </section>
+    </main>
+    <footer>
+      <a href="https://github.com/potomak/drawbang" target="_blank" rel="noopener">source on github</a>
+    </footer>
+    <script type="module" src="./src/share-page.ts"></script>
+  </body>
+</html>

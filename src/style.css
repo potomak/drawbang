@@ -389,3 +389,63 @@ footer .identity-badge {
   .merch-page { grid-template-columns: 1fr; }
   #preview { width: 100%; height: auto; aspect-ratio: 1 / 1; }
 }
+
+/* -- /share?d=<id> Reddit share page ------------------------------------ */
+.share-body main { padding-top: 0.5rem; }
+.share-page {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 1.5rem;
+  align-items: start;
+  max-width: 720px;
+}
+.share-preview canvas#preview {
+  image-rendering: pixelated;
+  width: 256px;
+  height: 256px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  display: block;
+}
+.share-form { display: flex; flex-direction: column; gap: 0.75rem; }
+.share-form h2 { margin: 0; font-size: 1rem; letter-spacing: 0.1em; }
+.share-form p.muted { margin: 0; }
+.share-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: #aaa;
+}
+.share-field input[type="text"] {
+  font: inherit;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.5rem;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.share-input-prefix {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+.share-input-prefix > span {
+  display: flex;
+  align-items: center;
+  padding: 0 0.5rem;
+  color: #888;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+}
+.share-input-prefix input { border: 0; flex: 1; }
+.share-status { font-size: 0.85rem; color: #aaa; min-height: 1.2em; }
+#shareBtn { padding: 0.6rem; }
+#shareBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+@media (max-width: 720px) {
+  .share-page { grid-template-columns: 1fr; }
+  .share-preview canvas#preview { width: 100%; height: auto; aspect-ratio: 1 / 1; }
+}
