@@ -1,0 +1,23 @@
+{
+  "_note": "Per-product preview mockup config. mockup_url is served from Vite's publicDir (static/), so the value lives at /mockups/<file>.png at runtime. placeholder is the print-area rectangle in mockup-pixel space; the merch picker compositor draws the user's drawing into that rect. The current PNGs in static/mockups/ are dev placeholders — flat-color silhouettes with a clearly-marked print area. Operator should swap them for real Printify mockups (see follow-up issue for the script).",
+  "products": {
+    "tee": {
+      "mockup_url": "/mockups/tee.png",
+      "mockup_width": 800,
+      "mockup_height": 800,
+      "placeholder": { "x": 280, "y": 220, "width": 240, "height": 240 }
+    },
+    "mug": {
+      "mockup_url": "/mockups/mug.png",
+      "mockup_width": 800,
+      "mockup_height": 600,
+      "placeholder": { "x": 224, "y": 200, "width": 192, "height": 192 }
+    },
+    "sticker-sheet": {
+      "mockup_url": "/mockups/sticker-sheet.png",
+      "mockup_width": 800,
+      "mockup_height": 600,
+      "placeholder": { "x": 104, "y": 100, "width": 592, "height": 400 }
+    }
+  }
+}

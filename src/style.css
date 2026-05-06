@@ -285,12 +285,27 @@ footer .identity-badge {
   align-items: start;
 }
 .merch-preview { display: flex; flex-direction: column; gap: 0.75rem; }
+.preview-stage {
+  position: relative;
+  width: 256px;
+  aspect-ratio: 1 / 1;
+}
 #preview {
   image-rendering: pixelated;
   width: 256px;
   height: 256px;
   border: 1px solid var(--border);
   background: var(--panel);
+}
+.mockup-preview {
+  image-rendering: pixelated;
+  width: 256px;
+  height: auto;
+  max-height: 320px;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  display: block;
 }
 .frame-strip {
   display: flex;

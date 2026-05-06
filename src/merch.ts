@@ -2,6 +2,13 @@ import { Bitmap } from "./editor/bitmap.js";
 import { PixelCanvas } from "./editor/canvas.js";
 import { decodeGif } from "./editor/gif.js";
 import { activePaletteToRgb, DEFAULT_ACTIVE_PALETTE } from "./editor/palette.js";
+import {
+  loadMockupImage,
+  renderMockupPreview,
+  type MockupConfig,
+  type PreviewController,
+} from "./merch-preview.js";
+import mockupsConfig from "../config/mockups.json" with { type: "json" };
 
 interface MerchVariant {
   id: number;
@@ -41,7 +48,14 @@ const productGridEl = document.getElementById("productGrid") as HTMLDivElement;
 const variantPickerEl = document.getElementById("variantPicker") as HTMLDivElement;
 const checkoutBtn = document.getElementById("checkoutBtn") as HTMLButtonElement;
 const previewCanvasEl = document.getElementById("preview") as HTMLCanvasElement;
+const mockupCanvasEl = document.getElementById("mockupPreview") as HTMLCanvasElement | null;
 const frameStripEl = document.getElementById("frameStrip") as HTMLDivElement;
+
+interface MockupsFile {
+  products: Record<string, MockupConfig>;
+}
+const MOCKUPS: MockupsFile = mockupsConfig as MockupsFile;
+let mockupController: PreviewController | null = null;
 
 let frames: Bitmap[] = [];
 let activePalette: Uint8Array = new Uint8Array(DEFAULT_ACTIVE_PALETTE);
@@ -109,6 +123,11 @@ function selectFrame(idx: number): void {
   currentFrame = idx;
   renderPreview();
   renderFrameStrip();
+  // The mockup auto-animates multi-frame drawings, so the frame picker is
+  // the user's "if you bought this NOW, this is the frame on the merch"
+  // signal — sync the active frame so a paused single-frame view also
+  // updates if the controller is in pause mode.
+  mockupController?.setActiveFrame(currentFrame);
   if (drawingId) {
     const url = new URL(location.href);
     url.searchParams.set("d", drawingId);
@@ -154,6 +173,50 @@ function selectProduct(product: MerchProduct): void {
   });
   renderVariantPicker();
   updateCheckoutButton();
+  void renderMockup(product);
+}
+
+async function renderMockup(product: MerchProduct): Promise<void> {
+  if (!mockupCanvasEl) return;
+  const cfg = MOCKUPS.products[product.id];
+  if (!cfg) {
+    // No mockup config for this product yet — fall back to the bare canvas.
+    mockupController?.stop();
+    mockupController = null;
+    mockupCanvasEl.hidden = true;
+    previewCanvasEl.hidden = false;
+    return;
+  }
+
+  // Tear down any prior animation before kicking off a new fetch.
+  mockupController?.stop();
+  mockupController = null;
+
+  let img: HTMLImageElement;
+  try {
+    img = await loadMockupImage(cfg.mockup_url);
+  } catch {
+    // Asset missing (operator hasn't shipped real mockups yet) — leave the
+    // bare canvas visible.
+    mockupCanvasEl.hidden = true;
+    previewCanvasEl.hidden = false;
+    return;
+  }
+
+  // Race guard: the user may have clicked another product while the mockup
+  // was loading. If so, drop this result.
+  if (selectedProduct?.id !== product.id) return;
+
+  mockupController = renderMockupPreview({
+    canvas: mockupCanvasEl,
+    mockup: img,
+    config: cfg,
+    frames,
+    palette: paletteRgb(),
+    startFrame: currentFrame,
+  });
+  previewCanvasEl.hidden = true;
+  mockupCanvasEl.hidden = false;
 }
 
 function renderVariantPicker(): void {
