@@ -123,14 +123,19 @@ jobs:
 
       - name: Upload editor to S3 (public/)
         run: |
-          # Hashed bundles get long cache; index.html stays short-cached so
-          # CloudFront invalidation can flip in new bundles fast.
+          # Hashed asset bundles (JS/CSS/maps) get long-cached as immutable,
+          # since their filenames change on every build. HTML entry points
+          # use stable names, so they stay short-cached and we explicitly
+          # invalidate them on every deploy (see next step).
           aws s3 sync dist/ "s3://${BUCKET_NAME}/public/" \
-            --exclude "index.html" \
+            --exclude "*.html" \
             --cache-control "public, max-age=31536000, immutable"
-          aws s3 cp dist/index.html "s3://${BUCKET_NAME}/public/index.html" \
-            --cache-control "public, max-age=60" \
-            --content-type "text/html"
+          for html in dist/*.html; do
+            key=$(basename "$html")
+            aws s3 cp "$html" "s3://${BUCKET_NAME}/public/$key" \
+              --cache-control "public, max-age=60" \
+              --content-type "text/html"
+          done
 
       - name: Run gallery builder
         env:
@@ -140,9 +145,17 @@ jobs:
         run: npm run builder
 
       - name: Invalidate CloudFront cache
-        # Only the rolling pages (and editor index) actually change every run;
-        # day pages are immutable per builder invariant.
+        # Day pages are immutable per builder invariant. Everything below
+        # this list is a stable URL whose contents may have changed this
+        # deploy: the editor, the rolling gallery, every Vite-built SPA,
+        # and the operator-replaceable mockup PNGs.
         run: |
           aws cloudfront create-invalidation \
             --distribution-id "${{ steps.stack.outputs.cloudfront_id }}" \
-            --paths "/" "/index.html" "/gallery" "/gallery.html" "/feed.rss"
+            --paths \
+              "/" "/index.html" \
+              "/gallery" "/gallery.html" "/feed.rss" \
+              "/merch" "/merch.html" \
+              "/order.html" "/merch/order/*" \
+              "/share" "/share.html" \
+              "/mockups/*"
