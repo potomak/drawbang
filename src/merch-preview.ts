@@ -18,7 +18,7 @@ export interface MockupConfig {
   mockup_url: string;
   mockup_width: number;
   mockup_height: number;
-  placeholder: PlaceholderRect;
+  placeholders: PlaceholderRect[];
 }
 
 export interface PaintMockupInput {
@@ -44,24 +44,26 @@ export function paintMockupPreview(input: PaintMockupInput): void {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(mockup, 0, 0, canvas.width, canvas.height);
 
-  // The print area sits in mockup-pixel space; we render the upscaled
-  // drawing to an offscreen canvas at print-area dims, then drawImage that
-  // onto the main canvas. Offscreen sizing keeps `imageSmoothingEnabled =
-  // false` honoured by the browser regardless of CSS scaling.
-  const offscreen = document.createElement("canvas");
-  offscreen.width = config.placeholder.width;
-  offscreen.height = config.placeholder.height;
-  const offCtx = offscreen.getContext("2d");
-  if (!offCtx) throw new Error("paintMockupPreview: offscreen 2d unavailable");
-  drawBitmapInto(offCtx, frame, palette, offscreen.width, offscreen.height);
+  // The drawing is square (16×16) but Printify print rects usually aren't —
+  // a tee placeholder is portrait, a mug is taller still. Stretching to fit
+  // distorts the artwork, so we letterbox: fit the largest centred square
+  // that fits inside the placeholder and leave the rest as natural mockup
+  // background. Multi-up products (e.g. the sticker sheet) end up with one
+  // square per print position.
+  for (const ph of config.placeholders) {
+    const side = Math.min(ph.width, ph.height);
+    const px = ph.x + Math.floor((ph.width - side) / 2);
+    const py = ph.y + Math.floor((ph.height - side) / 2);
 
-  ctx.drawImage(
-    offscreen,
-    config.placeholder.x,
-    config.placeholder.y,
-    config.placeholder.width,
-    config.placeholder.height,
-  );
+    const offscreen = document.createElement("canvas");
+    offscreen.width = side;
+    offscreen.height = side;
+    const offCtx = offscreen.getContext("2d");
+    if (!offCtx) throw new Error("paintMockupPreview: offscreen 2d unavailable");
+    drawBitmapInto(offCtx, frame, palette, side, side);
+
+    ctx.drawImage(offscreen, px, py, side, side);
+  }
 }
 
 // Pixel-perfect raster of one Bitmap into a canvas of arbitrary dims.

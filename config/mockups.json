@@ -1,38 +1,44 @@
 {
-  "_note": "Per-product preview mockup config. mockup_url is served from Vite's publicDir (static/), so the value lives at /mockups/<file>.<ext> at runtime. placeholder is the print-area rectangle in mockup-pixel space; the merch picker compositor draws the user's drawing into that rect. Assets in static/mockups/ are real Printify catalog mockups (JPEGs), regeneratable via scripts/fetch-printify-mockups.ts.",
+  "_note": "Per-product preview mockup config. mockup_url is served from Vite's publicDir (static/), so the value lives at /mockups/<file>.<ext> at runtime. placeholders[] is the list of print-area rectangles in mockup-pixel space; the merch picker compositor draws the user's drawing centered (square fit) into each rect — multi-up products like the sticker sheet end up with one entry per print position. Assets in static/mockups/ are real Printify catalog mockups with the magenta marker + JPEG halo cleaned out, regeneratable via scripts/fetch-printify-mockups.ts.",
   "products": {
     "tee": {
       "mockup_url": "/mockups/tee.jpg",
       "mockup_width": 1200,
       "mockup_height": 1200,
-      "placeholder": {
-        "x": 424,
-        "y": 354,
-        "width": 352,
-        "height": 432
-      }
+      "placeholders": [
+        {
+          "x": 424,
+          "y": 354,
+          "width": 352,
+          "height": 432
+        }
+      ]
     },
     "mug": {
       "mockup_url": "/mockups/mug.jpg",
       "mockup_width": 1200,
       "mockup_height": 1200,
-      "placeholder": {
-        "x": 379,
-        "y": 249,
-        "width": 448,
-        "height": 816
-      }
+      "placeholders": [
+        {
+          "x": 379,
+          "y": 249,
+          "width": 448,
+          "height": 816
+        }
+      ]
     },
     "sticker-sheet": {
       "mockup_url": "/mockups/sticker-sheet.jpg",
       "mockup_width": 1200,
       "mockup_height": 1200,
-      "placeholder": {
-        "x": 74,
-        "y": 256,
-        "width": 496,
-        "height": 320
-      }
+      "placeholders": [
+        {
+          "x": 74,
+          "y": 256,
+          "width": 496,
+          "height": 320
+        }
+      ]
     }
   }
 }
