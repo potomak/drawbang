@@ -2,7 +2,7 @@ import { decodeGif } from "../src/editor/gif.js";
 import type { OrdersStore, Order } from "./orders.js";
 import { PrintifyError, type PrintifyClient } from "./printify.js";
 import type { MerchCatalog } from "./lambda.js";
-import { upscaleBitmapToPng } from "./upscale.js";
+import { upscaleBitmapToSvg } from "./upscale.js";
 
 export interface PlacePrintifyOrderDeps {
   orders: OrdersStore;
@@ -56,24 +56,21 @@ export async function placePrintifyOrder(
       const frame = decoded.frames[order.frame];
       if (!frame) throw new Error(`frame index out of range: ${order.frame}`);
 
-      // Upscale target: largest print-area dim, but capped so we don't
-      // produce a multi-thousand-pixel PNG just to ship 16×16 of source. The
-      // tee blueprint at ~5000px would otherwise OOM the Lambda during PNG
-      // encode + base64 upload. Printify rescales the image to fill the
-      // print area regardless, so anything ≥ 16×64 = 1024 keeps the pixel-
-      // art look without wasting memory. Round down to a multiple of 16 so
-      // each source pixel still becomes an integer-sized block.
-      const MAX_UPSCALE_PX = 1600;
-      const maxDim = Math.min(
-        MAX_UPSCALE_PX,
-        Math.max(product.print_area_px.width, product.print_area_px.height),
-      );
-      const sizePx = Math.floor(maxDim / 16) * 16;
-      const pngBytes = await upscaleBitmapToPng(frame, decoded.activePalette, { sizePx });
+      // Render the print asset as an SVG sized to the largest print-area
+      // dim, rounded down to a multiple of 16 so each source pixel maps
+      // to an integer-sized rect. SVG output is O(rects) in memory (≤256
+      // rects total) regardless of sizePx, so the pre-cap from the PNG
+      // pipeline is gone — Printify gets a vector asset it can rasterise
+      // at print resolution itself.
+      const sizePx =
+        Math.floor(
+          Math.max(product.print_area_px.width, product.print_area_px.height) / 16,
+        ) * 16;
+      const svgBytes = upscaleBitmapToSvg(frame, decoded.activePalette, { sizePx });
 
       const image = await deps.printify.uploadImage(
-        `drawbang-${order.drawing_id}-f${order.frame}.png`,
-        pngBytes,
+        `drawbang-${order.drawing_id}-f${order.frame}.svg`,
+        svgBytes,
       );
 
       const drawingUrl = `${deps.publicBaseUrl}/d/${order.drawing_id}`;

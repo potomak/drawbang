@@ -1,4 +1,3 @@
-import { PNG } from "pngjs";
 import { Bitmap, TRANSPARENT } from "../src/editor/bitmap.js";
 import { activePaletteToRgb } from "../src/editor/palette.js";
 
@@ -7,11 +6,20 @@ export interface UpscaleOptions {
   background?: [number, number, number] | null;
 }
 
-export async function upscaleBitmapToPng(
+// Emit a 16×16 pixel-art bitmap as an SVG sized to `sizePx × sizePx`. Each
+// non-transparent source pixel becomes one `<rect width="1" height="1">`
+// inside a `0 0 16 16` viewBox; `shape-rendering="crispEdges"` keeps the
+// pixel-art look at any rasterization scale Printify ends up choosing.
+//
+// Compared to the old PNG path this scales to print-area sizes (≥4000 px
+// per side) without allocating a full-resolution RGBA buffer — the output
+// is bounded by 16×16 = 256 rects regardless of `sizePx`. Memory usage is
+// O(rects), not O(pixels).
+export function upscaleBitmapToSvg(
   bitmap: Bitmap,
   activePalette: Uint8Array,
   opts: UpscaleOptions,
-): Promise<Uint8Array> {
+): Uint8Array {
   const { sizePx } = opts;
   const background = opts.background ?? null;
 
@@ -25,54 +33,31 @@ export async function upscaleBitmapToPng(
   }
 
   const colors = activePaletteToRgb(activePalette);
-  const blockX = sizePx / bitmap.width;
-  const blockY = sizePx / bitmap.height;
-  const png = new PNG({ width: sizePx, height: sizePx });
-  const data = png.data;
-
-  for (let sy = 0; sy < bitmap.height; sy++) {
-    for (let sx = 0; sx < bitmap.width; sx++) {
-      const idx = bitmap.get(sx, sy);
-      let r: number, g: number, b: number, a: number;
-      if (idx === TRANSPARENT) {
-        if (background === null) {
-          r = 0; g = 0; b = 0; a = 0;
-        } else {
-          [r, g, b] = background;
-          a = 255;
-        }
-      } else {
-        [r, g, b] = colors[idx];
-        a = 255;
-      }
-      const x0 = sx * blockX;
-      const y0 = sy * blockY;
-      for (let py = 0; py < blockY; py++) {
-        let off = ((y0 + py) * sizePx + x0) * 4;
-        for (let px = 0; px < blockX; px++) {
-          data[off++] = r;
-          data[off++] = g;
-          data[off++] = b;
-          data[off++] = a;
-        }
-      }
+  const W = bitmap.width;
+  const H = bitmap.height;
+  const parts: string[] = [];
+  parts.push(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${sizePx}" height="${sizePx}" viewBox="0 0 ${W} ${H}" shape-rendering="crispEdges">`,
+  );
+  if (background !== null) {
+    parts.push(`<rect width="${W}" height="${H}" fill="${rgbHex(background)}"/>`);
+  }
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const idx = bitmap.get(x, y);
+      if (idx === TRANSPARENT) continue;
+      const fill = rgbHex(colors[idx]);
+      parts.push(`<rect x="${x}" y="${y}" width="1" height="1" fill="${fill}"/>`);
     }
   }
+  parts.push(`</svg>`);
+  return new TextEncoder().encode(parts.join(""));
+}
 
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    png.pack()
-      .on("data", (chunk: Buffer) => chunks.push(chunk))
-      .on("end", () => {
-        const total = chunks.reduce((n, c) => n + c.length, 0);
-        const out = new Uint8Array(total);
-        let p = 0;
-        for (const c of chunks) {
-          out.set(c, p);
-          p += c.length;
-        }
-        resolve(out);
-      })
-      .on("error", reject);
-  });
+function rgbHex([r, g, b]: readonly [number, number, number]): string {
+  return `#${hex(r)}${hex(g)}${hex(b)}`;
+}
+
+function hex(n: number): string {
+  return n.toString(16).padStart(2, "0");
 }
