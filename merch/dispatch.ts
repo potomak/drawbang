@@ -1,4 +1,5 @@
 import { decodeGif } from "../src/editor/gif.js";
+import type { BrandLogoProvider } from "./brand-logo.js";
 import type { OrdersStore, Order } from "./orders.js";
 import { PrintifyError, type PrintifyClient } from "./printify.js";
 import type { MerchCatalog } from "./lambda.js";
@@ -10,6 +11,10 @@ export interface PlacePrintifyOrderDeps {
   catalog: MerchCatalog;
   fetchDrawing: (drawingId: string) => Promise<Uint8Array | null>;
   publicBaseUrl: string;
+  // Optional Draw! brand wordmark uploader — used to add the inside-neck
+  // logo on the tee (any product whose config carries `brand_decorations`).
+  // null/undefined = skip brand decorations entirely. Tests inject a stub.
+  brandLogo?: BrandLogoProvider;
 }
 
 export async function placePrintifyOrder(
@@ -79,6 +84,21 @@ export async function placePrintifyOrder(
         position,
         images: [{ id: image.id, x: 0.5 as const, y: 0.5 as const, scale: 1 as const, angle: 0 as const }],
       }));
+
+      // Apply the Draw! brand wordmark to any extra placeholder positions
+      // declared by the product config (e.g. the tee's inside-neck label).
+      // The brand logo is uploaded once per Lambda cold start and the id
+      // reused across orders by the BrandLogoProvider's internal cache.
+      const brandDecorations = product.brand_decorations ?? [];
+      if (brandDecorations.length > 0 && deps.brandLogo) {
+        const brandImageId = await deps.brandLogo.getImageId();
+        for (const dec of brandDecorations) {
+          placeholders.push({
+            position: dec.position,
+            images: [{ id: brandImageId, x: 0.5 as const, y: 0.5 as const, scale: 1 as const, angle: 0 as const }],
+          });
+        }
+      }
       const printifyProduct = await deps.printify.createProduct({
         title: `Drawbang #${order.drawing_id.slice(0, 8)}`,
         description: `16x16 pixel art from drawbang.\n\nView the source drawing: ${drawingUrl}`,

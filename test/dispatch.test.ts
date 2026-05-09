@@ -449,3 +449,97 @@ test("createOrder 409 with no recoverable order still flips to failed", async ()
     status: "failed",
   });
 });
+
+test("brand_decorations: appends a neck placeholder with the brand logo image id", async () => {
+  const catalogWithNeck: MerchCatalog = {
+    products: [
+      {
+        id: "tee",
+        name: "tee",
+        blueprint_id: 6,
+        print_provider_id: 99,
+        print_area_px: { width: 3951, height: 4919 },
+        brand_decorations: [{ position: "neck" }],
+        shipping_cents: 500,
+        variants: [{ id: 18395, label: "x", base_cost_cents: 1199, retail_cents: 2400 }],
+      },
+    ],
+  };
+  const brandImageIdCalls: string[] = [];
+  const { deps, printifyCalls } = buildDeps();
+  deps.catalog = catalogWithNeck;
+  deps.brandLogo = {
+    async getImageId() {
+      brandImageIdCalls.push("called");
+      return "img_brand_42";
+    },
+  };
+
+  await placePrintifyOrder("ord_42", deps);
+
+  // brandLogo.getImageId() called exactly once during dispatch
+  assert.equal(brandImageIdCalls.length, 1);
+
+  // createProduct payload now carries TWO placeholders: front (the drawing)
+  // and neck (the Draw! wordmark).
+  const placeholders = printifyCalls.createProduct[0].print_areas[0].placeholders;
+  assert.equal(placeholders.length, 2);
+  assert.equal(placeholders[0].position, "front");
+  assert.equal(placeholders[1].position, "neck");
+  assert.equal(placeholders[1].images[0].id, "img_brand_42");
+  // Same x/y/scale convention as the front print
+  assert.deepEqual(placeholders[1].images[0], {
+    id: "img_brand_42",
+    x: 0.5,
+    y: 0.5,
+    scale: 1,
+    angle: 0,
+  });
+});
+
+test("brand_decorations: not configured -> no extra placeholders, brandLogo never called", async () => {
+  const brandImageIdCalls: string[] = [];
+  const { deps, printifyCalls } = buildDeps();
+  deps.brandLogo = {
+    async getImageId() {
+      brandImageIdCalls.push("called");
+      return "img_brand_42";
+    },
+  };
+
+  await placePrintifyOrder("ord_42", deps);
+
+  // FIXTURE_CATALOG has no brand_decorations — provider must not be invoked
+  assert.equal(brandImageIdCalls.length, 0);
+  const placeholders = printifyCalls.createProduct[0].print_areas[0].placeholders;
+  assert.equal(placeholders.length, 1);
+  assert.equal(placeholders[0].position, "front");
+});
+
+test("brand_decorations: configured but no provider injected -> dispatch silently skips brand", async () => {
+  // Defensive default. Lets a misconfigured non-prod environment still
+  // ship orders, just without the brand mark.
+  const catalogWithNeck: MerchCatalog = {
+    products: [
+      {
+        id: "tee",
+        name: "tee",
+        blueprint_id: 6,
+        print_provider_id: 99,
+        print_area_px: { width: 3951, height: 4919 },
+        brand_decorations: [{ position: "neck" }],
+        shipping_cents: 500,
+        variants: [{ id: 18395, label: "x", base_cost_cents: 1199, retail_cents: 2400 }],
+      },
+    ],
+  };
+  const { deps, printifyCalls } = buildDeps();
+  deps.catalog = catalogWithNeck;
+  // No deps.brandLogo on purpose.
+
+  await placePrintifyOrder("ord_42", deps);
+
+  const placeholders = printifyCalls.createProduct[0].print_areas[0].placeholders;
+  assert.equal(placeholders.length, 1);
+  assert.equal(placeholders[0].position, "front");
+});

@@ -3,6 +3,7 @@ import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import type Stripe from "stripe";
 import catalog from "../config/merch.json";
 import { S3Storage } from "../ingest/s3-storage.js";
+import { createBrandLogoProvider } from "./brand-logo.js";
 import { placePrintifyOrder } from "./dispatch.js";
 import { OrdersStore, type Order, type OrderStatus } from "./orders.js";
 import { PrintifyClient, type ShippingAddress } from "./printify.js";
@@ -25,6 +26,11 @@ export interface MerchProduct {
   // ["front"] when missing — fine for tees/mugs. Sticker sheets need
   // ["front_1","front_2","front_3","front_4"]; some apparel may add "neck".
   placeholder_positions?: string[];
+  // Additional placeholders that always carry the Draw! brand wordmark
+  // (uploaded once per Lambda cold start by `BrandLogoProvider`). Used
+  // for the inside-neck logo on the tee. Empty / missing = no brand
+  // decoration on this product.
+  brand_decorations?: { position: string }[];
   // Flat US shipping fee added at checkout as a separate Stripe line so the
   // customer sees "+ shipping" instead of paying it bundled into the unit
   // price. Per-product because mug shipping >> tee >> sticker.
@@ -357,6 +363,11 @@ function bootDeps(): MerchHandlerDeps {
   const merchCatalog = catalog as MerchCatalog;
   const lambdaClient = new LambdaClient({});
 
+  // One BrandLogoProvider per cold start — caches the brand wordmark's
+  // Printify image id internally so we upload it exactly once per
+  // container, regardless of how many orders this container processes.
+  const brandLogo = createBrandLogoProvider(printify);
+
   const dispatchSync = (orderId: string) =>
     placePrintifyOrder(orderId, {
       orders,
@@ -364,6 +375,7 @@ function bootDeps(): MerchHandlerDeps {
       catalog: merchCatalog,
       publicBaseUrl,
       fetchDrawing: (drawingId) => s3.getBytes(`public/drawings/${drawingId}.gif`),
+      brandLogo,
     });
 
   // Fire-and-forget self-invoke: returns once Lambda has accepted the
