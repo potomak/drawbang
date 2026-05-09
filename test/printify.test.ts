@@ -181,7 +181,7 @@ test("retries 5xx on the default backoff schedule then succeeds", async () => {
   assert.deepEqual(sleptMs, [500, 1000]);
 });
 
-test("4xx (non-429) throws PrintifyError immediately, no retries", async () => {
+test("4xx (non-429, non-retryable code) throws PrintifyError immediately, no retries", async () => {
   const calls: RecordedCall[] = [];
   const sleptMs: number[] = [];
   const client = new PrintifyClient({
@@ -202,6 +202,73 @@ test("4xx (non-429) throws PrintifyError immediately, no retries", async () => {
   );
   assert.equal(calls.length, 1);
   assert.deepEqual(sleptMs, []);
+});
+
+test("retries HTTP 400 + Printify code 8502 on the slow backoff schedule then succeeds", async () => {
+  // 8502 is a transient image-processing race on sendToProduction. The
+  // fast retry budget (≤7.5s) isn't long enough; the slow schedule
+  // (5s/10s/20s) is what unblocks it.
+  const calls: RecordedCall[] = [];
+  const sleptMs: number[] = [];
+  const client = new PrintifyClient({
+    token: "tok",
+    shopId: "shop_42",
+    fetchImpl: makeFetch(calls, [
+      { status: 400, body: { status: "error", code: 8502, message: "Operation failed." } },
+      { status: 400, body: { status: "error", code: 8502, message: "Operation failed." } },
+      { status: 200, body: { id: "po_1" } },
+    ]),
+    sleepImpl: async (ms) => { sleptMs.push(ms); },
+  });
+
+  const out = await client.sendToProduction("po_1");
+  assert.deepEqual(out, { id: "po_1" });
+  assert.equal(calls.length, 3);
+  assert.deepEqual(sleptMs, [5000, 10000]);
+});
+
+test("HTTP 400 with code != 8502 does not slow-retry", async () => {
+  // Make sure we don't accidentally retry every 400. Only the explicitly
+  // allow-listed codes get the slow backoff.
+  const calls: RecordedCall[] = [];
+  const client = new PrintifyClient({
+    token: "tok",
+    shopId: "shop_42",
+    fetchImpl: makeFetch(calls, [
+      { status: 400, body: { status: "error", code: 9999, message: "Something else." } },
+    ]),
+    sleepImpl: noSleep,
+  });
+
+  await assert.rejects(
+    () => client.sendToProduction("po_1"),
+    (err: unknown) => err instanceof PrintifyError && err.status === 400,
+  );
+  assert.equal(calls.length, 1);
+});
+
+test("8502 retries are exhausted -> PrintifyError surfaces", async () => {
+  const calls: RecordedCall[] = [];
+  const responses = Array.from({ length: 4 }, () => ({
+    status: 400 as const,
+    body: { status: "error", code: 8502, message: "Operation failed." },
+  }));
+  const client = new PrintifyClient({
+    token: "tok",
+    shopId: "shop_42",
+    fetchImpl: makeFetch(calls, responses),
+    sleepImpl: noSleep,
+  });
+
+  await assert.rejects(
+    () => client.sendToProduction("po_1"),
+    (err: unknown) =>
+      err instanceof PrintifyError &&
+      err.status === 400 &&
+      (err.body as { code?: number } | undefined)?.code === 8502,
+  );
+  // initial attempt + 3 slow retries = 4 calls
+  assert.equal(calls.length, 4);
 });
 
 test("gives up after exhausting the retry schedule and throws PrintifyError", async () => {
