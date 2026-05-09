@@ -1,5 +1,5 @@
 {
-  "_note": "Per-product preview mockup config. mockup_url is served from Vite's publicDir (static/), so the value lives at /mockups/<file>.<ext> at runtime. placeholders[] is the list of print-area rectangles in mockup-pixel space; the merch picker compositor draws the user's drawing centered (square fit) into each rect — multi-up products like the sticker sheet end up with one entry per print position. Assets in static/mockups/ are real Printify catalog mockups with the magenta marker + JPEG halo cleaned out, regeneratable via scripts/fetch-printify-mockups.ts.",
+  "_note": "Per-product preview mockup config. mockup_url is served from Vite's publicDir (static/), so the value lives at /mockups/<file>.<ext> at runtime. placeholders[] is the list of print-area rectangles in mockup-pixel space; the merch picker compositor draws the user's drawing centered (square fit) into each rect — multi-up products like the sticker sheet end up with one entry per print position. Assets in static/mockups/ are checked-in flat-lay product mockups with the magenta print-area marker already cleaned out; they're treated as permanent assets — there's no regeneration script.",
   "products": {
     "tee": {
       "mockup_url": "/mockups/tee.jpg",
