@@ -44,9 +44,35 @@ main { margin-top: 1rem; }
   background: #000;
   border: 1px solid var(--border);
 }
+.drawing-page .created-at {
+  margin: 0.75rem 0 1rem;
+  color: #ccc;
+}
+.drawing-page .created-at time {
+  color: var(--fg);
+}
 .drawing-page dl { display: grid; grid-template-columns: 8rem 1fr; gap: 0.25rem 1rem; }
 .drawing-page dt { color: #888; }
 .drawing-page code { word-break: break-all; }
+.drawing-page details.advanced {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+.drawing-page details.advanced summary {
+  cursor: pointer;
+  color: #888;
+  user-select: none;
+  list-style: none;
+}
+.drawing-page details.advanced summary::-webkit-details-marker { display: none; }
+.drawing-page details.advanced summary::before {
+  content: "▸ ";
+  display: inline-block;
+  width: 1ch;
+}
+.drawing-page details.advanced[open] summary::before { content: "▾ "; }
+.drawing-page details.advanced dl { margin-top: 0.5rem; }
 
 footer {
   margin-top: 2rem;
