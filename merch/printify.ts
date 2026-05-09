@@ -62,6 +62,15 @@ export class PrintifyError extends Error {
 const DEFAULT_BASE_URL = "https://api.printify.com/v1";
 const RETRY_DELAYS_MS = [500, 1000, 2000, 4000];
 const RETRY_STATUSES = new Set([429, 500, 502, 503, 504]);
+// Slow retry policy: kicks in when Printify returns HTTP 400 with code
+// 8502 ("Operation failed"), which we hit on `sendToProduction` shortly
+// after `createProduct` while the print provider is still rasterising
+// print files from a freshly-uploaded SVG. The race is transient — the
+// same call succeeds within a minute or two — but the existing fast-retry
+// budget (≤7.5s) isn't long enough to ride it out. Total wait here is
+// ~35s, sized to fit comfortably inside the merch lambda's 60s timeout.
+const SLOW_RETRY_DELAYS_MS = [5000, 10000, 20000];
+const PRINTIFY_RETRYABLE_400_CODES = new Set([8502]);
 
 export class PrintifyClient {
   private readonly token: string;
@@ -144,32 +153,47 @@ export class PrintifyClient {
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     };
 
-    for (let attempt = 0; ; attempt++) {
+    let fastAttempt = 0;
+    let slowAttempt = 0;
+    for (;;) {
       const res = await this.fetchImpl(url, init);
       if (res.ok) {
         return (await res.json()) as T;
       }
 
-      const shouldRetry = RETRY_STATUSES.has(res.status) && attempt < RETRY_DELAYS_MS.length;
-      if (!shouldRetry) {
-        let parsed: unknown;
-        try {
-          parsed = await res.json();
-        } catch {
-          parsed = await res.text().catch(() => undefined);
-        }
-        throw new PrintifyError(res.status, parsed);
+      const text = await res.text();
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = text || undefined;
       }
 
-      let delay = RETRY_DELAYS_MS[attempt];
-      if (res.status === 429) {
-        const ra = res.headers.get("Retry-After");
-        if (ra) {
-          const secs = Number(ra);
-          if (Number.isFinite(secs) && secs >= 0) delay = secs * 1000;
+      if (RETRY_STATUSES.has(res.status) && fastAttempt < RETRY_DELAYS_MS.length) {
+        let delay = RETRY_DELAYS_MS[fastAttempt++];
+        if (res.status === 429) {
+          const ra = res.headers.get("Retry-After");
+          if (ra) {
+            const secs = Number(ra);
+            if (Number.isFinite(secs) && secs >= 0) delay = secs * 1000;
+          }
         }
+        await this.sleepImpl(delay);
+        continue;
       }
-      await this.sleepImpl(delay);
+
+      if (
+        res.status === 400 &&
+        PRINTIFY_RETRYABLE_400_CODES.has(
+          (parsed as { code?: number } | undefined)?.code ?? -1,
+        ) &&
+        slowAttempt < SLOW_RETRY_DELAYS_MS.length
+      ) {
+        await this.sleepImpl(SLOW_RETRY_DELAYS_MS[slowAttempt++]);
+        continue;
+      }
+
+      throw new PrintifyError(res.status, parsed);
     }
   }
 }
