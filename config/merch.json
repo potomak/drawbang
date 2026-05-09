@@ -8,6 +8,7 @@
       "blueprint_id": 6,
       "print_provider_id": 99,
       "print_area_px": { "width": 3951, "height": 4919 },
+      "brand_decorations": [{ "position": "neck" }],
       "shipping_cents": 500,
       "variants": [
         { "id": 12126, "label": "S / Black",  "base_cost_cents": 1150, "retail_cents": 2400 },
