@@ -161,7 +161,7 @@ test("happy path: upload -> create product -> create order -> submitted", async 
   const upload = printifyCalls.uploadImage[0];
   assert.equal(
     upload.filename,
-    `drawbang-${"f".repeat(64)}-f0.png`,
+    `drawbang-${"f".repeat(64)}-f0.svg`,
   );
   assert.ok(upload.bytesLen > 0, "non-empty PNG");
 
@@ -278,11 +278,11 @@ test("placeholder_positions: each configured position uploads the same image", a
   }
 });
 
-test("upscale caps the PNG size so a giant print area doesn't OOM the lambda", async () => {
-  // tee print area is 4500×5400, but the cap kicks in long before that. The
-  // resulting PNG should be small enough to fit in normal Lambda memory:
-  // a 16×16 source upscaled to ≤1600×1600 of mostly-zero pixels compresses
-  // to well under 100KB.
+test("upscale to a giant print area still uploads a tiny SVG", async () => {
+  // tee print area is 4500×5400. The pre-SVG PNG path needed a hard cap
+  // here to avoid an 80MB raster buffer in Lambda memory; the SVG path
+  // is bounded by rect count, not sizePx, so the upload payload stays
+  // well under any sensible budget regardless of print resolution.
   const catalogOdd: MerchCatalog = {
     products: [
       {
@@ -300,12 +300,11 @@ test("upscale caps the PNG size so a giant print area doesn't OOM the lambda", a
   deps.catalog = catalogOdd;
   await placePrintifyOrder("ord_42", deps);
   assert.equal(printifyCalls.uploadImage.length, 1);
+  assert.ok(printifyCalls.uploadImage[0].filename.endsWith(".svg"));
   assert.ok(printifyCalls.uploadImage[0].bytesLen > 0);
-  // 4912×4912 RGBA PNG would be hundreds of KB even after compression.
-  // The cap (≤1600px) keeps it well under that.
   assert.ok(
-    printifyCalls.uploadImage[0].bytesLen < 200_000,
-    `PNG bytes ${printifyCalls.uploadImage[0].bytesLen} exceeds the cap budget`,
+    printifyCalls.uploadImage[0].bytesLen < 32_000,
+    `SVG bytes ${printifyCalls.uploadImage[0].bytesLen} unexpectedly large for a 16×16 source`,
   );
 });
 
