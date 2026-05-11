@@ -245,6 +245,30 @@ Resources:
             - { AttributeName: created_at, KeyType: RANGE }
           Projection: { ProjectionType: ALL }
 
+  # -- Product counters DynamoDB table ----------------------------------------
+  # Denormalised (drawing_id, product_id) → count for the /products gallery
+  # (epic #151). Incremented by the merch Lambda when an order transitions
+  # paid → submitted; read by the daily builder to rank cards by popularity.
+  # GSI partitioned by the literal "all" so a single Query yields top-N by
+  # count without scanning the table.
+  ProductCountersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: drawbang-product-counters
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: pk,    AttributeType: S }
+        - { AttributeName: _g,    AttributeType: S }
+        - { AttributeName: count, AttributeType: N }
+      KeySchema:
+        - { AttributeName: pk, KeyType: HASH }
+      GlobalSecondaryIndexes:
+        - IndexName: all-count-index
+          KeySchema:
+            - { AttributeName: _g,    KeyType: HASH }
+            - { AttributeName: count, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+
   # -- Ingest Lambda + API Gateway --------------------------------------------
 
   IngestFunction:
@@ -316,6 +340,7 @@ Resources:
       Environment:
         Variables:
           ORDERS_TABLE: !Ref OrdersTable
+          PRODUCT_COUNTERS_TABLE: !Ref ProductCountersTable
           PRINTIFY_API_TOKEN: !Ref PrintifyApiToken
           PRINTIFY_SHOP_ID: !Ref PrintifyShopId
           STRIPE_SECRET_KEY: !Ref StripeSecretKey
@@ -332,6 +357,7 @@ Resources:
           NODE_OPTIONS: "--enable-source-maps"
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref OrdersTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref ProductCountersTable }
         - S3ReadPolicy: { BucketName: !Ref AssetsBucket }
         # Allow the function to invoke itself (async dispatch path). The
         # arn:* form scopes to this function only — referencing
@@ -370,6 +396,9 @@ Outputs:
   OrdersTableName:
     Description: DynamoDB table for merch orders. Read by merch/orders.ts.
     Value: !Ref OrdersTable
+  ProductCountersTableName:
+    Description: DynamoDB table for (drawing_id, product_id) order counts. Read by the builder for /products.
+    Value: !Ref ProductCountersTable
   IngestEndpoint:
     Description: POST here with the IngestRequest body.
     Value: !Sub "https://${IngestApi}.execute-api.${AWS::Region}.amazonaws.com/ingest"

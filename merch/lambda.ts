@@ -7,6 +7,7 @@ import { createBrandLogoProvider } from "./brand-logo.js";
 import { placePrintifyOrder } from "./dispatch.js";
 import { OrdersStore, type Order, type OrderStatus } from "./orders.js";
 import { PrintifyClient, type ShippingAddress } from "./printify.js";
+import { ProductCountersStore } from "./product-counters.js";
 import { StripeHelper } from "./stripe.js";
 
 export interface MerchVariant {
@@ -352,6 +353,9 @@ let booted: MerchHandlerDeps | null = null;
 function bootDeps(): MerchHandlerDeps {
   if (booted) return booted;
   const orders = new OrdersStore({ tableName: required("ORDERS_TABLE") });
+  const productCounters = new ProductCountersStore({
+    tableName: required("PRODUCT_COUNTERS_TABLE"),
+  });
   const printify = new PrintifyClient({
     token: required("PRINTIFY_API_TOKEN"),
     shopId: required("PRINTIFY_SHOP_ID"),
@@ -376,6 +380,7 @@ function bootDeps(): MerchHandlerDeps {
       publicBaseUrl,
       fetchDrawing: (drawingId) => s3.getBytes(`public/drawings/${drawingId}.gif`),
       brandLogo,
+      productCounters,
     });
 
   // Fire-and-forget self-invoke: returns once Lambda has accepted the

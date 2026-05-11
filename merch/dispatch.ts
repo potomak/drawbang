@@ -3,6 +3,7 @@ import type { BrandLogoProvider } from "./brand-logo.js";
 import type { OrdersStore, Order } from "./orders.js";
 import { PrintifyError, type PrintifyClient } from "./printify.js";
 import type { MerchCatalog } from "./lambda.js";
+import type { ProductCountersStore } from "./product-counters.js";
 import { upscaleBitmapToSvg } from "./upscale.js";
 
 export interface PlacePrintifyOrderDeps {
@@ -15,6 +16,13 @@ export interface PlacePrintifyOrderDeps {
   // logo on the tee (any product whose config carries `brand_decorations`).
   // null/undefined = skip brand decorations entirely. Tests inject a stub.
   brandLogo?: BrandLogoProvider;
+  // Optional (drawing_id × product_id) popularity counter store. Incremented
+  // once per order on the successful paid → submitted transition, so the
+  // /products gallery (#151) can rank without scanning the orders table.
+  // Absent in tests + non-prod environments — dispatch silently skips.
+  productCounters?: ProductCountersStore;
+  // Test seam for the counter's timestamp. Defaults to the wall clock.
+  now?: () => string;
 }
 
 export async function placePrintifyOrder(
@@ -161,7 +169,24 @@ export async function placePrintifyOrder(
     // order is a no-op (returns 200 with the order id).
     await deps.printify.sendToProduction(printifyOrderId);
 
-    await deps.orders.transition(orderId, "paid", { status: "submitted" });
+    const submitted = await deps.orders.transition(orderId, "paid", { status: "submitted" });
+
+    // Counter increment is gated on the transition return: non-null means
+    // this invocation is the one that flipped paid→submitted, so the
+    // counter records exactly one increment per order. Failures are
+    // logged but do not flip the order to "failed" — the order itself
+    // is already in production at this point.
+    if (submitted && deps.productCounters) {
+      try {
+        await deps.productCounters.incrementOnSubmit({
+          drawing_id: order.drawing_id,
+          product_id: order.product_id,
+          now: deps.now ? deps.now() : new Date().toISOString(),
+        });
+      } catch (counterErr) {
+        console.error("placePrintifyOrder: counter increment failed", { orderId, counterErr });
+      }
+    }
   } catch (err) {
     console.error("placePrintifyOrder failed", { orderId, err });
     if (order && order.status === "paid") {

@@ -7,6 +7,7 @@ import { placePrintifyOrder, type PlacePrintifyOrderDeps } from "../merch/dispat
 import type { MerchCatalog } from "../merch/lambda.js";
 import type { Order, OrderStatus, OrdersStore } from "../merch/orders.js";
 import { PrintifyError, type PrintifyClient } from "../merch/printify.js";
+import type { ProductCountersStore } from "../merch/product-counters.js";
 
 const FIXTURE_CATALOG: MerchCatalog = {
   products: [
@@ -78,12 +79,22 @@ interface StubBehavior {
   findOrderByExternalId?: PrintifyClient["findOrderByExternalId"];
   transition?: OrdersStore["transition"];
   fetchDrawing?: PlacePrintifyOrderDeps["fetchDrawing"];
+  // When set, dispatch is built with a ProductCountersStore stub that
+  // delegates to this fn. Otherwise deps.productCounters is left
+  // undefined, mirroring tests/non-prod environments where the table
+  // isn't wired up.
+  incrementOnSubmit?: ProductCountersStore["incrementOnSubmit"];
+}
+
+interface CounterCalls {
+  incrementOnSubmit: Array<{ drawing_id: string; product_id: string; now: string }>;
 }
 
 function buildDeps(stub: StubBehavior = {}): {
   deps: PlacePrintifyOrderDeps;
   ordersCalls: OrdersCalls;
   printifyCalls: PrintifyCalls;
+  counterCalls: CounterCalls;
 } {
   const ordersCalls: OrdersCalls = { getOrder: [], transition: [] };
   const printifyCalls: PrintifyCalls = {
@@ -93,6 +104,7 @@ function buildDeps(stub: StubBehavior = {}): {
     sendToProduction: [],
     findOrderByExternalId: [],
   };
+  const counterCalls: CounterCalls = { incrementOnSubmit: [] };
 
   const orders = {
     getOrder: async (id: string) => {
@@ -140,8 +152,28 @@ function buildDeps(stub: StubBehavior = {}): {
     catalog: FIXTURE_CATALOG,
     publicBaseUrl: "https://drawbang.example",
     fetchDrawing: stub.fetchDrawing ?? (async () => makeGif()),
+    now: () => "2026-05-11T09:00:00.000Z",
   };
-  return { deps, ordersCalls, printifyCalls };
+
+  if (stub.incrementOnSubmit !== undefined) {
+    const stubFn = stub.incrementOnSubmit;
+    deps.productCounters = {
+      incrementOnSubmit: async (args: Parameters<ProductCountersStore["incrementOnSubmit"]>[0]) => {
+        counterCalls.incrementOnSubmit.push(args);
+        return stubFn(args);
+      },
+    } as unknown as ProductCountersStore;
+  }
+
+  return { deps, ordersCalls, printifyCalls, counterCalls };
+}
+
+// Default helper: a `transition` stub that returns a fake updated Order
+// (non-null) so the dispatch's counter-increment gate fires. Existing
+// idempotency tests stub a null return explicitly when they need it.
+function transitionReturnsOrder(): OrdersStore["transition"] {
+  return (async (id: string, _expected: OrderStatus, patch: Partial<Order>) =>
+    ({ ...makeOrder(), ...patch, order_id: id }) as Order) as OrdersStore["transition"];
 }
 
 test("happy path: upload -> create product -> create order -> submitted", async () => {
@@ -542,4 +574,92 @@ test("brand_decorations: configured but no provider injected -> dispatch silentl
   const placeholders = printifyCalls.createProduct[0].print_areas[0].placeholders;
   assert.equal(placeholders.length, 1);
   assert.equal(placeholders[0].position, "front");
+});
+
+test("productCounters: paid->submitted transition increments the counter exactly once", async () => {
+  const { deps, counterCalls } = buildDeps({
+    transition: transitionReturnsOrder(),
+    incrementOnSubmit: async () => undefined,
+  });
+
+  await placePrintifyOrder("ord_42", deps);
+
+  assert.equal(counterCalls.incrementOnSubmit.length, 1);
+  assert.deepEqual(counterCalls.incrementOnSubmit[0], {
+    drawing_id: "f".repeat(64),
+    product_id: "tee",
+    now: "2026-05-11T09:00:00.000Z",
+  });
+});
+
+test("productCounters: re-dispatch of already-submitted order does NOT increment", async () => {
+  // The dispatch exits early at the status guard (order.status !== "paid"),
+  // never reaches the transition, never increments.
+  const { deps, counterCalls, ordersCalls } = buildDeps({
+    order: makeOrder({ status: "submitted" }),
+    transition: transitionReturnsOrder(),
+    incrementOnSubmit: async () => undefined,
+  });
+
+  await placePrintifyOrder("ord_42", deps);
+
+  assert.equal(ordersCalls.transition.length, 0);
+  assert.equal(counterCalls.incrementOnSubmit.length, 0);
+});
+
+test("productCounters: race-loser whose paid->submitted transition returns null does NOT increment", async () => {
+  // Two dispatchers race on the same order. One wins the conditional
+  // update; the loser's final transition returns null. The loser must
+  // not also count this order.
+  const transition: OrdersStore["transition"] = (async (
+    _id: string,
+    _expected: OrderStatus,
+    patch: Partial<Order>,
+  ) => {
+    // First two transitions (printify_product_id stamp, printify_order_id
+    // stamp) succeed and return a fake order. The third — the status
+    // flip to "submitted" — returns null, as if a sibling dispatch
+    // already flipped it.
+    if (patch.status === "submitted") return null;
+    return { ...makeOrder(), ...patch } as Order;
+  }) as OrdersStore["transition"];
+
+  const { deps, counterCalls } = buildDeps({
+    transition,
+    incrementOnSubmit: async () => undefined,
+  });
+
+  await placePrintifyOrder("ord_42", deps);
+
+  assert.equal(counterCalls.incrementOnSubmit.length, 0);
+});
+
+test("productCounters: increment failure is swallowed; order still ends up submitted", async () => {
+  // The counter is best-effort analytics. A throw must not propagate
+  // and must not flip the (already in-production) order to "failed".
+  const { deps, counterCalls, ordersCalls } = buildDeps({
+    transition: transitionReturnsOrder(),
+    incrementOnSubmit: async () => {
+      throw new Error("DynamoDB throttled");
+    },
+  });
+
+  await placePrintifyOrder("ord_42", deps);
+
+  assert.equal(counterCalls.incrementOnSubmit.length, 1);
+  // No subsequent "failed" transition — the final patch was "submitted".
+  const lastPatch = ordersCalls.transition[ordersCalls.transition.length - 1].patch;
+  assert.deepEqual(lastPatch, { status: "submitted" });
+});
+
+test("productCounters: deps without a counters store skip the increment silently", async () => {
+  // Mirrors a non-prod environment that hasn't deployed the table yet.
+  const { deps, counterCalls } = buildDeps({
+    transition: transitionReturnsOrder(),
+    // No incrementOnSubmit -> deps.productCounters stays undefined.
+  });
+
+  await placePrintifyOrder("ord_42", deps);
+
+  assert.equal(counterCalls.incrementOnSubmit.length, 0);
 });
