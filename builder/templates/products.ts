@@ -22,13 +22,18 @@ export interface ProductsView {
 }
 
 export default function renderProducts(v: ProductsView): string {
-  const items = v.cards.map(renderCard).join("\n");
-  const prev = v.prev_page
-    ? `<a href="${prevHref(v.prev_page.prev_page)}">← prev</a>`
-    : "";
-  const next = v.next_page
-    ? `<a href="/products/p/${esc(v.next_page.next_page)}">next →</a>`
-    : "";
+  const isEmpty = v.cards.length === 0;
+  const body = isEmpty
+    ? `      <h2>products</h2>
+      <p class="muted">No merch ordered yet — once someone buys their first item, it'll show up here ranked by popularity. Want to be first? Pick a drawing from <a href="/gallery">the gallery</a> and hit "make merch".</p>`
+    : `      <h2>products — page ${esc(v.page)} of ${esc(v.total_pages)}</h2>
+      <ul class="grid products-grid">
+${v.cards.map(renderCard).join("\n")}
+      </ul>
+      <nav class="pager">
+        ${v.prev_page ? `<a href="${prevHref(v.prev_page.prev_page)}">← prev</a>` : ""}
+        ${v.next_page ? `<a href="/products/p/${esc(v.next_page.next_page)}">next →</a>` : ""}
+      </nav>`;
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -46,14 +51,7 @@ export default function renderProducts(v: ProductsView): string {
       </nav>
     </header>
     <main>
-      <h2>products — page ${esc(v.page)} of ${esc(v.total_pages)}</h2>
-      <ul class="grid products-grid">
-${items}
-      </ul>
-      <nav class="pager">
-        ${prev}
-        ${next}
-      </nav>
+${body}
     </main>
     <footer>
       <a href="${esc(v.repo_url)}" target="_blank" rel="noopener">source on github</a>

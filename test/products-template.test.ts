@@ -81,6 +81,21 @@ test("pager: page 2 of 3 → prev links to /products (not /products/p/1), next t
   assert.match(html, /href="\/products\/p\/3"/);
 });
 
+test("empty cards list renders an empty-state body with no grid markup", () => {
+  const html = renderProducts({
+    page: 1,
+    total_pages: 1,
+    cards: [],
+    prev_page: null,
+    next_page: null,
+    repo_url: "https://github.com/example/repo",
+  });
+  assert.match(html, /No merch ordered yet/);
+  // The grid list and pager should not appear when there are no cards.
+  assert.ok(!html.includes("products-grid"));
+  assert.ok(!html.includes("class=\"pager\""));
+});
+
 test("escapes user-controlled strings in product_name + recency_label", () => {
   const html = renderProducts({
     page: 1,

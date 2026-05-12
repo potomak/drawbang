@@ -369,18 +369,16 @@ async function rebuildProducts(
   templates: Templates,
   repoUrl: string,
 ): Promise<void> {
+  // No data source wired up (e.g. local dev with FsStorage) → skip
+  // entirely; otherwise the surface always emits at least page 1, even
+  // when it's empty, so `/products` returns 200 on every deploy.
   if (!opts.productCountersSource || !opts.merchCatalog) return;
   const counters = await opts.productCountersSource.listAll();
-  if (counters.length === 0) return;
-
   const cards = productCardsFromCounters(
     counters,
     opts.merchCatalog,
     opts.now ? opts.now() : new Date(),
   );
-  // The join can drop everything (no overlap between counters and catalog).
-  // Render nothing in that case rather than emit an empty surface.
-  if (cards.length === 0) return;
 
   const totalPages = Math.max(1, Math.ceil(cards.length / PER_PAGE));
   for (let page = 1; page <= totalPages; page++) {

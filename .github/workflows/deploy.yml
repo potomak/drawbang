@@ -155,6 +155,7 @@ jobs:
             --paths \
               "/" "/index.html" \
               "/gallery" "/gallery.html" "/feed.rss" \
+              "/products" "/products.html" "/products/p/*" \
               "/merch" "/merch.html" \
               "/order.html" "/merch/order/*" \
               "/share" "/share.html" \

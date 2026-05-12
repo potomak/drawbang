@@ -176,7 +176,10 @@ test("build paginates /products at PER_PAGE=36, page 1 to /products.html, pages 
   assert.ok(!p1.includes("@"));
 });
 
-test("build skips /products surface when productCountersSource is absent", async () => {
+test("build skips /products surface when no data source is wired up (local dev)", async () => {
+  // Non-prod (e.g. local dev against FsStorage) doesn't provide a counter
+  // store. Skip writing the file entirely so `npm run builder` against a
+  // bare directory doesn't emit a misleading "no merch yet" page.
   const { root, storage } = await makeStorage();
   await build({
     storage,
@@ -186,7 +189,24 @@ test("build skips /products surface when productCountersSource is absent", async
   await assert.rejects(() => fs.stat(path.join(root, "public/products.html")));
 });
 
-test("build skips /products surface when the join produces no cards (catalog shrunk away)", async () => {
+test("build emits an empty-state /products.html when counters table is empty", async () => {
+  // The prod-deploy case before any order has reached `submitted`. The
+  // CloudFront/S3 origin returns 403 for missing keys, so we must always
+  // emit page 1, even if it's empty.
+  const { root, storage } = await makeStorage();
+  await build({
+    storage,
+    publicBaseUrl: "https://drawbang.example",
+    productCountersSource: stubSource([]),
+    merchCatalog: CATALOG,
+  });
+  const html = await fs.readFile(path.join(root, "public/products.html"), "utf8");
+  assert.match(html, /No merch ordered yet/);
+  // No card markup leaks into the empty state.
+  assert.ok(!html.includes("product-card"));
+});
+
+test("build emits an empty-state /products.html when the join produces no cards (catalog shrunk away)", async () => {
   const { root, storage } = await makeStorage();
   await build({
     storage,
@@ -194,5 +214,6 @@ test("build skips /products surface when the join produces no cards (catalog shr
     productCountersSource: stubSource([makeCounter({ product_id: "no-such-product" })]),
     merchCatalog: CATALOG,
   });
-  await assert.rejects(() => fs.stat(path.join(root, "public/products.html")));
+  const html = await fs.readFile(path.join(root, "public/products.html"), "utf8");
+  assert.match(html, /No merch ordered yet/);
 });
