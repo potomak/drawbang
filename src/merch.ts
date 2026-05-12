@@ -7,6 +7,7 @@ import {
   paintMockupPreview,
   type MockupConfig,
 } from "./merch-preview.js";
+import { pickProductFromQuery } from "./merch-query.js";
 import mockupsConfig from "../config/mockups.json" with { type: "json" };
 
 interface MerchVariant {
@@ -318,6 +319,7 @@ async function boot(): Promise<void> {
   const params = new URL(location.href).searchParams;
   const id = params.get("d");
   const frameParam = params.get("frame");
+  const productParam = params.get("product");
   if (!id || !/^[0-9a-f]{64}$/.test(id)) {
     setStatus("missing or malformed drawing id (?d=<64 hex>).");
     return;
@@ -350,6 +352,11 @@ async function boot(): Promise<void> {
     const catalog = await fetchCatalog();
     renderCatalog(catalog);
     setStatus("");
+    // Deep-link from /products card: auto-select the product so the user
+    // only has to pick a variant. Unknown product id silently falls back
+    // to the un-selected state.
+    const preselected = pickProductFromQuery(catalog.products, productParam);
+    if (preselected) selectProduct(preselected);
   } catch (err) {
     setStatus(`failed to load catalog: ${err instanceof Error ? err.message : String(err)}`);
   }
