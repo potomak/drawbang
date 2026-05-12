@@ -52,7 +52,9 @@ ingest/               Shared ingest logic
 
 builder/              Daily batch job (incremental, day-partitioned)
   build.ts            Sweeps inbox/, publishes to public/, renders HTML
-  templates/*.ts      Compiled render functions (tagged-literal HTML)
+  templates/*.ts      Compiled render functions (tagged-literal HTML).
+                      Includes products.ts which renders /products.html
+                      from DynamoDB counters joined with config/merch.json.
 
 infra/aws/
   template.yaml       SAM: Lambda + HTTP API + S3 bucket + IAM
@@ -135,6 +137,9 @@ Builder CLI:
 - `DRAWBANG_REPO_URL` — repo URL for footer (default: `https://github.com/potomak/drawbang`).
 - `DRAWBANG_TODAY` — override "today" (YYYY-MM-DD) for testing.
 - `DRAWBANG_FORCE_RERENDER` — `1` to re-render every day's HTML from index.jsonl.
+- `DRAWBANG_PRODUCT_COUNTERS_TABLE` — DynamoDB table for the /products gallery
+  (default `drawbang-product-counters`). Only read when `DRAWBANG_S3_BUCKET` is
+  set; local dev with FsStorage skips the /products surface.
 
 ## AWS deployment
 

@@ -1,17 +1,25 @@
 import { PER_PAGE } from "../config/constants.js";
 import type { Storage } from "../ingest/storage.js";
 import { validateGif } from "../ingest/gif-validate.js";
+import type { MerchCatalog } from "../merch/lambda.js";
+import type { ProductCounter } from "../merch/product-counters.js";
 import { contentHash, hashHex, leadingZeroBits, powHash } from "../src/pow.js";
 import renderDayGallery from "./templates/day-gallery.js";
 import renderDrawing from "./templates/drawing.js";
 import renderIndex from "./templates/index.js";
 import renderFeed from "./templates/feed.js";
 import renderOwner from "./templates/owner.js";
+import renderProducts from "./templates/products.js";
 import type { DayGalleryView } from "./templates/day-gallery.js";
 import type { DrawingView } from "./templates/drawing.js";
 import type { IndexView } from "./templates/index.js";
 import type { FeedView } from "./templates/feed.js";
 import type { OwnerView } from "./templates/owner.js";
+import type { ProductCard, ProductsView } from "./templates/products.js";
+
+export interface ProductCountersSource {
+  listAll: () => Promise<ProductCounter[]>;
+}
 
 export interface BuildOptions {
   storage: Storage;
@@ -24,6 +32,13 @@ export interface BuildOptions {
   // Re-render every day's HTML from existing index.jsonl even if no new
   // drawings arrived. Used after template changes.
   forceRerender?: boolean;
+  // /products gallery inputs (epic #151). Both must be provided to render
+  // the surface; absent or empty either, the builder skips it.
+  productCountersSource?: ProductCountersSource;
+  merchCatalog?: MerchCatalog;
+  // For relative-time labels on product cards ("3 days ago"). Defaults to
+  // wall-clock now; tests inject for determinism.
+  now?: () => Date;
 }
 
 export const DEFAULT_TEMPLATES: Templates = {
@@ -32,6 +47,7 @@ export const DEFAULT_TEMPLATES: Templates = {
   index: renderIndex,
   feed: renderFeed,
   owner: renderOwner,
+  products: renderProducts,
 };
 
 interface DrawingMetadata {
@@ -207,6 +223,9 @@ export async function build(opts: BuildOptions): Promise<{
   // Rebuild rolling surfaces: landing page and RSS feed.
   await rebuildRolling(opts, templates, today, repoUrl);
 
+  // Rebuild /products gallery if a counter source is wired up.
+  await rebuildProducts(opts, templates, repoUrl);
+
   return { sweptDrawings: sweptCount, touchedDays };
 }
 
@@ -216,6 +235,7 @@ export interface Templates {
   index: (v: IndexView) => string;
   feed: (v: FeedView) => string;
   owner: (v: OwnerView) => string;
+  products: (v: ProductsView) => string;
 }
 
 export function drawingViewModel(d: DrawingMetadata): Omit<DrawingView, "repo_url"> {
@@ -344,6 +364,94 @@ async function rebuildRolling(
   await opts.storage.put("public/feed.rss", enc.encode(feed), "application/rss+xml");
 }
 
+async function rebuildProducts(
+  opts: BuildOptions,
+  templates: Templates,
+  repoUrl: string,
+): Promise<void> {
+  if (!opts.productCountersSource || !opts.merchCatalog) return;
+  const counters = await opts.productCountersSource.listAll();
+  if (counters.length === 0) return;
+
+  const cards = productCardsFromCounters(
+    counters,
+    opts.merchCatalog,
+    opts.now ? opts.now() : new Date(),
+  );
+  // The join can drop everything (no overlap between counters and catalog).
+  // Render nothing in that case rather than emit an empty surface.
+  if (cards.length === 0) return;
+
+  const totalPages = Math.max(1, Math.ceil(cards.length / PER_PAGE));
+  for (let page = 1; page <= totalPages; page++) {
+    const slice = cards.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+    const html = templates.products({
+      page,
+      total_pages: totalPages,
+      cards: slice,
+      prev_page: page > 1 ? { prev_page: page - 1 } : null,
+      next_page: page < totalPages ? { next_page: page + 1 } : null,
+      repo_url: repoUrl,
+    });
+    const key = page === 1 ? "public/products.html" : `public/products/p/${page}.html`;
+    await opts.storage.put(key, enc.encode(html), "text/html");
+  }
+}
+
+export function productCardsFromCounters(
+  counters: readonly ProductCounter[],
+  catalog: MerchCatalog,
+  now: Date,
+): ProductCard[] {
+  const byId = new Map(catalog.products.map((p) => [p.id, p]));
+  const enriched: Array<{ card: ProductCard; last_ordered_at: string }> = [];
+  for (const c of counters) {
+    if (c.count <= 0) continue;
+    const product = byId.get(c.product_id);
+    if (!product) continue;
+    const cheapestCents = product.variants.reduce(
+      (acc, v) => (v.retail_cents < acc ? v.retail_cents : acc),
+      Number.POSITIVE_INFINITY,
+    );
+    if (!Number.isFinite(cheapestCents)) continue;
+    enriched.push({
+      card: {
+        drawing_id: c.drawing_id,
+        drawing_id_short: c.drawing_id.slice(0, 8),
+        product_id: c.product_id,
+        product_name: product.name,
+        from_dollars: (cheapestCents / 100).toFixed(2),
+        count: c.count,
+        recency_label: relativeTimeLabel(c.last_ordered_at, now),
+      },
+      last_ordered_at: c.last_ordered_at,
+    });
+  }
+  enriched.sort((a, b) => {
+    if (b.card.count !== a.card.count) return b.card.count - a.card.count;
+    return b.last_ordered_at.localeCompare(a.last_ordered_at);
+  });
+  return enriched.map((e) => e.card);
+}
+
+export function relativeTimeLabel(iso: string, now: Date): string | null {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return null;
+  const diffMs = now.getTime() - t;
+  if (diffMs < 0) return null;
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months} month${months === 1 ? "" : "s"} ago`;
+  const years = Math.floor(days / 365);
+  return `${years} year${years === 1 ? "" : "s"} ago`;
+}
+
 // --- CLI entrypoint --------------------------------------------------------
 
 async function cli(): Promise<void> {
@@ -353,6 +461,7 @@ async function cli(): Promise<void> {
   const repoUrl = process.env.DRAWBANG_REPO_URL ?? undefined;
   const today = process.env.DRAWBANG_TODAY;
   const forceRerender = process.env.DRAWBANG_FORCE_RERENDER === "1";
+  const countersTable = process.env.DRAWBANG_PRODUCT_COUNTERS_TABLE ?? "drawbang-product-counters";
 
   let storage: Storage;
   if (s3Bucket) {
@@ -364,12 +473,27 @@ async function cli(): Promise<void> {
     storage = new FsStorage(root);
   }
 
+  // Only wire up the /products surface when running against S3 — the
+  // counter source-of-truth is DynamoDB. Local dev (FsStorage) gets a
+  // no-op so `npm run builder` against ./dev-bucket stays self-contained.
+  let productCountersSource: ProductCountersSource | undefined;
+  let merchCatalog: MerchCatalog | undefined;
+  if (s3Bucket) {
+    const { ProductCountersStore } = await import("../merch/product-counters.js");
+    const store = new ProductCountersStore({ tableName: countersTable });
+    productCountersSource = { listAll: () => store.listAll() };
+    const catalogModule = await import("../config/merch.json", { with: { type: "json" } });
+    merchCatalog = catalogModule.default as MerchCatalog;
+  }
+
   const result = await build({
     storage,
     publicBaseUrl,
     repoUrl,
     today,
     forceRerender,
+    productCountersSource,
+    merchCatalog,
     logger: (m) => console.log(m),
   });
   console.log(`swept ${result.sweptDrawings} drawings, touched days: ${result.touchedDays.join(", ") || "(none)"}`);

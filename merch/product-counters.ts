@@ -103,4 +103,18 @@ export class ProductCountersStore {
       ...(out.LastEvaluatedKey ? { lastEvaluatedKey: out.LastEvaluatedKey } : {}),
     };
   }
+
+  // Drain the GSI in count-desc order. Page size is the DynamoDB Query
+  // per-call ceiling (1MB); the builder paginates the final card list
+  // itself at PER_PAGE.
+  async listAll(): Promise<ProductCounter[]> {
+    const out: ProductCounter[] = [];
+    let lastKey: Record<string, unknown> | undefined;
+    do {
+      const page = await this.listTop({ limit: 1000, exclusiveStartKey: lastKey });
+      out.push(...page.items);
+      lastKey = page.lastEvaluatedKey;
+    } while (lastKey);
+    return out;
+  }
 }

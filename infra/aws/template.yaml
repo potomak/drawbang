@@ -126,6 +126,8 @@ Resources:
           // /merch/order/<uuid>        -> /order.html  (order status SPA)
           // /keys/<64hex>              -> /keys/<64hex>.html  (per-owner gallery)
           // /share                      -> /share.html  (Reddit share SPA)
+          // /products                   -> /products.html  (popular merch gallery)
+          // /products/p/N               -> /products/p/N.html
           if (/^\/d\/[0-9a-f]{64}$/.test(uri)) {
             req.uri = uri + ".html";
           } else if (/^\/days\/\d{4}-\d{2}-\d{2}\/p\/\d+$/.test(uri)) {
@@ -140,6 +142,10 @@ Resources:
             req.uri = uri + ".html";
           } else if (uri === "/share") {
             req.uri = "/share.html";
+          } else if (uri === "/products") {
+            req.uri = "/products.html";
+          } else if (/^\/products\/p\/\d+$/.test(uri)) {
+            req.uri = uri + ".html";
           }
           return req;
         }
