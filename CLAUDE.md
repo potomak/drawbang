@@ -63,6 +63,10 @@ test/                 node:test suites (gif, pow, share, ingest, builder)
 scripts/
   smoke-ingest.ts     End-to-end smoke test against a deployed endpoint
 
+docs/
+  identity-considerations.md  Notes on extending the Ed25519 scheme
+                              (domain separation, passkey feasibility)
+
 .github/workflows/
   deploy.yml          CI: typecheck + test + sam deploy + build + pages deploy
 
