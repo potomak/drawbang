@@ -26,3 +26,6 @@ dev-bucket/
 # AWS SAM
 dist-lambda/
 .aws-sam/
+
+# Claude Code local plugin / settings state
+.claude/
