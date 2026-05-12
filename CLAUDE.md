@@ -107,15 +107,6 @@ npm run lambda:build   # esbuild the Lambda → dist-lambda/
 npm run lambda:deploy  # lambda:build + sam deploy
 ```
 
-One-shot operator scripts (not on npm scripts; run via `tsx`):
-
-```
-tsx scripts/backfill-product-counters.ts   # populate drawbang-product-counters
-                                           # from existing submitted+ orders
-                                           # (env: DRAWBANG_ORDERS_TABLE,
-                                           #       DRAWBANG_PRODUCT_COUNTERS_TABLE)
-```
-
 Ingest tests do real PoW at 16 bits and can take 30-60s each. Non-ingest tests
 finish in <2s — iterate with: `node --test --import tsx 'test/gif.test.ts' 'test/pow.test.ts' 'test/share.test.ts' 'test/builder.test.ts'`.
 
