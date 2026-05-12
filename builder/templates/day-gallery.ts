@@ -37,7 +37,11 @@ export default function renderDayGallery(v: DayGalleryView): string {
   <body>
     <header>
       <h1><a href="/">Draw!</a></h1>
-      <nav><a href="/days/${esc(v.date)}/p/1">${esc(v.date)}</a></nav>
+      <nav>
+        <a href="/gallery" aria-current="page" class="active">gallery</a>
+        <a href="/products">products</a>
+        <a href="/days/${esc(v.date)}/p/1">${esc(v.date)}</a>
+      </nav>
     </header>
     <main>
       <h2>${esc(v.date)} — page ${esc(v.page)} of ${esc(v.total_pages)}</h2>

@@ -30,6 +30,10 @@ export default function renderOwner(v: OwnerView): string {
   <body>
     <header>
       <h1><a href="/">Draw!</a></h1>
+      <nav>
+        <a href="/gallery">gallery</a>
+        <a href="/products">products</a>
+      </nav>
     </header>
     <main class="owner-page">
       <h2>drawings by <code>${esc(v.pubkey_short)}</code></h2>

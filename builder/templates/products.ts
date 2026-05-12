@@ -40,7 +40,10 @@ export default function renderProducts(v: ProductsView): string {
   <body>
     <header>
       <h1><a href="/">Draw!</a></h1>
-      <nav><a href="/gallery">gallery</a></nav>
+      <nav>
+        <a href="/gallery">gallery</a>
+        <a href="/products" aria-current="page" class="active">products</a>
+      </nav>
     </header>
     <main>
       <h2>products — page ${esc(v.page)} of ${esc(v.total_pages)}</h2>

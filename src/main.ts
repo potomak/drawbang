@@ -80,6 +80,7 @@ app.innerHTML = /* html */ `
     <h1>Draw!</h1>
     <nav>
       <a href="/gallery">gallery</a>
+      <a href="/products">products</a>
     </nav>
   </header>
   <main>

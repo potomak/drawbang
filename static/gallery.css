@@ -23,6 +23,8 @@ header {
   padding-bottom: 0.5rem;
 }
 header h1 a { color: var(--fg); text-decoration: none; }
+header nav { display: flex; gap: 0.75rem; align-items: baseline; }
+header nav a.active { color: var(--fg); font-weight: 700; }
 main { margin-top: 1rem; }
 
 .grid {

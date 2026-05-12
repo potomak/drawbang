@@ -33,6 +33,10 @@ export default function renderIndex(v: IndexView): string {
   <body>
     <header>
       <h1><a href="/">Draw!</a></h1>
+      <nav>
+        <a href="/gallery" aria-current="page" class="active">gallery</a>
+        <a href="/products">products</a>
+      </nav>
     </header>
     <main>
       <h2>latest — ${esc(v.today)}</h2>

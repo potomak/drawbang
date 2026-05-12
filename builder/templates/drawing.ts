@@ -56,6 +56,10 @@ export default function renderDrawing(v: DrawingView): string {
   <body>
     <header>
       <h1><a href="/">Draw!</a></h1>
+      <nav>
+        <a href="/gallery">gallery</a>
+        <a href="/products">products</a>
+      </nav>
     </header>
     <main class="drawing-page">
       <img src="/drawings/${esc(v.id)}.gif" alt="drawing ${esc(v.id_short)}" width="320" height="320" />
