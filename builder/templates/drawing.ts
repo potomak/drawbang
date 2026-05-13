@@ -51,7 +51,7 @@ export default function renderDrawing(v: DrawingView): string {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Draw! · ${esc(v.id_short)}</title>
-    <link rel="stylesheet" href="/gallery.css" />
+    <link rel="stylesheet" href="/gallery-v2.css" />
     <meta property="og:image" content="/drawings/${esc(v.id)}.gif" />
   </head>
   <body>

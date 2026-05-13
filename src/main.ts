@@ -74,20 +74,6 @@ const PLAY_DELAY_MS = 200;
 
 // -- DOM setup --------------------------------------------------------------
 
-// The chrome footer (#102) is rendered statically by the Vite plugin (#168);
-// the editor's identity badge isn't part of the shared chrome (it's editor-
-// specific UX), so we inject it into the chrome footer once at boot. Existing
-// CSS rule `footer .identity-badge` still matches because .chrome-footer IS
-// a <footer> element. #171 may move this into a dedicated identity surface.
-const chromeFooter = document.querySelector(".chrome-footer");
-if (chromeFooter) {
-  const badge = document.createElement("span");
-  badge.id = "identityBadge";
-  badge.className = "identity-badge";
-  badge.hidden = true;
-  chromeFooter.appendChild(badge);
-}
-
 const app = document.getElementById("app")!;
 app.innerHTML = /* html */ `
   <main>
@@ -197,7 +183,6 @@ const statusEl = document.getElementById("status")!;
 const picker = document.getElementById("palettePicker") as HTMLDialogElement;
 const baseGridEl = document.getElementById("baseGrid")!;
 const merchBtnEl = document.getElementById("merchBtn") as HTMLButtonElement | null;
-const identityBadgeEl = document.getElementById("identityBadge") as HTMLSpanElement | null;
 const identityBtnEl = document.getElementById("identityBtn") as HTMLButtonElement | null;
 const identityBootstrapEl = document.getElementById("identityBootstrap") as HTMLDialogElement | null;
 const identityBootstrapImportEl = document.getElementById("identityBootstrapImport") as HTMLInputElement | null;
@@ -208,15 +193,11 @@ const identitySettingsErrorEl = document.getElementById("identitySettingsError")
 const identityPubkeyEl = document.getElementById("identityPubkey") as HTMLElement | null;
 
 function renderIdentityBadge(): void {
-  if (identityBadgeEl) {
-    if (identity) {
-      identityBadgeEl.hidden = false;
-      identityBadgeEl.textContent = `you: ${identity.pubkey_hex.slice(0, 8)}…`;
-    } else {
-      identityBadgeEl.hidden = true;
-      identityBadgeEl.textContent = "";
-    }
-  }
+  // The "you: <key>..." footer label moved to the chrome's identity nav
+  // link (#171) — when localStorage has a pubkey, the link reads
+  // "profile" and jumps to /keys/<pk>. The editor's identityBtn (the
+  // settings-dialog opener in the publish strip) is the only thing left
+  // to toggle here.
   if (identityBtnEl) identityBtnEl.hidden = identity === null;
 }
 

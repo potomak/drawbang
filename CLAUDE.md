@@ -26,6 +26,32 @@ distribution via Origin Access Control. CloudFront Function rewrites clean
 URLs (`/gallery`, `/d/<id>`, `/days/<d>/p/<n>`) to the underlying `.html`
 files. No GH Pages, no Cloudflare, no persistent webserver.
 
+## Pages of the app
+
+Single source of truth. Any cross-page change (new nav link, new shared
+asset, new tracking script) must consider every entry below.
+
+| URL                            | Rendered by                                       | Surface |
+|--------------------------------|---------------------------------------------------|---------|
+| `/`                            | `index.html` + `src/main.ts`                      | Editor (Vite) |
+| `/gallery`                     | `builder/templates/index.ts` → `gallery.html`     | Builder |
+| `/days/<YYYY-MM-DD>/p/<N>`     | `builder/templates/day-gallery.ts`                | Builder |
+| `/d/<64hex>`                   | `builder/templates/drawing.ts`                    | Builder + sync-rendered by ingest Lambda on publish |
+| `/keys/<64hex>`                | `builder/templates/owner.ts`                      | Builder (per-owner profile gallery) |
+| `/products`, `/products/p/<N>` | `builder/templates/products.ts`                   | Builder |
+| `/merch?d=<id>`                | `merch.html` + `src/merch.ts`                     | Picker (Vite) |
+| `/merch/order/<uuid>`          | `order.html` + `src/order.ts`                     | Order status (Vite) |
+| `/share?d=<id>`                | `share.html` + `src/share-page.ts`                | Reddit share (Vite) |
+| `/pow-test`                    | `pow-test.html` + `src/pow-test.ts`               | Dev test bed (Vite) |
+| `/identity`                    | `identity.html` (Vite-served, chrome via markers) | Fallback for the chrome identity link when localStorage has no pubkey |
+| `/feed.rss`                    | `builder/templates/feed.ts`                       | Builder (RSS, no chrome) |
+
+The shared chrome (`src/layout/chrome.ts`, #102) renders the header + footer
+for everything except `/feed.rss` (XML) and `/identity` (no page yet).
+Vite-served pages get the chrome via the `<!--CHROME:HEADER-->` /
+`<!--CHROME:FOOTER-->` markers + `vite/plugins/chrome.ts`. Builder pages call
+`renderHeader` / `renderFooter` from the chrome module directly.
+
 ## Repo layout
 
 ```

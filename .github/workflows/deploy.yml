@@ -123,13 +123,22 @@ jobs:
 
       - name: Upload editor to S3 (public/)
         run: |
-          # Hashed asset bundles (JS/CSS/maps) get long-cached as immutable,
-          # since their filenames change on every build. HTML entry points
-          # use stable names, so they stay short-cached and we explicitly
-          # invalidate them on every deploy (see next step).
-          aws s3 sync dist/ "s3://${BUCKET_NAME}/public/" \
-            --exclude "*.html" \
+          # Hashed asset bundles (dist/assets/*.{js,css,map}) get the long
+          # immutable cache — their filenames change on every build, so
+          # browsers can hold them forever safely.
+          #
+          # Everything ELSE in dist/ — HTML entry points, plus un-hashed
+          # static files copied from static/ (gallery.css, chrome-toggle.js,
+          # chrome-identity.js, mockup PNGs, etc.) — uses a stable URL and
+          # MUST stay short-cached + CloudFront-invalidated on every deploy.
+          # Marking them immutable in the past trapped browsers on stale
+          # versions of /gallery.css; never restore that behaviour.
+          aws s3 sync dist/assets/ "s3://${BUCKET_NAME}/public/assets/" \
             --cache-control "public, max-age=31536000, immutable"
+          aws s3 sync dist/ "s3://${BUCKET_NAME}/public/" \
+            --exclude "assets/*" \
+            --exclude "*.html" \
+            --cache-control "public, max-age=300"
           for html in dist/*.html; do
             key=$(basename "$html")
             aws s3 cp "$html" "s3://${BUCKET_NAME}/public/$key" \
@@ -159,4 +168,7 @@ jobs:
               "/merch" "/merch.html" \
               "/order.html" "/merch/order/*" \
               "/share" "/share.html" \
+              "/identity" "/identity.html" \
+              "/gallery.css" "/gallery-v2.css" \
+              "/chrome-toggle.js" "/chrome-identity.js" \
               "/mockups/*"

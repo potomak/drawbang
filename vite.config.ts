@@ -19,6 +19,7 @@ export default defineConfig({
         merch: resolve(__dirname, "merch.html"),
         order: resolve(__dirname, "order.html"),
         share: resolve(__dirname, "share.html"),
+        identity: resolve(__dirname, "identity.html"),
       },
     },
   },

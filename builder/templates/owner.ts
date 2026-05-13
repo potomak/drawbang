@@ -26,7 +26,7 @@ export default function renderOwner(v: OwnerView): string {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Draw! · key ${esc(v.pubkey_short)}</title>
-    <link rel="stylesheet" href="/gallery.css" />
+    <link rel="stylesheet" href="/gallery-v2.css" />
   </head>
   <body>
     ${renderHeader({ active: "identity" })}

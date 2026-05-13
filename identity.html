@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Draw! · identity</title>
+    <meta name="drawbang:active" content="identity" />
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <!--CHROME:HEADER-->
+    <main class="identity-page">
+      <h2>identity</h2>
+      <p>
+        Drawbang has no accounts and no logins. Instead, the editor generates
+        an <a href="https://en.wikipedia.org/wiki/EdDSA" target="_blank" rel="noopener">Ed25519 keypair</a>
+        in your browser the first time you publish. The public half of that
+        keypair becomes your handle: every drawing you sign with it shows up
+        on a page at <code>/keys/&lt;your-public-key&gt;</code>.
+      </p>
+      <p>
+        Once a key exists in this browser, this nav link rewrites itself to
+        <strong>profile</strong> and jumps straight to your owner page. If
+        you're seeing the <em>identity</em> label and this explainer, no key
+        has been generated yet — open the editor, draw something, and click
+        <strong>publish to gallery</strong> to mint one.
+      </p>
+      <p>
+        <a class="identity-cta" href="/">open the editor</a>
+      </p>
+      <h3>good to know</h3>
+      <ul>
+        <li>The secret half of the key lives only on this device (IndexedDB). Lose the device, lose the key — there's no account-recovery flow.</li>
+        <li>You can export the key as a JWK file from the editor's settings dialog and re-import it on another device.</li>
+        <li>Drawings you made before you had a key are unattributed forever; the operator has occasionally backfilled missing signatures (see <a href="https://github.com/potomak/drawbang/issues/82" target="_blank" rel="noopener">#82</a>).</li>
+      </ul>
+    </main>
+    <!--CHROME:FOOTER-->
+  </body>
+</html>

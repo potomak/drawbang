@@ -41,7 +41,7 @@ ${v.cards.map(renderCard).join("\n")}
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Draw! · products · page ${esc(v.page)}</title>
-    <link rel="stylesheet" href="/gallery.css" />
+    <link rel="stylesheet" href="/gallery-v2.css" />
   </head>
   <body>
     ${renderHeader({ active: "products" })}

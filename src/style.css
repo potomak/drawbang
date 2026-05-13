@@ -38,7 +38,7 @@ header a { color: var(--fg); text-decoration: none; border-bottom: 1px dashed va
 
 /* -- Shared chrome (#102) --------------------------------------------------
    See src/layout/chrome.ts for the markup contract. Same rules also live
-   in static/gallery.css for builder-rendered pages — the duplication is
+   in static/gallery-v2.css for builder-rendered pages — the duplication is
    intentional (no shared partial yet; epic #102 acceptance).             */
 .chrome-header {
   position: relative;
@@ -342,11 +342,6 @@ footer {
   text-align: center;
 }
 footer a { color: inherit; }
-footer .identity-badge {
-  margin-left: 1rem;
-  font-family: var(--mono, monospace);
-  color: #aaa;
-}
 
 /* -- Merch picker + order status pages ----------------------------------- */
 .merch-body main { padding-top: 0.5rem; }
