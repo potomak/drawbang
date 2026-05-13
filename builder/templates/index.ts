@@ -20,7 +20,7 @@ export default function renderIndex(v: IndexView): string {
     .join("\n");
   const archive = v.days
     .map(
-      (d) => `        <li><a href="/days/${esc(d.date)}/p/1">${esc(d.date)}</a> · ${esc(d.count)} drawings</li>`,
+      (d) => `        <li><a href="/days/${esc(d.date)}/p/1">${esc(d.date)}</a> · ${esc(d.count)} drawing${d.count === 1 ? "" : "s"}</li>`,
     )
     .join("\n");
   return `<!doctype html>
