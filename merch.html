@@ -4,16 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Draw! · make merch</title>
+    <meta name="drawbang:active" content="products" />
     <link rel="stylesheet" href="./src/style.css" />
   </head>
   <body class="merch-body">
-    <header>
-      <h1><a href="/">Draw!</a></h1>
-      <nav>
-        <a href="/gallery">gallery</a>
-        <a href="/products">products</a>
-      </nav>
-    </header>
+    <!--CHROME:HEADER-->
     <main class="merch-page">
       <section class="merch-preview">
         <canvas id="preview" aria-label="drawing preview"></canvas>
@@ -27,9 +22,7 @@
         <p id="status" class="merch-status"></p>
       </section>
     </main>
-    <footer>
-      <a href="https://github.com/potomak/drawbang" target="_blank" rel="noopener">source on github</a>
-    </footer>
+    <!--CHROME:FOOTER-->
     <script type="module" src="./src/merch.ts"></script>
   </body>
 </html>

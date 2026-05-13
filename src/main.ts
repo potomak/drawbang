@@ -74,15 +74,22 @@ const PLAY_DELAY_MS = 200;
 
 // -- DOM setup --------------------------------------------------------------
 
+// The chrome footer (#102) is rendered statically by the Vite plugin (#168);
+// the editor's identity badge isn't part of the shared chrome (it's editor-
+// specific UX), so we inject it into the chrome footer once at boot. Existing
+// CSS rule `footer .identity-badge` still matches because .chrome-footer IS
+// a <footer> element. #171 may move this into a dedicated identity surface.
+const chromeFooter = document.querySelector(".chrome-footer");
+if (chromeFooter) {
+  const badge = document.createElement("span");
+  badge.id = "identityBadge";
+  badge.className = "identity-badge";
+  badge.hidden = true;
+  chromeFooter.appendChild(badge);
+}
+
 const app = document.getElementById("app")!;
 app.innerHTML = /* html */ `
-  <header>
-    <h1>Draw!</h1>
-    <nav>
-      <a href="/gallery">gallery</a>
-      <a href="/products">products</a>
-    </nav>
-  </header>
   <main>
     <section class="stage">
       <canvas id="main" aria-label="drawing canvas"></canvas>
@@ -129,10 +136,6 @@ app.innerHTML = /* html */ `
       <p id="status">${PUBLISH_DISABLED ? "demo mode — draw, export a gif, or copy a share link" : ""}</p>
     </section>
   </main>
-  <footer>
-    <a href="https://github.com/potomak/drawbang" target="_blank" rel="noopener">source on github</a>
-    <span id="identityBadge" class="identity-badge" hidden></span>
-  </footer>
   <dialog id="palettePicker">
     <p>pick a color from the 256-color base palette</p>
     <div id="baseGrid"></div>

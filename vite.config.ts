@@ -1,9 +1,13 @@
 import { defineConfig } from "vite";
 import { resolve } from "node:path";
+import { chromePlugin } from "./vite/plugins/chrome.js";
 
 export default defineConfig({
   root: ".",
   publicDir: "static",
+  plugins: [
+    chromePlugin({ repoUrl: process.env.VITE_REPO_URL }),
+  ],
   build: {
     outDir: "dist",
     sourcemap: true,

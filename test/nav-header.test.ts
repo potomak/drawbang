@@ -77,12 +77,17 @@ test("nav: /products marks the products link as active (aria-current=page + clas
   assert.match(html, /href="\/products"[^>]*class="active"/);
 });
 
-test("nav: static merch + order pages link to /products", async () => {
-  // These are hand-edited HTML files (not templates), so the assertion is
-  // simply that the products link is present in source.
+test("nav: static merch + order pages use the chrome marker (chrome plugin injects /products link)", async () => {
+  // Before #168 these pages duplicated the nav markup inline. After the
+  // chrome refactor they declare the active section + a marker comment,
+  // and the Vite plugin injects the shared nav at build time. The /products
+  // link landing in the output is asserted by test/chrome-vite-plugin.test.ts
+  // and test/chrome.test.ts; here we just verify the source uses the
+  // marker pattern, not the old hand-written nav.
   const root = path.resolve(import.meta.dirname ?? path.dirname(new URL(import.meta.url).pathname), "..");
-  for (const rel of ["merch.html", "order.html"]) {
+  for (const rel of ["merch.html", "order.html", "share.html"]) {
     const html = await fs.readFile(path.join(root, rel), "utf8");
-    assert.match(html, /href="\/products"/, `${rel} should link to /products`);
+    assert.match(html, /<!--CHROME:HEADER-->/, `${rel} should use the chrome header marker`);
+    assert.match(html, /<!--CHROME:FOOTER-->/, `${rel} should use the chrome footer marker`);
   }
 });
