@@ -94,6 +94,8 @@ scripts/
 docs/
   identity-considerations.md  Notes on extending the Ed25519 scheme
                               (domain separation, passkey feasibility)
+  gotchas.md                  Build / deploy / SDK quirks worth knowing —
+                              consult before debugging anything obscure.
 
 .github/workflows/
   deploy.yml          CI: typecheck + test + sam deploy + build + pages deploy
