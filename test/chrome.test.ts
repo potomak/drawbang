@@ -87,6 +87,28 @@ test("renderFooter references the chrome-toggle.js at a stable URL", () => {
   assert.match(html, /<script src="\/chrome-toggle\.js"><\/script>/);
 });
 
+test("renderFooter references the chrome-identity.js patcher (#171)", () => {
+  const html = renderFooter({ repoUrl: REPO });
+  assert.match(html, /<script src="\/chrome-identity\.js"><\/script>/);
+});
+
+test("identity link carries data-identity-link='1' so the patcher can find it", () => {
+  const header = renderHeader();
+  assert.match(header, /data-nav="identity"[^>]*data-identity-link="1"/);
+  const footer = renderFooter({ repoUrl: REPO });
+  assert.match(footer, /data-nav="identity"[^>]*data-identity-link="1"/);
+});
+
+test("non-identity links do NOT carry data-identity-link", () => {
+  const header = renderHeader();
+  // Only the identity link should have the marker. The gallery + products
+  // links would be a footgun if they got rewritten by the patcher.
+  const matches = [...header.matchAll(/data-identity-link="1"/g)];
+  assert.equal(matches.length, 1);
+  assert.doesNotMatch(header, /data-nav="gallery"[^>]*data-identity-link/);
+  assert.doesNotMatch(header, /data-nav="products"[^>]*data-identity-link/);
+});
+
 test("renderHeader exposes the menu toggle button + nav id linkage for #170's responsive JS", () => {
   // The hamburger toggle and the nav share aria-controls / id="chrome-nav".
   // #170 wires the JS, but the markup contract lives here so the JS can

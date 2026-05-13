@@ -53,7 +53,12 @@ function allLinks(opts: ChromeOptions): readonly NavLink[] {
 
 function renderLink(link: NavLink, active: NavLink["id"] | undefined): string {
   const ariaCurrent = link.id === active ? ' aria-current="page"' : "";
-  return `<a href="${esc(link.href)}" data-nav="${esc(link.id)}"${ariaCurrent}>${esc(link.label)}</a>`;
+  // The identity link is rewritten on the client by /chrome-identity.js
+  // (#171) when the viewer has a pubkey in localStorage. The marker
+  // attribute lets the patcher find it without depending on label or
+  // href shape.
+  const identityFlag = link.id === "identity" ? ' data-identity-link="1"' : "";
+  return `<a href="${esc(link.href)}" data-nav="${esc(link.id)}"${ariaCurrent}${identityFlag}>${esc(link.label)}</a>`;
 }
 
 export function renderHeader(opts: ChromeOptions = {}): string {
@@ -69,16 +74,18 @@ export function renderHeader(opts: ChromeOptions = {}): string {
 
 export function renderFooter(opts: FooterOptions): string {
   const items = allLinks(opts).map((l) => renderLink(l, opts.active)).join("\n      ");
-  // The hamburger toggle script lives at a stable URL (#170). Every
-  // surface — Vite-built or builder-rendered — loads it from the same
-  // place, so we attach it here once per page next to the footer.
+  // The hamburger toggle (#170) and the identity-link patcher (#171)
+  // both ship as plain JS at stable URLs, so every surface — Vite-built
+  // or builder-rendered — loads them from the same place without bundle
+  // hash plumbing.
   return `<footer class="chrome-footer">
   <nav class="chrome-footer-nav" aria-label="Footer">
       ${items}
   </nav>
   <a class="chrome-footer-repo" href="${esc(opts.repoUrl)}" target="_blank" rel="noopener">source on github</a>
 </footer>
-<script src="/chrome-toggle.js"></script>`;
+<script src="/chrome-toggle.js"></script>
+<script src="/chrome-identity.js"></script>`;
 }
 
 const ESC: Record<string, string> = {
