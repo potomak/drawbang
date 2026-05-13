@@ -6,6 +6,7 @@ import {
   UpdateCommand,
   QueryCommand,
 } from "@aws-sdk/lib-dynamodb";
+import type { Placement } from "./placement.js";
 import type { ShippingAddress } from "./printify.js";
 
 export type OrderStatus =
@@ -24,6 +25,9 @@ export interface Order {
   frame: number;
   product_id: string;
   variant_id: number;
+  // Optional — orders predating #147 carry no placement and dispatch
+  // defaults to "full-chest", preserving the pre-feature behaviour.
+  placement?: Placement;
   retail_cents: number;
   base_cost_cents: number;
   stripe_session_id?: string;

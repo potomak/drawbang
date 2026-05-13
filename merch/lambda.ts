@@ -6,6 +6,7 @@ import { S3Storage } from "../ingest/s3-storage.js";
 import { createBrandLogoProvider } from "./brand-logo.js";
 import { placePrintifyOrder } from "./dispatch.js";
 import { OrdersStore, type Order, type OrderStatus } from "./orders.js";
+import { isValidPlacement, type Placement } from "./placement.js";
 import { PrintifyClient, type ShippingAddress } from "./printify.js";
 import { ProductCountersStore } from "./product-counters.js";
 import { StripeHelper } from "./stripe.js";
@@ -117,6 +118,7 @@ interface CheckoutBody {
   frame?: unknown;
   product_id?: unknown;
   variant_id?: unknown;
+  placement?: unknown;
   success_url?: unknown;
   cancel_url?: unknown;
   customer_email?: unknown;
@@ -151,6 +153,17 @@ async function checkout(
   if (typeof body.cancel_url !== "string" || !/^https?:\/\//.test(body.cancel_url)) {
     return json(400, { error: "bad cancel_url" });
   }
+  // placement is optional — absent means full-chest (the dispatch default).
+  // Anything present must match a known preset; we reject unknown strings
+  // rather than silently falling back so a typo doesn't ship the wrong
+  // print.
+  let placement: Placement | undefined;
+  if (body.placement !== undefined && body.placement !== null) {
+    if (!isValidPlacement(body.placement)) {
+      return json(400, { error: "bad placement" });
+    }
+    placement = body.placement;
+  }
   const customerEmail = typeof body.customer_email === "string" ? body.customer_email : undefined;
 
   const product = deps.catalog.products.find((p) => p.id === body.product_id);
@@ -171,6 +184,7 @@ async function checkout(
     status: "pending" as OrderStatus,
     created_at: now,
     updated_at: now,
+    ...(placement ? { placement } : {}),
     ...(customerEmail ? { customer_email: customerEmail } : {}),
   };
   await deps.orders.createOrder(order);

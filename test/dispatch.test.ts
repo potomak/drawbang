@@ -663,3 +663,111 @@ test("productCounters: deps without a counters store skip the increment silently
 
   assert.equal(counterCalls.incrementOnSubmit.length, 0);
 });
+
+test("placement: defaults to full-chest when order.placement is absent (pre-#147 orders)", async () => {
+  const { deps, printifyCalls } = buildDeps();
+  await placePrintifyOrder("ord_42", deps);
+  const placeholders = printifyCalls.createProduct[0].print_areas[0].placeholders;
+  // Single front placeholder, single image entry at the centre with scale 1.
+  assert.equal(placeholders[0].images.length, 1);
+  assert.deepEqual(placeholders[0].images[0], { id: "img_1", x: 0.5, y: 0.5, scale: 1, angle: 0 });
+});
+
+test("placement: left-chest sends one entry at x=0.3, y=0.25, scale=0.25", async () => {
+  const { deps, printifyCalls } = buildDeps({
+    order: makeOrder({ placement: "left-chest" }),
+  });
+  await placePrintifyOrder("ord_42", deps);
+  const front = printifyCalls.createProduct[0].print_areas[0].placeholders[0];
+  assert.equal(front.images.length, 1);
+  assert.deepEqual(front.images[0], { id: "img_1", x: 0.3, y: 0.25, scale: 0.25, angle: 0 });
+});
+
+test("placement: pattern-3x3 expands to 9 entries on a third-cell grid, scale 1/3", async () => {
+  const { deps, printifyCalls } = buildDeps({
+    order: makeOrder({ placement: "pattern-3x3" }),
+  });
+  await placePrintifyOrder("ord_42", deps);
+  const front = printifyCalls.createProduct[0].print_areas[0].placeholders[0];
+  assert.equal(front.images.length, 9);
+  // First cell — top-left
+  assert.ok(Math.abs(front.images[0].x - 1 / 6) < 1e-9);
+  assert.ok(Math.abs(front.images[0].y - 1 / 6) < 1e-9);
+  // Last cell — bottom-right
+  assert.ok(Math.abs(front.images[8].x - 5 / 6) < 1e-9);
+  assert.ok(Math.abs(front.images[8].y - 5 / 6) < 1e-9);
+  for (const img of front.images) {
+    assert.ok(Math.abs(img.scale - 1 / 3) < 1e-9);
+    assert.equal(img.id, "img_1");
+  }
+});
+
+test("placement: brand decorations stay centred regardless of user-facing placement", async () => {
+  // The neck label is a separate placeholder. Whatever the user picked
+  // for the front shouldn't smear the brand wordmark across the neck.
+  const catalogWithNeck: MerchCatalog = {
+    products: [
+      {
+        id: "tee",
+        name: "tee",
+        blueprint_id: 6,
+        print_provider_id: 99,
+        print_area_px: { width: 3951, height: 4919 },
+        brand_decorations: [{ position: "neck" }],
+        shipping_cents: 500,
+        variants: [{ id: 18395, label: "x", base_cost_cents: 1199, retail_cents: 2400 }],
+      },
+    ],
+  };
+  const { deps, printifyCalls } = buildDeps({
+    order: makeOrder({ placement: "pattern-4x4" }),
+  });
+  deps.catalog = catalogWithNeck;
+  deps.brandLogo = { async getImageId() { return "img_brand_42"; } };
+
+  await placePrintifyOrder("ord_42", deps);
+
+  const placeholders = printifyCalls.createProduct[0].print_areas[0].placeholders;
+  assert.equal(placeholders.length, 2);
+  // Front: 4×4 = 16 user entries
+  assert.equal(placeholders[0].position, "front");
+  assert.equal(placeholders[0].images.length, 16);
+  // Neck: ONE centred brand entry
+  assert.equal(placeholders[1].position, "neck");
+  assert.equal(placeholders[1].images.length, 1);
+  assert.deepEqual(placeholders[1].images[0], {
+    id: "img_brand_42", x: 0.5, y: 0.5, scale: 1, angle: 0,
+  });
+});
+
+test("placement: each placeholder_positions slot on a multi-up product (sticker sheet) inherits the same placement", async () => {
+  // Sticker sheets have 4 placeholders; a pattern placement gets applied
+  // to EACH — 4 sheets × 4 cells = 16 image entries total, but each
+  // placeholder still gets its own 4-cell grid.
+  const stickerCatalog: MerchCatalog = {
+    products: [
+      {
+        id: "tee",
+        name: "Sticker Sheet",
+        blueprint_id: 661,
+        print_provider_id: 73,
+        print_area_px: { width: 1575, height: 1200 },
+        shipping_cents: 500,
+        placeholder_positions: ["front_1", "front_2", "front_3", "front_4"],
+        variants: [{ id: 18395, label: "x", base_cost_cents: 369, retail_cents: 800 }],
+      },
+    ],
+  };
+  const { deps, printifyCalls } = buildDeps({
+    order: makeOrder({ placement: "pattern-2x2" }),
+  });
+  deps.catalog = stickerCatalog;
+
+  await placePrintifyOrder("ord_42", deps);
+
+  const placeholders = printifyCalls.createProduct[0].print_areas[0].placeholders;
+  assert.equal(placeholders.length, 4);
+  for (const p of placeholders) {
+    assert.equal(p.images.length, 4); // 2×2 grid per slot
+  }
+});

@@ -432,3 +432,61 @@ test("async dispatch event with no dispatchSync configured is a no-op", async ()
   const res = await handle({ async_dispatch_order_id: "ord_async_99" }, deps);
   assert.equal(res, undefined);
 });
+
+test("POST /merch/checkout: placement is optional and absent means no placement field on the order", async () => {
+  const { deps, ordersCalls } = buildDeps();
+  await handle(
+    event("POST /merch/checkout", {
+      body: {
+        drawing_id: "f".repeat(64),
+        frame: 0,
+        product_id: "tee",
+        variant_id: 18396,
+        success_url: "https://drawbang.example/m/success",
+        cancel_url: "https://drawbang.example/m/cancel",
+      },
+    }),
+    deps,
+  );
+  const created = ordersCalls.createOrder[0];
+  assert.equal(created.placement, undefined);
+});
+
+test("POST /merch/checkout: valid placement preset is persisted on the order", async () => {
+  const { deps, ordersCalls } = buildDeps();
+  await handle(
+    event("POST /merch/checkout", {
+      body: {
+        drawing_id: "f".repeat(64),
+        frame: 0,
+        product_id: "tee",
+        variant_id: 18396,
+        placement: "pattern-3x3",
+        success_url: "https://drawbang.example/m/success",
+        cancel_url: "https://drawbang.example/m/cancel",
+      },
+    }),
+    deps,
+  );
+  assert.equal(ordersCalls.createOrder[0].placement, "pattern-3x3");
+});
+
+test("POST /merch/checkout: 400 on bogus placement value (no silent fallback to full-chest)", async () => {
+  const { deps } = buildDeps();
+  const res = await handle(
+    event("POST /merch/checkout", {
+      body: {
+        drawing_id: "f".repeat(64),
+        frame: 0,
+        product_id: "tee",
+        variant_id: 18396,
+        placement: "diagonal-mega-print",
+        success_url: "https://drawbang.example/m/success",
+        cancel_url: "https://drawbang.example/m/cancel",
+      },
+    }),
+    deps,
+  );
+  assert.equal(statusOf(res), 400);
+  assert.match(JSON.stringify(parseJson(res)), /bad placement/);
+});

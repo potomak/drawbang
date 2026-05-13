@@ -1,6 +1,7 @@
 import { decodeGif } from "../src/editor/gif.js";
 import type { BrandLogoProvider } from "./brand-logo.js";
 import type { OrdersStore, Order } from "./orders.js";
+import { DEFAULT_PLACEMENT, expandPlacement } from "./placement.js";
 import { PrintifyError, type PrintifyClient } from "./printify.js";
 import type { MerchCatalog } from "./lambda.js";
 import type { ProductCountersStore } from "./product-counters.js";
@@ -88,22 +89,27 @@ export async function placePrintifyOrder(
 
       const drawingUrl = `${deps.publicBaseUrl}/d/${order.drawing_id}`;
       const positions = product.placeholder_positions ?? ["front"];
-      const placeholders = positions.map((position) => ({
-        position,
-        images: [{ id: image.id, x: 0.5 as const, y: 0.5 as const, scale: 1 as const, angle: 0 as const }],
-      }));
+      // expandPlacement returns the array of image entries for one
+      // placeholder — a single centred entry for the named presets, or
+      // n² grid-cell entries for pattern presets. Every position on
+      // the product (e.g. all four front_N slots on a sticker sheet)
+      // gets the same placement.
+      const placement = order.placement ?? DEFAULT_PLACEMENT;
+      const userImages = expandPlacement(placement, image.id);
+      const placeholders: { position: string; images: typeof userImages }[] =
+        positions.map((position) => ({ position, images: userImages }));
 
       // Apply the Draw! brand wordmark to any extra placeholder positions
       // declared by the product config (e.g. the tee's inside-neck label).
-      // The brand logo is uploaded once per Lambda cold start and the id
-      // reused across orders by the BrandLogoProvider's internal cache.
+      // Brand decorations always center at scale 1 — they're not affected
+      // by the user-facing placement choice.
       const brandDecorations = product.brand_decorations ?? [];
       if (brandDecorations.length > 0 && deps.brandLogo) {
         const brandImageId = await deps.brandLogo.getImageId();
         for (const dec of brandDecorations) {
           placeholders.push({
             position: dec.position,
-            images: [{ id: brandImageId, x: 0.5 as const, y: 0.5 as const, scale: 1 as const, angle: 0 as const }],
+            images: [{ id: brandImageId, x: 0.5, y: 0.5, scale: 1, angle: 0 }],
           });
         }
       }

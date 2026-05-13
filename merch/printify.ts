@@ -33,7 +33,11 @@ export interface CreateProductArgs {
       // Printify validates per blueprint+provider, so we leave it open and
       // catch invalid values via 422.
       position: string;
-      images: { id: string; x: 0.5; y: 0.5; scale: 1; angle: 0 }[];
+      // x, y, scale: 0..1 fractions of the placeholder rect — the image
+      // CENTRE lands at (x, y), scale is fraction of full-bleed area.
+      // angle is degrees. Pattern placements (#147) send multiple entries
+      // per placeholder, one per grid cell.
+      images: { id: string; x: number; y: number; scale: number; angle: number }[];
     }[];
   }[];
 }
