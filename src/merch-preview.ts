@@ -1,4 +1,5 @@
 import { WIDTH, HEIGHT } from "../config/constants.js";
+import { DEFAULT_PLACEMENT, expandPlacement, type Placement } from "../merch/placement.js";
 import { Bitmap, TRANSPARENT } from "./editor/bitmap.js";
 import type { RGB } from "./editor/palette.js";
 
@@ -27,6 +28,9 @@ export interface PaintMockupInput {
   config: MockupConfig;
   frame: Bitmap;
   palette: readonly RGB[];
+  // Where (and how big) to render the drawing inside each placeholder.
+  // Defaults to "full-chest" — the pre-#147 centred-letterbox behaviour.
+  placement?: Placement;
 }
 
 export function paintMockupPreview(input: PaintMockupInput): void {
@@ -44,25 +48,37 @@ export function paintMockupPreview(input: PaintMockupInput): void {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(mockup, 0, 0, canvas.width, canvas.height);
 
-  // The drawing is square (16×16) but Printify print rects usually aren't —
-  // a tee placeholder is portrait, a mug is taller still. Stretching to fit
-  // distorts the artwork, so we letterbox: fit the largest centred square
-  // that fits inside the placeholder and leave the rest as natural mockup
-  // background. Multi-up products (e.g. the sticker sheet) end up with one
-  // square per print position.
+  // Mirror the placement math from merch/placement.ts so the preview
+  // matches what Printify produces — same imageId fed to expandPlacement
+  // on both sides. For named presets this is one entry per placeholder;
+  // for patterns it's n² entries on an n×n grid.
+  //
+  // The drawing is square (16×16) but Printify print rects usually aren't.
+  // Stretching distorts the artwork, so each rendered cell is a square of
+  // side = scale × min(placeholder.width, placeholder.height) centred at
+  // the (x, y) fraction of the placeholder. Multi-up products (sticker
+  // sheets) get one set of entries per print position.
+  const placement = input.placement ?? DEFAULT_PLACEMENT;
+  const entries = expandPlacement(placement, "preview");
+
   for (const ph of config.placeholders) {
-    const side = Math.min(ph.width, ph.height);
-    const px = ph.x + Math.floor((ph.width - side) / 2);
-    const py = ph.y + Math.floor((ph.height - side) / 2);
+    const minDim = Math.min(ph.width, ph.height);
+    for (const entry of entries) {
+      const side = Math.max(1, Math.floor(minDim * entry.scale));
+      const cx = ph.x + ph.width * entry.x;
+      const cy = ph.y + ph.height * entry.y;
+      const px = Math.floor(cx - side / 2);
+      const py = Math.floor(cy - side / 2);
 
-    const offscreen = document.createElement("canvas");
-    offscreen.width = side;
-    offscreen.height = side;
-    const offCtx = offscreen.getContext("2d");
-    if (!offCtx) throw new Error("paintMockupPreview: offscreen 2d unavailable");
-    drawBitmapInto(offCtx, frame, palette, side, side);
+      const offscreen = document.createElement("canvas");
+      offscreen.width = side;
+      offscreen.height = side;
+      const offCtx = offscreen.getContext("2d");
+      if (!offCtx) throw new Error("paintMockupPreview: offscreen 2d unavailable");
+      drawBitmapInto(offCtx, frame, palette, side, side);
 
-    ctx.drawImage(offscreen, px, py, side, side);
+      ctx.drawImage(offscreen, px, py, side, side);
+    }
   }
 }
 

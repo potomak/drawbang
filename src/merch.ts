@@ -8,6 +8,12 @@ import {
   type MockupConfig,
 } from "./merch-preview.js";
 import { pickProductFromQuery } from "./merch-query.js";
+import {
+  DEFAULT_PLACEMENT,
+  NAMED_PRESETS,
+  PATTERN_PRESETS,
+  type Placement,
+} from "../merch/placement.js";
 import mockupsConfig from "../config/mockups.json" with { type: "json" };
 
 interface MerchVariant {
@@ -45,6 +51,7 @@ const THUMB_PIXEL_SIZE = 4;
 
 const statusEl = document.getElementById("status") as HTMLParagraphElement;
 const productGridEl = document.getElementById("productGrid") as HTMLDivElement;
+const placementPickerEl = document.getElementById("placementPicker") as HTMLDivElement;
 const variantPickerEl = document.getElementById("variantPicker") as HTMLDivElement;
 const checkoutBtn = document.getElementById("checkoutBtn") as HTMLButtonElement;
 const previewCanvasEl = document.getElementById("preview") as HTMLCanvasElement;
@@ -56,12 +63,15 @@ interface MockupsFile {
 const MOCKUPS: MockupsFile = mockupsConfig as MockupsFile;
 
 // Per-product card preview state — repainted whenever the user changes
-// frames so each card shows the currently-selected frame composited onto
-// that product's mockup.
+// frames or placement so each card shows the currently-selected frame
+// composited onto that product's mockup. productId is tracked so the
+// placement (which only applies to the SELECTED product) only re-renders
+// that card; siblings stay at their default full-bleed.
 interface CardPreview {
   canvas: HTMLCanvasElement;
   config: MockupConfig;
   mockup: HTMLImageElement;
+  productId: string;
 }
 const cardPreviews: CardPreview[] = [];
 
@@ -71,8 +81,28 @@ let drawingId: string | null = null;
 let currentFrame = 0;
 let selectedProduct: MerchProduct | null = null;
 let selectedVariant: MerchVariant | null = null;
+let selectedPlacement: Placement = DEFAULT_PLACEMENT;
 let checkoutInFlight = false;
 let previewCanvas: PixelCanvas | null = null;
+
+// Tees support every placement. Other products keep the original
+// full-bleed-only behaviour — a "left chest" pattern doesn't make sense
+// on a sticker, and the mug wrap is one continuous print.
+const PLACEMENT_PRODUCTS = new Set<string>(["tee"]);
+
+const PLACEMENT_LABELS: Record<Placement, string> = {
+  "full-chest": "Full chest",
+  "left-chest": "Left chest",
+  "right-chest": "Right chest",
+  "center-pocket": "Center pocket",
+  "pattern-2x2": "Pattern · 2×2 (4)",
+  "pattern-3x3": "Pattern · 3×3 (9)",
+  "pattern-4x4": "Pattern · 4×4 (16)",
+  "pattern-5x5": "Pattern · 5×5 (25)",
+  "pattern-6x6": "Pattern · 6×6 (36)",
+  "pattern-7x7": "Pattern · 7×7 (49)",
+  "pattern-8x8": "Pattern · 8×8 (64)",
+};
 
 function setStatus(msg: string): void {
   statusEl.textContent = msg;
@@ -185,9 +215,10 @@ function renderCatalog(catalog: MerchCatalog): void {
       // it, register for future repaints when the user changes frames.
       // Asset-load failure leaves the card text-only — no broken state.
       const canvas = mockupCanvas;
+      const productId = product.id;
       void loadMockupImage(cfg.mockup_url)
         .then((mockup) => {
-          cardPreviews.push({ canvas, config: cfg, mockup });
+          cardPreviews.push({ canvas, config: cfg, mockup, productId });
           if (frames.length > 0) {
             paintMockupPreview({
               canvas,
@@ -195,6 +226,7 @@ function renderCatalog(catalog: MerchCatalog): void {
               config: cfg,
               frame: frames[currentFrame],
               palette: paletteRgb(),
+              placement: placementForCard(productId),
             });
           }
         })
@@ -208,11 +240,23 @@ function renderCatalog(catalog: MerchCatalog): void {
 function selectProduct(product: MerchProduct): void {
   selectedProduct = product;
   selectedVariant = null;
+  // Switching to a product that doesn't support placement (mug, sticker)
+  // forces the placement back to the default so the request body stays
+  // honest if the user keeps clicking through.
+  if (!PLACEMENT_PRODUCTS.has(product.id)) {
+    selectedPlacement = DEFAULT_PLACEMENT;
+  }
   document.querySelectorAll<HTMLButtonElement>(".product-card").forEach((el) => {
     el.classList.toggle("selected", el.dataset.productId === product.id);
   });
+  renderPlacementPicker();
   renderVariantPicker();
   updateCheckoutButton();
+  repaintCardPreviews();
+}
+
+function placementForCard(productId: string): Placement {
+  return selectedProduct?.id === productId ? selectedPlacement : DEFAULT_PLACEMENT;
 }
 
 function repaintCardPreviews(): void {
@@ -220,7 +264,52 @@ function repaintCardPreviews(): void {
   const palette = paletteRgb();
   const frame = frames[currentFrame];
   for (const c of cardPreviews) {
-    paintMockupPreview({ canvas: c.canvas, mockup: c.mockup, config: c.config, frame, palette });
+    paintMockupPreview({
+      canvas: c.canvas,
+      mockup: c.mockup,
+      config: c.config,
+      frame,
+      palette,
+      placement: placementForCard(c.productId),
+    });
+  }
+}
+
+function renderPlacementPicker(): void {
+  placementPickerEl.innerHTML = "";
+  if (!selectedProduct || !PLACEMENT_PRODUCTS.has(selectedProduct.id)) {
+    placementPickerEl.hidden = true;
+    return;
+  }
+  placementPickerEl.hidden = false;
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Print placement";
+  placementPickerEl.appendChild(heading);
+
+  const presets: Placement[] = [...NAMED_PRESETS, ...PATTERN_PRESETS];
+  for (const preset of presets) {
+    const id = `placement-${preset}`;
+    const wrap = document.createElement("label");
+    wrap.className = "placement-option";
+    wrap.htmlFor = id;
+
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "placement";
+    radio.id = id;
+    radio.value = preset;
+    radio.checked = preset === selectedPlacement;
+    radio.addEventListener("change", () => {
+      selectedPlacement = preset;
+      repaintCardPreviews();
+    });
+
+    const span = document.createElement("span");
+    span.textContent = PLACEMENT_LABELS[preset];
+
+    wrap.append(radio, span);
+    placementPickerEl.appendChild(wrap);
   }
 }
 
@@ -298,6 +387,9 @@ async function handleCheckout(): Promise<void> {
         frame: currentFrame,
         product_id: selectedProduct.id,
         variant_id: selectedVariant.id,
+        // Omit the default — lambda's idle path is happy with no field
+        // and the order record stays cleaner for pre-feature parity.
+        ...(selectedPlacement !== DEFAULT_PLACEMENT ? { placement: selectedPlacement } : {}),
         success_url: successUrl,
         cancel_url: cancelUrl,
       }),

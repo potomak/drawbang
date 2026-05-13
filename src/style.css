@@ -401,19 +401,35 @@ footer a { color: inherit; }
 .product-card span { font-size: 0.8rem; color: #aaa; }
 .product-card.selected span { color: var(--accent); }
 
-.variant-picker {
+.variant-picker,
+.placement-picker {
   border: 1px solid var(--border);
   background: var(--panel);
   padding: 0.75rem;
   margin-bottom: 1rem;
 }
-.variant-picker h3 { margin: 0 0 0.5rem; font-size: 0.9rem; }
-.variant-option {
+.variant-picker h3,
+.placement-picker h3 { margin: 0 0 0.5rem; font-size: 0.9rem; }
+.variant-option,
+.placement-option {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.25rem 0;
   cursor: pointer;
+}
+
+/* The placement picker carries 11 options — collapse onto a 2-column
+   layout on wider viewports so the variant picker stays visible without
+   excessive scrolling. */
+.placement-picker {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.25rem 1rem;
+}
+.placement-picker h3 { grid-column: 1 / -1; }
+@media (min-width: 480px) {
+  .placement-picker { grid-template-columns: 1fr 1fr; }
 }
 
 .merch-status { font-size: 0.85rem; color: #aaa; min-height: 1.2em; word-break: break-word; }
