@@ -1,5 +1,5 @@
 {
-  "_pricing_note": "base_cost_cents and shipping_cents are flat estimates pending real values from Printify. The catalog API doesn't expose either; first live test charged USD 6.12 production + USD 5.09 shipping on a sticker that we'd estimated at 369 base + 0 shipping, which is why these numbers are now both larger and per-product. retail_cents stays >= 2x (base + shipping) so we don't lose money even if Printify nudges costs.",
+  "_pricing_note": "Retail is flat per product (not per size) — easier to communicate, no surprise jumps for larger sizes. base_cost_cents per variant is tracked for internal margin sanity only; the Printify charge at order time uses Printify's actual cost. 2XL/3XL/4XL base estimates follow the Gildan 5000 typical tier (XL→2XL ≈ +$2, then +$1/step); refine after first live orders if they drift.",
   "_todo": "Replace shipping_cents with the real Printify shipping calc: POST /v1/shops/{shop_id}/orders/shipping.json with the same payload the dispatch builds. Call it inside merch/lambda.ts checkout() before stripe.createCheckoutSession.",
   "products": [
     {
@@ -9,16 +9,22 @@
       "print_provider_id": 99,
       "print_area_px": { "width": 3951, "height": 4919 },
       "brand_decorations": [{ "position": "neck" }],
-      "shipping_cents": 500,
+      "shipping_cents": 499,
       "variants": [
-        { "id": 12126, "label": "S / Black",  "base_cost_cents": 1150, "retail_cents": 2400 },
-        { "id": 12125, "label": "M / Black",  "base_cost_cents": 1150, "retail_cents": 2400 },
-        { "id": 12124, "label": "L / Black",  "base_cost_cents": 1150, "retail_cents": 2400 },
-        { "id": 12127, "label": "XL / Black", "base_cost_cents": 1250, "retail_cents": 2600 },
-        { "id": 12102, "label": "S / White",  "base_cost_cents": 1099, "retail_cents": 2200 },
-        { "id": 12101, "label": "M / White",  "base_cost_cents": 1099, "retail_cents": 2200 },
-        { "id": 12100, "label": "L / White",  "base_cost_cents": 1099, "retail_cents": 2200 },
-        { "id": 12103, "label": "XL / White", "base_cost_cents": 1199, "retail_cents": 2400 }
+        { "id": 12126, "label": "S / Black",   "base_cost_cents": 1150, "retail_cents": 2289 },
+        { "id": 12125, "label": "M / Black",   "base_cost_cents": 1150, "retail_cents": 2289 },
+        { "id": 12124, "label": "L / Black",   "base_cost_cents": 1150, "retail_cents": 2289 },
+        { "id": 12127, "label": "XL / Black",  "base_cost_cents": 1250, "retail_cents": 2289 },
+        { "id": 12128, "label": "2XL / Black", "base_cost_cents": 1450, "retail_cents": 2289 },
+        { "id": 12129, "label": "3XL / Black", "base_cost_cents": 1550, "retail_cents": 2289 },
+        { "id": 24039, "label": "4XL / Black", "base_cost_cents": 1650, "retail_cents": 2289 },
+        { "id": 12102, "label": "S / White",   "base_cost_cents": 1099, "retail_cents": 2289 },
+        { "id": 12101, "label": "M / White",   "base_cost_cents": 1099, "retail_cents": 2289 },
+        { "id": 12100, "label": "L / White",   "base_cost_cents": 1099, "retail_cents": 2289 },
+        { "id": 12103, "label": "XL / White",  "base_cost_cents": 1199, "retail_cents": 2289 },
+        { "id": 12104, "label": "2XL / White", "base_cost_cents": 1399, "retail_cents": 2289 },
+        { "id": 12105, "label": "3XL / White", "base_cost_cents": 1499, "retail_cents": 2289 },
+        { "id": 24031, "label": "4XL / White", "base_cost_cents": 1599, "retail_cents": 2289 }
       ]
     },
     {
@@ -27,9 +33,9 @@
       "blueprint_id": 70,
       "print_provider_id": 1,
       "print_area_px": { "width": 2376, "height": 2024 },
-      "shipping_cents": 700,
+      "shipping_cents": 699,
       "variants": [
-        { "id": 33765, "label": "15oz", "base_cost_cents": 1450, "retail_cents": 3500 }
+        { "id": 33765, "label": "15oz", "base_cost_cents": 1450, "retail_cents": 3489 }
       ]
     },
     {
@@ -39,14 +45,14 @@
       "print_provider_id": 73,
       "placeholder_positions": ["front_1", "front_2", "front_3", "front_4"],
       "print_area_px": { "width": 1575, "height": 1200 },
-      "shipping_cents": 500,
+      "shipping_cents": 499,
       "variants": [
-        { "id": 72840, "label": "6\" × 4\" / White",         "base_cost_cents": 612, "retail_cents": 1500 },
-        { "id": 72841, "label": "11\" × 8.5\" / White",      "base_cost_cents": 850, "retail_cents": 2000 },
-        { "id": 75561, "label": "6\" × 4\" / Transparent",   "base_cost_cents": 750, "retail_cents": 1700 },
-        { "id": 75562, "label": "11\" × 8.5\" / Transparent","base_cost_cents": 999, "retail_cents": 2300 },
-        { "id": 75564, "label": "6\" × 4\" / Holographic",   "base_cost_cents": 999, "retail_cents": 2300 },
-        { "id": 75565, "label": "11\" × 8.5\" / Holographic","base_cost_cents": 1299,"retail_cents": 2900 }
+        { "id": 72840, "label": "6\" × 4\" / White",          "base_cost_cents": 612,  "retail_cents": 1499 },
+        { "id": 75561, "label": "6\" × 4\" / Transparent",    "base_cost_cents": 750,  "retail_cents": 1499 },
+        { "id": 75564, "label": "6\" × 4\" / Holographic",    "base_cost_cents": 999,  "retail_cents": 1499 },
+        { "id": 72841, "label": "11\" × 8.5\" / White",       "base_cost_cents": 850,  "retail_cents": 1999 },
+        { "id": 75562, "label": "11\" × 8.5\" / Transparent", "base_cost_cents": 999,  "retail_cents": 1999 },
+        { "id": 75565, "label": "11\" × 8.5\" / Holographic", "base_cost_cents": 1299, "retail_cents": 1999 }
       ]
     }
   ]
