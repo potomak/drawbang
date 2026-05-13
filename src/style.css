@@ -36,6 +36,78 @@ header {
 header h1 { margin: 0; }
 header a { color: var(--fg); text-decoration: none; border-bottom: 1px dashed var(--fg); }
 
+/* -- Shared chrome (#102) --------------------------------------------------
+   See src/layout/chrome.ts for the markup contract. Same rules also live
+   in static/gallery.css for builder-rendered pages — the duplication is
+   intentional (no shared partial yet; epic #102 acceptance).             */
+.chrome-header {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.chrome-logo {
+  color: var(--fg);
+  text-decoration: none;
+  border-bottom: none;
+  font-weight: 700;
+  font-size: 1.5rem;
+}
+.chrome-nav { display: flex; gap: 1rem; flex-wrap: wrap; }
+.chrome-nav a { color: var(--accent); text-decoration: none; border-bottom: none; }
+.chrome-nav a[aria-current="page"] { color: var(--fg); font-weight: 700; }
+.chrome-nav a:hover, .chrome-nav a:focus-visible { text-decoration: underline; }
+
+.chrome-menu-toggle {
+  background: var(--panel);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.chrome-footer {
+  margin-top: 2rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--border);
+  color: #888;
+  font-size: 0.85rem;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.chrome-footer-nav { display: flex; gap: 1rem; flex-wrap: wrap; }
+.chrome-footer-nav a { color: var(--accent); text-decoration: none; }
+.chrome-footer-nav a[aria-current="page"] { color: var(--fg); font-weight: 700; }
+.chrome-footer-repo { color: inherit; margin-left: auto; }
+
+@media (max-width: 767px) {
+  .chrome-menu-toggle { display: inline-flex; }
+  .chrome-nav {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 1rem;
+    flex-direction: column;
+    gap: 0.75rem;
+    z-index: 10;
+    min-width: 12rem;
+  }
+  .chrome-nav.chrome-nav-open { display: flex; }
+}
+@media (min-width: 768px) {
+  /* Toggle stays hidden on wide; the chrome.ts markup ships with `hidden`,
+     CSS confirms it (defensive against the toggle JS un-hiding it). */
+  .chrome-menu-toggle { display: none; }
+}
+
 main {
   display: grid;
   grid-template-columns: auto 220px 220px;

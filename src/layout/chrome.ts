@@ -69,12 +69,16 @@ export function renderHeader(opts: ChromeOptions = {}): string {
 
 export function renderFooter(opts: FooterOptions): string {
   const items = allLinks(opts).map((l) => renderLink(l, opts.active)).join("\n      ");
+  // The hamburger toggle script lives at a stable URL (#170). Every
+  // surface — Vite-built or builder-rendered — loads it from the same
+  // place, so we attach it here once per page next to the footer.
   return `<footer class="chrome-footer">
   <nav class="chrome-footer-nav" aria-label="Footer">
       ${items}
   </nav>
   <a class="chrome-footer-repo" href="${esc(opts.repoUrl)}" target="_blank" rel="noopener">source on github</a>
-</footer>`;
+</footer>
+<script src="/chrome-toggle.js"></script>`;
 }
 
 const ESC: Record<string, string> = {

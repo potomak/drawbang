@@ -78,6 +78,15 @@ test("chrome module gzips under 1 KB (acceptance criterion from #167)", async ()
   assert.ok(gz.length < 1024, `chrome.ts minified+gzipped to ${gz.length} bytes, expected < 1024`);
 });
 
+test("renderFooter references the chrome-toggle.js at a stable URL", () => {
+  // #170 ships the hamburger toggle as a single static asset
+  // (`static/chrome-toggle.js`) loaded by every surface. The script tag
+  // attaches in the footer so the page parser has the markup before
+  // executing.
+  const html = renderFooter({ repoUrl: REPO });
+  assert.match(html, /<script src="\/chrome-toggle\.js"><\/script>/);
+});
+
 test("renderHeader exposes the menu toggle button + nav id linkage for #170's responsive JS", () => {
   // The hamburger toggle and the nav share aria-controls / id="chrome-nav".
   // #170 wires the JS, but the markup contract lives here so the JS can
