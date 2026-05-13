@@ -75,10 +75,21 @@ to spare the next agent / contributor an hour of head-scratching.
   paths traps every visiting browser on that exact byte sequence for a
   year with no revalidation — the fix is a URL rename (which is why
   `gallery.css` is now `gallery-v2.css`).
+- **Every served URL pattern MUST be in `deploy.yml`'s CloudFront
+  invalidation list.** The "day/key/drawing pages are immutable per
+  builder invariant" reasoning is true for *daily incremental builds*
+  but **false on any template-wide refactor** (chrome, footer, logo,
+  global CSS, etc.). When a refactor changes the rendered HTML for
+  existing pages, omitting `/d/*` / `/days/*` / `/keys/*` from the
+  invalidation list traps CloudFront edges on the pre-refactor HTML
+  for up to 24h (the default edge TTL when origin sends no
+  `Cache-Control`). #102 hit this — the chrome shipped, the HTML in
+  S3 was correct, but `/keys/<pk>` rendered the old layout at one
+  user's edge POP. Fix: invalidate every path on every deploy.
+  Wildcards count as one path each, so the cost is negligible.
 - Adding a new clean-URL rewrite to `infra/aws/template.yaml`'s
-  CloudFront Function MUST be paired with a matching entry in
-  `deploy.yml`'s CloudFront invalidation list. `/products` shipped with
-  the rewrite but without invalidation in #154, which masked the
-  empty-state issue for an extra deploy cycle.
+  CloudFront Function MUST also add a matching entry in the
+  invalidation list — same rule, narrower case (new URL pattern, not
+  just refactored content).
 - Editor's `share_url` is `${PUBLIC_BASE_URL}/d/<id>` (CloudFront), not the
   S3 origin URL. CloudFront Function rewrites `/d/<id>` to `/d/<id>.html`.

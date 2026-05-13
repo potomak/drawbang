@@ -74,6 +74,17 @@ interface DayRollup {
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
+// Cache-Control headers stamped by S3Storage on every put. Builder output
+// used to ship with no Cache-Control at all, which left browsers in
+// heuristic-caching territory and trapped them on stale HTML between
+// deploys. Now every served URL carries an explicit policy.
+const CC_HTML = "public, max-age=60";
+const CC_RSS = "public, max-age=60";
+const CC_GIF_IMMUTABLE = "public, max-age=31536000, immutable";
+// Internal JSON / JSONL — read by the builder, not served to users directly
+// via clean URLs. Short cache so a force-rerender picks them up next run.
+const CC_INTERNAL = "public, max-age=60";
+
 export async function build(opts: BuildOptions): Promise<{
   sweptDrawings: number;
   touchedDays: string[];
@@ -138,7 +149,7 @@ export async function build(opts: BuildOptions): Promise<{
         continue;
       }
 
-      await opts.storage.put(`public/drawings/${id}.gif`, gifBytes, "image/gif");
+      await opts.storage.put(`public/drawings/${id}.gif`, gifBytes, "image/gif", CC_GIF_IMMUTABLE);
       drawings.push({
         id,
         pow: meta.pow,
@@ -173,7 +184,7 @@ export async function build(opts: BuildOptions): Promise<{
     let merged = dec.decode(existing);
     for (const d of drawings) merged += JSON.stringify(d) + "\n";
     if (drawings.length > 0) {
-      await opts.storage.put(`public/days/${day}/index.jsonl`, enc.encode(merged), "application/jsonl");
+      await opts.storage.put(`public/days/${day}/index.jsonl`, enc.encode(merged), "application/jsonl", CC_INTERNAL);
     }
 
     const allForDay = parseJsonl(merged);
@@ -187,7 +198,7 @@ export async function build(opts: BuildOptions): Promise<{
         ...drawingViewModel(d),
         repo_url: repoUrl,
       });
-      await opts.storage.put(`public/d/${d.id}.html`, enc.encode(html), "text/html");
+      await opts.storage.put(`public/d/${d.id}.html`, enc.encode(html), "text/html", CC_HTML);
     }
 
     // Render the day's paginated gallery. Sort newest-first.
@@ -204,12 +215,13 @@ export async function build(opts: BuildOptions): Promise<{
         next_page: page < totalPages ? { next_page: page + 1, date: day } : null,
         repo_url: repoUrl,
       });
-      await opts.storage.put(`public/days/${day}/p/${page}.html`, enc.encode(html), "text/html");
+      await opts.storage.put(`public/days/${day}/p/${page}.html`, enc.encode(html), "text/html", CC_HTML);
     }
     await opts.storage.put(
       `public/days/${day}/manifest.json`,
       enc.encode(JSON.stringify({ count: allForDay.length, pages: totalPages })),
       "application/json",
+      CC_INTERNAL,
     );
 
     touchedDays.push(day);
@@ -274,6 +286,7 @@ async function rebuildOwners(
       `public/keys/${pubkey}/index.jsonl`,
       enc.encode(merged),
       "application/jsonl",
+      CC_INTERNAL,
     );
   }
 
@@ -301,7 +314,7 @@ async function rebuildOwners(
       drawings: all.map((d) => ({ id: d.id, id_short: d.id.slice(0, 8) })),
       repo_url: repoUrl,
     });
-    await opts.storage.put(`public/keys/${pubkey}.html`, enc.encode(html), "text/html");
+    await opts.storage.put(`public/keys/${pubkey}.html`, enc.encode(html), "text/html", CC_HTML);
   }
 }
 
@@ -341,7 +354,7 @@ async function rebuildRolling(
   });
   // Gallery landing lives at /gallery.html (CloudFront rewrites /gallery ->
   // /gallery.html) so it doesn't shadow the editor's index.html at "/".
-  await opts.storage.put("public/gallery.html", enc.encode(indexHtml), "text/html");
+  await opts.storage.put("public/gallery.html", enc.encode(indexHtml), "text/html", CC_HTML);
 
   // RSS: latest 100 across all days.
   const allRecent: DrawingMetadata[] = [];
@@ -361,7 +374,7 @@ async function rebuildRolling(
       pub_date: new Date(d.created_at).toUTCString(),
     })),
   });
-  await opts.storage.put("public/feed.rss", enc.encode(feed), "application/rss+xml");
+  await opts.storage.put("public/feed.rss", enc.encode(feed), "application/rss+xml", CC_RSS);
 }
 
 async function rebuildProducts(
@@ -392,7 +405,7 @@ async function rebuildProducts(
       repo_url: repoUrl,
     });
     const key = page === 1 ? "public/products.html" : `public/products/p/${page}.html`;
-    await opts.storage.put(key, enc.encode(html), "text/html");
+    await opts.storage.put(key, enc.encode(html), "text/html", CC_HTML);
   }
 }
 

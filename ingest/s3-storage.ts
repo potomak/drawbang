@@ -30,19 +30,26 @@ export class S3Storage implements Storage {
     key: string,
     bytes: Buffer | Uint8Array,
     contentType: string,
+    cacheControl?: string,
   ): Promise<boolean> {
     if (await this.exists(key)) return false;
-    await this.put(key, bytes, contentType);
+    await this.put(key, bytes, contentType, cacheControl);
     return true;
   }
 
-  async put(key: string, bytes: Buffer | Uint8Array, contentType: string): Promise<void> {
+  async put(
+    key: string,
+    bytes: Buffer | Uint8Array,
+    contentType: string,
+    cacheControl?: string,
+  ): Promise<void> {
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,
         Key: key,
         Body: asUint8(bytes),
         ContentType: contentType,
+        ...(cacheControl ? { CacheControl: cacheControl } : {}),
       }),
     );
   }

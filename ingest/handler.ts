@@ -175,14 +175,21 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     owner: { pubkey: req.pubkey, pubkey_short: req.pubkey.slice(0, 8) },
     repo_url: cfg.repoUrl ?? "https://github.com/potomak/drawbang",
   });
+  // Cache-Control on every served URL: short for HTML (template tweaks
+  // need to propagate), immutable for the content-addressed gif. Inbox
+  // sidecars stay un-flagged — they're internal and never CDN-served.
   await Promise.all([
     cfg.storage.put(gifKey, gif, "image/gif"),
     cfg.storage.put(jsonKey, enc.encode(JSON.stringify(metadata)), "application/json"),
-    cfg.storage.put(publishedKey, gif, "image/gif"),
-    cfg.storage.put(`public/d/${id}.html`, enc.encode(drawingHtml), "text/html"),
+    cfg.storage.put(publishedKey, gif, "image/gif", "public, max-age=31536000, immutable"),
+    cfg.storage.put(`public/d/${id}.html`, enc.encode(drawingHtml), "text/html", "public, max-age=60"),
   ]);
 
   // -- 7. Update last-publish.json (and keep baseline history window) --------
+  // last-publish.json drives client-side PoW difficulty selection — must be
+  // fresh on every poll. CloudFront has a CachingDisabled behaviour for the
+  // path (see docs/gotchas.md), and we stamp no-store at the origin too as
+  // belt-and-braces.
   const newState: LastPublishState = {
     last_publish_at: nowISO,
     last_difficulty_bits: bits,
@@ -191,6 +198,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     "public/state/last-publish.json",
     new TextEncoder().encode(JSON.stringify(newState)),
     "application/json",
+    "no-store",
   );
   history.push(state.last_publish_at);
   while (history.length > 8) history.shift();

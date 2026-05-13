@@ -2,8 +2,18 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 export interface Storage {
-  putIfAbsent(key: string, bytes: Buffer | Uint8Array, contentType: string): Promise<boolean>;
-  put(key: string, bytes: Buffer | Uint8Array, contentType: string): Promise<void>;
+  putIfAbsent(
+    key: string,
+    bytes: Buffer | Uint8Array,
+    contentType: string,
+    cacheControl?: string,
+  ): Promise<boolean>;
+  put(
+    key: string,
+    bytes: Buffer | Uint8Array,
+    contentType: string,
+    cacheControl?: string,
+  ): Promise<void>;
   getJSON<T>(key: string): Promise<T | null>;
   exists(key: string): Promise<boolean>;
   listPrefix(prefix: string): Promise<string[]>;
@@ -20,13 +30,25 @@ export class FsStorage implements Storage {
     return path.join(this.root, key);
   }
 
-  async putIfAbsent(key: string, bytes: Buffer | Uint8Array, contentType: string): Promise<boolean> {
+  async putIfAbsent(
+    key: string,
+    bytes: Buffer | Uint8Array,
+    contentType: string,
+    cacheControl?: string,
+  ): Promise<boolean> {
     if (await this.exists(key)) return false;
-    await this.put(key, bytes, contentType);
+    await this.put(key, bytes, contentType, cacheControl);
     return true;
   }
 
-  async put(key: string, bytes: Buffer | Uint8Array, _contentType: string): Promise<void> {
+  // FsStorage drops contentType + cacheControl — they're metadata the
+  // filesystem doesn't carry. Real HTTP serving happens through S3Storage.
+  async put(
+    key: string,
+    bytes: Buffer | Uint8Array,
+    _contentType: string,
+    _cacheControl?: string,
+  ): Promise<void> {
     const full = this.full(key);
     await fs.mkdir(path.dirname(full), { recursive: true });
     await fs.writeFile(full, bytes);

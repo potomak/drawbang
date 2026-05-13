@@ -169,6 +169,7 @@ jobs:
               "/order.html" "/merch/order/*" \
               "/share" "/share.html" \
               "/identity" "/identity.html" \
+              "/d/*" "/days/*" "/keys/*" \
               "/gallery.css" "/gallery-v2.css" \
               "/chrome-toggle.js" "/chrome-identity.js" \
               "/mockups/*"
