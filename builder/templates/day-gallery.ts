@@ -1,3 +1,4 @@
+import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { esc } from "./_escape.js";
 
 export interface DayGalleryView {
@@ -35,14 +36,7 @@ export default function renderDayGallery(v: DayGalleryView): string {
     <link rel="stylesheet" href="/gallery.css" />
   </head>
   <body>
-    <header>
-      <h1><a href="/">Draw!</a></h1>
-      <nav>
-        <a href="/gallery" aria-current="page" class="active">gallery</a>
-        <a href="/products">products</a>
-        <a href="/days/${esc(v.date)}/p/1">${esc(v.date)}</a>
-      </nav>
-    </header>
+    ${renderHeader({ active: "gallery" })}
     <main>
       <h2>${esc(v.date)} — page ${esc(v.page)} of ${esc(v.total_pages)}</h2>
       <ul class="grid">
@@ -53,9 +47,7 @@ ${items}
         ${next}
       </nav>
     </main>
-    <footer>
-      <a href="${esc(v.repo_url)}" target="_blank" rel="noopener">source on github</a>
-    </footer>
+    ${renderFooter({ active: "gallery", repoUrl: v.repo_url })}
   </body>
 </html>
 `;

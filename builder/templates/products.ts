@@ -1,3 +1,4 @@
+import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { esc } from "./_escape.js";
 
 export interface ProductCard {
@@ -43,19 +44,11 @@ ${v.cards.map(renderCard).join("\n")}
     <link rel="stylesheet" href="/gallery.css" />
   </head>
   <body>
-    <header>
-      <h1><a href="/">Draw!</a></h1>
-      <nav>
-        <a href="/gallery">gallery</a>
-        <a href="/products" aria-current="page" class="active">products</a>
-      </nav>
-    </header>
+    ${renderHeader({ active: "products" })}
     <main>
 ${body}
     </main>
-    <footer>
-      <a href="${esc(v.repo_url)}" target="_blank" rel="noopener">source on github</a>
-    </footer>
+    ${renderFooter({ active: "products", repoUrl: v.repo_url })}
   </body>
 </html>
 `;

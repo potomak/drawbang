@@ -1,3 +1,4 @@
+import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { esc } from "./_escape.js";
 
 export interface IndexView {
@@ -31,13 +32,7 @@ export default function renderIndex(v: IndexView): string {
     <link rel="stylesheet" href="/gallery.css" />
   </head>
   <body>
-    <header>
-      <h1><a href="/">Draw!</a></h1>
-      <nav>
-        <a href="/gallery" aria-current="page" class="active">gallery</a>
-        <a href="/products">products</a>
-      </nav>
-    </header>
+    ${renderHeader({ active: "gallery" })}
     <main>
       <h2>latest — ${esc(v.today)}</h2>
       <ul class="grid">
@@ -48,9 +43,7 @@ ${items}
 ${archive}
       </ul>
     </main>
-    <footer>
-      <a href="${esc(v.repo_url)}" target="_blank" rel="noopener">source on github</a>
-    </footer>
+    ${renderFooter({ active: "gallery", repoUrl: v.repo_url })}
   </body>
 </html>
 `;

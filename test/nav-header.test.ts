@@ -8,6 +8,11 @@ import renderIndex from "../builder/templates/index.js";
 import renderOwner from "../builder/templates/owner.js";
 import renderProducts from "../builder/templates/products.js";
 
+// After #169 every builder template delegates to src/layout/chrome.ts.
+// The chrome's own rendering is exhaustively tested in test/chrome.test.ts;
+// here we verify each template (a) emits the chrome markup at all (rather
+// than re-implementing nav inline) and (b) marks the right section active.
+
 const REPO = "https://github.com/potomak/drawbang";
 
 const SAMPLE_DRAWING = {
@@ -22,19 +27,24 @@ const SAMPLE_DRAWING = {
   repo_url: REPO,
 };
 
-test("nav: gallery landing has both /gallery and /products links, gallery active", () => {
+function activeFor(html: string): string | null {
+  const m = html.match(/data-nav="([^"]+)"[^>]*aria-current="page"/);
+  return m?.[1] ?? null;
+}
+
+test("index.ts (gallery landing) emits chrome and marks gallery active", () => {
   const html = renderIndex({
     today: "2026-05-11",
     drawings: [],
     days: [],
     repo_url: REPO,
   });
-  assert.match(html, /href="\/gallery"/);
-  assert.match(html, /href="\/products"/);
-  assert.match(html, /href="\/gallery"[^>]*aria-current="page"/);
+  assert.match(html, /<header class="chrome-header">/);
+  assert.match(html, /<footer class="chrome-footer">/);
+  assert.equal(activeFor(html), "gallery");
 });
 
-test("nav: day gallery surfaces gallery + products + day breadcrumb", () => {
+test("day-gallery.ts emits chrome and marks gallery active", () => {
   const html = renderDayGallery({
     date: "2026-05-11",
     page: 1,
@@ -44,27 +54,29 @@ test("nav: day gallery surfaces gallery + products + day breadcrumb", () => {
     next_page: null,
     repo_url: REPO,
   });
-  assert.match(html, /href="\/gallery"[^>]*aria-current="page"/);
-  assert.match(html, /href="\/products"/);
-  assert.match(html, /href="\/days\/2026-05-11\/p\/1"/);
+  assert.match(html, /<header class="chrome-header">/);
+  assert.equal(activeFor(html), "gallery");
 });
 
-test("nav: drawing page header has gallery + products links", () => {
+test("drawing.ts emits chrome and marks gallery active", () => {
   const html = renderDrawing(SAMPLE_DRAWING);
-  assert.match(html, /<nav>[\s\S]*href="\/gallery"[\s\S]*href="\/products"[\s\S]*<\/nav>/);
+  assert.match(html, /<header class="chrome-header">/);
+  assert.match(html, /<footer class="chrome-footer">/);
+  assert.equal(activeFor(html), "gallery");
 });
 
-test("nav: owner page header has gallery + products links", () => {
+test("owner.ts emits chrome and marks identity active", () => {
   const html = renderOwner({
     pubkey: "b".repeat(64),
     pubkey_short: "bbbbbbbb",
     drawings: [],
     repo_url: REPO,
   });
-  assert.match(html, /<nav>[\s\S]*href="\/gallery"[\s\S]*href="\/products"[\s\S]*<\/nav>/);
+  assert.match(html, /<header class="chrome-header">/);
+  assert.equal(activeFor(html), "identity");
 });
 
-test("nav: /products marks the products link as active (aria-current=page + class=active)", () => {
+test("products.ts emits chrome and marks products active", () => {
   const html = renderProducts({
     page: 1,
     total_pages: 1,
@@ -73,17 +85,28 @@ test("nav: /products marks the products link as active (aria-current=page + clas
     next_page: null,
     repo_url: REPO,
   });
-  assert.match(html, /href="\/products"[^>]*aria-current="page"/);
-  assert.match(html, /href="\/products"[^>]*class="active"/);
+  assert.match(html, /<header class="chrome-header">/);
+  assert.equal(activeFor(html), "products");
 });
 
-test("nav: static merch + order pages use the chrome marker (chrome plugin injects /products link)", async () => {
-  // Before #168 these pages duplicated the nav markup inline. After the
-  // chrome refactor they declare the active section + a marker comment,
-  // and the Vite plugin injects the shared nav at build time. The /products
-  // link landing in the output is asserted by test/chrome-vite-plugin.test.ts
-  // and test/chrome.test.ts; here we just verify the source uses the
-  // marker pattern, not the old hand-written nav.
+test("every builder template threads repo_url into the chrome footer", () => {
+  // The footer's repo link must come out of v.repo_url, not the chrome
+  // module's default. Pass a sentinel and confirm it appears on every
+  // surface.
+  const sentinel = "https://example.test/sentinel-repo";
+  const surfaces = [
+    renderIndex({ today: "x", drawings: [], days: [], repo_url: sentinel }),
+    renderDayGallery({ date: "x", page: 1, total_pages: 1, drawings: [], prev_page: null, next_page: null, repo_url: sentinel }),
+    renderDrawing({ ...SAMPLE_DRAWING, repo_url: sentinel }),
+    renderOwner({ pubkey: "b".repeat(64), pubkey_short: "bbbbbbbb", drawings: [], repo_url: sentinel }),
+    renderProducts({ page: 1, total_pages: 1, cards: [], prev_page: null, next_page: null, repo_url: sentinel }),
+  ];
+  for (const html of surfaces) {
+    assert.match(html, new RegExp(`href="${sentinel.replace(/[/.]/g, "\\$&")}"`));
+  }
+});
+
+test("static merch + order + share pages use the chrome marker — plugin (#168) injects the nav", async () => {
   const root = path.resolve(import.meta.dirname ?? path.dirname(new URL(import.meta.url).pathname), "..");
   for (const rel of ["merch.html", "order.html", "share.html"]) {
     const html = await fs.readFile(path.join(root, rel), "utf8");

@@ -1,3 +1,4 @@
+import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { esc } from "./_escape.js";
 
 export interface DrawingView {
@@ -54,13 +55,7 @@ export default function renderDrawing(v: DrawingView): string {
     <meta property="og:image" content="/drawings/${esc(v.id)}.gif" />
   </head>
   <body>
-    <header>
-      <h1><a href="/">Draw!</a></h1>
-      <nav>
-        <a href="/gallery">gallery</a>
-        <a href="/products">products</a>
-      </nav>
-    </header>
+    ${renderHeader({ active: "gallery" })}
     <main class="drawing-page">
       <img src="/drawings/${esc(v.id)}.gif" alt="drawing ${esc(v.id_short)}" width="320" height="320" />
       <p class="created-at">Created <time datetime="${esc(v.created_at)}">${esc(created)}</time></p>
@@ -86,9 +81,7 @@ export default function renderDrawing(v: DrawingView): string {
         </dl>
       </details>
     </main>
-    <footer>
-      <a href="${esc(v.repo_url)}" target="_blank" rel="noopener">source on github</a>
-    </footer>
+    ${renderFooter({ active: "gallery", repoUrl: v.repo_url })}
   </body>
 </html>
 `;

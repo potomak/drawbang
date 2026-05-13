@@ -1,3 +1,4 @@
+import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { esc } from "./_escape.js";
 
 export interface OwnerView {
@@ -28,13 +29,7 @@ export default function renderOwner(v: OwnerView): string {
     <link rel="stylesheet" href="/gallery.css" />
   </head>
   <body>
-    <header>
-      <h1><a href="/">Draw!</a></h1>
-      <nav>
-        <a href="/gallery">gallery</a>
-        <a href="/products">products</a>
-      </nav>
-    </header>
+    ${renderHeader({ active: "identity" })}
     <main class="owner-page">
       <h2>drawings by <code>${esc(v.pubkey_short)}</code></h2>
       <p class="owner-pubkey"><code>${esc(v.pubkey)}</code></p>
@@ -44,9 +39,7 @@ export default function renderOwner(v: OwnerView): string {
 ${items}
       </ul>
     </main>
-    <footer>
-      <a href="${esc(v.repo_url)}" target="_blank" rel="noopener">source on github</a>
-    </footer>
+    ${renderFooter({ active: "identity", repoUrl: v.repo_url })}
   </body>
 </html>
 `;
