@@ -16,7 +16,7 @@ const REPO = "https://github.com/potomak/drawbang";
 
 test("renderHeader contains the logo link to /", () => {
   const html = renderHeader();
-  assert.match(html, /<a class="chrome-logo" href="\/"/);
+  assert.match(html, /<a class="hdr-logo" href="\/"/);
 });
 
 test("renderHeader nav order matches NAV_LINKS, with identity appended last", () => {
@@ -42,8 +42,9 @@ test("renderHeader: active='gallery' marks only the gallery link with aria-curre
 
 test("renderFooter contains the repo link and the same nav as the header", () => {
   const footer = renderFooter({ repoUrl: REPO });
-  assert.match(footer, /<a class="chrome-footer-repo" href="https:\/\/github\.com\/potomak\/drawbang"/);
-  // Same nav entries as the header, in the same order.
+  assert.match(footer, /<a class="ftr-repo" href="https:\/\/github\.com\/potomak\/drawbang"/);
+  // Footer mirrors the header's nav now that the editor lives at /
+  // (reachable via the logo).
   const fixedIds = NAV_LINKS.map((l) => l.id);
   const expectedIds = [...fixedIds, "identity"];
   const datas = [...footer.matchAll(/data-nav="([^"]+)"/g)].map((m) => m[1]);
@@ -53,17 +54,17 @@ test("renderFooter contains the repo link and the same nav as the header", () =>
 test("identity link: hasIdentity + pubkey → /keys/<pubkey>", () => {
   const pk = "a".repeat(64);
   const header = renderHeader({ hasIdentity: true, identityPubkey: pk });
-  assert.match(header, new RegExp(`<a href="/keys/${pk}" data-nav="identity"`));
+  assert.match(header, new RegExp(`href="/keys/${pk}" data-nav="identity"`));
   const footer = renderFooter({ hasIdentity: true, identityPubkey: pk, repoUrl: REPO });
-  assert.match(footer, new RegExp(`<a href="/keys/${pk}" data-nav="identity"`));
+  assert.match(footer, new RegExp(`href="/keys/${pk}" data-nav="identity"`));
 });
 
 test("identity link: no pubkey falls back to the in-page-dialog href", () => {
   const header = renderHeader();
-  assert.match(header, new RegExp(`<a href="${IDENTITY_FALLBACK_HREF}" data-nav="identity"`));
+  assert.match(header, new RegExp(`href="${IDENTITY_FALLBACK_HREF}" data-nav="identity"`));
   // hasIdentity=true alone (no pubkey) also falls back.
   const header2 = renderHeader({ hasIdentity: true });
-  assert.match(header2, new RegExp(`<a href="${IDENTITY_FALLBACK_HREF}" data-nav="identity"`));
+  assert.match(header2, new RegExp(`href="${IDENTITY_FALLBACK_HREF}" data-nav="identity"`));
 });
 
 test("chrome module gzips under 1 KB (acceptance criterion from #167)", async () => {

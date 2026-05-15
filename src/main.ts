@@ -5,8 +5,6 @@ import { decodeGif, encodeGif } from "./editor/gif.js";
 import { History } from "./editor/history.js";
 import {
   addFrame as addFrameOp,
-  pasteIntoCurrent,
-  removeCurrentFrame,
   type FrameState,
 } from "./editor/frames.js";
 import {
@@ -40,8 +38,10 @@ import {
 } from "./identity-store.js";
 import { MissingIdentityError, submit } from "./submit.js";
 
-const MAIN_PIXEL_SIZE = 24;
-const PREVIEW_PIXEL_SIZE = 4;
+// Native resolution of the main canvas. 16×35 = 560 — matches the v2
+// editor's max wrap width, so CSS scaling produces clean pixel boundaries.
+const MAIN_PIXEL_SIZE = 35;
+const FRAME_THUMB_PIXEL_SIZE = 5;
 
 const INGEST_URL = import.meta.env.VITE_INGEST_URL ?? "/ingest";
 const STATE_URL = import.meta.env.VITE_STATE_URL ?? "/state/last-publish.json";
@@ -57,7 +57,7 @@ function truthy(v: string | undefined): boolean {
 
 const state: FrameState = { frames: [new Bitmap()], current: 0 };
 let activePalette: Uint8Array = new Uint8Array(DEFAULT_ACTIVE_PALETTE);
-let selectedSlot = 1; // start on the second active slot (first is usually black)
+let selectedSlot = 1;
 let tool: "pixel" | "erase" | "fill" = "pixel";
 let painting = false;
 let strokeSnapshot: Bitmap | null = null;
@@ -70,102 +70,137 @@ const history = new History();
 let localId: string | null = null;
 let lastPublishedId: string | null = null;
 let identity: StoredIdentity | null = null;
-const PLAY_DELAY_MS = 200;
+let onion = false;
+// GIF playback is locked at 5 fps (200 ms/frame) — matches the encoded
+// delay, so previewing in the editor looks the same as the rendered GIF.
+const FPS = 5;
+const PLAY_DELAY_MS = 1000 / FPS;
+
+// -- Tool icon SVGs (placeholder — will be replaced) ------------------------
+// 16×16 viewBox, fill=currentColor. The user plans to swap these later;
+// they live inline so the editor doesn't add a sprite-sheet asset request.
+const ICON = {
+  pencil: `<svg width="18" height="18" viewBox="0 0 16 16"><g fill="currentColor"><rect x="10" y="2" width="2" height="2"/><rect x="8" y="4" width="2" height="2"/><rect x="6" y="6" width="2" height="2"/><rect x="4" y="8" width="2" height="2"/><rect x="2" y="10" width="2" height="2"/><rect x="2" y="12" width="3" height="2"/><rect x="12" y="4" width="2" height="2"/></g></svg>`,
+  eraser: `<svg width="18" height="18" viewBox="0 0 16 16"><g fill="currentColor"><rect x="3" y="3" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"/><rect x="8" y="8" width="5" height="5"/></g></svg>`,
+  fill: `<svg width="18" height="18" viewBox="0 0 16 16"><g fill="currentColor"><rect x="2" y="2" width="12" height="2"/><rect x="2" y="12" width="12" height="2"/><rect x="2" y="2" width="2" height="12"/><rect x="12" y="2" width="2" height="12"/><rect x="6" y="6" width="4" height="4"/></g></svg>`,
+  undo: `<svg width="18" height="18" viewBox="0 0 16 16"><g fill="currentColor"><rect x="2" y="6" width="2" height="2"/><rect x="4" y="4" width="2" height="2"/><rect x="6" y="2" width="2" height="2"/><rect x="4" y="6" width="2" height="2"/><rect x="6" y="6" width="2" height="2"/><rect x="8" y="6" width="2" height="2"/><rect x="10" y="6" width="2" height="2"/><rect x="12" y="8" width="2" height="4"/><rect x="10" y="12" width="2" height="2"/></g></svg>`,
+  clear: `<svg width="18" height="18" viewBox="0 0 16 16"><g fill="currentColor"><rect x="3" y="3" width="2" height="2"/><rect x="11" y="3" width="2" height="2"/><rect x="3" y="11" width="2" height="2"/><rect x="11" y="11" width="2" height="2"/><rect x="5" y="5" width="2" height="2"/><rect x="9" y="5" width="2" height="2"/><rect x="5" y="9" width="2" height="2"/><rect x="9" y="9" width="2" height="2"/><rect x="7" y="7" width="2" height="2"/></g></svg>`,
+  flipH: `<svg width="18" height="18" viewBox="0 0 16 16"><g fill="currentColor"><rect x="2" y="2" width="5" height="12" fill="none" stroke="currentColor" stroke-width="1"/><rect x="9" y="2" width="5" height="12" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="2 1"/><rect x="7" y="0" width="2" height="16"/></g></svg>`,
+  flipV: `<svg width="18" height="18" viewBox="0 0 16 16"><g fill="currentColor"><rect x="2" y="2" width="12" height="5" fill="none" stroke="currentColor" stroke-width="1"/><rect x="2" y="9" width="12" height="5" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="2 1"/><rect x="0" y="7" width="16" height="2"/></g></svg>`,
+  rotate: `<svg width="18" height="18" viewBox="0 0 16 16"><g fill="currentColor"><rect x="4" y="2" width="6" height="2"/><rect x="10" y="4" width="2" height="2"/><rect x="12" y="6" width="2" height="6"/><rect x="10" y="12" width="2" height="2"/><rect x="4" y="12" width="6" height="2"/><rect x="2" y="6" width="2" height="4"/><rect x="4" y="10" width="2" height="2"/></g></svg>`,
+  shiftX: `<svg width="18" height="18" viewBox="0 0 16 16"><g fill="currentColor"><rect x="2" y="7" width="12" height="2"/><rect x="0" y="5" width="2" height="6"/><rect x="14" y="5" width="2" height="6"/></g></svg>`,
+  shiftY: `<svg width="18" height="18" viewBox="0 0 16 16"><g fill="currentColor"><rect x="7" y="2" width="2" height="12"/><rect x="5" y="0" width="6" height="2"/><rect x="5" y="14" width="6" height="2"/></g></svg>`,
+  plus: `<svg width="14" height="14" viewBox="0 0 14 14"><g fill="currentColor"><rect x="6" y="2" width="2" height="10"/><rect x="2" y="6" width="10" height="2"/></g></svg>`,
+  copy: `<svg width="14" height="14" viewBox="0 0 14 14"><g fill="currentColor"><rect x="2" y="2" width="8" height="8" fill="none" stroke="currentColor" stroke-width="2"/><rect x="5" y="5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="2"/></g></svg>`,
+  paste: `<svg width="14" height="14" viewBox="0 0 14 14"><g fill="currentColor"><rect x="3" y="1" width="8" height="2"/><rect x="2" y="3" width="10" height="9" fill="none" stroke="currentColor" stroke-width="2"/></g></svg>`,
+  trash: `<svg width="14" height="14" viewBox="0 0 14 14"><g fill="currentColor"><rect x="2" y="3" width="10" height="2"/><rect x="5" y="1" width="4" height="2"/><rect x="3" y="5" width="2" height="8"/><rect x="9" y="5" width="2" height="8"/><rect x="6" y="5" width="2" height="8"/></g></svg>`,
+  play: `<svg width="14" height="14" viewBox="0 0 14 14"><g fill="currentColor"><rect x="3" y="2" width="2" height="10"/><rect x="5" y="3" width="2" height="8"/><rect x="7" y="4" width="2" height="6"/><rect x="9" y="5" width="2" height="4"/><rect x="11" y="6" width="1" height="2"/></g></svg>`,
+  pause: `<svg width="14" height="14" viewBox="0 0 14 14"><g fill="currentColor"><rect x="3" y="2" width="3" height="10"/><rect x="8" y="2" width="3" height="10"/></g></svg>`,
+  download: `<svg width="14" height="14" viewBox="0 0 14 14"><g fill="currentColor"><rect x="6" y="1" width="2" height="7"/><rect x="4" y="6" width="2" height="2"/><rect x="2" y="4" width="2" height="2"/><rect x="8" y="6" width="2" height="2"/><rect x="10" y="4" width="2" height="2"/><rect x="1" y="11" width="12" height="2"/></g></svg>`,
+  share: `<svg width="14" height="14" viewBox="0 0 14 14"><g fill="currentColor"><rect x="2" y="6" width="2" height="2"/><rect x="10" y="2" width="2" height="2"/><rect x="10" y="10" width="2" height="2"/><rect x="4" y="5" width="2" height="2"/><rect x="6" y="4" width="2" height="2"/><rect x="8" y="3" width="2" height="2"/><rect x="4" y="7" width="2" height="2"/><rect x="6" y="8" width="2" height="2"/><rect x="8" y="9" width="2" height="2"/></g></svg>`,
+  publish: `<svg width="14" height="14" viewBox="0 0 14 14"><g fill="currentColor"><rect x="6" y="2" width="2" height="8"/><rect x="4" y="4" width="2" height="2"/><rect x="2" y="6" width="2" height="2"/><rect x="8" y="4" width="2" height="2"/><rect x="10" y="6" width="2" height="2"/><rect x="1" y="11" width="12" height="2"/></g></svg>`,
+  cart: `<svg width="14" height="14" viewBox="0 0 14 14"><g fill="currentColor"><rect x="1" y="2" width="2" height="2"/><rect x="3" y="4" width="2" height="6"/><rect x="5" y="4" width="6" height="2"/><rect x="9" y="6" width="2" height="2"/><rect x="7" y="8" width="2" height="2"/><rect x="5" y="10" width="2" height="2"/><rect x="9" y="10" width="2" height="2"/></g></svg>`,
+  key: `<svg width="14" height="14" viewBox="0 0 14 14"><g fill="currentColor"><rect x="2" y="4" width="4" height="4" fill="none" stroke="currentColor" stroke-width="2"/><rect x="6" y="5" width="6" height="2"/><rect x="9" y="7" width="2" height="2"/><rect x="11" y="7" width="2" height="3"/></g></svg>`,
+};
 
 // -- DOM setup --------------------------------------------------------------
 
 const app = document.getElementById("app")!;
 app.innerHTML = /* html */ `
   <main>
-    <section class="stage">
-      <canvas id="main" aria-label="drawing canvas"></canvas>
-      <div class="tools">
-        <div class="tool-group">
-          <button data-tool="pixel" class="on sprite-btn sprite-pencil" title="pencil" aria-label="pencil"></button>
-          <button data-tool="erase" class="sprite-btn sprite-erase" title="erase" aria-label="erase"></button>
-          <button data-tool="fill" class="sprite-btn sprite-fill" title="fill" aria-label="fill"></button>
+    <div class="ed-actions">
+      <button class="btn" data-action="export-gif">${ICON.download} Download GIF</button>
+      <button class="btn" data-action="share">${ICON.share} Copy share link</button>
+      ${PUBLISH_DISABLED ? "" : `<button class="btn" data-action="publish">${ICON.publish} Publish</button>`}
+      <button class="btn primary" data-action="make-merch" id="merchBtn" hidden>${ICON.cart} Make merch</button>
+      <button class="btn ghost" data-action="open-identity" id="identityBtn" hidden>${ICON.key} Key</button>
+    </div>
+
+    <div class="ed-grid">
+      <div class="ed-tools" role="toolbar" aria-label="Tools">
+        <button class="btn icon ed-tool" data-tool="pixel" aria-pressed="true" title="Pencil" aria-label="Pencil">${ICON.pencil}</button>
+        <button class="btn icon ed-tool" data-tool="erase" title="Eraser" aria-label="Eraser">${ICON.eraser}</button>
+        <button class="btn icon ed-tool" data-tool="fill" title="Fill" aria-label="Fill">${ICON.fill}</button>
+        <button class="btn icon ed-tool" data-action="undo" title="Undo" aria-label="Undo">${ICON.undo}</button>
+        <button class="btn icon ed-tool" data-action="clear" title="Clear" aria-label="Clear">${ICON.clear}</button>
+        <button class="btn icon ed-tool" data-action="flip-h" title="Flip horizontal" aria-label="Flip horizontal">${ICON.flipH}</button>
+        <button class="btn icon ed-tool" data-action="flip-v" title="Flip vertical" aria-label="Flip vertical">${ICON.flipV}</button>
+        <button class="btn icon ed-tool" data-action="rotate" title="Rotate" aria-label="Rotate">${ICON.rotate}</button>
+        <button class="btn icon ed-tool" data-action="shift-right" title="Shift X" aria-label="Shift X">${ICON.shiftX}</button>
+        <button class="btn icon ed-tool" data-action="shift-up" title="Shift Y" aria-label="Shift Y">${ICON.shiftY}</button>
+      </div>
+
+      <div class="ed-center">
+        <div class="ed-canvas-wrap">
+          <canvas id="main" class="ed-canvas" aria-label="drawing canvas"></canvas>
         </div>
-        <div class="tool-group">
-          <button data-action="undo" class="sprite-btn sprite-undo" title="undo" aria-label="undo"></button>
-          <button data-action="clear" class="sprite-btn sprite-clear" title="clear" aria-label="clear"></button>
-        </div>
-        <div class="tool-group">
-          <button data-action="flip-h" class="sprite-btn sprite-flip-h" title="flip horizontal" aria-label="flip horizontal"></button>
-          <button data-action="flip-v" class="sprite-btn sprite-flip-v" title="flip vertical" aria-label="flip vertical"></button>
-          <button data-action="rotate" class="sprite-btn sprite-rotate" title="rotate" aria-label="rotate"></button>
-        </div>
-        <div class="tool-group">
-          <button data-action="shift-right" class="sprite-btn sprite-shift-right" title="shift right" aria-label="shift right"></button>
-          <button data-action="shift-up" class="sprite-btn sprite-shift-up" title="shift up" aria-label="shift up"></button>
+        <div class="ed-palette-wrap">
+          <div id="palette" class="ed-palette" role="toolbar" aria-label="Active palette"></div>
+          <button class="btn sm ed-edit-color" data-action="edit-color" title="Edit color of selected slot">Edit</button>
         </div>
       </div>
-      <div id="palette" class="palette" role="toolbar" aria-label="active palette"></div>
-      <button data-action="edit-color" class="text-btn" title="change color of selected slot">edit color</button>
-    </section>
-    <section class="frames">
-      <h2>frames</h2>
-      <div id="frameList"></div>
-      <div class="frame-actions">
-        <button data-action="add-frame" class="text-btn" title="add frame">+ frame</button>
-        <button data-action="delete-frame" class="text-btn" title="delete current frame">− frame</button>
-        <button data-action="copy-frame" class="sprite-btn sprite-copy" title="copy current frame" aria-label="copy"></button>
-        <button data-action="paste-frame" class="sprite-btn sprite-paste" title="paste into current frame" aria-label="paste"></button>
-        <button data-action="play" class="sprite-btn sprite-play" id="playBtn" title="play animation" aria-label="play"></button>
+    </div>
+
+    <div class="ed-frames">
+      <div class="ed-frames-head">
+        <span class="panel-h" id="framesHeading">Frames — 1</span>
+        <div class="ed-frames-meta">
+          <button class="btn xs" data-action="copy-frame" title="Copy current frame">${ICON.copy}<span style="margin-left:6px">Copy</span></button>
+          <button class="btn xs" data-action="paste-frame" id="pasteBtn" title="Paste copied frame as a new frame" disabled>${ICON.paste}<span style="margin-left:6px">Paste</span></button>
+          <button class="btn xs" data-action="toggle-onion" id="onionBtn" aria-pressed="false" title="Onion skin (preview previous frame)">Onion</button>
+          <button class="btn xs" data-action="play" id="playBtn" title="Play animation">${ICON.play}<span style="margin-left:6px">Play</span></button>
+        </div>
       </div>
-    </section>
-    <section class="publish">
-      <button data-action="export-gif">download gif</button>
-      <button data-action="share">copy share link</button>
-      ${PUBLISH_DISABLED ? "" : `<button data-action="publish">publish to gallery</button>`}
-      <button data-action="make-merch" id="merchBtn" hidden>make merch</button>
-      <button data-action="open-identity" id="identityBtn" class="text-btn" title="manage your key" hidden>🔑 key</button>
-      <p id="status">${PUBLISH_DISABLED ? "demo mode — draw, export a gif, or copy a share link" : ""}</p>
-    </section>
+      <div id="frameList" class="ed-frames-strip"></div>
+    </div>
+
+    <p id="status">${PUBLISH_DISABLED ? "Demo mode — draw, export a GIF, or copy a share link." : ""}</p>
   </main>
+
   <dialog id="palettePicker">
-    <p>pick a color from the 256-color base palette</p>
+    <p>Pick a color from the 256-color base palette</p>
     <div id="baseGrid"></div>
     <form method="dialog">
       <menu>
-        <button value="cancel">cancel</button>
+        <button value="cancel">Cancel</button>
       </menu>
     </form>
   </dialog>
   <dialog id="identityBootstrap" class="identity-dialog">
-    <h2>set up your key</h2>
+    <h2>Set up your key</h2>
     <p>
-      drawbang signs every drawing with a keypair so your work groups under
-      its own owner page. generate a fresh one, or import a key you've used
+      Drawbang signs every drawing with a keypair so your work groups under
+      its own owner page. Generate a fresh one, or import a key you've used
       before.
     </p>
     <div class="identity-actions">
-      <button id="identityGenerateBtn" data-action="identity-generate">generate new keypair</button>
+      <button class="btn primary" id="identityGenerateBtn" data-action="identity-generate">Generate new keypair</button>
       <label class="identity-import-label">
-        import existing keypair
+        Import existing keypair
         <input type="file" id="identityBootstrapImport" accept="application/json,.json" hidden>
       </label>
     </div>
     <p id="identityBootstrapError" class="identity-error" hidden></p>
   </dialog>
   <dialog id="identitySettings" class="identity-dialog">
-    <h2>your key</h2>
-    <p class="muted">drawings you publish are signed with this keypair.</p>
+    <h2>Your key</h2>
+    <p class="muted">Drawings you publish are signed with this keypair.</p>
     <div class="identity-pubkey">
       <code id="identityPubkey"></code>
-      <button id="identityCopyBtn" data-action="identity-copy" class="text-btn" title="copy pubkey">copy</button>
+      <button class="btn xs" id="identityCopyBtn" data-action="identity-copy" title="Copy pubkey">Copy</button>
     </div>
     <div class="identity-actions">
-      <button data-action="identity-download">download keypair (json)</button>
+      <button class="btn" data-action="identity-download">Download keypair (JSON)</button>
       <label class="identity-import-label">
-        import another keypair
+        Import another keypair
         <input type="file" id="identitySettingsImport" accept="application/json,.json" hidden>
       </label>
-      <button data-action="identity-regenerate" class="identity-danger">generate a new keypair</button>
+      <button class="btn identity-danger" data-action="identity-regenerate">Generate a new keypair</button>
     </div>
     <p id="identitySettingsError" class="identity-error" hidden></p>
     <form method="dialog">
       <menu>
-        <button value="close">close</button>
+        <button value="close">Close</button>
       </menu>
     </form>
   </dialog>
@@ -175,7 +210,7 @@ const mainCanvasEl = document.getElementById("main") as HTMLCanvasElement;
 const mainCanvas = new PixelCanvas(mainCanvasEl, {
   pixelSize: MAIN_PIXEL_SIZE,
   showGrid: true,
-  gridColor: "#2a2a2a",
+  gridColor: "#1f1d1a",
 });
 const frameListEl = document.getElementById("frameList")!;
 const paletteEl = document.getElementById("palette")!;
@@ -191,13 +226,12 @@ const identitySettingsEl = document.getElementById("identitySettings") as HTMLDi
 const identitySettingsImportEl = document.getElementById("identitySettingsImport") as HTMLInputElement | null;
 const identitySettingsErrorEl = document.getElementById("identitySettingsError") as HTMLParagraphElement | null;
 const identityPubkeyEl = document.getElementById("identityPubkey") as HTMLElement | null;
+const framesHeadingEl = document.getElementById("framesHeading")!;
+const onionBtnEl = document.getElementById("onionBtn") as HTMLButtonElement;
+const playBtnEl = document.getElementById("playBtn") as HTMLButtonElement;
+const pasteBtnEl = document.getElementById("pasteBtn") as HTMLButtonElement;
 
 function renderIdentityBadge(): void {
-  // The "you: <key>..." footer label moved to the chrome's identity nav
-  // link (#171) — when localStorage has a pubkey, the link reads
-  // "profile" and jumps to /keys/<pk>. The editor's identityBtn (the
-  // settings-dialog opener in the publish strip) is the only thing left
-  // to toggle here.
   if (identityBtnEl) identityBtnEl.hidden = identity === null;
 }
 
@@ -244,8 +278,7 @@ async function persistGeneratedIdentity(): Promise<StoredIdentity> {
   const live = await generateIdentity();
   const exported = await exportIdentity(live);
   const pubkey_hex = await pubKeyHex(live);
-  const record: StoredIdentity = { ...exported, pubkey_hex, created_at: Date.now() };
-  return record;
+  return { ...exported, pubkey_hex, created_at: Date.now() };
 }
 
 async function persistImportedIdentity(file: File): Promise<StoredIdentity> {
@@ -257,8 +290,6 @@ async function persistImportedIdentity(file: File): Promise<StoredIdentity> {
 }
 
 async function commitIdentityFromBootstrap(record: StoredIdentity): Promise<void> {
-  // Multi-tab race: if another tab already saved an identity between our
-  // load-on-boot and now, drop ours and reload so every tab agrees.
   const existing = await loadStoredIdentity();
   if (existing) {
     location.reload();
@@ -316,7 +347,7 @@ async function copyPubkey(): Promise<void> {
     await navigator.clipboard?.writeText(identity.pubkey_hex);
     setSettingsError(null);
   } catch {
-    setSettingsError("clipboard unavailable — select the value manually");
+    setSettingsError("Clipboard unavailable — select the value manually.");
   }
 }
 
@@ -337,10 +368,18 @@ function openMerch(): void {
 
 // -- Rendering --------------------------------------------------------------
 
+function onionFrame(): Bitmap | null {
+  if (!onion || playing || state.frames.length < 2) return null;
+  const prev = (state.current - 1 + state.frames.length) % state.frames.length;
+  return state.frames[prev];
+}
+
 function render(): void {
-  mainCanvas.draw(state.frames[state.current], activePaletteToRgb(activePalette));
+  const palette = activePaletteToRgb(activePalette);
+  mainCanvas.draw(state.frames[state.current], palette, onionFrame());
   renderFrameStrip();
   renderPalette();
+  framesHeadingEl.textContent = `Frames — ${state.frames.length}`;
 }
 
 function renderPalette(): void {
@@ -348,10 +387,11 @@ function renderPalette(): void {
   const hex = activePaletteToHex(activePalette);
   for (let i = 0; i < activePalette.length; i++) {
     const b = document.createElement("button");
-    b.className = "swatch" + (i === selectedSlot ? " selected" : "");
+    b.className = "ed-swatch" + (i === selectedSlot ? " selected" : "");
     b.style.backgroundColor = hex[i];
-    b.title = `slot ${i} — right-click to change color`;
+    b.title = `Slot ${i} — right-click to change color`;
     b.dataset.slot = String(i);
+    b.setAttribute("aria-label", `Color ${hex[i]}`);
     b.addEventListener("click", () => {
       selectedSlot = i;
       tool = "pixel";
@@ -371,18 +411,34 @@ function renderFrameStrip(): void {
   const palette = activePaletteToRgb(activePalette);
   state.frames.forEach((frame, idx) => {
     const wrap = document.createElement("div");
-    wrap.className = "frame" + (idx === state.current ? " selected" : "");
+    wrap.className = "ed-frame" + (idx === state.current ? " selected" : "");
+    wrap.dataset.frameIndex = String(idx);
     const cv = document.createElement("canvas");
     const preview = new PixelCanvas(cv, {
-      pixelSize: PREVIEW_PIXEL_SIZE,
+      pixelSize: FRAME_THUMB_PIXEL_SIZE,
       showGrid: false,
       gridColor: "",
     });
     preview.draw(frame, palette);
     wrap.appendChild(cv);
     const label = document.createElement("span");
+    label.className = "ed-frame-num";
     label.textContent = String(idx + 1);
     wrap.appendChild(label);
+    if (idx === state.current && state.frames.length > 1) {
+      const actions = document.createElement("div");
+      actions.className = "ed-frame-actions";
+      const del = document.createElement("button");
+      del.className = "btn xs ghost";
+      del.title = "Delete frame";
+      del.innerHTML = ICON.trash;
+      del.addEventListener("click", (e) => {
+        e.stopPropagation();
+        deleteFrameAt(idx);
+      });
+      actions.appendChild(del);
+      wrap.appendChild(actions);
+    }
     wrap.addEventListener("click", () => {
       stopPlay();
       state.current = idx;
@@ -390,6 +446,13 @@ function renderFrameStrip(): void {
     });
     frameListEl.appendChild(wrap);
   });
+  const add = document.createElement("button");
+  add.className = "ed-frame ed-frame-add";
+  add.title = "Add frame";
+  add.setAttribute("aria-label", "Add frame");
+  add.innerHTML = ICON.plus;
+  add.addEventListener("click", () => addFrame());
+  frameListEl.appendChild(add);
 }
 
 // -- Tools ------------------------------------------------------------------
@@ -397,7 +460,7 @@ function renderFrameStrip(): void {
 function setActiveTool(next: "pixel" | "erase" | "fill"): void {
   tool = next;
   document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach((b) => {
-    b.classList.toggle("on", b.dataset.tool === next);
+    b.setAttribute("aria-pressed", b.dataset.tool === next ? "true" : "false");
   });
 }
 
@@ -460,11 +523,29 @@ function addFrame(): void {
   stopPlay();
   const undo = addFrameOp(state, MAX_FRAMES);
   if (!undo) {
-    flashStatus(`max ${MAX_FRAMES} frames`);
+    flashStatus(`Max ${MAX_FRAMES} frames.`);
     return;
   }
   history.push(() => {
     undo();
+    render();
+  });
+  render();
+  persist();
+}
+
+function deleteFrameAt(idx: number): void {
+  stopPlay();
+  if (state.frames.length <= 1) {
+    flashStatus("Can't delete the only frame.");
+    return;
+  }
+  const before = { frames: state.frames.slice(), current: state.current };
+  state.frames.splice(idx, 1);
+  state.current = Math.min(state.current, state.frames.length - 1);
+  history.push(() => {
+    state.frames = before.frames;
+    state.current = Math.min(before.current, state.frames.length - 1);
     render();
   });
   render();
@@ -473,33 +554,29 @@ function addFrame(): void {
 
 function copyFrame(): void {
   clipboard = state.frames[state.current].clone();
-  flashStatus(`copied frame ${state.current + 1}`);
+  pasteBtnEl.disabled = false;
+  flashStatus(`Copied frame ${state.current + 1}.`);
 }
 
-function pasteFrame(): void {
+// Inserts the clipboard as a new frame after the current one. The original
+// "paste into current" behaviour from v1 is gone — too easy to clobber work.
+function pasteAsNewFrame(): void {
   stopPlay();
   if (!clipboard) {
-    flashStatus("nothing to paste — copy a frame first");
+    flashStatus("Nothing to paste — copy a frame first.");
     return;
   }
-  const undo = pasteIntoCurrent(state, clipboard);
-  history.push(() => {
-    undo();
-    render();
-  });
-  render();
-  persist();
-}
-
-function deleteCurrentFrame(): void {
-  stopPlay();
-  const undo = removeCurrentFrame(state);
-  if (!undo) {
-    flashStatus("can't delete the only frame");
+  if (state.frames.length >= MAX_FRAMES) {
+    flashStatus(`Max ${MAX_FRAMES} frames.`);
     return;
   }
+  const insertAt = state.current + 1;
+  const before = { frames: state.frames.slice(), current: state.current };
+  state.frames.splice(insertAt, 0, clipboard.clone());
+  state.current = insertAt;
   history.push(() => {
-    undo();
+    state.frames = before.frames;
+    state.current = Math.min(before.current, state.frames.length - 1);
     render();
   });
   render();
@@ -530,7 +607,7 @@ function togglePlay(): void {
 function startPlay(): void {
   if (playing) return;
   if (state.frames.length < 2) {
-    flashStatus("add a second frame to play");
+    flashStatus("Add a second frame to play.");
     return;
   }
   if (playTimer !== null) {
@@ -549,10 +626,13 @@ function startPlay(): void {
 }
 
 function renderPlayTick(): void {
-  mainCanvas.draw(state.frames[state.current], activePaletteToRgb(activePalette));
-  frameListEl.querySelectorAll<HTMLElement>(".frame").forEach((w, i) => {
-    w.classList.toggle("selected", i === state.current);
-  });
+  const palette = activePaletteToRgb(activePalette);
+  mainCanvas.draw(state.frames[state.current], palette);
+  frameListEl
+    .querySelectorAll<HTMLElement>(".ed-frame:not(.ed-frame-add)")
+    .forEach((w, i) => {
+      w.classList.toggle("selected", i === state.current);
+    });
 }
 
 function stopPlay(): void {
@@ -568,47 +648,80 @@ function stopPlay(): void {
 }
 
 function updatePlayButton(): void {
-  const btn = document.getElementById("playBtn");
-  if (!btn) return;
-  btn.classList.toggle("sprite-play", !playing);
-  btn.classList.toggle("sprite-stop", playing);
-  btn.setAttribute("aria-label", playing ? "stop" : "play");
-  btn.setAttribute("title", playing ? "stop animation" : "play animation");
+  if (!playBtnEl) return;
+  playBtnEl.innerHTML = playing
+    ? `${ICON.pause}<span style="margin-left:6px">Pause</span>`
+    : `${ICON.play}<span style="margin-left:6px">Play</span>`;
+  playBtnEl.setAttribute("aria-pressed", playing ? "true" : "false");
+  playBtnEl.setAttribute("title", playing ? "Pause animation" : "Play animation");
+}
+
+function setOnion(next: boolean): void {
+  onion = next;
+  onionBtnEl.setAttribute("aria-pressed", onion ? "true" : "false");
+  render();
 }
 
 // -- Palette picker ---------------------------------------------------------
 
 let pickerTargetSlot = -1;
+const baseCellEls: HTMLButtonElement[] = [];
 
 function buildBaseGrid(): void {
   baseGridEl.innerHTML = "";
+  baseCellEls.length = 0;
   BASE_PALETTE.forEach(([r, g, b], idx) => {
     const cell = document.createElement("button");
     cell.className = "base-cell";
     cell.style.backgroundColor = `rgb(${r},${g},${b})`;
-    cell.title = `base #${idx}`;
+    cell.title = `Base #${idx}`;
+    cell.dataset.baseIdx = String(idx);
     cell.addEventListener("click", () => {
-      if (pickerTargetSlot >= 0) {
-        activePalette[pickerTargetSlot] = idx;
+      if (pickerTargetSlot < 0) return;
+      const slot = pickerTargetSlot;
+      const prevIdx = activePalette[slot];
+      if (idx === prevIdx) {
         picker.close();
+        return;
+      }
+      activePalette[slot] = idx;
+      history.push(() => {
+        activePalette[slot] = prevIdx;
         render();
         persist();
-      }
+      });
+      picker.close();
+      render();
+      persist();
     });
     baseGridEl.appendChild(cell);
+    baseCellEls.push(cell);
   });
+}
+
+function highlightPickerCurrent(slot: number): void {
+  const current = activePalette[slot];
+  for (let i = 0; i < baseCellEls.length; i++) {
+    baseCellEls[i].classList.toggle("current", i === current);
+  }
 }
 
 function openPickerForSlot(slot: number): void {
   pickerTargetSlot = slot;
+  highlightPickerCurrent(slot);
   picker.showModal();
+  // Without explicit focus, browsers autofocus the first child (top-left
+  // swatch) and stamp a default focus ring over it — visually rivaling
+  // the "current" accent highlight on a different cell. Park focus on
+  // the current cell instead so the two indicators merge.
+  baseCellEls[activePalette[slot]]?.focus();
 }
 
 // -- Publishing / export ----------------------------------------------------
 
 async function handlePublish(): Promise<void> {
   const gif = encodeGif({ frames: state.frames, activePalette });
-  setStatus("starting proof of work…");
+  setStatus("Starting proof of work…");
   try {
     const result = await submit({
       ingestUrl: INGEST_URL,
@@ -617,11 +730,11 @@ async function handlePublish(): Promise<void> {
       onPhase: (phase, detail) => setStatus(`${phase}: ${detail}`),
       onProgress: (p) => {
         const rate = (p.hashes / Math.max(1, p.elapsedMs / 1000)).toFixed(0);
-        setStatus(`solving… ${p.hashes.toLocaleString()} hashes (${rate}/s)`);
+        setStatus(`Solving… ${p.hashes.toLocaleString()} hashes (${rate}/s)`);
       },
     });
     statusEl.innerHTML = "";
-    statusEl.appendChild(document.createTextNode("published: "));
+    statusEl.appendChild(document.createTextNode("Published: "));
     const link = document.createElement("a");
     link.href = result.share_url;
     link.textContent = result.share_url;
@@ -640,17 +753,14 @@ async function handlePublish(): Promise<void> {
       });
     }
     setLastPublishedId(result.id);
-    // Start a fresh drawing so the editor doesn't keep the just-published
-    // state around and accidentally re-mint a near-duplicate. The merch
-    // button keeps its state — it lets the user buy what they just published.
     resetEditor({ keepPublishedId: true });
   } catch (err) {
     if (err instanceof MissingIdentityError) {
-      setStatus("set up your key before publishing");
+      setStatus("Set up your key before publishing.");
       openIdentityBootstrap();
       return;
     }
-    setStatus(`publish failed: ${err instanceof Error ? err.message : String(err)}`);
+    setStatus(`Publish failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -670,7 +780,7 @@ function copyShareLink(): void {
   const hash = encodeShare({ frames: state.frames, activePalette });
   const url = `${location.origin}${location.pathname}#d=${hash}`;
   navigator.clipboard?.writeText(url);
-  setStatus(`share link copied (${hash.length} chars)`);
+  setStatus(`Share link copied (${hash.length} chars).`);
 }
 
 function setStatus(msg: string): void {
@@ -733,11 +843,10 @@ document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>
       case "rotate": handleTransform(rotateLeft); break;
       case "shift-right": handleTransform(shiftRight); break;
       case "shift-up": handleTransform(shiftUp); break;
-      case "add-frame": addFrame(); break;
-      case "delete-frame": deleteCurrentFrame(); break;
       case "copy-frame": copyFrame(); break;
-      case "paste-frame": pasteFrame(); break;
+      case "paste-frame": pasteAsNewFrame(); break;
       case "play": togglePlay(); break;
+      case "toggle-onion": setOnion(!onion); break;
       case "edit-color": openPickerForSlot(selectedSlot); break;
       case "export-gif": stopPlay(); downloadGif(); break;
       case "share": stopPlay(); copyShareLink(); break;
@@ -758,7 +867,7 @@ async function handleGenerateFromBootstrap(): Promise<void> {
     const record = await persistGeneratedIdentity();
     await commitIdentityFromBootstrap(record);
   } catch (err) {
-    setBootstrapError(`could not generate key: ${err instanceof Error ? err.message : String(err)}`);
+    setBootstrapError(`Could not generate key: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -773,12 +882,11 @@ async function handleRegenerateFromSettings(): Promise<void> {
     const record = await persistGeneratedIdentity();
     await replaceIdentity(record);
   } catch (err) {
-    setSettingsError(`could not generate key: ${err instanceof Error ? err.message : String(err)}`);
+    setSettingsError(`Could not generate key: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
 identityBootstrapEl?.addEventListener("cancel", (ev) => {
-  // Bootstrap is non-dismissable until the user generates or imports a key.
   if (!identity) ev.preventDefault();
 });
 
@@ -790,7 +898,7 @@ identityBootstrapImportEl?.addEventListener("change", async () => {
     const record = await persistImportedIdentity(file);
     await commitIdentityFromBootstrap(record);
   } catch (err) {
-    setBootstrapError(`could not import: ${err instanceof Error ? err.message : String(err)}`);
+    setBootstrapError(`Could not import: ${err instanceof Error ? err.message : String(err)}`);
   } finally {
     identityBootstrapImportEl.value = "";
   }
@@ -809,7 +917,7 @@ identitySettingsImportEl?.addEventListener("change", async () => {
     const record = await persistImportedIdentity(file);
     await replaceIdentity(record);
   } catch (err) {
-    setSettingsError(`could not import: ${err instanceof Error ? err.message : String(err)}`);
+    setSettingsError(`Could not import: ${err instanceof Error ? err.message : String(err)}`);
   } finally {
     identitySettingsImportEl.value = "";
   }
@@ -836,7 +944,6 @@ async function boot(): Promise<void> {
   renderIdentityBadge();
   if (!identity && !PUBLISH_DISABLED) openIdentityBootstrap();
 
-  // Load from ?fork=<id>, then from #d=<...>, then fall back to blank.
   const hash = location.hash.match(/#d=([A-Za-z0-9_-]+)/)?.[1];
   const forkId = new URL(location.href).searchParams.get("fork");
 
@@ -851,7 +958,7 @@ async function boot(): Promise<void> {
       state.current = 0;
       setLastPublishedId(forkId);
     } catch (err) {
-      setStatus(`fork failed: ${err instanceof Error ? err.message : String(err)}`);
+      setStatus(`Fork failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   } else if (hash) {
     try {
@@ -860,7 +967,7 @@ async function boot(): Promise<void> {
       activePalette = d.activePalette;
       state.current = 0;
     } catch (err) {
-      setStatus(`invalid share link: ${err instanceof Error ? err.message : String(err)}`);
+      setStatus(`Invalid share link: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

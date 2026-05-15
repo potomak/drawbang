@@ -26,7 +26,9 @@
       link.href = "/keys/" + pubkey;
       // Only rewrite the label if it's still the default; the editor's
       // identity-aware UX may have customised it.
-      if (link.textContent === "identity") link.textContent = "profile";
+      if (link.textContent === "Identity" || link.textContent === "identity") {
+        link.textContent = "Profile";
+      }
     }
   };
 

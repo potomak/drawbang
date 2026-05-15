@@ -24,28 +24,31 @@ export interface ProductsView {
 
 export default function renderProducts(v: ProductsView): string {
   const isEmpty = v.cards.length === 0;
+  const sub = isEmpty
+    ? ""
+    : `<p class="page-sub">Page ${esc(v.page)} of ${esc(v.total_pages)}</p>`;
   const body = isEmpty
-    ? `      <h2>products</h2>
-      <p class="muted">No merch ordered yet — once someone buys their first item, it'll show up here ranked by popularity. Want to be first? Pick a drawing from <a href="/gallery">the gallery</a> and hit "make merch".</p>`
-    : `      <h2>products — page ${esc(v.page)} of ${esc(v.total_pages)}</h2>
-      <ul class="grid products-grid">
+    ? `      <p class="muted">No merch ordered yet — once someone buys their first item, it'll show up here ranked by popularity. Want to be first? Pick a drawing from <a href="/gallery">the gallery</a> and hit "Make merch".</p>`
+    : `      <ul class="pr-grid">
 ${v.cards.map(renderCard).join("\n")}
       </ul>
       <nav class="pager">
-        ${v.prev_page ? `<a href="${prevHref(v.prev_page.prev_page)}">← prev</a>` : ""}
-        ${v.next_page ? `<a href="/products/p/${esc(v.next_page.next_page)}">next →</a>` : ""}
+        ${v.prev_page ? `<a href="${prevHref(v.prev_page.prev_page)}">← Prev</a>` : ""}
+        ${v.next_page ? `<a href="/products/p/${esc(v.next_page.next_page)}">Next →</a>` : ""}
       </nav>`;
   return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Draw! · products · page ${esc(v.page)}</title>
+    <title>Draw! · Products · page ${esc(v.page)}</title>
     <link rel="stylesheet" href="/gallery-v2.css" />
   </head>
   <body>
     ${renderHeader({ active: "products" })}
     <main>
+      <h1 class="page-title">Products</h1>
+      ${sub}
 ${body}
     </main>
     ${renderFooter({ active: "products", repoUrl: v.repo_url })}
@@ -58,16 +61,28 @@ function prevHref(n: number): string {
   return n === 1 ? "/products" : `/products/p/${n}`;
 }
 
+// Known product_id values map onto the static mockup JPGs in /mockups/.
+// Unknown ids fall back to the tee mockup so the surface degrades gracefully
+// if the catalog grows before the redesign catches up.
+const MOCKUP_BY_PRODUCT: Record<string, { src: string; cls: string }> = {
+  tee: { src: "/mockups/tee.jpg", cls: "pr-art-tee" },
+  mug: { src: "/mockups/mug.jpg", cls: "pr-art-mug" },
+  "sticker-sheet": { src: "/mockups/sticker-sheet.jpg", cls: "pr-art-sticker" },
+};
+
 function renderCard(c: ProductCard): string {
+  const mock = MOCKUP_BY_PRODUCT[c.product_id] ?? MOCKUP_BY_PRODUCT.tee;
   const recency = c.recency_label ? ` · ${esc(c.recency_label)}` : "";
-  return `          <li class="product-card" data-drawing-id="${esc(c.drawing_id)}" data-product-id="${esc(c.product_id)}">
-            <a href="/merch?d=${esc(c.drawing_id)}&amp;product=${esc(c.product_id)}">
-              <img src="/drawings/${esc(c.drawing_id)}.gif" alt="${esc(c.product_name)} featuring drawing ${esc(c.drawing_id_short)}" width="128" height="128" loading="lazy" />
-              <div class="product-card-meta">
-                <span class="product-name">${esc(c.product_name)}</span>
-                <span class="product-price">from $${esc(c.from_dollars)}</span>
-                <span class="product-stats">${esc(c.count)} order${c.count === 1 ? "" : "s"}${recency}</span>
-              </div>
-            </a>
-          </li>`;
+  return `        <li data-drawing-id="${esc(c.drawing_id)}" data-product-id="${esc(c.product_id)}">
+          <a class="pr-card" href="/merch?d=${esc(c.drawing_id)}&amp;product=${esc(c.product_id)}">
+            <div class="pr-art ${esc(mock.cls)}">
+              <img class="pr-mockup" src="${esc(mock.src)}" alt="" loading="lazy" />
+              <img class="pr-drawing" src="/drawings/${esc(c.drawing_id)}.gif" alt="${esc(c.product_name)} featuring drawing ${esc(c.drawing_id_short)}" loading="lazy" />
+            </div>
+            <div class="pr-info">
+              <span class="pr-name">${esc(c.product_name)}</span>
+              <span class="pr-row">from $${esc(c.from_dollars)} · ${esc(c.count)} order${c.count === 1 ? "" : "s"}${recency}</span>
+            </div>
+          </a>
+        </li>`;
 }

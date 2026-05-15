@@ -13,13 +13,17 @@ export default function renderOwner(v: OwnerView): string {
   const items = v.drawings
     .map(
       (d) => `          <li>
-            <a href="/d/${esc(d.id)}">
-              <img src="/drawings/${esc(d.id)}.gif" alt="drawing ${esc(d.id_short)}" width="128" height="128" loading="lazy" />
+            <a href="/d/${esc(d.id)}" aria-label="drawing ${esc(d.id_short)}">
+              <img src="/drawings/${esc(d.id)}.gif" alt="" width="128" height="128" loading="lazy" />
             </a>
           </li>`,
     )
     .join("\n");
-  const count = v.drawings.length;
+  const body = v.drawings.length
+    ? `      <ul class="img-grid">
+${items}
+      </ul>`
+    : `      <p class="muted">No drawings published with this key yet.</p>`;
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -30,14 +34,10 @@ export default function renderOwner(v: OwnerView): string {
   </head>
   <body>
     ${renderHeader({ active: "identity" })}
-    <main class="owner-page">
-      <h2>drawings by <code>${esc(v.pubkey_short)}</code></h2>
-      <p class="owner-pubkey"><code>${esc(v.pubkey)}</code></p>
-      <p class="owner-disclaimer">this gallery groups drawings made with the same key — there's no account or login behind it.</p>
-      <p class="owner-count">${esc(count)} drawing${count === 1 ? "" : "s"}.</p>
-      <ul class="grid">
-${items}
-      </ul>
+    <main>
+      <h1 class="page-title">Drawings by ${esc(v.pubkey_short)}</h1>
+      <p class="prof-key-text">${esc(v.pubkey)}</p>
+${body}
     </main>
     ${renderFooter({ active: "identity", repoUrl: v.repo_url })}
   </body>

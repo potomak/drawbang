@@ -56,6 +56,12 @@ const variantPickerEl = document.getElementById("variantPicker") as HTMLDivEleme
 const checkoutBtn = document.getElementById("checkoutBtn") as HTMLButtonElement;
 const previewCanvasEl = document.getElementById("preview") as HTMLCanvasElement;
 const frameStripEl = document.getElementById("frameStrip") as HTMLDivElement;
+const stepPlacementEl = document.getElementById("step-placement") as HTMLElement | null;
+const stepVariantEl = document.getElementById("step-variant") as HTMLElement | null;
+const shippingNoteEl = document.getElementById("shippingNote") as HTMLParagraphElement | null;
+const sumSubtotalEl = document.getElementById("sumSubtotal") as HTMLElement | null;
+const sumShippingEl = document.getElementById("sumShipping") as HTMLElement | null;
+const sumTotalEl = document.getElementById("sumTotal") as HTMLElement | null;
 
 interface MockupsFile {
   products: Record<string, MockupConfig>;
@@ -139,7 +145,7 @@ function renderFrameStrip(): void {
   frames.forEach((frame, idx) => {
     const wrap = document.createElement("button");
     wrap.type = "button";
-    wrap.className = "frame" + (idx === currentFrame ? " selected" : "");
+    wrap.className = "mc-frame-thumb" + (idx === currentFrame ? " selected" : "");
     const cv = document.createElement("canvas");
     const thumb = new PixelCanvas(cv, {
       pixelSize: THUMB_PIXEL_SIZE,
@@ -186,21 +192,25 @@ function renderCatalog(catalog: MerchCatalog): void {
   for (const product of catalog.products) {
     const card = document.createElement("button");
     card.type = "button";
-    card.className = "product-card";
+    card.className = "mc-product";
     card.dataset.productId = product.id;
 
     const cfg = MOCKUPS.products[product.id];
     let mockupCanvas: HTMLCanvasElement | null = null;
     if (cfg) {
+      const mockWrap = document.createElement("div");
+      mockWrap.className = "mc-product-mock";
       mockupCanvas = document.createElement("canvas");
-      mockupCanvas.className = "product-mockup";
       mockupCanvas.style.aspectRatio = `${cfg.mockup_width} / ${cfg.mockup_height}`;
-      card.appendChild(mockupCanvas);
+      mockWrap.appendChild(mockupCanvas);
+      card.appendChild(mockWrap);
     }
 
-    const name = document.createElement("strong");
+    const name = document.createElement("span");
+    name.className = "mc-product-name";
     name.textContent = product.name;
     const price = document.createElement("span");
+    price.className = "mc-product-price";
     const min = lowestPrice(product);
     price.textContent =
       product.shipping_cents > 0
@@ -246,12 +256,13 @@ function selectProduct(product: MerchProduct): void {
   if (!PLACEMENT_PRODUCTS.has(product.id)) {
     selectedPlacement = DEFAULT_PLACEMENT;
   }
-  document.querySelectorAll<HTMLButtonElement>(".product-card").forEach((el) => {
+  document.querySelectorAll<HTMLButtonElement>(".mc-product").forEach((el) => {
     el.classList.toggle("selected", el.dataset.productId === product.id);
   });
   renderPlacementPicker();
   renderVariantPicker();
   updateCheckoutButton();
+  updateSummary();
   repaintCardPreviews();
 }
 
@@ -278,83 +289,92 @@ function repaintCardPreviews(): void {
 function renderPlacementPicker(): void {
   placementPickerEl.innerHTML = "";
   if (!selectedProduct || !PLACEMENT_PRODUCTS.has(selectedProduct.id)) {
-    placementPickerEl.hidden = true;
+    if (stepPlacementEl) stepPlacementEl.hidden = true;
     return;
   }
-  placementPickerEl.hidden = false;
-
-  const heading = document.createElement("h3");
-  heading.textContent = "Print placement";
-  placementPickerEl.appendChild(heading);
+  if (stepPlacementEl) stepPlacementEl.hidden = false;
 
   const presets: Placement[] = [...NAMED_PRESETS, ...PATTERN_PRESETS];
   for (const preset of presets) {
-    const id = `placement-${preset}`;
-    const wrap = document.createElement("label");
-    wrap.className = "placement-option";
-    wrap.htmlFor = id;
-
-    const radio = document.createElement("input");
-    radio.type = "radio";
-    radio.name = "placement";
-    radio.id = id;
-    radio.value = preset;
-    radio.checked = preset === selectedPlacement;
-    radio.addEventListener("change", () => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn sm";
+    btn.setAttribute("aria-pressed", preset === selectedPlacement ? "true" : "false");
+    btn.dataset.placement = preset;
+    btn.textContent = PLACEMENT_LABELS[preset];
+    btn.addEventListener("click", () => {
       selectedPlacement = preset;
+      placementPickerEl.querySelectorAll<HTMLButtonElement>("[data-placement]").forEach((el) => {
+        el.setAttribute("aria-pressed", el.dataset.placement === preset ? "true" : "false");
+      });
       repaintCardPreviews();
     });
-
-    const span = document.createElement("span");
-    span.textContent = PLACEMENT_LABELS[preset];
-
-    wrap.append(radio, span);
-    placementPickerEl.appendChild(wrap);
+    placementPickerEl.appendChild(btn);
   }
 }
 
 function renderVariantPicker(): void {
+  variantPickerEl.innerHTML = "";
   if (!selectedProduct) {
-    variantPickerEl.hidden = true;
-    variantPickerEl.innerHTML = "";
+    if (stepVariantEl) stepVariantEl.hidden = true;
+    if (shippingNoteEl) shippingNoteEl.hidden = true;
     return;
   }
-  variantPickerEl.hidden = false;
-  variantPickerEl.innerHTML = "";
-  const heading = document.createElement("h3");
-  heading.textContent = `${selectedProduct.name} — pick a variant`;
-  variantPickerEl.appendChild(heading);
+  if (stepVariantEl) stepVariantEl.hidden = false;
   for (const variant of selectedProduct.variants) {
-    const id = `variant-${variant.id}`;
-    const wrap = document.createElement("label");
-    wrap.className = "variant-option";
-    wrap.htmlFor = id;
-    const radio = document.createElement("input");
-    radio.type = "radio";
-    radio.name = "variant";
-    radio.id = id;
-    radio.value = String(variant.id);
-    radio.addEventListener("change", () => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn sm";
+    btn.dataset.variantId = String(variant.id);
+    btn.setAttribute(
+      "aria-pressed",
+      selectedVariant?.id === variant.id ? "true" : "false",
+    );
+    btn.textContent = `${variant.label} — ${formatUsd(variant.retail_cents)}`;
+    btn.addEventListener("click", () => {
       selectedVariant = variant;
+      variantPickerEl.querySelectorAll<HTMLButtonElement>("[data-variant-id]").forEach((el) => {
+        el.setAttribute(
+          "aria-pressed",
+          el.dataset.variantId === String(variant.id) ? "true" : "false",
+        );
+      });
       updateCheckoutButton();
+      updateSummary();
     });
-    const label = document.createElement("span");
-    label.textContent = `${variant.label} — ${formatUsd(variant.retail_cents)}`;
-    wrap.append(radio, label);
-    variantPickerEl.appendChild(wrap);
+    variantPickerEl.appendChild(btn);
   }
-  if (selectedProduct.shipping_cents > 0) {
-    const note = document.createElement("p");
-    note.className = "shipping-note";
-    note.textContent = `+ ${formatUsd(selectedProduct.shipping_cents)} standard shipping & handling, added at checkout.`;
-    variantPickerEl.appendChild(note);
+  if (shippingNoteEl) {
+    if (selectedProduct.shipping_cents > 0) {
+      shippingNoteEl.hidden = false;
+      shippingNoteEl.textContent = `+ ${formatUsd(selectedProduct.shipping_cents)} standard shipping & handling, added at checkout.`;
+    } else {
+      shippingNoteEl.hidden = true;
+    }
   }
+}
+
+function updateSummary(): void {
+  if (!sumSubtotalEl || !sumShippingEl || !sumTotalEl) return;
+  if (!selectedProduct) {
+    sumSubtotalEl.textContent = "—";
+    sumShippingEl.textContent = "—";
+    sumTotalEl.textContent = "—";
+    return;
+  }
+  const sub = selectedVariant
+    ? selectedVariant.retail_cents
+    : lowestPrice(selectedProduct);
+  const ship = selectedProduct.shipping_cents;
+  sumSubtotalEl.textContent = selectedVariant ? formatUsd(sub) : `from ${formatUsd(sub)}`;
+  sumShippingEl.textContent = ship > 0 ? formatUsd(ship) : "Free";
+  sumTotalEl.textContent = selectedVariant ? formatUsd(sub + ship) : `from ${formatUsd(sub + ship)}`;
 }
 
 function updateCheckoutButton(): void {
   const ready = !!(drawingId && selectedProduct && selectedVariant && !checkoutInFlight);
   checkoutBtn.disabled = !ready;
-  checkoutBtn.textContent = checkoutInFlight ? "redirecting…" : "continue to checkout";
+  checkoutBtn.textContent = checkoutInFlight ? "Redirecting…" : "Continue to checkout";
 }
 
 async function fetchCatalog(): Promise<MerchCatalog> {
@@ -444,6 +464,7 @@ async function boot(): Promise<void> {
     const catalog = await fetchCatalog();
     renderCatalog(catalog);
     setStatus("");
+    updateSummary();
     // Deep-link from /products card: auto-select the product so the user
     // only has to pick a variant. Unknown product id silently falls back
     // to the un-selected state.

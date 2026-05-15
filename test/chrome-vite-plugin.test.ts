@@ -7,8 +7,8 @@ const REPO = "https://github.com/example/repo";
 test("injectChrome: replaces <!--CHROME:HEADER--> with the rendered header markup", () => {
   const input = `<!doctype html><html><body><!--CHROME:HEADER--><main>x</main></body></html>`;
   const out = injectChrome(input, REPO);
-  assert.match(out, /<header class="chrome-header">/);
-  assert.match(out, /<a class="chrome-logo" href="\/"/);
+  assert.match(out, /<header class="hdr">/);
+  assert.match(out, /<a class="hdr-logo" href="\/"/);
   // The marker is gone.
   assert.doesNotMatch(out, /CHROME:HEADER/);
 });
@@ -16,7 +16,7 @@ test("injectChrome: replaces <!--CHROME:HEADER--> with the rendered header marku
 test("injectChrome: replaces <!--CHROME:FOOTER--> with the rendered footer + repoUrl", () => {
   const input = `<!doctype html><html><body><main>x</main><!--CHROME:FOOTER--></body></html>`;
   const out = injectChrome(input, REPO);
-  assert.match(out, /<footer class="chrome-footer">/);
+  assert.match(out, /<footer class="ftr">/);
   assert.match(out, new RegExp(`href="${REPO.replace(/\//g, "\\/")}"`));
   assert.doesNotMatch(out, /CHROME:FOOTER/);
 });

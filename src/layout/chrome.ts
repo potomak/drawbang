@@ -2,6 +2,8 @@
 // Pure: no DOM, no fetch, no module-level side effects. Consumed at build
 // time by the Vite plugin (#168) and the builder templates (#169).
 
+import { LOGO_SVG } from "./logo.js";
+
 export interface NavLink {
   href: string;
   label: string;
@@ -35,8 +37,8 @@ export const IDENTITY_FALLBACK_HREF = "/identity";
  * Adding a new top-level section is a one-line change here.
  */
 export const NAV_LINKS: readonly NavLink[] = [
-  { href: "/gallery", label: "gallery", id: "gallery" },
-  { href: "/products", label: "products", id: "products" },
+  { href: "/gallery", label: "Gallery", id: "gallery" },
+  { href: "/products", label: "Products", id: "products" },
 ];
 
 function identityLink(opts: ChromeOptions): NavLink {
@@ -44,7 +46,7 @@ function identityLink(opts: ChromeOptions): NavLink {
     opts.hasIdentity && opts.identityPubkey
       ? `/keys/${opts.identityPubkey}`
       : IDENTITY_FALLBACK_HREF;
-  return { href, label: "identity", id: "identity" };
+  return { href, label: "Identity", id: "identity" };
 }
 
 function allLinks(opts: ChromeOptions): readonly NavLink[] {
@@ -58,34 +60,44 @@ function renderLink(link: NavLink, active: NavLink["id"] | undefined): string {
   // attribute lets the patcher find it without depending on label or
   // href shape.
   const identityFlag = link.id === "identity" ? ' data-identity-link="1"' : "";
-  return `<a href="${esc(link.href)}" data-nav="${esc(link.id)}"${ariaCurrent}${identityFlag}>${esc(link.label)}</a>`;
+  return `<a class="navlink" href="${esc(link.href)}" data-nav="${esc(link.id)}"${ariaCurrent}${identityFlag}>${esc(link.label)}</a>`;
 }
 
 export function renderHeader(opts: ChromeOptions = {}): string {
   const items = allLinks(opts).map((l) => renderLink(l, opts.active)).join("\n      ");
-  return `<header class="chrome-header">
-  <a class="chrome-logo" href="/" aria-label="Draw! — home">Draw!</a>
-  <button class="chrome-menu-toggle" aria-controls="chrome-nav" aria-expanded="false" hidden>menu</button>
-  <nav id="chrome-nav" class="chrome-nav" aria-label="Primary">
+  return `<header class="hdr">
+  <a class="hdr-logo" href="/" aria-label="Draw! home">${LOGO_SVG}</a>
+  <div class="hdr-right">
+    <button class="chrome-menu-toggle" aria-controls="chrome-nav" aria-expanded="false" hidden>Menu</button>
+    <nav id="chrome-nav" class="hdr-nav" aria-label="Primary">
       ${items}
-  </nav>
+    </nav>
+  </div>
 </header>`;
 }
 
 export function renderFooter(opts: FooterOptions): string {
-  const items = allLinks(opts).map((l) => renderLink(l, opts.active)).join("\n      ");
+  const items = allLinks(opts)
+    .map((l) => renderFooterLink(l, opts.active))
+    .join("\n      ");
   // The hamburger toggle (#170) and the identity-link patcher (#171)
   // both ship as plain JS at stable URLs, so every surface — Vite-built
   // or builder-rendered — loads them from the same place without bundle
   // hash plumbing.
-  return `<footer class="chrome-footer">
-  <nav class="chrome-footer-nav" aria-label="Footer">
+  return `<footer class="ftr">
+  <nav class="ftr-links" aria-label="Footer">
       ${items}
   </nav>
-  <a class="chrome-footer-repo" href="${esc(opts.repoUrl)}" target="_blank" rel="noopener">source on github</a>
+  <a class="ftr-repo" href="${esc(opts.repoUrl)}" target="_blank" rel="noopener">Source on GitHub</a>
 </footer>
 <script src="/chrome-toggle.js"></script>
 <script src="/chrome-identity.js"></script>`;
+}
+
+function renderFooterLink(link: NavLink, active: NavLink["id"] | undefined): string {
+  const ariaCurrent = link.id === active ? ' aria-current="page"' : "";
+  const identityFlag = link.id === "identity" ? ' data-identity-link="1"' : "";
+  return `<a href="${esc(link.href)}" data-nav="${esc(link.id)}"${ariaCurrent}${identityFlag}>${esc(link.label)}</a>`;
 }
 
 const ESC: Record<string, string> = {

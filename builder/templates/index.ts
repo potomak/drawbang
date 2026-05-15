@@ -12,36 +12,51 @@ export default function renderIndex(v: IndexView): string {
   const items = v.drawings
     .map(
       (d) => `          <li>
-            <a href="/d/${esc(d.id)}">
-              <img src="/drawings/${esc(d.id)}.gif" alt="drawing ${esc(d.id_short)}" width="128" height="128" loading="lazy" />
+            <a href="/d/${esc(d.id)}" aria-label="drawing ${esc(d.id_short)}">
+              <img src="/drawings/${esc(d.id)}.gif" alt="" width="128" height="128" loading="lazy" />
             </a>
           </li>`,
     )
     .join("\n");
   const archive = v.days
     .map(
-      (d) => `        <li><a href="/days/${esc(d.date)}/p/1">${esc(d.date)}</a> · ${esc(d.count)} drawing${d.count === 1 ? "" : "s"}</li>`,
+      (d) => `        <li>
+          <a class="gal-row" href="/days/${esc(d.date)}/p/1">
+            <span class="gal-row-date">${esc(d.date)}</span>
+            <span class="gal-row-strip" aria-hidden="true"></span>
+            <span class="gal-row-count">${esc(d.count)}</span>
+          </a>
+        </li>`,
     )
     .join("\n");
+  const latestSection = v.drawings.length
+    ? `      <p class="panel-h">Latest · ${esc(v.today)}</p>
+      <ul class="img-grid">
+${items}
+      </ul>`
+    : `      <p class="panel-h">Latest · ${esc(v.today)}</p>
+      <p class="muted">No drawings published yet — open <a href="/">the editor</a> and mint the first one.</p>`;
+  const archiveSection = v.days.length
+    ? `      <hr class="divider" />
+      <p class="panel-h">Archive</p>
+      <ul class="gal-archive-list">
+${archive}
+      </ul>`
+    : "";
   return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Draw!</title>
+    <title>Draw! · Gallery</title>
     <link rel="stylesheet" href="/gallery-v2.css" />
   </head>
   <body>
     ${renderHeader({ active: "gallery" })}
     <main>
-      <h2>latest — ${esc(v.today)}</h2>
-      <ul class="grid">
-${items}
-      </ul>
-      <h2>archive</h2>
-      <ul class="archive">
-${archive}
-      </ul>
+      <h1 class="page-title">Gallery</h1>
+${latestSection}
+${archiveSection}
     </main>
     ${renderFooter({ active: "gallery", repoUrl: v.repo_url })}
   </body>

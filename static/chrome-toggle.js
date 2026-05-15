@@ -15,6 +15,9 @@
     const toggle = document.querySelector(".chrome-menu-toggle");
     const nav = document.getElementById("chrome-nav");
     if (!(toggle instanceof HTMLButtonElement) || !nav) return;
+    // The v2 header places the toggle inside the .hdr-left flex row right
+    // after the logo; move it next to the nav so CSS can keep it visible
+    // only on narrow viewports.
 
     // The chrome module emits the toggle with `hidden` so screen readers
     // see it but the visual layer hides it. CSS reveals it on narrow

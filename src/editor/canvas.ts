@@ -39,19 +39,41 @@ export class PixelCanvas {
     };
   }
 
-  draw(bitmap: Bitmap, palette: readonly RGB[]): void {
+  draw(bitmap: Bitmap, palette: readonly RGB[], onion?: Bitmap | null): void {
     this.clear();
     const ps = this.settings.pixelSize;
     const showMarkers = this.settings.showGrid;
     const dot = Math.max(1, Math.floor(ps / 6));
     const dotOffset = Math.floor((ps - dot) / 2);
+
+    // Onion underlay: previous frame's colored pixels at 22% opacity behind
+    // the current frame. Skipped for transparent cells so the underlay never
+    // bleeds into the dot pattern that signals transparency.
+    if (onion) {
+      this.ctx.globalAlpha = 0.22;
+      for (let y = 0; y < onion.height; y++) {
+        for (let x = 0; x < onion.width; x++) {
+          const v = onion.get(x, y);
+          if (v === TRANSPARENT) continue;
+          const [r, g, b] = palette[v];
+          this.ctx.fillStyle = `rgb(${r},${g},${b})`;
+          this.ctx.fillRect(x * ps, y * ps, ps, ps);
+        }
+      }
+      this.ctx.globalAlpha = 1;
+    }
+
     for (let y = 0; y < bitmap.height; y++) {
       for (let x = 0; x < bitmap.width; x++) {
         const v = bitmap.get(x, y);
         if (v === TRANSPARENT) {
           if (!showMarkers) continue;
-          this.ctx.fillStyle = "#161616";
-          this.ctx.fillRect(x * ps, y * ps, ps, ps);
+          // When onion is on, skip the dark transparent-cell fill so the
+          // faded underlay stays visible; keep the small grid dot.
+          if (!onion) {
+            this.ctx.fillStyle = "#161616";
+            this.ctx.fillRect(x * ps, y * ps, ps, ps);
+          }
           this.ctx.fillStyle = "#3a3a3a";
           this.ctx.fillRect(x * ps + dotOffset, y * ps + dotOffset, dot, dot);
         } else {

@@ -15,17 +15,17 @@ export default function renderDayGallery(v: DayGalleryView): string {
   const items = v.drawings
     .map(
       (d) => `          <li>
-            <a href="/d/${esc(d.id)}">
-              <img src="/drawings/${esc(d.id)}.gif" alt="drawing ${esc(d.id_short)}" width="128" height="128" loading="lazy" />
+            <a href="/d/${esc(d.id)}" aria-label="drawing ${esc(d.id_short)}">
+              <img src="/drawings/${esc(d.id)}.gif" alt="" width="128" height="128" loading="lazy" />
             </a>
           </li>`,
     )
     .join("\n");
   const prev = v.prev_page
-    ? `<a href="/days/${esc(v.prev_page.date)}/p/${esc(v.prev_page.prev_page)}">← prev</a>`
+    ? `<a href="/days/${esc(v.prev_page.date)}/p/${esc(v.prev_page.prev_page)}">← Prev</a>`
     : "";
   const next = v.next_page
-    ? `<a href="/days/${esc(v.next_page.date)}/p/${esc(v.next_page.next_page)}">next →</a>`
+    ? `<a href="/days/${esc(v.next_page.date)}/p/${esc(v.next_page.next_page)}">Next →</a>`
     : "";
   return `<!doctype html>
 <html lang="en">
@@ -38,8 +38,9 @@ export default function renderDayGallery(v: DayGalleryView): string {
   <body>
     ${renderHeader({ active: "gallery" })}
     <main>
-      <h2>${esc(v.date)} — page ${esc(v.page)} of ${esc(v.total_pages)}</h2>
-      <ul class="grid">
+      <h1 class="page-title">${esc(v.date)}</h1>
+      <p class="page-sub">Page ${esc(v.page)} of ${esc(v.total_pages)}</p>
+      <ul class="img-grid">
 ${items}
       </ul>
       <nav class="pager">

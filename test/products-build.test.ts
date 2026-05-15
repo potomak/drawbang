@@ -164,8 +164,8 @@ test("build paginates /products at PER_PAGE=36, page 1 to /products.html, pages 
   const p1 = await fs.readFile(path.join(root, "public/products.html"), "utf8");
   const p2 = await fs.readFile(path.join(root, "public/products/p/2.html"), "utf8");
   // page 1 has 36 cards; page 2 has 4.
-  assert.equal((p1.match(/class="product-card"/g) ?? []).length, 36);
-  assert.equal((p2.match(/class="product-card"/g) ?? []).length, 4);
+  assert.equal((p1.match(/class="pr-card"/g) ?? []).length, 36);
+  assert.equal((p2.match(/class="pr-card"/g) ?? []).length, 4);
   // Highest-count card (count=100, drawing 00...0) lands on page 1.
   const firstDid = "0".repeat(64);
   assert.ok(p1.includes(`data-drawing-id="${firstDid}"`));

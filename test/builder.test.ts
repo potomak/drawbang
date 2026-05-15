@@ -139,7 +139,7 @@ test("builder propagates pubkey + signature from inbox to per-day index.jsonl, d
   // Per-drawing HTML carries an owner badge linking to /keys/<pubkey>.
   const drawingHtml = await fs.readFile(path.join(root, `public/d/${id}.html`), "utf8");
   assert.match(drawingHtml, new RegExp(`<a href="/keys/${pubkey}">`));
-  assert.match(drawingHtml, /<dt>owner<\/dt><dd><a href="\/keys\//);
+  assert.match(drawingHtml, /<dt>Owner<\/dt><dd><a href="\/keys\//);
   // No "anonymous" fallback when the owner is set.
   assert.equal(drawingHtml.includes("anonymous"), false);
 });
@@ -172,8 +172,8 @@ test("builder per-owner sweep: maintains keys/<pk>/index.jsonl and renders keys/
   // Both drawings linked by their share URL.
   assert.match(ownerHtml, new RegExp(`/d/${id1}`));
   assert.match(ownerHtml, new RegExp(`/d/${id2}`));
-  // Privacy disclaimer rendered.
-  assert.match(ownerHtml, /no account or login/);
+  // Owner page title surfaces the short pubkey.
+  assert.match(ownerHtml, /Drawings by/);
 });
 
 test("builder per-owner sweep: separates two distinct owners on the same day", async () => {
@@ -244,6 +244,6 @@ test("builder writes null pubkey + signature for legacy inbox sidecars (pre-feat
 
   // Legacy drawing renders the 'anonymous' fallback (no /keys/ link).
   const drawingHtml = await fs.readFile(path.join(root, `public/d/${id}.html`), "utf8");
-  assert.match(drawingHtml, /<dt>owner<\/dt><dd>anonymous<\/dd>/);
+  assert.match(drawingHtml, /<dt>Owner<\/dt><dd>anonymous<\/dd>/);
   assert.equal(/href="\/keys\//.test(drawingHtml), false);
 });

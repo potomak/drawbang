@@ -35,41 +35,41 @@ test("formatCreatedAt: returns the input verbatim on unparseable strings", () =>
 
 test("drawing page: friendly date is up front", () => {
   const html = renderDrawing(baseView);
-  assert.match(html, /<p class="created-at">Created <time datetime="2026-05-08T04:24:56\.088Z">May 8, 2026 · 04:24 UTC<\/time><\/p>/);
+  // v2 surfaces the date as a <dt>/<dd> pair under the meta dl.
+  assert.match(
+    html,
+    /<dt>Created<\/dt>\s*<dd><time datetime="2026-05-08T04:24:56\.088Z">May 8, 2026 · 04:24 UTC<\/time><\/dd>/,
+  );
 });
 
 test("drawing page: hash and proof-of-work live inside the Advanced disclosure", () => {
   const html = renderDrawing(baseView);
-  // <details> precedes any of the technical fields, and they all sit
-  // inside it. The order check guards against accidentally promoting one
-  // back into the main flow.
-  const detailsIdx = html.indexOf('<details class="advanced">');
+  const detailsIdx = html.indexOf('<details class="dr-adv">');
   const closeIdx = html.indexOf("</details>", detailsIdx);
   assert.ok(detailsIdx > -1 && closeIdx > detailsIdx, "advanced section missing");
   const inside = html.slice(detailsIdx, closeIdx);
-  assert.match(inside, /<dt>id<\/dt><dd><code>f{64}<\/code><\/dd>/);
-  assert.match(inside, /<dt>minted<\/dt><dd><code>2026-05-08T04:24:56\.088Z<\/code><\/dd>/);
-  assert.match(inside, /<dt>proof of work<\/dt><dd>14 bits in 2ms \(82335 hps\)<\/dd>/);
+  assert.match(inside, /<dt>ID<\/dt><dd><code>f{64}<\/code><\/dd>/);
+  assert.match(inside, /<dt>Minted<\/dt><dd><code>2026-05-08T04:24:56\.088Z<\/code><\/dd>/);
+  assert.match(inside, /<dt>Proof of work<\/dt><dd>14 bits in 2ms \(82335 hps\)<\/dd>/);
 
-  // And nothing technical leaks above the disclosure.
+  // Nothing technical leaks above the disclosure.
   const before = html.slice(0, detailsIdx);
-  assert.doesNotMatch(before, /<dt>id<\/dt>/);
-  assert.doesNotMatch(before, /<dt>minted<\/dt>/);
-  assert.doesNotMatch(before, /proof of work/);
+  assert.doesNotMatch(before, /<dt>Minted<\/dt>/);
+  assert.doesNotMatch(before, /Proof of work/);
 });
 
 test("drawing page: owner link stays in the main flow (above the Advanced disclosure)", () => {
   const html = renderDrawing(baseView);
-  const ownerIdx = html.indexOf("<dt>owner</dt>");
-  const detailsIdx = html.indexOf('<details class="advanced">');
+  const ownerIdx = html.indexOf("<dt>Owner</dt>");
+  const detailsIdx = html.indexOf('<details class="dr-adv">');
   assert.ok(ownerIdx > -1 && detailsIdx > -1);
   assert.ok(ownerIdx < detailsIdx, "owner link should be above the Advanced disclosure");
 });
 
 test("drawing page: anonymous owner renders without an Advanced section regression", () => {
   const html = renderDrawing({ ...baseView, owner: null });
-  assert.match(html, /<dt>owner<\/dt><dd>anonymous<\/dd>/);
-  assert.match(html, /<details class="advanced">/);
+  assert.match(html, /<dt>Owner<\/dt><dd>anonymous<\/dd>/);
+  assert.match(html, /<details class="dr-adv">/);
 });
 
 test("drawing page: parent link (when present) sits in the main flow", () => {
@@ -77,8 +77,8 @@ test("drawing page: parent link (when present) sits in the main flow", () => {
     ...baseView,
     parent: { parent: "c".repeat(64), parent_short: "cccccccc" },
   });
-  const parentIdx = html.indexOf("<dt>parent</dt>");
-  const detailsIdx = html.indexOf('<details class="advanced">');
+  const parentIdx = html.indexOf("<dt>Parent</dt>");
+  const detailsIdx = html.indexOf('<details class="dr-adv">');
   assert.ok(parentIdx > -1 && parentIdx < detailsIdx);
   assert.match(html, /<dd><a href="\/d\/c{64}">cccccccc<\/a><\/dd>/);
 });

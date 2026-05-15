@@ -39,11 +39,11 @@ export function formatCreatedAt(iso: string): string {
 
 export default function renderDrawing(v: DrawingView): string {
   const parentBlock = v.parent
-    ? `<dt>parent</dt><dd><a href="/d/${esc(v.parent.parent)}">${esc(v.parent.parent_short)}</a></dd>`
+    ? `<dt>Parent</dt><dd><a href="/d/${esc(v.parent.parent)}">${esc(v.parent.parent_short)}</a></dd>`
     : "";
   const ownerBlock = v.owner
-    ? `<dt>owner</dt><dd><a href="/keys/${esc(v.owner.pubkey)}">${esc(v.owner.pubkey_short)}</a></dd>`
-    : `<dt>owner</dt><dd>anonymous</dd>`;
+    ? `<dt>Owner</dt><dd><a href="/keys/${esc(v.owner.pubkey)}">${esc(v.owner.pubkey_short)}</a></dd>`
+    : `<dt>Owner</dt><dd>anonymous</dd>`;
   const created = formatCreatedAt(v.created_at);
   return `<!doctype html>
 <html lang="en">
@@ -56,30 +56,37 @@ export default function renderDrawing(v: DrawingView): string {
   </head>
   <body>
     ${renderHeader({ active: "gallery" })}
-    <main class="drawing-page">
-      <img src="/drawings/${esc(v.id)}.gif" alt="drawing ${esc(v.id_short)}" width="320" height="320" />
-      <p class="created-at">Created <time datetime="${esc(v.created_at)}">${esc(created)}</time></p>
-      <dl class="meta">
-        ${ownerBlock}
-        ${parentBlock}
-      </dl>
-      <p>
-        <a href="/?fork=${esc(v.id)}">fork this drawing</a>
-      </p>
-      <p>
-        <a href="/merch?d=${esc(v.id)}&amp;frame=0" rel="nofollow noreferrer">make merch</a>
-      </p>
-      <p>
-        <a href="/share?d=${esc(v.id)}" rel="nofollow noreferrer">share to Reddit</a>
-      </p>
-      <details class="advanced">
-        <summary>Advanced</summary>
-        <dl>
-          <dt>id</dt><dd><code>${esc(v.id)}</code></dd>
-          <dt>minted</dt><dd><code>${esc(v.created_at)}</code></dd>
-          <dt>proof of work</dt><dd>${esc(v.required_bits)} bits in ${esc(v.solve_ms)}ms (${esc(v.bench_hps)} hps)</dd>
-        </dl>
-      </details>
+    <main>
+      <div class="dr-grid">
+        <div class="dr-art-wrap">
+          <img src="/drawings/${esc(v.id)}.gif" alt="drawing ${esc(v.id_short)}" width="540" height="540" />
+        </div>
+        <div>
+          <dl class="dr-meta">
+            <dt>Created</dt>
+            <dd><time datetime="${esc(v.created_at)}">${esc(created)}</time></dd>
+            ${ownerBlock}
+            ${parentBlock}
+            <dt>ID</dt>
+            <dd><code class="mono-trunc">${esc(v.id_short)}…</code></dd>
+          </dl>
+          <div class="dr-actions">
+            <a class="btn primary" href="/merch?d=${esc(v.id)}&amp;frame=0" rel="nofollow noreferrer">Make merch</a>
+            <a class="btn" href="/?fork=${esc(v.id)}">Fork &amp; edit</a>
+            <a class="btn" href="/d/${esc(v.id)}">Copy link</a>
+            <a class="btn" href="/share?d=${esc(v.id)}" rel="nofollow noreferrer">Share to Reddit</a>
+            <a class="btn ghost" href="/drawings/${esc(v.id)}.gif" download>Download GIF</a>
+          </div>
+          <details class="dr-adv">
+            <summary>Advanced</summary>
+            <dl>
+              <dt>ID</dt><dd><code>${esc(v.id)}</code></dd>
+              <dt>Minted</dt><dd><code>${esc(v.created_at)}</code></dd>
+              <dt>Proof of work</dt><dd>${esc(v.required_bits)} bits in ${esc(v.solve_ms)}ms (${esc(v.bench_hps)} hps)</dd>
+            </dl>
+          </details>
+        </div>
+      </div>
     </main>
     ${renderFooter({ active: "gallery", repoUrl: v.repo_url })}
   </body>

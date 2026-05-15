@@ -39,8 +39,8 @@ test("index.ts (gallery landing) emits chrome and marks gallery active", () => {
     days: [],
     repo_url: REPO,
   });
-  assert.match(html, /<header class="chrome-header">/);
-  assert.match(html, /<footer class="chrome-footer">/);
+  assert.match(html, /<header class="hdr">/);
+  assert.match(html, /<footer class="ftr">/);
   assert.equal(activeFor(html), "gallery");
 });
 
@@ -54,14 +54,14 @@ test("day-gallery.ts emits chrome and marks gallery active", () => {
     next_page: null,
     repo_url: REPO,
   });
-  assert.match(html, /<header class="chrome-header">/);
+  assert.match(html, /<header class="hdr">/);
   assert.equal(activeFor(html), "gallery");
 });
 
 test("drawing.ts emits chrome and marks gallery active", () => {
   const html = renderDrawing(SAMPLE_DRAWING);
-  assert.match(html, /<header class="chrome-header">/);
-  assert.match(html, /<footer class="chrome-footer">/);
+  assert.match(html, /<header class="hdr">/);
+  assert.match(html, /<footer class="ftr">/);
   assert.equal(activeFor(html), "gallery");
 });
 
@@ -72,7 +72,7 @@ test("owner.ts emits chrome and marks identity active", () => {
     drawings: [],
     repo_url: REPO,
   });
-  assert.match(html, /<header class="chrome-header">/);
+  assert.match(html, /<header class="hdr">/);
   assert.equal(activeFor(html), "identity");
 });
 
@@ -85,7 +85,7 @@ test("products.ts emits chrome and marks products active", () => {
     next_page: null,
     repo_url: REPO,
   });
-  assert.match(html, /<header class="chrome-header">/);
+  assert.match(html, /<header class="hdr">/);
   assert.equal(activeFor(html), "products");
 });
 

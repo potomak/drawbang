@@ -3,25 +3,49 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Draw! · make merch</title>
+    <title>Draw! · Make merch</title>
     <meta name="drawbang:active" content="products" />
     <link rel="stylesheet" href="./src/style.css" />
   </head>
   <body class="merch-body">
     <!--CHROME:HEADER-->
-    <main class="merch-page">
-      <section class="merch-preview">
-        <canvas id="preview" aria-label="drawing preview"></canvas>
-        <div id="frameStrip" class="frame-strip" hidden></div>
-      </section>
-      <section class="merch-catalog">
-        <h2>pick a product</h2>
-        <div id="productGrid" class="product-grid"></div>
-        <div id="placementPicker" class="placement-picker" hidden></div>
-        <div id="variantPicker" class="variant-picker" hidden></div>
-        <button id="checkoutBtn" type="button" disabled>continue to checkout</button>
-        <p id="status" class="merch-status"></p>
-      </section>
+    <main>
+      <h1 class="page-title">Make merch</h1>
+      <div class="mc-grid">
+        <aside class="mc-side">
+          <div class="mc-preview-wrap">
+            <canvas id="preview" aria-label="drawing preview"></canvas>
+          </div>
+          <div id="frameStrip" class="mc-frame-strip" hidden></div>
+        </aside>
+
+        <div class="mc-config">
+          <section class="mc-step" id="step-product">
+            <h2 class="mc-step-h"><span class="mc-step-num">01</span>Product</h2>
+            <div id="productGrid" class="mc-product-row"></div>
+          </section>
+
+          <section class="mc-step" id="step-placement" hidden>
+            <h2 class="mc-step-h"><span class="mc-step-num">02</span>Placement</h2>
+            <div id="placementPicker" class="mc-pills"></div>
+          </section>
+
+          <section class="mc-step" id="step-variant" hidden>
+            <h2 class="mc-step-h"><span class="mc-step-num">03</span>Size</h2>
+            <div id="variantPicker" class="mc-pills"></div>
+            <p id="shippingNote" class="muted" hidden></p>
+          </section>
+
+          <section class="mc-summary" id="step-summary">
+            <div class="mc-summary-row"><span>Subtotal</span><span id="sumSubtotal">—</span></div>
+            <div class="mc-summary-row"><span>Shipping</span><span id="sumShipping">—</span></div>
+            <div class="mc-summary-row total"><span>Total</span><span id="sumTotal">—</span></div>
+            <button id="checkoutBtn" class="btn primary full" type="button" disabled>Continue to checkout</button>
+            <p class="mc-disclaim">Printed on demand · ships in 5–7 days</p>
+            <p id="status" class="merch-status"></p>
+          </section>
+        </div>
+      </div>
     </main>
     <!--CHROME:FOOTER-->
     <script type="module" src="./src/merch.ts"></script>

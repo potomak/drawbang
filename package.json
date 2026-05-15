@@ -19,6 +19,7 @@
     "@types/aws-lambda": "^8.10.161",
     "@types/node": "^22.5.0",
     "@types/pngjs": "^6.0.5",
+    "@vitejs/plugin-basic-ssl": "^1.2.0",
     "esbuild": "^0.28.0",
     "fake-indexeddb": "^6.2.5",
     "jpeg-js": "^0.4.4",
