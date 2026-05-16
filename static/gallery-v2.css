@@ -252,6 +252,9 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; width: 100%; 
   padding: 0;
   margin: 0;
 }
+@media (max-width: 767px) {
+  .pr-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+}
 .pr-card {
   display: flex;
   flex-direction: column;
