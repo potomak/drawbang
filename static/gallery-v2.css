@@ -231,6 +231,7 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; width: 100%; 
 .dr-art-wrap img {
   width: 100%;
   max-width: 540px;
+  height: auto;
   display: block;
   background: var(--canvas-bg);
   border: var(--border) solid var(--border-c);
