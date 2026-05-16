@@ -44,6 +44,9 @@ export interface BuildOptions {
   // Optional: enables the canvas pass to read live tile state. Without it,
   // /state/current-canvas.json still gets a fresh manifest + zero counts.
   canvasStore?: CanvasStore;
+  // Optional: API Gateway base URL for the canvas page's state hydration.
+  // See CanvasPassOptions.apiBaseUrl for the why.
+  apiBaseUrl?: string;
 }
 
 export const DEFAULT_TEMPLATES: Templates = {
@@ -233,6 +236,7 @@ export async function build(opts: BuildOptions): Promise<{
     canvasStore: opts.canvasStore,
     now: opts.now ? opts.now() : new Date(),
     repoUrl,
+    apiBaseUrl: opts.apiBaseUrl,
   });
 
   return { sweptDrawings: sweptCount, touchedDays };
@@ -534,6 +538,11 @@ async function cli(): Promise<void> {
   const today = process.env.DRAWBANG_TODAY;
   const forceRerender = process.env.DRAWBANG_FORCE_RERENDER === "1";
   const countersTable = process.env.DRAWBANG_PRODUCT_COUNTERS_TABLE ?? "drawbang-product-counters";
+  // Strip /ingest suffix if present so the canvas page hydration script can
+  // hit https://<api>/canvas/<id>/state directly (CloudFront blocks POSTs to
+  // un-routed paths). Empty string in dev → relative URLs.
+  const ingestUrl = process.env.DRAWBANG_INGEST_URL ?? "";
+  const apiBaseUrl = ingestUrl.replace(/\/ingest$/, "");
 
   let storage: Storage;
   if (s3Bucket) {
@@ -566,6 +575,7 @@ async function cli(): Promise<void> {
     forceRerender,
     productCountersSource,
     merchCatalog,
+    apiBaseUrl,
     logger: (m) => console.log(m),
   });
   console.log(`swept ${result.sweptDrawings} drawings, touched days: ${result.touchedDays.join(", ") || "(none)"}`);

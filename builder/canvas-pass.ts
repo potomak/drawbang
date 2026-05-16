@@ -46,6 +46,12 @@ export interface CanvasPassOptions {
   now?: Date;
   // Repo URL for the footer. Defaults to the project default.
   repoUrl?: string;
+  // Base URL of the API Gateway (e.g. https://X.execute-api.us-east-1...).
+  // The canvas page hydrates from `${apiBaseUrl}/canvas/<id>/state`. CloudFront
+  // can't proxy POSTs to API Gateway and its default behaviour returns 404 for
+  // un-routed paths, so the hydration script must call API Gateway directly.
+  // In dev this stays empty so relative URLs work through Vite's proxy.
+  apiBaseUrl?: string;
 }
 
 export interface CanvasPassResult {
@@ -207,7 +213,7 @@ export async function canvasPass(
         closes_at: currentManifest.closes_at,
         locked: false,
         tiles: currentTilesView,
-        state_url: `/canvas/${currentId}/state`,
+        state_url: `${opts.apiBaseUrl ?? ""}/canvas/${currentId}/state`,
         repo_url: repoUrl,
       }),
     ),
@@ -228,7 +234,7 @@ export async function canvasPass(
           closes_at: m.closes_at,
           locked: true,
           tiles: view,
-          state_url: `/canvas/${m.id}/state`,
+          state_url: `${opts.apiBaseUrl ?? ""}/canvas/${m.id}/state`,
           repo_url: repoUrl,
         }),
       ),

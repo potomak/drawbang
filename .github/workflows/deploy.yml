@@ -150,6 +150,7 @@ jobs:
         env:
           DRAWBANG_S3_BUCKET: ${{ env.BUCKET_NAME }}
           DRAWBANG_PUBLIC_BASE: ${{ steps.stack.outputs.public_base_url }}
+          DRAWBANG_INGEST_URL: ${{ steps.stack.outputs.ingest_endpoint }}
           DRAWBANG_FORCE_RERENDER: "1"
         run: npm run builder
 
