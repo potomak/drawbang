@@ -73,6 +73,52 @@ export async function verifyDrawingId(
   );
 }
 
+// Canvas claim ownership: signs a tile-claim message so the server can verify
+// the user really wants this exact (canvas, x, y) tile, not a forged proxy
+// claim from a relayed PoW. Message form mirrors the PoW preimage prefix.
+function canvasClaimMessage(canvasId: string, x: number, y: number): Uint8Array {
+  return new TextEncoder().encode(`claim:${canvasId}:${x}:${y}`);
+}
+
+export async function signCanvasClaim(
+  id: DrawbangIdentity,
+  canvasId: string,
+  x: number,
+  y: number,
+): Promise<string> {
+  const msg = canvasClaimMessage(canvasId, x, y);
+  const sig = await crypto.subtle.sign(ALG, id.secretKey, msg as BufferSource);
+  return hashHex(new Uint8Array(sig));
+}
+
+export async function verifyCanvasClaim(
+  pubKeyHexStr: string,
+  canvasId: string,
+  x: number,
+  y: number,
+  sigHex: string,
+): Promise<boolean> {
+  if (!/^[0-9a-f]{64}$/.test(pubKeyHexStr)) return false;
+  if (!/^[0-9a-f]{128}$/.test(sigHex)) return false;
+  try {
+    const pubKey = await crypto.subtle.importKey(
+      "raw",
+      bytesFromHex(pubKeyHexStr) as BufferSource,
+      ALG,
+      false,
+      ["verify"],
+    );
+    return crypto.subtle.verify(
+      ALG,
+      pubKey,
+      bytesFromHex(sigHex) as BufferSource,
+      canvasClaimMessage(canvasId, x, y) as BufferSource,
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function bytesFromHex(hex: string): Uint8Array {
   if (hex.length % 2 !== 0) throw new Error("bytesFromHex: odd length");
   const out = new Uint8Array(hex.length / 2);

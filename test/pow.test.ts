@@ -2,11 +2,14 @@ import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import {
   ageSecondsBetween,
+  claimPowHash,
   hashHex,
   leadingZeroBits,
   powHash,
   requiredBits,
   solve,
+  solveClaim,
+  verifyClaimPow,
 } from "../src/pow.js";
 
 test("leadingZeroBits counts bits across bytes", () => {
@@ -44,4 +47,48 @@ test("solve finds a nonce at a low difficulty and the hash matches", async () =>
 test("ageSecondsBetween is positive for now vs earlier baseline", () => {
   const age = ageSecondsBetween("2025-01-01T00:01:00.000Z", "2025-01-01T00:00:00.000Z");
   assert.equal(age, 60);
+});
+
+const CLAIM_INPUT = {
+  canvasId: "canvas-2026-W20",
+  x: 5,
+  y: 12,
+  pubkey: "a".repeat(64),
+};
+
+test("claimPowHash is deterministic across equivalent inputs", async () => {
+  const a = await claimPowHash(CLAIM_INPUT, "2025-01-01T00:00:00.000Z", "42");
+  const b = await claimPowHash(CLAIM_INPUT, "2025-01-01T00:00:00.000Z", "42");
+  assert.deepEqual(Array.from(a), Array.from(b));
+  assert.equal(a.length, 32);
+});
+
+test("claimPowHash differs when any field changes", async () => {
+  const base = await claimPowHash(CLAIM_INPUT, "2025-01-01T00:00:00.000Z", "42");
+  const diffX = await claimPowHash({ ...CLAIM_INPUT, x: 6 }, "2025-01-01T00:00:00.000Z", "42");
+  const diffNonce = await claimPowHash(CLAIM_INPUT, "2025-01-01T00:00:00.000Z", "43");
+  const diffCanvas = await claimPowHash({ ...CLAIM_INPUT, canvasId: "canvas-2026-W21" }, "2025-01-01T00:00:00.000Z", "42");
+  assert.notDeepEqual(Array.from(base), Array.from(diffX));
+  assert.notDeepEqual(Array.from(base), Array.from(diffNonce));
+  assert.notDeepEqual(Array.from(base), Array.from(diffCanvas));
+});
+
+test("solveClaim finds a nonce at low difficulty and verifyClaimPow accepts it", async () => {
+  const baseline = "2025-01-01T00:00:00.000Z";
+  const res = await solveClaim(CLAIM_INPUT, baseline, 8);
+  assert.ok(await verifyClaimPow(CLAIM_INPUT, baseline, res.nonce, 8));
+  const hash = await claimPowHash(CLAIM_INPUT, baseline, res.nonce);
+  assert.equal(hashHex(hash), res.hashHex);
+});
+
+test("verifyClaimPow rejects bad nonce", async () => {
+  const baseline = "2025-01-01T00:00:00.000Z";
+  assert.equal(await verifyClaimPow(CLAIM_INPUT, baseline, "0", 16), false);
+});
+
+test("verifyClaimPow rejects when bits raised above what nonce satisfies", async () => {
+  const baseline = "2025-01-01T00:00:00.000Z";
+  const res = await solveClaim(CLAIM_INPUT, baseline, 8);
+  // Pick a higher bar that's extremely unlikely to be satisfied by an 8-bit nonce.
+  assert.equal(await verifyClaimPow(CLAIM_INPUT, baseline, res.nonce, 24), false);
 });
