@@ -36,7 +36,17 @@ import {
   saveStoredIdentity,
   type StoredIdentity,
 } from "./identity-store.js";
-import { MissingIdentityError, submit } from "./submit.js";
+import {
+  CanvasClaimRejectedError,
+  CanvasCooldownError,
+  MissingIdentityError,
+  TileTakenError,
+  claimTile,
+  submit,
+  type TileClaimRef,
+} from "./submit.js";
+import { mountCanvasBanner, type CanvasBannerHandle } from "./canvas-banner.js";
+import { canvasName, isCanvasIdValid, TILES_PER_SIDE } from "../config/canvases.js";
 
 // Native resolution of the main canvas. 16×35 = 560 — matches the v2
 // editor's max wrap width, so CSS scaling produces clean pixel boundaries.
@@ -46,7 +56,15 @@ const FRAME_THUMB_PIXEL_SIZE = 5;
 const INGEST_URL = import.meta.env.VITE_INGEST_URL ?? "/ingest";
 const STATE_URL = import.meta.env.VITE_STATE_URL ?? "/state/last-publish.json";
 const DRAWING_BASE_URL = import.meta.env.VITE_DRAWING_BASE_URL ?? "";
+const CANVAS_CLAIM_URL = "/canvas/claim";
+const CURRENT_CANVAS_STATE_URL = "/state/current-canvas.json";
 const PUBLISH_DISABLED = truthy(import.meta.env.VITE_DISABLE_PUBLISH);
+
+// Set when the editor loaded via /?c=&x=&y= and a claim has been successfully
+// negotiated with the server. Picked up by handlePublish() to thread the
+// canvas_claim through to /ingest.
+let activeTileClaim: TileClaimRef | null = null;
+let bannerHandle: CanvasBannerHandle | null = null;
 
 function truthy(v: string | undefined): boolean {
   if (!v) return false;
@@ -727,6 +745,7 @@ async function handlePublish(): Promise<void> {
       ingestUrl: INGEST_URL,
       stateUrl: STATE_URL,
       gif,
+      tileClaim: activeTileClaim ?? undefined,
       onPhase: (phase, detail) => setStatus(`${phase}: ${detail}`),
       onProgress: (p) => {
         const rate = (p.hashes / Math.max(1, p.elapsedMs / 1000)).toFixed(0);
@@ -760,6 +779,20 @@ async function handlePublish(): Promise<void> {
       openIdentityBootstrap();
       return;
     }
+    if (err instanceof TileTakenError) {
+      setStatus(`This tile was just taken — pick another from the canvas.`);
+      return;
+    }
+    if (err instanceof CanvasClaimRejectedError) {
+      setStatus(`Canvas publish rejected: ${err.message}`);
+      return;
+    }
+    if (err instanceof CanvasCooldownError) {
+      setStatus(
+        `Cooldown active — wait ${err.retryAfterS}s before publishing to this canvas again.`,
+      );
+      return;
+    }
     setStatus(`Publish failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
@@ -785,6 +818,102 @@ function copyShareLink(): void {
 
 function setStatus(msg: string): void {
   statusEl.textContent = msg;
+}
+
+// -- Canvas banner ---------------------------------------------------------
+
+function parseTileClaimParams(
+  c: string | null,
+  x: string | null,
+  y: string | null,
+): TileClaimRef | null {
+  if (!c || !x || !y) return null;
+  if (!isCanvasIdValid(c)) return null;
+  const xi = Number.parseInt(x, 10);
+  const yi = Number.parseInt(y, 10);
+  if (!Number.isFinite(xi) || !Number.isFinite(yi)) return null;
+  if (xi < 0 || xi >= TILES_PER_SIDE || yi < 0 || yi >= TILES_PER_SIDE) return null;
+  return { canvasId: c, x: xi, y: yi };
+}
+
+function ensureBannerContainer(): HTMLElement {
+  let el = document.getElementById("canvas-banner");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "canvas-banner";
+    const app = document.getElementById("app");
+    if (app?.parentNode) {
+      app.parentNode.insertBefore(el, app);
+    } else {
+      document.body.prepend(el);
+    }
+  }
+  return el;
+}
+
+async function initHomeBanner(): Promise<void> {
+  const container = ensureBannerContainer();
+  try {
+    const res = await fetch(CURRENT_CANVAS_STATE_URL, { cache: "no-store" });
+    if (!res.ok) return;
+    const j = (await res.json()) as {
+      canvas_id: string;
+      name: string;
+      tiles_published: number;
+      tiles_total: number;
+    };
+    bannerHandle = mountCanvasBanner(container, {
+      mode: "home",
+      canvas_id: j.canvas_id,
+      name: j.name,
+      tiles_published: j.tiles_published,
+      tiles_total: j.tiles_total,
+    });
+  } catch {
+    // Best-effort: if no state file, no banner. Editor still works.
+  }
+}
+
+async function initTileClaimBanner(tc: TileClaimRef): Promise<void> {
+  const container = ensureBannerContainer();
+  bannerHandle = mountCanvasBanner(container, {
+    mode: "tile-claim",
+    canvas_id: tc.canvasId,
+    name: canvasName(tc.canvasId),
+    x: tc.x,
+    y: tc.y,
+    phase: "claiming",
+  });
+  try {
+    const claim = await claimTile({
+      canvasId: tc.canvasId,
+      x: tc.x,
+      y: tc.y,
+      stateUrl: `/canvas/${encodeURIComponent(tc.canvasId)}/state`,
+      claimUrl: CANVAS_CLAIM_URL,
+      onPhase: (phase, detail) => setStatus(`Canvas ${phase}: ${detail}`),
+    });
+    activeTileClaim = tc;
+    bannerHandle?.setState({
+      mode: "tile-claim",
+      canvas_id: tc.canvasId,
+      name: canvasName(tc.canvasId),
+      x: tc.x,
+      y: tc.y,
+      phase: "claimed",
+      claim_expires_at: claim.claim_expires_at,
+    });
+  } catch (err) {
+    bannerHandle?.setState({
+      mode: "tile-claim",
+      canvas_id: tc.canvasId,
+      name: canvasName(tc.canvasId),
+      x: tc.x,
+      y: tc.y,
+      phase: "failed",
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 function flashStatus(msg: string): void {
@@ -943,6 +1072,18 @@ async function boot(): Promise<void> {
   }
   renderIdentityBadge();
   if (!identity && !PUBLISH_DISABLED) openIdentityBootstrap();
+
+  // Canvas-aware banner: tile-claim mode if ?c=&x=&y= is present, else home.
+  const params = new URL(location.href).searchParams;
+  const cParam = params.get("c");
+  const xParam = params.get("x");
+  const yParam = params.get("y");
+  const tileClaimRequest = parseTileClaimParams(cParam, xParam, yParam);
+  if (tileClaimRequest) {
+    void initTileClaimBanner(tileClaimRequest);
+  } else {
+    void initHomeBanner();
+  }
 
   const hash = location.hash.match(/#d=([A-Za-z0-9_-]+)/)?.[1];
   const forkId = new URL(location.href).searchParams.get("fork");

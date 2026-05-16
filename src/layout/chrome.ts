@@ -38,6 +38,7 @@ export const IDENTITY_FALLBACK_HREF = "/identity";
  */
 export const NAV_LINKS: readonly NavLink[] = [
   { href: "/gallery", label: "Gallery", id: "gallery" },
+  { href: "/canvases", label: "Canvases", id: "canvases" },
   { href: "/products", label: "Products", id: "products" },
 ];
 
