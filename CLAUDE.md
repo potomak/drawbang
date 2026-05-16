@@ -45,6 +45,8 @@ asset, new tracking script) must consider every entry below.
 | `/pow-test`                    | `pow-test.html` + `src/pow-test.ts`               | Dev test bed (Vite) |
 | `/identity`                    | `identity.html` (Vite-served, chrome via markers) | Fallback for the chrome identity link when localStorage has no pubkey |
 | `/feed.rss`                    | `builder/templates/feed.ts`                       | Builder (RSS, no chrome) |
+| `/canvases`                    | `builder/templates/canvases-archive.ts`           | Builder (archive: current canvas + past) |
+| `/canvases/<canvas-id>`        | `builder/templates/canvas.ts`                     | Builder (16×16 tile grid; live for active, frozen for locked) |
 
 The shared chrome (`src/layout/chrome.ts`, #102) renders the header + footer
 for everything except `/feed.rss` (XML) and `/identity` (no page yet).
@@ -58,6 +60,8 @@ Vite-served pages get the chrome via the `<!--CHROME:HEADER-->` /
 config/               Shared constants + POW difficulty table
   constants.ts        WIDTH=16, HEIGHT=16, MAX_FRAMES=16, PER_PAGE=36, etc.
   pow.json            Difficulty brackets, baseline_grace_s
+  canvases.ts         TILES_PER_SIDE=16, CLAIM_TTL_S=1800, PUBLISH_COOLDOWN_S=900,
+                      ISO-week canvas-id helpers (canvasIdForDate, opens/closes, tileKey).
 
 src/                  Vite + TypeScript editor (ships to GitHub Pages)
   editor/             bitmap, canvas, tools, history, palette, gif
@@ -69,18 +73,35 @@ src/                  Vite + TypeScript editor (ships to GitHub Pages)
   main.ts             Editor UI
 
 ingest/               Shared ingest logic
-  handler.ts          Core logic: validate → content-id → PoW check → write
+  handler.ts          Core logic: validate → content-id → PoW check → write.
+                      Canvas-aware: canvas_claim branch runs BEFORE the
+                      idempotency short-circuit so the same gif can join
+                      multiple canvases.
   gif-validate.ts     GIF89a header check, 16×16, ≤16 frames, DRAWBANG ext
   storage.ts          Storage interface + FsStorage (dev/tests)
   s3-storage.ts       S3Storage (Lambda + daily builder)
-  lambda.ts           API Gateway v2 entry point
-  dev-server.ts       Node HTTP shim for `npm run ingest:dev`
+  canvas-store.ts     DDB wrapper (claimTile, publishTile, getTiles,
+                      cooldownRemaining) + MemoryCanvasStore for dev/tests.
+                      All multi-row writes via TransactWriteItems.
+  canvas-handler.ts   POST /canvas/claim + GET /canvas/{id}/state.
+  lambda.ts           API Gateway v2 entry point — routes /ingest,
+                      /canvas/claim, /canvas/{id}/state.
+  dev-server.ts       Node HTTP shim for `npm run ingest:dev` — uses
+                      MemoryCanvasStore for canvas routes.
 
 builder/              Daily batch job (incremental, day-partitioned)
-  build.ts            Sweeps inbox/, publishes to public/, renders HTML
+  build.ts            Sweeps inbox/, publishes to public/, renders HTML.
+                      Invokes canvas-pass.ts on every run.
+  canvas-pass.ts      Weekly canvas rollover + lock + registry +
+                      current-canvas.json state pointer + canvas/archive page
+                      rendering. Idempotent; self-heals via ingest's lazy
+                      manifest creation if a Monday builder run fails.
   templates/*.ts      Compiled render functions (tagged-literal HTML).
                       Includes products.ts which renders /products.html
-                      from DynamoDB counters joined with config/merch.json.
+                      from DynamoDB counters joined with config/merch.json,
+                      canvas.ts (single-canvas page; active hydrates from
+                      /canvas/{id}/state, locked is frozen), and
+                      canvases-archive.ts.
 
 infra/aws/
   template.yaml       SAM: Lambda + HTTP API + S3 bucket + IAM
@@ -121,6 +142,29 @@ legacy/               Archived Ruby app; read-only reference, never imported
   solvers racing on the same baseline must both succeed. `baselineHistory`
   lives at module scope in `ingest/lambda.ts` — best-effort, per-container.
 - **`public/state/last-publish.json`** is written only by the ingest handler.
+- **Canvas tile state lives in DynamoDB**, never in S3. S3 has no CAS, so
+  two concurrent publishes that read-modify-write a `state.json` will
+  clobber. `drawbang-canvas-tiles` (claims/publishes) and
+  `drawbang-canvas-cooldowns` (per-pubkey-per-canvas) are the sole source
+  of truth; the canvas page hydrates from `GET /canvas/{id}/state`.
+- **Soft-claim TTL is enforced by the conditional write**, not a background
+  job. The tile row stores `claim_expires_at` (epoch); every claim/publish
+  conditional compares it inline against `:now`. DDB TTL (`ttl_epoch`) is
+  for housekeeping after canvases close, not for correctness.
+- **Claim PoW exists**. Without it, a takeover attacker keygens → claims →
+  keygens → claims → … for free. `POST /canvas/claim` requires a PoW over
+  `claim:<canvas_id>:<x>:<y>:<pubkey>:<baseline>:<nonce>` at the same
+  difficulty curve as publish PoW, per-canvas baseline.
+- **`handleIngest` runs canvas_claim BEFORE the idempotency short-circuit.**
+  Drawing ids are content-addressed (`sha256(gif_bytes)`), so the same gif
+  can legitimately appear in multiple canvases. The early-return on
+  `exists(publishedKey)` is gated on `!canvas_claim` — the canvas branch
+  always proceeds to update DDB + the canvases sidecar + drawing page.
+- **Drawing's canvas memberships live in `public/drawings/<id>.canvases.json`**,
+  not in the immutable inbox/day metadata. Each entry attributes the tile
+  use to its `claimed_by`, NOT the original drawing author. The drawing
+  page renders the claimer's pubkey so the original author isn't implicated
+  when key A puts key B's gif in a canvas.
 
 ## Commands
 
@@ -169,6 +213,10 @@ Lambda (runtime, set via SAM):
 - `DRAWBANG_BUCKET` — S3 bucket name.
 - `PUBLIC_BASE_URL` — `https://${cloudfront-domain}`. Goes into `share_url`.
 - `REPO_URL` — for the footer link on the synchronously-rendered drawing page.
+- `DRAWBANG_CANVAS_TILES_TABLE` — DynamoDB table for tile claims (default
+  `drawbang-canvas-tiles`).
+- `DRAWBANG_CANVAS_COOLDOWNS_TABLE` — DynamoDB table for per-pubkey-
+  per-canvas publish cooldowns (default `drawbang-canvas-cooldowns`).
 
 Builder CLI:
 - `DRAWBANG_S3_BUCKET` — if set, uses S3Storage; otherwise FsStorage at `DRAWBANG_BUCKET`.

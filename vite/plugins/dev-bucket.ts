@@ -30,9 +30,22 @@ interface BuilderRoute {
   contentType: string;
 }
 
+const CANVAS_ID = /^canvas-\d{4}-W\d{2}$/;
+
 const BUILDER_ROUTES: BuilderRoute[] = [
   {
     test: (uri) => (uri === "/gallery" ? "gallery.html" : null),
+    contentType: "text/html; charset=utf-8",
+  },
+  {
+    test: (uri) => (uri === "/canvases" ? "canvases.html" : null),
+    contentType: "text/html; charset=utf-8",
+  },
+  {
+    test: (uri) => {
+      const m = uri.match(/^\/canvases\/([^/]+)$/);
+      return m && CANVAS_ID.test(m[1]) ? `canvases/${m[1]}.html` : null;
+    },
     contentType: "text/html; charset=utf-8",
   },
   {

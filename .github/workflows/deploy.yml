@@ -165,6 +165,8 @@ jobs:
               "/" "/index.html" \
               "/gallery" "/gallery.html" "/feed.rss" \
               "/products" "/products.html" "/products/p/*" \
+              "/canvases" "/canvases.html" "/canvases/*" \
+              "/state/current-canvas.json" "/state/canvas/*" \
               "/merch" "/merch.html" \
               "/order.html" "/merch/order/*" \
               "/share" "/share.html" \
