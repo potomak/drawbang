@@ -125,7 +125,8 @@ legacy/               Archived Ruby app; read-only reference, never imported
 ## Commands
 
 ```
-npm run dev            # Vite dev server (editor)
+npm run dev            # Vite dev server (editor only)
+npm run dev:all        # Vite + ingest dev server together — full e2e loop
 npm run build          # tsc -b + vite build -> dist/
 npm run typecheck      # tsc -b --noEmit
 npm test               # node:test across test/**/*.test.ts
@@ -134,6 +135,25 @@ npm run ingest:dev     # Node ingest server on :8787 (FsStorage)
 npm run lambda:build   # esbuild the Lambda → dist-lambda/
 npm run lambda:deploy  # lambda:build + sam deploy
 ```
+
+### Local e2e loop
+
+`npm run dev:all` starts Vite on :5173 and the ingest dev server on :8787 in
+one shell. Together they let you exercise the publish path end-to-end against
+the filesystem:
+
+1. Open http://localhost:5173 — generate an identity if you don't have one.
+2. Draw, then **Publish**. The ingest server writes to `./dev-bucket/`, runs
+   `build()` inline, and logs `[builder] rebuilt in <Xms>`.
+3. Visit `/gallery`, `/d/<id>`, or `/keys/<pubkey>` — the dev-bucket Vite
+   plugin (`vite/plugins/dev-bucket.ts`) serves them from
+   `./dev-bucket/public/` using the same clean-URL rewrites as the prod
+   CloudFront Function.
+
+The Vite config also proxies `/ingest` and `/state/last-publish.json` to
+`:8787`, so the editor's default relative URLs (`VITE_INGEST_URL=/ingest`,
+etc.) work without overrides. The merch / order / products surfaces still
+depend on DynamoDB and Stripe in prod — they're out of scope for local e2e.
 
 Ingest tests do real PoW at 16 bits and can take 30-60s each. Non-ingest tests
 finish in <2s — iterate with: `node --test --import tsx 'test/gif.test.ts' 'test/pow.test.ts' 'test/share.test.ts' 'test/builder.test.ts'`.

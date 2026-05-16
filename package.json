@@ -12,6 +12,7 @@
     "test": "node --test --import tsx 'test/**/*.test.ts'",
     "builder": "tsx builder/build.ts",
     "ingest:dev": "tsx ingest/dev-server.ts",
+    "dev:all": "concurrently -n vite,ingest -c blue,green \"vite\" \"tsx ingest/dev-server.ts\"",
     "lambda:build": "node infra/aws/build-lambda.mjs",
     "lambda:deploy": "npm run lambda:build && (cd infra/aws && sam deploy)"
   },
@@ -20,6 +21,7 @@
     "@types/node": "^22.5.0",
     "@types/pngjs": "^6.0.5",
     "@vitejs/plugin-basic-ssl": "^1.2.0",
+    "concurrently": "^9.2.1",
     "esbuild": "^0.28.0",
     "fake-indexeddb": "^6.2.5",
     "jpeg-js": "^0.4.4",

@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import { resolve } from "node:path";
 import basicSsl from "@vitejs/plugin-basic-ssl";
 import { chromePlugin } from "./vite/plugins/chrome.js";
+import { devBucketPlugin } from "./vite/plugins/dev-bucket.js";
 
 // HTTPS in dev only — Web Crypto (identity keypair generation) needs a
 // secure context, and plain http://<LAN-IP> isn't one. Plugin generates a
@@ -13,6 +14,7 @@ export default defineConfig({
   publicDir: "static",
   plugins: [
     chromePlugin({ repoUrl: process.env.VITE_REPO_URL }),
+    devBucketPlugin(),
     ...(enableHttps ? [basicSsl()] : []),
   ],
   build: {
@@ -35,5 +37,13 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // Forward ingest + last-publish state to the local ingest dev server
+    // (npm run ingest:dev on :8787) so the editor stays on a single origin
+    // and uses its default relative URLs. Mirrors the prod CloudFront
+    // setup where everything appears under one hostname.
+    proxy: {
+      "/ingest": "http://localhost:8787",
+      "/state/last-publish.json": "http://localhost:8787",
+    },
   },
 });
