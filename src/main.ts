@@ -109,10 +109,10 @@ const app = document.getElementById("app")!;
 app.innerHTML = /* html */ `
   <main>
     <div class="ed-actions">
-      <button class="btn" data-action="export-gif">${ICON.download} Download GIF</button>
-      <button class="btn" data-action="share">${ICON.share} Copy share link</button>
       ${PUBLISH_DISABLED ? "" : `<button class="btn" data-action="publish">${ICON.publish} Publish</button>`}
       <button class="btn primary" data-action="make-merch" id="merchBtn" hidden>${ICON.cart} Make merch</button>
+      <button class="btn" data-action="share">${ICON.share} Copy share link</button>
+      <button class="btn" data-action="export-gif">${ICON.download} Download GIF</button>
       <button class="btn ghost" data-action="open-identity" id="identityBtn" hidden>${ICON.key} Key</button>
     </div>
 

@@ -23,7 +23,7 @@ const SAMPLE_DRAWING = {
   solve_ms: 50,
   bench_hps: 100000,
   parent: null,
-  owner: null,
+  author: null,
   repo_url: REPO,
 };
 
@@ -52,6 +52,8 @@ test("day-gallery.ts emits chrome and marks gallery active", () => {
     drawings: [],
     prev_page: null,
     next_page: null,
+    prev_day: null,
+    next_day: null,
     repo_url: REPO,
   });
   assert.match(html, /<header class="hdr">/);
@@ -96,7 +98,7 @@ test("every builder template threads repo_url into the chrome footer", () => {
   const sentinel = "https://example.test/sentinel-repo";
   const surfaces = [
     renderIndex({ today: "x", drawings: [], days: [], repo_url: sentinel }),
-    renderDayGallery({ date: "x", page: 1, total_pages: 1, drawings: [], prev_page: null, next_page: null, repo_url: sentinel }),
+    renderDayGallery({ date: "x", page: 1, total_pages: 1, drawings: [], prev_page: null, next_page: null, prev_day: null, next_day: null, repo_url: sentinel }),
     renderDrawing({ ...SAMPLE_DRAWING, repo_url: sentinel }),
     renderOwner({ pubkey: "b".repeat(64), pubkey_short: "bbbbbbbb", drawings: [], repo_url: sentinel }),
     renderProducts({ page: 1, total_pages: 1, cards: [], prev_page: null, next_page: null, repo_url: sentinel }),

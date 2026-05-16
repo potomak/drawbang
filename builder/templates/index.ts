@@ -20,13 +20,7 @@ export default function renderIndex(v: IndexView): string {
     .join("\n");
   const archive = v.days
     .map(
-      (d) => `        <li>
-          <a class="gal-row" href="/days/${esc(d.date)}/p/1">
-            <span class="gal-row-date">${esc(d.date)}</span>
-            <span class="gal-row-strip" aria-hidden="true"></span>
-            <span class="gal-row-count">${esc(d.count)}</span>
-          </a>
-        </li>`,
+      (d) => `        <li><a href="/days/${esc(d.date)}/p/1">${esc(d.date)}</a> <span class="gal-count">— ${esc(d.count)} ${d.count === 1 ? "drawing" : "drawings"}</span></li>`,
     )
     .join("\n");
   const latestSection = v.drawings.length

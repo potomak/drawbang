@@ -168,11 +168,8 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     id,
     id_short: id.slice(0, 8),
     created_at: nowISO,
-    required_bits: bits,
-    solve_ms: req.solve_ms ?? "unknown",
-    bench_hps: req.bench_hps ?? "unknown",
     parent: req.parent ? { parent: req.parent, parent_short: req.parent.slice(0, 8) } : null,
-    owner: { pubkey: req.pubkey, pubkey_short: req.pubkey.slice(0, 8) },
+    author: { pubkey: req.pubkey, pubkey_short: req.pubkey.slice(0, 8) },
     repo_url: cfg.repoUrl ?? "https://github.com/potomak/drawbang",
   });
   // Cache-Control on every served URL: short for HTML (template tweaks

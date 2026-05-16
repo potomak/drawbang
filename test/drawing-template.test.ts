@@ -6,11 +6,8 @@ const baseView = {
   id: "f".repeat(64),
   id_short: "ffffffff",
   created_at: "2026-05-08T04:24:56.088Z",
-  required_bits: 14,
-  solve_ms: 2,
-  bench_hps: 82335,
   parent: null,
-  owner: { pubkey: "a".repeat(64), pubkey_short: "aaaaaaaa" },
+  author: { pubkey: "a".repeat(64), pubkey_short: "aaaaaaaa" },
   repo_url: "https://github.com/example/drawbang",
 };
 
@@ -35,50 +32,40 @@ test("formatCreatedAt: returns the input verbatim on unparseable strings", () =>
 
 test("drawing page: friendly date is up front", () => {
   const html = renderDrawing(baseView);
-  // v2 surfaces the date as a <dt>/<dd> pair under the meta dl.
   assert.match(
     html,
     /<dt>Created<\/dt>\s*<dd><time datetime="2026-05-08T04:24:56\.088Z">May 8, 2026 · 04:24 UTC<\/time><\/dd>/,
   );
 });
 
-test("drawing page: hash and proof-of-work live inside the Advanced disclosure", () => {
+test("drawing page: short ID renders without trailing ellipsis", () => {
   const html = renderDrawing(baseView);
-  const detailsIdx = html.indexOf('<details class="dr-adv">');
-  const closeIdx = html.indexOf("</details>", detailsIdx);
-  assert.ok(detailsIdx > -1 && closeIdx > detailsIdx, "advanced section missing");
-  const inside = html.slice(detailsIdx, closeIdx);
-  assert.match(inside, /<dt>ID<\/dt><dd><code>f{64}<\/code><\/dd>/);
-  assert.match(inside, /<dt>Minted<\/dt><dd><code>2026-05-08T04:24:56\.088Z<\/code><\/dd>/);
-  assert.match(inside, /<dt>Proof of work<\/dt><dd>14 bits in 2ms \(82335 hps\)<\/dd>/);
-
-  // Nothing technical leaks above the disclosure.
-  const before = html.slice(0, detailsIdx);
-  assert.doesNotMatch(before, /<dt>Minted<\/dt>/);
-  assert.doesNotMatch(before, /Proof of work/);
+  assert.match(html, /<dt>ID<\/dt>\s*<dd><code class="mono-trunc">ffffffff<\/code><\/dd>/);
+  assert.doesNotMatch(html, /ffffffff…/);
 });
 
-test("drawing page: owner link stays in the main flow (above the Advanced disclosure)", () => {
+test("drawing page: no Advanced disclosure / no technical fields", () => {
   const html = renderDrawing(baseView);
-  const ownerIdx = html.indexOf("<dt>Owner</dt>");
-  const detailsIdx = html.indexOf('<details class="dr-adv">');
-  assert.ok(ownerIdx > -1 && detailsIdx > -1);
-  assert.ok(ownerIdx < detailsIdx, "owner link should be above the Advanced disclosure");
+  assert.doesNotMatch(html, /<details/);
+  assert.doesNotMatch(html, /Advanced/);
+  assert.doesNotMatch(html, /Proof of work/);
+  assert.doesNotMatch(html, /Minted/);
 });
 
-test("drawing page: anonymous owner renders without an Advanced section regression", () => {
-  const html = renderDrawing({ ...baseView, owner: null });
-  assert.match(html, /<dt>Owner<\/dt><dd>anonymous<\/dd>/);
-  assert.match(html, /<details class="dr-adv">/);
+test("drawing page: author label (signed)", () => {
+  const html = renderDrawing(baseView);
+  assert.match(html, /<dt>Author<\/dt><dd><a href="\/keys\/a{64}">aaaaaaaa<\/a><\/dd>/);
 });
 
-test("drawing page: parent link (when present) sits in the main flow", () => {
+test("drawing page: author label (anonymous)", () => {
+  const html = renderDrawing({ ...baseView, author: null });
+  assert.match(html, /<dt>Author<\/dt><dd>anonymous<\/dd>/);
+});
+
+test("drawing page: parent link (when present) renders in the meta dl", () => {
   const html = renderDrawing({
     ...baseView,
     parent: { parent: "c".repeat(64), parent_short: "cccccccc" },
   });
-  const parentIdx = html.indexOf("<dt>Parent</dt>");
-  const detailsIdx = html.indexOf('<details class="dr-adv">');
-  assert.ok(parentIdx > -1 && parentIdx < detailsIdx);
-  assert.match(html, /<dd><a href="\/d\/c{64}">cccccccc<\/a><\/dd>/);
+  assert.match(html, /<dt>Parent<\/dt><dd><a href="\/d\/c{64}">cccccccc<\/a><\/dd>/);
 });

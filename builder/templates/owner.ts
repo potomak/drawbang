@@ -19,8 +19,11 @@ export default function renderOwner(v: OwnerView): string {
           </li>`,
     )
     .join("\n");
-  const body = v.drawings.length
-    ? `      <ul class="img-grid">
+  const count = v.drawings.length;
+  const countLabel = `${count} ${count === 1 ? "drawing" : "drawings"}`;
+  const body = count
+    ? `      <p class="page-sub">${esc(countLabel)}</p>
+      <ul class="img-grid">
 ${items}
       </ul>`
     : `      <p class="muted">No drawings published with this key yet.</p>`;
@@ -36,7 +39,6 @@ ${items}
     ${renderHeader({ active: "identity" })}
     <main>
       <h1 class="page-title">Drawings by ${esc(v.pubkey_short)}</h1>
-      <p class="prof-key-text">${esc(v.pubkey)}</p>
 ${body}
     </main>
     ${renderFooter({ active: "identity", repoUrl: v.repo_url })}

@@ -201,31 +201,15 @@ export async function build(opts: BuildOptions): Promise<{
       await opts.storage.put(`public/d/${d.id}.html`, enc.encode(html), "text/html", CC_HTML);
     }
 
-    // Render the day's paginated gallery. Sort newest-first.
-    allForDay.sort((a, b) => b.created_at.localeCompare(a.created_at));
-    const totalPages = Math.max(1, Math.ceil(allForDay.length / PER_PAGE));
-    for (let page = 1; page <= totalPages; page++) {
-      const slice = allForDay.slice((page - 1) * PER_PAGE, page * PER_PAGE);
-      const html = templates.dayGallery({
-        date: day,
-        page,
-        total_pages: totalPages,
-        drawings: slice.map((d) => ({ id: d.id, id_short: d.id.slice(0, 8) })),
-        prev_page: page > 1 ? { prev_page: page - 1, date: day } : null,
-        next_page: page < totalPages ? { next_page: page + 1, date: day } : null,
-        repo_url: repoUrl,
-      });
-      await opts.storage.put(`public/days/${day}/p/${page}.html`, enc.encode(html), "text/html", CC_HTML);
-    }
-    await opts.storage.put(
-      `public/days/${day}/manifest.json`,
-      enc.encode(JSON.stringify({ count: allForDay.length, pages: totalPages })),
-      "application/json",
-      CC_INTERNAL,
-    );
-
     touchedDays.push(day);
   }
+
+  // Render day-gallery pages with cross-day prev/next links. Done after the
+  // main loop so the days list reflects this run's newly-touched days. We
+  // also re-render the predecessor of each touched day so its next_day
+  // link picks up the newcomer — without this the previous day would stay
+  // frozen with next_day=null from whenever it was last rendered.
+  await rebuildDayGalleries(opts, templates, repoUrl, touchedDays);
 
   // Rebuild per-owner galleries (mutable like /gallery.html, not immutable
   // like the day pages). New entries land via newByOwner; on forceRerender
@@ -255,11 +239,8 @@ export function drawingViewModel(d: DrawingMetadata): Omit<DrawingView, "repo_ur
     id: d.id,
     id_short: d.id.slice(0, 8),
     created_at: d.created_at,
-    required_bits: d.required_bits,
-    solve_ms: d.solve_ms ?? "unknown",
-    bench_hps: d.bench_hps ?? "unknown",
     parent: d.parent ? { parent: d.parent, parent_short: d.parent.slice(0, 8) } : null,
-    owner: d.pubkey ? { pubkey: d.pubkey, pubkey_short: d.pubkey.slice(0, 8) } : null,
+    author: d.pubkey ? { pubkey: d.pubkey, pubkey_short: d.pubkey.slice(0, 8) } : null,
   };
 }
 
@@ -269,6 +250,73 @@ function parseJsonl(text: string): DrawingMetadata[] {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => JSON.parse(line) as DrawingMetadata);
+}
+
+async function rebuildDayGalleries(
+  opts: BuildOptions,
+  templates: Templates,
+  repoUrl: string,
+  touchedDays: string[],
+): Promise<void> {
+  if (touchedDays.length === 0) return;
+
+  // Full sorted day list (ascending) — used to look up neighbors.
+  const dayDirs = await opts.storage.listPrefix("public/days");
+  const allDays = [...new Set(
+    dayDirs
+      .map((k) => k.split("/").pop()!)
+      .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)),
+  )].sort();
+
+  const touchedSet = new Set(touchedDays);
+  // Re-render predecessors so their next_day link picks up the newcomer.
+  const toRender = new Set<string>(touchedDays);
+  for (const day of touchedDays) {
+    const idx = allDays.indexOf(day);
+    if (idx > 0) toRender.add(allDays[idx - 1]);
+  }
+
+  for (const day of toRender) {
+    const idx = allDays.indexOf(day);
+    const prevDay = idx > 0 ? allDays[idx - 1] : null;
+    const nextDay = idx >= 0 && idx < allDays.length - 1 ? allDays[idx + 1] : null;
+
+    // Touched days have their drawings already in index.jsonl from the main
+    // loop; predecessor re-renders need to re-load and re-sort.
+    const indexBytes = await opts.storage.getBytes(`public/days/${day}/index.jsonl`);
+    if (!indexBytes) continue;
+    const allForDay = parseJsonl(dec.decode(indexBytes));
+    if (allForDay.length === 0) continue;
+    allForDay.sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+    const totalPages = Math.max(1, Math.ceil(allForDay.length / PER_PAGE));
+    for (let page = 1; page <= totalPages; page++) {
+      const slice = allForDay.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+      const html = templates.dayGallery({
+        date: day,
+        page,
+        total_pages: totalPages,
+        drawings: slice.map((d) => ({ id: d.id, id_short: d.id.slice(0, 8) })),
+        prev_page: page > 1 ? { prev_page: page - 1, date: day } : null,
+        next_page: page < totalPages ? { next_page: page + 1, date: day } : null,
+        prev_day: prevDay,
+        next_day: nextDay,
+        repo_url: repoUrl,
+      });
+      await opts.storage.put(`public/days/${day}/p/${page}.html`, enc.encode(html), "text/html", CC_HTML);
+    }
+
+    // Only touched days rewrite the manifest — predecessor re-renders only
+    // update the HTML; their count/pages haven't changed.
+    if (touchedSet.has(day)) {
+      await opts.storage.put(
+        `public/days/${day}/manifest.json`,
+        enc.encode(JSON.stringify({ count: allForDay.length, pages: totalPages })),
+        "application/json",
+        CC_INTERNAL,
+      );
+    }
+  }
 }
 
 async function rebuildOwners(
