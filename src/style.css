@@ -9,7 +9,7 @@
 :root {
   --font: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
-  --tap: 44px;
+  --tap: 40px;
   --pad: 16px;
   --pad-sm: 8px;
   --border: 1px;
@@ -173,7 +173,7 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
   background: var(--bg-elev);
   color: var(--fg);
   border: var(--border) solid var(--border-c);
-  padding: 0 14px;
+  padding: 0 12px;
   height: var(--tap);
   min-width: var(--tap);
   cursor: pointer;
