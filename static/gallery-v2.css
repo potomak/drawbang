@@ -92,6 +92,8 @@ a:hover { text-decoration-thickness: 2px; }
 }
 @media (max-width: 767px) {
   .chrome-menu-toggle { display: inline-flex; align-items: center; }
+  .hdr { padding: 10px 14px; gap: 12px; }
+  .hdr-logo, .hdr-logo svg { height: 16px; }
   .hdr-nav {
     display: none;
     position: absolute;
@@ -120,10 +122,6 @@ a:hover { text-decoration-thickness: 2px; }
 }
 @media (min-width: 768px) {
   .chrome-menu-toggle { display: none; }
-}
-@media (max-width: 640px) {
-  .hdr { padding: 10px 14px; gap: 12px; }
-  .hdr-logo, .hdr-logo svg { height: 16px; }
 }
 
 /* ===== Footer ===== */
