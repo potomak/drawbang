@@ -149,6 +149,10 @@ Resources:
             req.uri = uri + ".html";
           } else if (uri === "/identity") {
             req.uri = "/identity.html";
+          } else if (uri === "/canvases") {
+            req.uri = "/canvases.html";
+          } else if (/^\/canvases\/canvas-\d{4}-W\d{2}$/.test(uri)) {
+            req.uri = uri + ".html";
           }
           return req;
         }
@@ -204,6 +208,18 @@ Resources:
             AllowedMethods: [GET, HEAD]
             CachedMethods: [GET, HEAD]
             # Managed CachingDisabled.
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          - PathPattern: /state/current-canvas.json
+            TargetOriginId: assets
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          - PathPattern: /state/canvas/*
+            TargetOriginId: assets
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
         Aliases: !If [HasCustomDomain, [!Ref DomainName], !Ref AWS::NoValue]
         ViewerCertificate: !If
@@ -278,6 +294,48 @@ Resources:
             - { AttributeName: count, KeyType: RANGE }
           Projection: { ProjectionType: ALL }
 
+  # -- Canvas DDB tables ------------------------------------------------------
+  # Sole source of truth for weekly collaborative canvas tile claims and
+  # publishes. S3 has no CAS, so we use DDB conditional writes for tile
+  # ownership and TransactWriteItems for the atomic publish-tile + cooldown
+  # update. See docs/canvas-plan.md.
+  CanvasTilesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: drawbang-canvas-tiles
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: canvas_id, AttributeType: S }
+        - { AttributeName: tile_key,  AttributeType: S }
+      KeySchema:
+        - { AttributeName: canvas_id, KeyType: HASH }
+        - { AttributeName: tile_key,  KeyType: RANGE }
+      # ttl_epoch on abandoned-claim rows lets DDB sweep them away well after
+      # the canvas closes. Correctness for active claims still lives in the
+      # conditional write (compares claim_expires_at inline), so we set TTL
+      # to claim_expires_at + 7d in the writer, not to claim_expires_at.
+      TimeToLiveSpecification:
+        AttributeName: ttl_epoch
+        Enabled: true
+
+  # Per-pubkey-per-canvas cooldown timestamps. Used inside TransactWriteItems
+  # alongside the publish-tile update so cooldown enforcement is atomic with
+  # the publish itself. TTL purges rows after the canvas closes.
+  CanvasCooldownsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: drawbang-canvas-cooldowns
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: pubkey,    AttributeType: S }
+        - { AttributeName: canvas_id, AttributeType: S }
+      KeySchema:
+        - { AttributeName: pubkey,    KeyType: HASH }
+        - { AttributeName: canvas_id, KeyType: RANGE }
+      TimeToLiveSpecification:
+        AttributeName: ttl_epoch
+        Enabled: true
+
   # -- Ingest Lambda + API Gateway --------------------------------------------
 
   IngestFunction:
@@ -294,10 +352,14 @@ Resources:
             - !Sub "https://${DomainName}"
             - !Sub "https://${AssetsDistribution.DomainName}"
           REPO_URL: !Ref RepoUrl
+          DRAWBANG_CANVAS_TILES_TABLE: !Ref CanvasTilesTable
+          DRAWBANG_CANVAS_COOLDOWNS_TABLE: !Ref CanvasCooldownsTable
           NODE_OPTIONS: "--enable-source-maps"
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
+        - DynamoDBCrudPolicy: { TableName: !Ref CanvasTilesTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref CanvasCooldownsTable }
       Events:
         Ingest:
           Type: HttpApi
@@ -305,6 +367,18 @@ Resources:
             ApiId: !Ref IngestApi
             Method: POST
             Path: /ingest
+        CanvasClaim:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: POST
+            Path: /canvas/claim
+        CanvasState:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /canvas/{id}/state
 
   IngestApi:
     Type: AWS::Serverless::HttpApi
@@ -408,6 +482,12 @@ Outputs:
   ProductCountersTableName:
     Description: DynamoDB table for (drawing_id, product_id) order counts. Read by the builder for /products.
     Value: !Ref ProductCountersTable
+  CanvasTilesTableName:
+    Description: DynamoDB table for canvas tile claims/publishes. Source of truth for /canvases.
+    Value: !Ref CanvasTilesTable
+  CanvasCooldownsTableName:
+    Description: DynamoDB table for per-pubkey-per-canvas publish cooldowns.
+    Value: !Ref CanvasCooldownsTable
   IngestEndpoint:
     Description: POST here with the IngestRequest body.
     Value: !Sub "https://${IngestApi}.execute-api.${AWS::Region}.amazonaws.com/ingest"
