@@ -1,0 +1,147 @@
+import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
+import { TILES_PER_SIDE } from "../../config/canvases.js";
+import { esc } from "./_escape.js";
+
+export interface CanvasTileView {
+  x: number;
+  y: number;
+  drawing_id?: string;
+  claimed_by?: string;
+  claim_expires_at?: number;
+}
+
+export interface CanvasView {
+  id: string;
+  name: string;
+  opens_at: string;
+  closes_at: string;
+  locked: boolean;
+  // Baked tile state — empty array on a fresh canvas. For active canvases we
+  // additionally include a small client script that hydrates from
+  // /canvas/{id}/state so the page stays live without rebuilding.
+  tiles: CanvasTileView[];
+  state_url: string;
+  repo_url: string;
+}
+
+export default function renderCanvas(v: CanvasView): string {
+  const byKey = new Map<string, CanvasTileView>();
+  for (const t of v.tiles) byKey.set(`${t.x},${t.y}`, t);
+
+  const cells: string[] = [];
+  for (let y = 0; y < TILES_PER_SIDE; y++) {
+    for (let x = 0; x < TILES_PER_SIDE; x++) {
+      cells.push(renderTile(v.id, v.locked, x, y, byKey.get(`${x},${y}`)));
+    }
+  }
+
+  const status = v.locked
+    ? `<span class="badge locked">Locked</span>`
+    : `<span class="badge active">Active</span>`;
+
+  // The hydration script only ships on active canvases. Locked canvases
+  // render purely server-side and never change.
+  const hydrate = v.locked
+    ? ""
+    : `<script>
+(async function () {
+  try {
+    const res = await fetch(${JSON.stringify(v.state_url)});
+    if (!res.ok) return;
+    const state = await res.json();
+    const grid = document.getElementById("canvas-grid");
+    if (!grid) return;
+    const tiles = state.tiles || [];
+    for (const t of tiles) {
+      const cell = grid.querySelector('[data-tile="' + t.x + ',' + t.y + '"]');
+      if (!cell) continue;
+      if (t.drawing_id) {
+        cell.innerHTML = '<a href="/d/' + t.drawing_id + '"><img src="/drawings/' + t.drawing_id + '.gif" alt="tile (' + t.x + ',' + t.y + ')" loading="lazy" /></a>';
+        cell.dataset.state = "published";
+      } else if (t.claimed_by) {
+        cell.innerHTML = '<span class="cv-claimed" title="claimed by ' + t.claimed_by.slice(0, 8) + '">claimed</span>';
+        cell.dataset.state = "claimed";
+      }
+    }
+    const status = document.querySelector('[data-canvas-progress]');
+    if (status) {
+      const published = tiles.filter(function (t) { return t.drawing_id; }).length;
+      status.textContent = published + ' / ${TILES_PER_SIDE * TILES_PER_SIDE} tiles';
+    }
+  } catch (e) {
+    // Hydration failures are non-fatal — the baked grid still renders.
+  }
+})();
+</script>`;
+
+  const progress = v.locked
+    ? `${countPublished(v.tiles)} / ${TILES_PER_SIDE * TILES_PER_SIDE} tiles · final`
+    : `${countPublished(v.tiles)} / ${TILES_PER_SIDE * TILES_PER_SIDE} tiles`;
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Draw! · ${esc(v.name)}</title>
+    <link rel="stylesheet" href="/gallery-v2.css" />
+    <style>
+      .cv-grid{display:grid;grid-template-columns:repeat(${TILES_PER_SIDE},32px);grid-template-rows:repeat(${TILES_PER_SIDE},32px);gap:1px;background:#222;padding:1px;width:max-content;margin:1rem 0;}
+      .cv-cell{background:#111;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#666;}
+      .cv-cell img{width:32px;height:32px;image-rendering:pixelated;display:block;}
+      .cv-cell a{display:block;width:32px;height:32px;}
+      .cv-cell[data-state="open"] a{text-decoration:none;color:#888;}
+      .cv-cell[data-state="open"]:hover{outline:1px solid #fff;}
+      .cv-cell[data-state="claimed"]{background:#332;color:#aa8;}
+      .cv-claimed{display:block;text-align:center;font-size:8px;line-height:32px;}
+      .badge{font-size:11px;padding:2px 6px;border-radius:3px;}
+      .badge.active{background:#063;color:#cfd;}
+      .badge.locked{background:#522;color:#fdc;}
+      .cv-meta{margin:0.5rem 0 0;color:#888;font-size:13px;}
+    </style>
+  </head>
+  <body>
+    ${renderHeader({ active: "canvases" })}
+    <main>
+      <h1 class="page-title">${esc(v.name)} ${status}</h1>
+      <p class="cv-meta"><time datetime="${esc(v.opens_at)}">${esc(v.opens_at.slice(0, 10))}</time> → <time datetime="${esc(v.closes_at)}">${esc(v.closes_at.slice(0, 10))}</time> · <span data-canvas-progress>${esc(progress)}</span></p>
+      <div id="canvas-grid" class="cv-grid" data-canvas-id="${esc(v.id)}">
+${cells.join("\n")}
+      </div>
+    </main>
+    ${renderFooter({ active: "canvases", repoUrl: v.repo_url })}
+    ${hydrate}
+  </body>
+</html>
+`;
+}
+
+function countPublished(tiles: CanvasTileView[]): number {
+  return tiles.filter((t) => t.drawing_id).length;
+}
+
+function renderTile(
+  canvasId: string,
+  locked: boolean,
+  x: number,
+  y: number,
+  tile: CanvasTileView | undefined,
+): string {
+  const anchor = `tile-${x}-${y}`;
+  const dataAttr = `data-tile="${x},${y}"`;
+
+  if (tile?.drawing_id) {
+    return `        <div id="${anchor}" class="cv-cell" ${dataAttr} data-state="published"><a href="/d/${esc(tile.drawing_id)}"><img src="/drawings/${esc(tile.drawing_id)}.gif" alt="tile (${x},${y})" loading="lazy" /></a></div>`;
+  }
+
+  if (locked) {
+    // Locked + empty: never claimed before close. Show a dot, no interactivity.
+    return `        <div id="${anchor}" class="cv-cell" ${dataAttr} data-state="empty">·</div>`;
+  }
+
+  if (tile?.claimed_by) {
+    return `        <div id="${anchor}" class="cv-cell" ${dataAttr} data-state="claimed"><span class="cv-claimed" title="claimed">claimed</span></div>`;
+  }
+
+  return `        <div id="${anchor}" class="cv-cell" ${dataAttr} data-state="open"><a href="/?c=${esc(canvasId)}&amp;x=${x}&amp;y=${y}" aria-label="Claim tile (${x}, ${y})">+</a></div>`;
+}

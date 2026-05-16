@@ -1,5 +1,7 @@
 import { PER_PAGE } from "../config/constants.js";
 import type { Storage } from "../ingest/storage.js";
+import type { CanvasStore } from "../ingest/canvas-store.js";
+import { canvasPass } from "./canvas-pass.js";
 import { validateGif } from "../ingest/gif-validate.js";
 import type { MerchCatalog } from "../merch/lambda.js";
 import type { ProductCounter } from "../merch/product-counters.js";
@@ -39,6 +41,9 @@ export interface BuildOptions {
   // For relative-time labels on product cards ("3 days ago"). Defaults to
   // wall-clock now; tests inject for determinism.
   now?: () => Date;
+  // Optional: enables the canvas pass to read live tile state. Without it,
+  // /state/current-canvas.json still gets a fresh manifest + zero counts.
+  canvasStore?: CanvasStore;
 }
 
 export const DEFAULT_TEMPLATES: Templates = {
@@ -221,6 +226,14 @@ export async function build(opts: BuildOptions): Promise<{
 
   // Rebuild /products gallery if a counter source is wired up.
   await rebuildProducts(opts, templates, repoUrl);
+
+  // Canvas pass: rollover + lock + state pointer + canvas/archive pages.
+  await canvasPass({
+    storage: opts.storage,
+    canvasStore: opts.canvasStore,
+    now: opts.now ? opts.now() : new Date(),
+    repoUrl,
+  });
 
   return { sweptDrawings: sweptCount, touchedDays };
 }
