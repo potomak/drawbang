@@ -62,6 +62,15 @@ test("shareToSvg: rejects garbage input", () => {
   assert.throws(() => shareToSvg("not a share link!"), /could not extract share code/);
 });
 
+test("shareToSvg: mono mode wraps colored rects in <g fill=…> and drops per-rect fills", () => {
+  const { share } = tinyDrawing();
+  const svg = shareToSvg(share, { mono: "currentColor" });
+  assert.match(svg, /<g fill="currentColor">/);
+  assert.ok(svg.includes(`<rect x="0" y="0" width="1" height="1"/>`));
+  assert.ok(svg.includes(`<rect x="1" y="0" width="1" height="1"/>`));
+  assert.doesNotMatch(svg, /<rect[^>]*fill="#/);
+});
+
 test("shareToSvg: renders only the first frame", () => {
   // Frame 0: single pixel at (0,0). Frame 1: single pixel at (15,15).
   // SVG output must reflect frame 0 only.

@@ -7,6 +7,12 @@ export interface ShareToSvgOptions {
   size?: number;
   /** Fill for transparent pixels. Omit for a transparent background. */
   background?: string | null;
+  /**
+   * Icon mode: ignore per-pixel palette colors and emit every colored
+   * pixel under a single <g fill="..."> wrapper. Pass "currentColor" to
+   * inherit the surrounding text color (useful for UI icons).
+   */
+  mono?: string | null;
 }
 
 /**
@@ -21,25 +27,31 @@ export function shareToSvg(input: string, opts: ShareToSvgOptions = {}): string 
   const frame = frames[0];
   const hex = activePaletteToHex(activePalette);
   const size = opts.size ?? frame.width;
+  const mono = opts.mono ?? null;
 
-  const parts: string[] = [];
+  const head: string[] = [];
   if (opts.background != null) {
-    parts.push(
+    head.push(
       `<rect width="${frame.width}" height="${frame.height}" fill="${opts.background}"/>`,
     );
   }
+  const rects: string[] = [];
   for (let y = 0; y < frame.height; y++) {
     for (let x = 0; x < frame.width; x++) {
       const v = frame.get(x, y);
       if (v === TRANSPARENT) continue;
-      parts.push(`<rect x="${x}" y="${y}" width="1" height="1" fill="${hex[v]}"/>`);
+      // In mono mode the per-rect fill is dropped — the surrounding <g>
+      // carries it once for the whole shape.
+      const fillAttr = mono ? "" : ` fill="${hex[v]}"`;
+      rects.push(`<rect x="${x}" y="${y}" width="1" height="1"${fillAttr}/>`);
     }
   }
+  const body = mono ? `<g fill="${mono}">${rects.join("")}</g>` : rects.join("");
   return (
     `<svg xmlns="http://www.w3.org/2000/svg"` +
     ` viewBox="0 0 ${frame.width} ${frame.height}"` +
     ` width="${size}" height="${size}"` +
-    ` shape-rendering="crispEdges">${parts.join("")}</svg>`
+    ` shape-rendering="crispEdges">${head.join("")}${body}</svg>`
   );
 }
 

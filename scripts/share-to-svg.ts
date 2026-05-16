@@ -9,6 +9,7 @@ function main(argv: string[]): void {
   let input: string | undefined;
   let size: number | undefined;
   let background: string | undefined;
+  let mono: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
@@ -19,6 +20,8 @@ function main(argv: string[]): void {
       }
     } else if (a === "--background") {
       background = args[++i];
+    } else if (a === "--mono") {
+      mono = args[++i];
     } else if (a === "--help" || a === "-h") {
       printHelp();
       return;
@@ -34,15 +37,17 @@ function main(argv: string[]): void {
     process.exit(1);
   }
 
-  const svg = shareToSvg(input, { size, background });
+  const svg = shareToSvg(input, { size, background, mono });
   process.stdout.write(svg + "\n");
 }
 
 function printHelp(): void {
   process.stdout.write(
-    "Usage: tsx scripts/share-to-svg.ts <share-link-or-code> [--size N] [--background COLOR]\n" +
+    "Usage: tsx scripts/share-to-svg.ts <share-link-or-code> [--size N] [--background COLOR] [--mono COLOR]\n" +
       "  --size N           SVG width/height in CSS px (default: 16, same as the bitmap)\n" +
-      "  --background COLOR Fill transparent pixels with COLOR (default: leave transparent)\n",
+      "  --background COLOR Fill transparent pixels with COLOR (default: leave transparent)\n" +
+      "  --mono COLOR       Icon mode: drop per-pixel palette colors, fill every colored\n" +
+      "                     pixel with COLOR (e.g. currentColor) via a single <g> wrapper.\n",
   );
 }
 
