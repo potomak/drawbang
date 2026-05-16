@@ -240,9 +240,6 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
   gap: 16px;
   align-items: start;
 }
-@media (max-width: 900px) {
-  .ed-grid { grid-template-columns: 1fr; }
-}
 
 .ed-tools {
   display: grid;
@@ -252,20 +249,22 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
   background: var(--bg-elev);
   border: var(--border) solid var(--border-c);
 }
-@media (max-width: 900px) {
-  .ed-tools { grid-template-columns: repeat(5, 1fr); justify-content: start; width: 100%; }
-  .ed-tools .btn.icon { width: 100%; }
-}
 
 .ed-tool { width: var(--tap); height: var(--tap); }
 
-.ed-center { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.ed-center {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  min-width: 0;
+  align-items: flex-start;
+}
 .ed-canvas-wrap {
   width: 100%;
   max-width: 320px;
-  margin: 0 auto;
   border: var(--border) solid var(--border-c);
   background: var(--canvas-bg);
+  flex: 0 0 auto;
 }
 #main, .ed-canvas {
   display: block;
@@ -286,9 +285,21 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
   padding: 8px;
   border: var(--border) solid var(--border-c);
   background: var(--bg-elev);
-  max-width: 320px;
-  margin: 0 auto;
   width: 100%;
+  max-width: 320px;
+  flex: 0 1 auto;
+}
+
+/* Single editor breakpoint, matched to the menu-collapse width (767px).
+   Below that the tools become a horizontal bar, canvas and palette stack
+   vertically, and both fill the available screen width. */
+@media (max-width: 767px) {
+  .ed-grid { grid-template-columns: 1fr; }
+  .ed-tools { grid-template-columns: repeat(5, 1fr); justify-content: start; width: 100%; }
+  .ed-tools .btn.icon { width: 100%; }
+  .ed-center { flex-direction: column; }
+  .ed-canvas-wrap { max-width: none; }
+  .ed-palette-wrap { max-width: none; }
 }
 .ed-palette {
   flex: 1;
@@ -505,7 +516,7 @@ dialog form menu button:hover { border-color: var(--border-strong); }
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 0;
-  max-width: 100%;
+  max-width: calc(6 * 320px);
   list-style: none;
   padding: 0;
   margin: 0;

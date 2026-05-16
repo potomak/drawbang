@@ -185,6 +185,7 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; width: 100%; 
   list-style: none;
   padding: 0;
   margin: 0;
+  max-width: calc(6 * 320px);
 }
 .img-grid li { display: block; aspect-ratio: 1; background: var(--canvas-bg); overflow: hidden; position: relative; }
 .img-grid a { display: block; height: 100%; }
