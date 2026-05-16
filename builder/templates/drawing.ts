@@ -1,6 +1,19 @@
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { esc } from "./_escape.js";
 
+export interface DrawingCanvasMembership {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  // The pubkey that claimed *this* tile use, which may differ from the
+  // drawing author. Rendering attributes the canvas use to claimed_by so the
+  // original author isn't implicated when key A puts key B's drawing in a
+  // canvas.
+  claimed_by: string;
+  claimed_by_short: string;
+}
+
 export interface DrawingView {
   id: string;
   id_short: string;
@@ -10,6 +23,7 @@ export interface DrawingView {
   // "anonymous" with no link. The operator backfill (#90) signs them with
   // the operator's keypair so this becomes uniform across the corpus.
   author: { pubkey: string; pubkey_short: string } | null;
+  canvases?: DrawingCanvasMembership[];
   repo_url: string;
 }
 
@@ -41,6 +55,15 @@ export default function renderDrawing(v: DrawingView): string {
   const authorBlock = v.author
     ? `<dt>Author</dt><dd><a href="/keys/${esc(v.author.pubkey)}">${esc(v.author.pubkey_short)}</a></dd>`
     : `<dt>Author</dt><dd>anonymous</dd>`;
+  const canvases = v.canvases ?? [];
+  const canvasesBlock = canvases.length > 0
+    ? `<dt>Canvases</dt><dd><ul class="dr-canvases">${canvases
+        .map(
+          (c) =>
+            `<li><a href="/canvases/${esc(c.id)}#tile-${c.x}-${c.y}">${esc(c.name)}</a> tile (${c.x}, ${c.y}) — by <a href="/keys/${esc(c.claimed_by)}">${esc(c.claimed_by_short)}</a></li>`,
+        )
+        .join("")}</ul></dd>`
+    : "";
   const created = formatCreatedAt(v.created_at);
   return `<!doctype html>
 <html lang="en">
@@ -64,6 +87,7 @@ export default function renderDrawing(v: DrawingView): string {
             <dd><time datetime="${esc(v.created_at)}">${esc(created)}</time></dd>
             ${authorBlock}
             ${parentBlock}
+            ${canvasesBlock}
             <dt>ID</dt>
             <dd><code class="mono-trunc">${esc(v.id_short)}</code></dd>
           </dl>

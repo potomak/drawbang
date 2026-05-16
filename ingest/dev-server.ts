@@ -3,7 +3,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promises as fs } from "node:fs";
 import { handleIngest } from "./handler.js";
+import {
+  handleCanvasClaim,
+  handleCanvasState,
+} from "./canvas-handler.js";
 import { FsStorage } from "./storage.js";
+import { MemoryCanvasStore } from "./canvas-store.js";
 import { build } from "../builder/build.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -12,6 +17,8 @@ const PORT = Number(process.env.PORT ?? 8787);
 const PUBLIC_BASE = process.env.PUBLIC_BASE ?? "http://localhost:5173";
 
 const storage = new FsStorage(ROOT);
+const canvasStore = new MemoryCanvasStore();
+const canvasBaselineHistory = new Map<string, string[]>();
 
 // Inline rebuild after every successful ingest. The builder is incremental
 // and FsStorage is local, so the round-trip is well under a second on a
@@ -59,6 +66,7 @@ const server = http.createServer(async (req, res) => {
       const result = await handleIngest(parsed, {
         storage,
         publicBaseUrl: PUBLIC_BASE,
+        canvasStore,
       });
       json(res, result.status, result.body);
       // 202 = newly accepted, 200 = idempotent retry of an existing
@@ -80,6 +88,61 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET" && req.url === "/state/current-canvas.json") {
+      const body = await fs.readFile(path.join(ROOT, "public/state/current-canvas.json")).catch(() => null);
+      if (!body) {
+        // No state file yet — run the builder once so the banner has data.
+        await rebuildAfterPublish();
+        const retry = await fs.readFile(path.join(ROOT, "public/state/current-canvas.json")).catch(() => null);
+        if (retry) {
+          res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+          res.end(retry);
+          return;
+        }
+        res.statusCode = 404;
+        res.end("not found");
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+      res.end(body);
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/canvas/claim") {
+      const body = await readBody(req);
+      let parsed: any;
+      try {
+        parsed = JSON.parse(body);
+      } catch {
+        json(res, 400, { error: "bad json" });
+        return;
+      }
+      const result = await handleCanvasClaim(parsed, {
+        storage,
+        canvasStore,
+        publicBaseUrl: PUBLIC_BASE,
+        baselineHistory: canvasBaselineHistory,
+      });
+      jsonWithHeaders(res, result.status, result.body, result.headers);
+      if (result.status === 201) {
+        await rebuildAfterPublish();
+      }
+      return;
+    }
+
+    if (req.method === "GET" && req.url) {
+      const m = req.url.match(/^\/canvas\/([^\/]+)\/state$/);
+      if (m) {
+        const result = await handleCanvasState(m[1], {
+          storage,
+          canvasStore,
+          publicBaseUrl: PUBLIC_BASE,
+        });
+        jsonWithHeaders(res, result.status, result.body, result.headers);
+        return;
+      }
+    }
+
     res.writeHead(404);
     res.end("not found");
   } catch (err) {
@@ -96,6 +159,19 @@ function cors(res: http.ServerResponse): void {
 
 function json(res: http.ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "Content-Type": "application/json" });
+  res.end(JSON.stringify(body));
+}
+
+function jsonWithHeaders(
+  res: http.ServerResponse,
+  status: number,
+  body: unknown,
+  headers?: Record<string, string>,
+): void {
+  res.writeHead(status, {
+    "Content-Type": "application/json",
+    ...(headers ?? {}),
+  });
   res.end(JSON.stringify(body));
 }
 
