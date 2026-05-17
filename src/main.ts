@@ -380,27 +380,17 @@ function setLastPublishedId(id: string | null): void {
   lastPublishedId = id;
 }
 
-function isCanvasEmpty(): boolean {
-  return state.frames.every((f) => f.data.every((v) => v === TRANSPARENT));
-}
-
-async function openMerch(): Promise<void> {
-  if (isCanvasEmpty()) {
+function openMerch(): void {
+  if (!lastPublishedId) {
     showFlash({
       kind: "info",
-      message: "Draw something first.",
+      message: "Publish your drawing first.",
       autoDismissMs: 5000,
     });
     return;
   }
-  // Capture the frame the user is currently viewing before handlePublish's
-  // resetEditor wipes state.current back to 0.
-  const frame = state.current;
-  if (!lastPublishedId) {
-    await handlePublish();
-    if (!lastPublishedId) return; // publish failed (error flash already shown)
-  }
   const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "/");
+  const frame = state.current;
   location.assign(
     `${base}merch?d=${encodeURIComponent(lastPublishedId)}&frame=${frame}`,
   );
@@ -1021,7 +1011,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>
       case "export-gif": stopPlay(); downloadGif(); break;
       case "share": stopPlay(); copyShareLink(); break;
       case "publish": stopPlay(); void handlePublish(); break;
-      case "make-merch": stopPlay(); void openMerch(); break;
+      case "make-merch": stopPlay(); openMerch(); break;
       case "open-identity": openIdentitySettings(); break;
       case "identity-generate": void handleGenerateFromBootstrap(); break;
       case "identity-copy": void copyPubkey(); break;
