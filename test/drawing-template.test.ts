@@ -69,3 +69,20 @@ test("drawing page: parent link (when present) renders in the meta dl", () => {
   });
   assert.match(html, /<dt>Parent<\/dt><dd><a href="\/d\/c{64}">cccccccc<\/a><\/dd>/);
 });
+
+test("drawing page: hidden children placeholders ship on every drawing", () => {
+  const html = renderDrawing(baseView);
+  // Both <dt> and <dd> are present and start hidden — the inline script
+  // unhides them on successful hydration.
+  assert.match(html, /<dt id="dr-children-dt" hidden>Children<\/dt>/);
+  assert.match(html, /<dd id="dr-children-dd" hidden><\/dd>/);
+});
+
+test("drawing page: hydration script fetches /drawings/<id>.children.json", () => {
+  const html = renderDrawing(baseView);
+  assert.match(html, /<script>/);
+  // The id is JSON-stringified into the script so the fetch URL is built
+  // safely client-side.
+  assert.match(html, new RegExp(`"${"f".repeat(64)}"`));
+  assert.match(html, /\.children\.json/);
+});

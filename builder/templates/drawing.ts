@@ -88,6 +88,8 @@ export default function renderDrawing(v: DrawingView): string {
             ${authorBlock}
             ${parentBlock}
             ${canvasesBlock}
+            <dt id="dr-children-dt" hidden>Children</dt>
+            <dd id="dr-children-dd" hidden></dd>
             <dt>ID</dt>
             <dd><code class="mono-trunc">${esc(v.id_short)}</code></dd>
           </dl>
@@ -102,6 +104,31 @@ export default function renderDrawing(v: DrawingView): string {
       </div>
     </main>
     ${renderFooter({ active: "gallery", repoUrl: v.repo_url })}
+    <script>
+(async function () {
+  try {
+    const id = ${JSON.stringify(v.id)};
+    const res = await fetch('/drawings/' + id + '.children.json', { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    const children = (data && data.children) || [];
+    if (children.length === 0) return;
+    const dt = document.getElementById('dr-children-dt');
+    const dd = document.getElementById('dr-children-dd');
+    if (!dt || !dd) return;
+    var items = '';
+    for (var i = 0; i < children.length; i++) {
+      var c = children[i];
+      items += '<li><a href="/d/' + c.id + '">' + c.id_short + '</a> · by <a href="/keys/' + c.pubkey + '">' + c.pubkey_short + '</a></li>';
+    }
+    dd.innerHTML = '<ul class="dr-children">' + items + '</ul>';
+    dt.hidden = false;
+    dd.hidden = false;
+  } catch (e) {
+    // Non-fatal — parent page renders without the children section.
+  }
+})();
+    </script>
   </body>
 </html>
 `;

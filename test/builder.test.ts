@@ -246,5 +246,9 @@ test("builder writes null pubkey + signature for legacy inbox sidecars (pre-feat
   // Legacy drawing renders the 'anonymous' fallback (no /keys/ link).
   const drawingHtml = await fs.readFile(path.join(root, `public/d/${id}.html`), "utf8");
   assert.match(drawingHtml, /<dt>Author<\/dt><dd>anonymous<\/dd>/);
-  assert.equal(/href="\/keys\//.test(drawingHtml), false);
+  // Strip <script> blocks first — the children-hydration script contains
+  // the literal string href="/keys/..." as part of its DOM-building
+  // template, but no actual anchor element is rendered.
+  const sansScripts = drawingHtml.replace(/<script>[\s\S]*?<\/script>/g, "");
+  assert.equal(/href="\/keys\//.test(sansScripts), false);
 });
