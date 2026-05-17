@@ -111,6 +111,52 @@ async function appendCanvasMembership(
   return filtered;
 }
 
+export interface ChildEntry {
+  id: string;
+  id_short: string;
+  pubkey: string;
+  pubkey_short: string;
+  created_at: string;
+}
+
+interface ChildrenFile {
+  drawing_id: string;
+  children: ChildEntry[];
+}
+
+function childrenFileKey(id: string): string {
+  return `public/drawings/${id}.children.json`;
+}
+
+async function loadChildren(
+  storage: Storage,
+  id: string,
+): Promise<ChildEntry[]> {
+  const f = await storage.getJSON<ChildrenFile>(childrenFileKey(id));
+  return f?.children ?? [];
+}
+
+async function appendChild(
+  storage: Storage,
+  parentId: string,
+  entry: ChildEntry,
+): Promise<ChildEntry[]> {
+  const existing = await loadChildren(storage, parentId);
+  // De-dupe by child id so a re-publish of the same fork doesn't grow the
+  // parent's list. The drawing id is content-addressed, so byte-identical
+  // re-forks collapse onto one entry.
+  const filtered = existing.filter((e) => e.id !== entry.id);
+  filtered.push(entry);
+  const payload: ChildrenFile = { drawing_id: parentId, children: filtered };
+  await storage.put(
+    childrenFileKey(parentId),
+    new TextEncoder().encode(JSON.stringify(payload)),
+    "application/json",
+    "no-store",
+  );
+  return filtered;
+}
+
 // Stateful per-instance list of accepted baselines, used as a rolling grace
 // window so concurrent solvers racing on the same baseline both succeed.
 const defaultBaselineHistory: string[] = [];
@@ -275,6 +321,24 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
         "public, max-age=31536000, immutable",
       ),
     ]);
+  }
+
+  // -- 7b. Fork lineage: append this drawing to the parent's children list.
+  // Hidden by default in the parent page; hydrated client-side from the
+  // sidecar so the frozen, server-rendered parent HTML never needs to be
+  // re-written when a new fork lands.
+  if (
+    typeof req.parent === "string" &&
+    /^[0-9a-f]{64}$/.test(req.parent) &&
+    req.parent !== id
+  ) {
+    await appendChild(cfg.storage, req.parent, {
+      id,
+      id_short: id.slice(0, 8),
+      pubkey: req.pubkey,
+      pubkey_short: req.pubkey.slice(0, 8),
+      created_at: nowISO,
+    });
   }
 
   // -- 8. Canvas publish (atomic tile + cooldown) ----------------------------

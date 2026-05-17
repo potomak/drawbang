@@ -314,3 +314,234 @@ test("dynamic difficulty: second submission in the same second requires top-brac
   assert.ok(leadingZeroBits(hash) >= 16);
   assert.equal(hashHex(hash), weak.hashHex);
 });
+
+// ---- Fork lineage: parent -> children sidecar -------------------------------
+//
+// Each test publishes a parent first (so we can reference its content-hash id),
+// then publishes one or more children with `parent: <id>` in the request. The
+// children sidecar lives at public/drawings/<parent>.children.json. PoW is the
+// expensive part of these tests; we keep them at 14 bits (virgin bracket) and
+// share state between the parent and child publishes via baseline history.
+
+function makeGifWithMarker(marker: number): Uint8Array {
+  const frame = new Bitmap();
+  for (let i = 0; i < 16; i++) frame.set(i, i, marker & 0x0f);
+  frame.set(0, 15, marker & 0x0f); // distinguishes from the diagonal-only gif
+  return encodeGif({ frames: [frame], activePalette: DEFAULT_ACTIVE_PALETTE });
+}
+
+interface ChildEntry {
+  id: string;
+  id_short: string;
+  pubkey: string;
+  pubkey_short: string;
+  created_at: string;
+}
+interface ChildrenFile {
+  drawing_id: string;
+  children: ChildEntry[];
+}
+
+async function publishVirgin(
+  storage: MemoryStorage,
+  gif: Uint8Array,
+  identity: DrawbangIdentity,
+  nowISO: string,
+  extras: Partial<IngestRequest> = {},
+): Promise<string> {
+  const baseline = INITIAL_STATE.last_publish_at;
+  const sol = await solve(gif, baseline, 14);
+  const res = await handleIngest(
+    await signedBody(gif, sol, baseline, identity, extras),
+    {
+      storage,
+      publicBaseUrl: "https://example.test",
+      now: () => new Date(nowISO),
+    },
+  );
+  assert.equal(res.status, 202);
+  return (res.body as { id: string }).id;
+}
+
+async function publishWithBaseline(
+  storage: MemoryStorage,
+  gif: Uint8Array,
+  identity: DrawbangIdentity,
+  baseline: string,
+  nowISO: string,
+  history: string[],
+  extras: Partial<IngestRequest> = {},
+): Promise<{ id: string; status: number }> {
+  const sol = await solve(gif, baseline, 14);
+  const res = await handleIngest(
+    await signedBody(gif, sol, baseline, identity, extras),
+    {
+      storage,
+      publicBaseUrl: "https://example.test",
+      now: () => new Date(nowISO),
+      baselineHistory: history,
+    },
+  );
+  return { id: (res.body as { id: string }).id, status: res.status };
+}
+
+test("ingest records a child entry on the parent's children.json", async () => {
+  const storage = new MemoryStorage();
+  const author = await generateIdentity();
+  // Space the child publish 11+ minutes after the parent so the baseline
+  // ages past the 600s bracket and 14-bit PoW (virgin difficulty) suffices
+  // for both publishes. Otherwise the dynamic-difficulty bracket would
+  // demand 16-20 bits and balloon the test runtime.
+  const parentId = await publishVirgin(
+    storage,
+    makeGifWithMarker(0xa),
+    author,
+    "2026-04-18T12:00:00.000Z",
+  );
+
+  const history: string[] = [];
+  const childAuthor = await generateIdentity();
+  const { id: childId, status } = await publishWithBaseline(
+    storage,
+    makeGifWithMarker(0xb),
+    childAuthor,
+    "2026-04-18T12:00:00.000Z",
+    "2026-04-18T12:11:00.000Z",
+    history,
+    { parent: parentId },
+  );
+  assert.equal(status, 202);
+
+  const file = await storage.getJSON<ChildrenFile>(
+    `public/drawings/${parentId}.children.json`,
+  );
+  assert.ok(file, "children.json should exist on the parent");
+  assert.equal(file.drawing_id, parentId);
+  assert.equal(file.children.length, 1);
+  assert.equal(file.children[0].id, childId);
+  assert.equal(file.children[0].id_short, childId.slice(0, 8));
+  assert.equal(file.children[0].pubkey, await pubKeyHex(childAuthor));
+  assert.equal(file.children[0].created_at, "2026-04-18T12:11:00.000Z");
+});
+
+test("ingest collects multiple children of the same parent in publish order", async () => {
+  const storage = new MemoryStorage();
+  const author = await generateIdentity();
+  const parentId = await publishVirgin(
+    storage,
+    makeGifWithMarker(0x1),
+    author,
+    "2026-04-18T12:00:00.000Z",
+  );
+
+  const history: string[] = [];
+  const childA = await publishWithBaseline(
+    storage,
+    makeGifWithMarker(0x2),
+    await generateIdentity(),
+    "2026-04-18T12:00:00.000Z",
+    "2026-04-18T12:11:00.000Z",
+    history,
+    { parent: parentId },
+  );
+  assert.equal(childA.status, 202);
+
+  const childB = await publishWithBaseline(
+    storage,
+    makeGifWithMarker(0x3),
+    await generateIdentity(),
+    "2026-04-18T12:11:00.000Z",
+    "2026-04-18T12:22:00.000Z",
+    history,
+    { parent: parentId },
+  );
+  assert.equal(childB.status, 202);
+
+  const file = await storage.getJSON<ChildrenFile>(
+    `public/drawings/${parentId}.children.json`,
+  );
+  assert.equal(file?.children.length, 2);
+  assert.equal(file?.children[0].id, childA.id);
+  assert.equal(file?.children[1].id, childB.id);
+});
+
+test("ingest de-dupes a re-published child against the same parent", async () => {
+  const storage = new MemoryStorage();
+  const author = await generateIdentity();
+  const parentId = await publishVirgin(
+    storage,
+    makeGifWithMarker(0x4),
+    author,
+    "2026-04-18T12:00:00.000Z",
+  );
+
+  const childGif = makeGifWithMarker(0x5);
+  const childAuthor = await generateIdentity();
+  const history: string[] = [];
+
+  const first = await publishWithBaseline(
+    storage,
+    childGif,
+    childAuthor,
+    "2026-04-18T12:00:00.000Z",
+    "2026-04-18T12:11:00.000Z",
+    history,
+    { parent: parentId },
+  );
+  assert.equal(first.status, 202);
+
+  // Second publish of the same gif (idempotent retry) should hit the
+  // alreadyHere short-circuit, return 200, and NOT grow the children list.
+  const second = await publishWithBaseline(
+    storage,
+    childGif,
+    childAuthor,
+    "2026-04-18T12:11:00.000Z",
+    "2026-04-18T12:22:00.000Z",
+    history,
+    { parent: parentId },
+  );
+  assert.equal(second.status, 200);
+
+  const file = await storage.getJSON<ChildrenFile>(
+    `public/drawings/${parentId}.children.json`,
+  );
+  assert.equal(file?.children.length, 1);
+});
+
+test("ingest skips children write when parent === id (self-fork guard)", async () => {
+  const storage = new MemoryStorage();
+  const author = await generateIdentity();
+  const gif = makeGifWithMarker(0x6);
+  // Spy: compute the id up front so we can pass it as `parent` and confirm
+  // no children file is created.
+  const id = hashHex(await contentHash(gif));
+  await publishVirgin(
+    storage,
+    gif,
+    author,
+    "2026-04-18T12:00:00.000Z",
+    { parent: id },
+  );
+  const file = await storage.getJSON<ChildrenFile>(
+    `public/drawings/${id}.children.json`,
+  );
+  assert.equal(file, null);
+});
+
+test("ingest silently ignores a malformed parent field", async () => {
+  const storage = new MemoryStorage();
+  const author = await generateIdentity();
+  // "not-64-hex" is not a valid id; the request still succeeds (parent is
+  // optional) but no children.json is written anywhere.
+  await publishVirgin(
+    storage,
+    makeGifWithMarker(0x7),
+    author,
+    "2026-04-18T12:00:00.000Z",
+    { parent: "not-64-hex" },
+  );
+  const keys = await storage.listPrefix("public/drawings");
+  const childrenFiles = keys.filter((k) => k.endsWith(".children.json"));
+  assert.equal(childrenFiles.length, 0);
+});
