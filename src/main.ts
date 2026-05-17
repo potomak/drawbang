@@ -615,6 +615,9 @@ function resetEditor(opts: { keepPublishedId?: boolean } = {}): void {
   state.current = 0;
   history.clear();
   localId = null;
+  activePalette = new Uint8Array(DEFAULT_ACTIVE_PALETTE);
+  selectedSlot = 1;
+  setActiveTool("pixel");
   if (!opts.keepPublishedId) setLastPublishedId(null);
   render();
   persist();
