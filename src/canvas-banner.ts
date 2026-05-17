@@ -103,25 +103,26 @@ function renderHome(s: HomeBannerData): string {
 }
 
 function renderTileClaim(s: TileClaimBannerData): string {
+  const canvasHref = `/canvases/${encodeURIComponent(s.canvas_id)}`;
+  const nameLink = `<a class="cv-banner-canvas" href="${escapeAttr(canvasHref)}" target="_blank" rel="noopener"><strong>${escapeHtml(s.name)}</strong></a>`;
   if (s.phase === "claiming") {
     return `
       <div class="cv-banner-row">
         <span class="cv-banner-emoji" aria-hidden="true">▦</span>
         <span class="cv-banner-text">
-          Claiming tile (${s.x}, ${s.y}) of <strong>${escapeHtml(s.name)}</strong>…
+          Claiming tile (${s.x}, ${s.y}) of ${nameLink}…
         </span>
       </div>
     `;
   }
   if (s.phase === "failed") {
-    const back = `/canvases/${encodeURIComponent(s.canvas_id)}`;
     return `
       <div class="cv-banner-row cv-banner--error">
         <span class="cv-banner-emoji" aria-hidden="true">⚠</span>
         <span class="cv-banner-text">
           Couldn't claim tile (${s.x}, ${s.y}) — ${escapeHtml(s.error ?? "unknown error")}
         </span>
-        <a class="cv-banner-cta" href="${escapeAttr(back)}">Pick another tile →</a>
+        <a class="cv-banner-cta" href="${escapeAttr(canvasHref)}">Pick another tile →</a>
       </div>
     `;
   }
@@ -130,7 +131,7 @@ function renderTileClaim(s: TileClaimBannerData): string {
     <div class="cv-banner-row cv-banner--claimed">
       <span class="cv-banner-emoji" aria-hidden="true">▦</span>
       <span class="cv-banner-text">
-        Drawing tile (${s.x}, ${s.y}) of <strong>${escapeHtml(s.name)}</strong> — claim expires in <span class="cv-countdown">${formatCountdown(Math.max(0, left))}</span>
+        Drawing tile (${s.x}, ${s.y}) of ${nameLink} — claim expires in <span class="cv-countdown">${formatCountdown(Math.max(0, left))}</span>
       </span>
     </div>
   `;

@@ -47,6 +47,7 @@ import {
 } from "./submit.js";
 import { mountCanvasBanner, type CanvasBannerHandle } from "./canvas-banner.js";
 import { showFlash, hideFlash } from "./layout/flash.js";
+import { formatDuration } from "./format.js";
 import { canvasName, isCanvasIdValid, TILES_PER_SIDE } from "../config/canvases.js";
 
 // Native resolution of the main canvas. 16×35 = 560 — matches the v2
@@ -806,7 +807,7 @@ async function handlePublish(): Promise<void> {
     if (err instanceof CanvasCooldownError) {
       showFlash({
         kind: "error",
-        message: `Cooldown active — wait ${err.retryAfterS}s before publishing to this canvas again.`,
+        message: `Cooldown active — wait ${formatDuration(err.retryAfterS)} before publishing to this canvas again.`,
       });
       return;
     }
@@ -913,6 +914,13 @@ async function initTileClaimBanner(tc: TileClaimRef): Promise<void> {
       claimUrl: CANVAS_CLAIM_URL,
       onPhase: (phase, detail) =>
         showFlash({ kind: "info", message: `Canvas ${phase}: ${detail}` }),
+      onProgress: (p) => {
+        const rate = (p.hashes / Math.max(1, p.elapsedMs / 1000)).toFixed(0);
+        showFlash({
+          kind: "info",
+          message: `Canvas solving… ${p.hashes.toLocaleString()} hashes (${rate}/s)`,
+        });
+      },
     });
     activeTileClaim = tc;
     hideFlash();
