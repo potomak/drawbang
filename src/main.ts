@@ -138,7 +138,7 @@ app.innerHTML = /* html */ `
   <main>
     <div class="ed-actions">
       ${PUBLISH_DISABLED ? "" : `<button class="btn" data-action="publish">${ICON.publish} Publish</button>`}
-      <button class="btn primary" data-action="make-merch" id="merchBtn" hidden>${ICON.cart} Make merch</button>
+      <button class="btn primary" data-action="make-merch" id="merchBtn">${ICON.cart} Make merch</button>
       <button class="btn" data-action="share">${ICON.share} Copy share link</button>
       <button class="btn" data-action="export-gif">${ICON.download} Download GIF</button>
       <button class="btn ghost" data-action="open-identity" id="identityBtn" hidden>${ICON.key} Key</button>
@@ -243,7 +243,6 @@ const frameListEl = document.getElementById("frameList")!;
 const paletteEl = document.getElementById("palette")!;
 const picker = document.getElementById("palettePicker") as HTMLDialogElement;
 const baseGridEl = document.getElementById("baseGrid")!;
-const merchBtnEl = document.getElementById("merchBtn") as HTMLButtonElement | null;
 const identityBtnEl = document.getElementById("identityBtn") as HTMLButtonElement | null;
 const identityBootstrapEl = document.getElementById("identityBootstrap") as HTMLDialogElement | null;
 const identityBootstrapImportEl = document.getElementById("identityBootstrapImport") as HTMLInputElement | null;
@@ -379,14 +378,29 @@ async function copyPubkey(): Promise<void> {
 
 function setLastPublishedId(id: string | null): void {
   lastPublishedId = id;
-  if (!merchBtnEl) return;
-  merchBtnEl.hidden = id === null;
 }
 
-function openMerch(): void {
-  if (!lastPublishedId) return;
-  const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "/");
+function isCanvasEmpty(): boolean {
+  return state.frames.every((f) => f.data.every((v) => v === TRANSPARENT));
+}
+
+async function openMerch(): Promise<void> {
+  if (isCanvasEmpty()) {
+    showFlash({
+      kind: "info",
+      message: "Draw something first.",
+      autoDismissMs: 5000,
+    });
+    return;
+  }
+  // Capture the frame the user is currently viewing before handlePublish's
+  // resetEditor wipes state.current back to 0.
   const frame = state.current;
+  if (!lastPublishedId) {
+    await handlePublish();
+    if (!lastPublishedId) return; // publish failed (error flash already shown)
+  }
+  const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "/");
   location.assign(
     `${base}merch?d=${encodeURIComponent(lastPublishedId)}&frame=${frame}`,
   );
@@ -1007,7 +1021,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>
       case "export-gif": stopPlay(); downloadGif(); break;
       case "share": stopPlay(); copyShareLink(); break;
       case "publish": stopPlay(); void handlePublish(); break;
-      case "make-merch": stopPlay(); openMerch(); break;
+      case "make-merch": stopPlay(); void openMerch(); break;
       case "open-identity": openIdentitySettings(); break;
       case "identity-generate": void handleGenerateFromBootstrap(); break;
       case "identity-copy": void copyPubkey(); break;
