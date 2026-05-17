@@ -48,7 +48,7 @@ import {
 import { mountCanvasBanner, type CanvasBannerHandle } from "./canvas-banner.js";
 import { showFlash, hideFlash } from "./layout/flash.js";
 import { formatDuration } from "./format.js";
-import { canvasName, isCanvasIdValid, TILES_PER_SIDE } from "../config/canvases.js";
+import { canvasIdForDate, canvasName, isCanvasIdValid, TILES_PER_SIDE } from "../config/canvases.js";
 
 // Native resolution of the main canvas. 16×35 = 560 — matches the v2
 // editor's max wrap width, so CSS scaling produces clean pixel boundaries.
@@ -67,7 +67,6 @@ const CANVAS_API_BASE = INGEST_URL.replace(/\/ingest$/, "");
 const CANVAS_CLAIM_URL = `${CANVAS_API_BASE}/canvas/claim`;
 const canvasStateUrl = (canvasId: string): string =>
   `${CANVAS_API_BASE}/canvas/${encodeURIComponent(canvasId)}/state`;
-const CURRENT_CANVAS_STATE_URL = "/state/current-canvas.json";
 const PUBLISH_DISABLED = truthy(import.meta.env.VITE_DISABLE_PUBLISH);
 
 // Set when the editor loaded via /?c=&x=&y= and a claim has been successfully
@@ -888,23 +887,29 @@ function ensureBannerContainer(): HTMLElement {
 async function initHomeBanner(): Promise<void> {
   const container = ensureBannerContainer();
   try {
-    const res = await fetch(CURRENT_CANVAS_STATE_URL, { cache: "no-store" });
+    // Derive the current canvas id locally rather than reading the
+    // builder-written /state/current-canvas.json snapshot — the snapshot
+    // only refreshes when the daily builder runs, so it lags real publish
+    // counts by up to 24h. The live /canvas/<id>/state endpoint reflects
+    // DDB on every request.
+    const canvasId = canvasIdForDate(new Date());
+    const res = await fetch(canvasStateUrl(canvasId), { cache: "no-store" });
     if (!res.ok) return;
     const j = (await res.json()) as {
       canvas_id: string;
       name: string;
-      tiles_published: number;
-      tiles_total: number;
+      tiles: Array<{ drawing_id?: string }>;
     };
+    const tiles_published = j.tiles.filter((t) => t.drawing_id).length;
     bannerHandle = mountCanvasBanner(container, {
       mode: "home",
       canvas_id: j.canvas_id,
       name: j.name,
-      tiles_published: j.tiles_published,
-      tiles_total: j.tiles_total,
+      tiles_published,
+      tiles_total: TILES_PER_SIDE * TILES_PER_SIDE,
     });
   } catch {
-    // Best-effort: if no state file, no banner. Editor still works.
+    // Best-effort: if the API is unreachable, no banner. Editor still works.
   }
 }
 
