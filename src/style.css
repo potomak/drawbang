@@ -167,6 +167,23 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
 .page-sub { font-size: var(--t-sm); color: var(--fg-muted); margin: -16px 0 24px; }
 .divider { height: var(--border); background: var(--border-c); margin: 24px 0; border: 0; }
 
+/* ===== Canvas banner =====
+   Sibling of #app, so it needs the same horizontal padding + max-width
+   as <main> to align with the editor below. */
+.canvas-banner {
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 20px 24px 0;
+  font-size: var(--t-sm);
+}
+.cv-banner-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cv-banner-emoji { color: var(--fg-muted); }
+.cv-banner-text { color: var(--fg); }
+.cv-banner-cta { color: var(--accent); }
+.cv-banner--error .cv-banner-emoji { color: var(--accent); }
+@media (max-width: 640px) { .canvas-banner { padding: 12px 14px 0; } }
+
 /* ===== Button (pixel-native) ===== */
 .btn {
   font: 500 var(--t-sm)/1 var(--font);
