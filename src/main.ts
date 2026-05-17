@@ -70,18 +70,12 @@ const CANVAS_API_BASE = INGEST_URL.replace(/\/ingest$/, "");
 const CANVAS_CLAIM_URL = `${CANVAS_API_BASE}/canvas/claim`;
 const canvasStateUrl = (canvasId: string): string =>
   `${CANVAS_API_BASE}/canvas/${encodeURIComponent(canvasId)}/state`;
-const PUBLISH_DISABLED = truthy(import.meta.env.VITE_DISABLE_PUBLISH);
 
 // Set when the editor loaded via /?c=&x=&y= and a claim has been successfully
 // negotiated with the server. Picked up by handlePublish() to thread the
 // canvas_claim through to /ingest.
 let activeTileClaim: TileClaimRef | null = null;
 let bannerHandle: CanvasBannerHandle | null = null;
-
-function truthy(v: string | undefined): boolean {
-  if (!v) return false;
-  return v !== "0" && v.toLowerCase() !== "false";
-}
 
 // -- Editor state -----------------------------------------------------------
 
@@ -147,7 +141,7 @@ const app = document.getElementById("app")!;
 app.innerHTML = /* html */ `
   <main>
     <div class="ed-actions">
-      ${PUBLISH_DISABLED ? "" : `<button class="btn" data-action="publish">${ICON.publish} Publish</button>`}
+      <button class="btn" data-action="publish">${ICON.publish} Publish</button>
       <button class="btn primary" data-action="make-merch" id="merchBtn">${ICON.cart} Make merch</button>
       <button class="btn" data-action="share">${ICON.share} Copy share link</button>
       <button class="btn" data-action="export-gif">${ICON.download} Download GIF</button>
@@ -1176,12 +1170,6 @@ async function boot(): Promise<void> {
   } catch {
     // ignore — applyPalette default state is already in place
   }
-  if (PUBLISH_DISABLED) {
-    showFlash({
-      kind: "info",
-      message: "Demo mode — draw, export a GIF, or copy a share link.",
-    });
-  }
 
   try {
     identity = await loadStoredIdentity();
@@ -1189,7 +1177,7 @@ async function boot(): Promise<void> {
     identity = null;
   }
   renderIdentityBadge();
-  if (!identity && !PUBLISH_DISABLED) openIdentityBootstrap();
+  if (!identity) openIdentityBootstrap();
 
   // Canvas-aware banner: tile-claim mode if ?c=&x=&y= is present, else home.
   const params = new URL(location.href).searchParams;
