@@ -92,11 +92,8 @@ function renderHome(s: HomeBannerData): string {
   const ctaHref = `/canvases/${encodeURIComponent(s.canvas_id)}`;
   return `
     <div class="cv-banner-row">
-      <span class="cv-banner-emoji" aria-hidden="true">▦</span>
-      <span class="cv-banner-text">
-        <strong>This week's canvas:</strong>
-        ${escapeHtml(String(s.tiles_published))} / ${escapeHtml(String(s.tiles_total))} tiles
-      </span>
+      <span class="cv-banner-text"><span class="cv-banner-emoji" aria-hidden="true">▦</span><strong>This week's canvas:</strong>
+        ${escapeHtml(String(s.tiles_published))} / ${escapeHtml(String(s.tiles_total))} tiles</span>
       <a class="cv-banner-cta" href="${escapeAttr(ctaHref)}">Claim a tile →</a>
     </div>
   `;
@@ -108,20 +105,14 @@ function renderTileClaim(s: TileClaimBannerData): string {
   if (s.phase === "claiming") {
     return `
       <div class="cv-banner-row">
-        <span class="cv-banner-emoji" aria-hidden="true">▦</span>
-        <span class="cv-banner-text">
-          Claiming tile (${s.x}, ${s.y}) of ${nameLink}…
-        </span>
+        <span class="cv-banner-text"><span class="cv-banner-emoji" aria-hidden="true">▦</span>Claiming tile (${s.x}, ${s.y}) of ${nameLink}…</span>
       </div>
     `;
   }
   if (s.phase === "failed") {
     return `
       <div class="cv-banner-row cv-banner--error">
-        <span class="cv-banner-emoji" aria-hidden="true">⚠</span>
-        <span class="cv-banner-text">
-          Couldn't claim tile (${s.x}, ${s.y}) — ${escapeHtml(s.error ?? "unknown error")}
-        </span>
+        <span class="cv-banner-text"><span class="cv-banner-emoji" aria-hidden="true">⚠</span>Couldn't claim tile (${s.x}, ${s.y}) — ${escapeHtml(s.error ?? "unknown error")}</span>
         <a class="cv-banner-cta" href="${escapeAttr(canvasHref)}">Pick another tile →</a>
       </div>
     `;
@@ -129,10 +120,7 @@ function renderTileClaim(s: TileClaimBannerData): string {
   const left = (s.claim_expires_at ?? 0) - Math.floor(Date.now() / 1000);
   return `
     <div class="cv-banner-row cv-banner--claimed">
-      <span class="cv-banner-emoji" aria-hidden="true">▦</span>
-      <span class="cv-banner-text">
-        Drawing tile (${s.x}, ${s.y}) of ${nameLink} — claim expires in <span class="cv-countdown">${formatCountdown(Math.max(0, left))}</span>
-      </span>
+      <span class="cv-banner-text"><span class="cv-banner-emoji" aria-hidden="true">▦</span>Drawing tile (${s.x}, ${s.y}) of ${nameLink} — claim expires in <span class="cv-countdown">${formatCountdown(Math.max(0, left))}</span></span>
     </div>
   `;
 }
