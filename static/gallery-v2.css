@@ -130,15 +130,20 @@ a:hover { text-decoration-thickness: 2px; }
   padding: 16px 24px;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 16px;
   font-size: var(--t-xs);
   color: var(--fg-muted);
 }
 .ftr a { color: var(--fg-muted); }
+.ftr-left { display: flex; flex-direction: column; gap: 8px; }
+.ftr-right { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
 .ftr-links { display: flex; gap: 16px; flex-wrap: wrap; }
+.ftr-social { display: flex; gap: 12px; flex-wrap: wrap; }
 .ftr-repo { color: var(--fg-muted); }
+.ftr-feedback { display: inline-flex; align-items: center; gap: 6px; color: var(--fg-muted); }
+.ftr-feedback svg { display: block; }
 @media (max-width: 640px) { .ftr { padding: 12px 14px; } }
 
 /* ===== Page chrome ===== */

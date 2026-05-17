@@ -86,18 +86,19 @@ export default function renderCanvas(v: CanvasView): string {
     <title>Draw! · ${esc(v.name)}</title>
     <link rel="stylesheet" href="/gallery-v2.css" />
     <style>
-      .cv-grid{display:grid;grid-template-columns:repeat(${TILES_PER_SIDE},32px);grid-template-rows:repeat(${TILES_PER_SIDE},32px);gap:1px;background:#222;padding:1px;width:max-content;margin:1rem 0;}
-      .cv-cell{background:#111;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#666;}
-      .cv-cell img{width:32px;height:32px;image-rendering:pixelated;display:block;}
-      .cv-cell a{display:block;width:32px;height:32px;}
-      .cv-cell[data-state="open"] a{text-decoration:none;color:#888;}
+      .cv-grid{display:grid;grid-template-columns:repeat(${TILES_PER_SIDE},1fr);grid-template-rows:repeat(${TILES_PER_SIDE},1fr);gap:1px;background:#222;padding:1px;width:100%;max-width:528px;aspect-ratio:1;margin:1rem 0;}
+      .cv-cell{background:#111;display:flex;align-items:center;justify-content:center;font-size:9px;color:#666;min-width:0;overflow:hidden;}
+      .cv-cell img{width:100%;height:100%;image-rendering:pixelated;display:block;}
+      .cv-cell a{display:block;width:100%;height:100%;line-height:1;text-align:center;}
+      .cv-cell[data-state="open"] a{text-decoration:none;color:#888;display:flex;align-items:center;justify-content:center;}
       .cv-cell[data-state="open"]:hover{outline:1px solid #fff;}
       .cv-cell[data-state="claimed"]{background:#332;color:#aa8;}
-      .cv-claimed{display:block;text-align:center;font-size:8px;line-height:32px;}
+      .cv-claimed{display:block;text-align:center;font-size:7px;line-height:1;word-break:break-all;}
       .badge{font-size:11px;padding:2px 6px;border-radius:3px;}
       .badge.active{background:#063;color:#cfd;}
       .badge.locked{background:#522;color:#fdc;}
       .cv-meta{margin:0.5rem 0 0;color:#888;font-size:13px;}
+      @media (max-width: 480px) { .cv-cell, .cv-cell a { font-size: 7px; } .cv-claimed { font-size: 5px; } }
     </style>
   </head>
   <body>
