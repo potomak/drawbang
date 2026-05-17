@@ -80,23 +80,28 @@ export function renderHeader(opts: ChromeOptions = {}): string {
 export function renderFooter(opts: FooterOptions): string {
   const items = allLinks(opts)
     .map((l) => renderFooterLink(l, opts.active))
-    .join("\n      ");
+    .join("\n        ");
   const social = SOCIAL_LINKS.map(
     (s) =>
       `<a href="${esc(s.href)}" target="_blank" rel="noopener">${esc(s.label)}</a>`,
-  ).join("\n      ");
+  ).join("\n        ");
   // The hamburger toggle (#170) and the identity-link patcher (#171)
   // both ship as plain JS at stable URLs, so every surface — Vite-built
   // or builder-rendered — loads them from the same place without bundle
   // hash plumbing.
   return `<footer class="ftr">
-  <nav class="ftr-links" aria-label="Footer">
-      ${items}
-  </nav>
-  <nav class="ftr-social" aria-label="Social">
-      ${social}
-  </nav>
-  <a class="ftr-repo" href="${esc(opts.repoUrl)}" target="_blank" rel="noopener">Source on GitHub</a>
+  <div class="ftr-left">
+    <nav class="ftr-links" aria-label="Footer">
+        ${items}
+    </nav>
+    <nav class="ftr-social" aria-label="Social">
+        ${social}
+    </nav>
+  </div>
+  <div class="ftr-right">
+    <a class="ftr-repo" href="${esc(opts.repoUrl)}" target="_blank" rel="noopener">Source on GitHub</a>
+    <a class="ftr-feedback" href="${esc(FEEDBACK_URL)}" target="_blank" rel="noopener">${FEEDBACK_ICON_SVG}<span>Feedback</span></a>
+  </div>
 </footer>
 <script src="/chrome-toggle.js"></script>
 <script src="/chrome-identity.js"></script>`;
@@ -107,6 +112,14 @@ const SOCIAL_LINKS: ReadonlyArray<{ label: string; href: string }> = [
   { label: "Discord", href: "https://discord.gg/mXA4NQjcxg" },
   { label: "Facebook", href: "https://facebook.com/drawbang" },
 ];
+
+const FEEDBACK_URL =
+  "https://github.com/potomak/drawbang/issues/new?labels=feedback";
+
+// Placeholder. Will be swapped for the 32×32 bug icon the user is designing —
+// the size and `currentColor` fill match what the real icon will need, so
+// the swap doesn't shift footer layout.
+const FEEDBACK_ICON_SVG = `<svg viewBox="0 0 16 16" width="32" height="32" shape-rendering="crispEdges" aria-hidden="true"><g fill="currentColor"><rect x="3" y="2" width="10" height="1"/><rect x="3" y="13" width="10" height="1"/><rect x="3" y="3" width="1" height="10"/><rect x="12" y="3" width="1" height="10"/></g></svg>`;
 
 function renderFooterLink(link: NavLink, active: NavLink["id"] | undefined): string {
   const ariaCurrent = link.id === active ? ' aria-current="page"' : "";
