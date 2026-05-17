@@ -1,176 +1,31 @@
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap");
+@import url("/chrome.css");
 
 /* =====================================================================
-   Drawbang v2 — pixel-native design tokens + global styles.
-   Dark only. Every border is 1px. Hard offset press on buttons.
-   Mirrored in static/gallery-v2.css for builder-rendered pages.
+   Drawbang v2 — Vite-served surfaces (editor, merch, share, order,
+   identity, pow-test). Shared header/footer/tokens live in
+   static/chrome.css; this file ONLY contains editor extensions to the
+   base reset plus surface-specific styles for those pages.
+
+   Do NOT duplicate chrome rules here — edit chrome.css and both
+   surfaces pick the change up. Mirroring is what we're trying to
+   stop.
    ===================================================================== */
 
-:root {
-  --font: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-
-  --tap: 40px;
-  --pad: 16px;
-  --pad-sm: 8px;
-  --border: 1px;
-
-  --t-xs: 11px;
-  --t-sm: 13px;
-  --t-md: 14px;
-  --t-lg: 16px;
-  --t-xl: 20px;
-  --t-2xl: 28px;
-
-  --bg: #0a0a0a;
-  --bg-elev: #141414;
-  --bg-sunk: #050505;
-  --fg: #f0ece4;
-  --fg-muted: #8a857c;
-  --fg-dim: #b8b3a8;
-  --border-c: #3a3833;
-  --border-strong: #5a5650;
-  --accent: oklch(0.74 0.22 340);
-  --accent-on: #0a0a0a;
-  --canvas-bg: #0a0a0a;
-  --canvas-grid: #1f1d1a;
-
-  /* legacy aliases — older modules still reference --panel directly. */
-  --panel: var(--bg-elev);
-}
-
-* { box-sizing: border-box; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+/* Touch-first reset — editor surfaces disable text selection so drags
+   don't accidentally start a selection. Builder pages let users select
+   text normally (gallery, drawing-detail, pubkeys) so this is editor-
+   only. */
+* { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 html, body { height: 100%; }
 body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--fg);
-  font: 400 var(--t-md)/1.5 var(--font);
   font-variant-ligatures: none;
-  -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
-img, svg, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
-button { font: inherit; color: inherit; }
+svg, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 
-a { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
-a:hover { text-decoration-thickness: 2px; }
-
-/* ===== Header ===== */
-.hdr {
-  border-bottom: var(--border) solid var(--border-c);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 24px;
-  gap: 24px;
-  position: sticky;
-  top: 0;
-  background: var(--bg);
-  z-index: 30;
-}
-.hdr-logo { color: var(--fg); display: block; height: 24px; text-decoration: none; flex: 0 0 auto; }
-.hdr-logo svg { display: block; height: 24px; width: auto; }
-.hdr-right { display: flex; align-items: center; gap: 12px; position: relative; }
-.hdr-nav { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
-
-.navlink {
-  font: 500 var(--t-sm)/1 var(--font);
-  background: transparent;
-  color: var(--fg);
-  text-decoration: none;
-  padding: 8px 10px;
-  border: var(--border) solid transparent;
-  cursor: pointer;
-  letter-spacing: 0.02em;
-}
-.navlink:hover { color: var(--accent); text-decoration: none; }
-.navlink[aria-current="page"] {
-  color: var(--accent);
-  border-color: var(--border-c);
-  background: var(--bg-elev);
-}
-
-/* Mobile hamburger — kept from v1 chrome so narrow viewports still
-   collapse the nav. Hidden on wide; chrome-toggle.js flips aria. */
-.chrome-menu-toggle {
-  background: var(--bg-elev);
-  color: var(--fg);
-  border: var(--border) solid var(--border-c);
-  padding: 0 12px;
-  height: 36px;
-  min-height: 36px;
-  font: 500 var(--t-sm) var(--font);
-  cursor: pointer;
-  letter-spacing: 0.02em;
-}
-
-@media (max-width: 767px) {
-  .chrome-menu-toggle { display: inline-flex; align-items: center; }
-  .hdr { padding: 10px 14px; gap: 12px; }
-  .hdr-logo, .hdr-logo svg { height: 16px; }
-  .hdr-nav {
-    display: none;
-    position: absolute;
-    top: calc(100% + 4px);
-    right: 0;
-    background: var(--bg-elev);
-    border: var(--border) solid var(--border-c);
-    padding: 6px;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 2px;
-    z-index: 10;
-  }
-  .hdr-nav.chrome-nav-open { display: flex; }
-  .hdr-nav .navlink {
-    padding: 6px 10px;
-    text-align: left;
-    border-color: transparent;
-    background: transparent;
-  }
-  .hdr-nav .navlink[aria-current="page"] {
-    color: var(--accent);
-    background: transparent;
-    border-color: transparent;
-  }
-}
-@media (min-width: 768px) {
-  .chrome-menu-toggle { display: none; }
-}
-
-/* ===== Footer ===== */
-.ftr {
-  border-top: var(--border) solid var(--border-c);
-  padding: 16px 24px;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 16px;
-  font-size: var(--t-xs);
-  color: var(--fg-muted);
-}
-.ftr a { color: var(--fg-muted); }
-.ftr-left { display: flex; flex-direction: column; gap: 8px; }
-.ftr-right { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; margin-left: auto; }
-.ftr-links { display: flex; gap: 16px; flex-wrap: wrap; }
-.ftr-social { display: flex; gap: 12px; flex-wrap: wrap; }
-.ftr-repo { color: var(--fg-muted); }
-.ftr-feedback { display: inline-flex; align-items: center; gap: 6px; color: var(--fg-muted); }
-.ftr-feedback svg { display: block; }
-@media (max-width: 640px) { .ftr { padding: 12px 14px; } }
-
-/* ===== App layout ===== */
 .app { min-height: 100vh; display: flex; flex-direction: column; }
 body > main, .app > main { display: block; }
-main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; }
-@media (max-width: 640px) { main { padding: 12px 14px 80px; } }
-
-/* ===== Page chrome ===== */
-.page-title { font-size: var(--t-lg); font-weight: 700; margin: 0 0 16px; letter-spacing: 0; }
-.page-sub { font-size: var(--t-sm); color: var(--fg-muted); margin: -16px 0 24px; }
-.divider { height: var(--border); background: var(--border-c); margin: 24px 0; border: 0; }
 
 /* ===== Canvas banner =====
    Sibling of #app, so it needs the same horizontal padding + max-width
@@ -247,31 +102,11 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
   .flash { animation: none; }
 }
 
-/* ===== Button (pixel-native) ===== */
-.btn {
-  font: 500 var(--t-sm)/1 var(--font);
-  background: var(--bg-elev);
-  color: var(--fg);
-  border: var(--border) solid var(--border-c);
-  padding: 0 12px;
-  height: var(--tap);
-  min-width: var(--tap);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  text-decoration: none;
-  letter-spacing: 0.02em;
-  position: relative;
-  transition: transform 60ms;
-  white-space: nowrap;
-}
-.btn:hover { border-color: var(--border-strong); text-decoration: none; }
-.btn:active { transform: translate(2px, 2px); }
-.btn.primary { background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
-.btn.primary:hover { filter: brightness(0.95); }
-.btn.ghost { background: transparent; }
+/* ===== Button (editor-only variants) =====
+   Base .btn / .primary / .ghost live in chrome.css. Variants below are
+   editor-specific (icon toolbar, small modal buttons, pressed/disabled
+   states, etc.) and don't ship to builder pages. */
+.btn { position: relative; white-space: nowrap; }
 .btn.icon { padding: 0; width: var(--tap); }
 .btn.sm { height: 32px; padding: 0 10px; font-size: var(--t-xs); }
 .btn.xs { height: 24px; padding: 0 8px; font-size: var(--t-xs); min-width: 0; }
@@ -282,13 +117,6 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
 
 /* ===== Panel ===== */
 .panel { border: var(--border) solid var(--border-c); background: var(--bg-elev); padding: 16px; }
-.panel-h {
-  font-size: var(--t-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--fg-muted);
-  margin: 0 0 12px;
-}
 
 /* ===== Pixel art ===== */
 .pixart { display: block; width: 100%; height: auto; background: var(--canvas-bg); image-rendering: pixelated; }
@@ -297,7 +125,6 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
 .col { display: flex; flex-direction: column; gap: 8px; }
 .mono-dim { color: var(--fg-muted); }
-.muted { color: var(--fg-muted); font-size: var(--t-sm); }
 
 /* =====================================================================
    EDITOR
@@ -622,133 +449,6 @@ dialog form menu button:hover { border-color: var(--border-strong); }
   border-color: var(--accent);
   box-shadow: inset 0 0 0 2px var(--accent);
 }
-
-/* =====================================================================
-   GALLERY / PROFILE — tight image grid (no gaps, no metadata)
-   ===================================================================== */
-.img-grid {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 0;
-  max-width: calc(6 * 320px);
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.img-tile, .img-grid li {
-  display: block;
-  aspect-ratio: 1;
-  background: var(--canvas-bg);
-  overflow: hidden;
-  position: relative;
-}
-.img-grid a { display: block; }
-.img-grid img, .img-tile canvas {
-  display: block;
-  width: 100% !important;
-  height: 100% !important;
-  background: var(--canvas-bg);
-  image-rendering: pixelated;
-}
-
-@media (max-width: 900px) {
-  .img-grid { grid-template-columns: repeat(4, 1fr); }
-}
-@media (max-width: 520px) {
-  .img-grid { grid-template-columns: repeat(3, 1fr); }
-}
-
-/* =====================================================================
-   GALLERY archive list
-   ===================================================================== */
-.gal-archive-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.gal-archive-list li { font-size: var(--t-sm); }
-.gal-archive-list a { color: var(--fg); text-decoration: none; }
-.gal-archive-list a:hover { color: var(--accent); text-decoration: underline; }
-.gal-archive-list .gal-count { color: var(--fg-muted); }
-
-.pager { margin-top: 16px; display: flex; gap: 16px; }
-.pager a { color: var(--accent); }
-.day-nav { margin-top: 12px; display: flex; gap: 16px; justify-content: space-between; font-size: var(--t-sm); }
-.day-nav a { color: var(--accent); }
-
-/* =====================================================================
-   DRAWING DETAIL
-   ===================================================================== */
-.dr-grid {
-  display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 32px;
-  align-items: start;
-}
-@media (max-width: 900px) {
-  .dr-grid { grid-template-columns: 1fr; gap: 16px; }
-}
-.dr-art-wrap { max-width: 320px; width: 100%; }
-.dr-art-wrap .pixart-wrap, .dr-art-wrap img {
-  width: 100%;
-  max-width: 320px;
-  height: auto;
-  display: block;
-  background: var(--canvas-bg);
-  border: var(--border) solid var(--border-c);
-  aspect-ratio: 1;
-  image-rendering: pixelated;
-}
-.dr-meta {
-  display: grid;
-  grid-template-columns: 100px 1fr;
-  gap: 8px 12px;
-  margin: 0 0 24px;
-  font-size: var(--t-sm);
-}
-.dr-meta dt { color: var(--fg-muted); }
-.dr-meta dd { margin: 0; word-break: break-all; }
-.mono-trunc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.dr-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
-
-/* =====================================================================
-   PRODUCTS LIST (/products)
-   ===================================================================== */
-.pr-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 16px;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.pr-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  text-decoration: none;
-  color: var(--fg);
-  border: var(--border) solid var(--border-c);
-  background: var(--bg-elev);
-  padding: 12px;
-}
-.pr-card:hover { border-color: var(--accent); text-decoration: none; }
-.pr-art {
-  aspect-ratio: 1;
-  border: var(--border) solid var(--border-c);
-  background: #f4f0e6;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.pr-art img { display: block; width: 100%; height: 100%; object-fit: cover; image-rendering: auto; }
-.pr-info { display: flex; flex-direction: column; gap: 2px; padding-top: 4px; }
-.pr-name { font-size: var(--t-sm); font-weight: 500; line-height: 1.3; }
-.pr-row { font-size: var(--t-xs); color: var(--fg-muted); }
 
 /* =====================================================================
    MERCH PICKER (/merch?d=<id>)

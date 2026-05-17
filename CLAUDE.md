@@ -54,6 +54,28 @@ Vite-served pages get the chrome via the `<!--CHROME:HEADER-->` /
 `<!--CHROME:FOOTER-->` markers + `vite/plugins/chrome.ts`. Builder pages call
 `renderHeader` / `renderFooter` from the chrome module directly.
 
+## Shared CSS (single source of truth)
+
+Three CSS files, each owning a disjoint slice. **Do not duplicate rules
+across them — the whole reason for this split is to stop the drift we
+used to get from dual-maintaining `.hdr` / `.ftr` / `.btn` / tokens.**
+
+| File                       | Owns                                                              | Loaded by                                              |
+|----------------------------|-------------------------------------------------------------------|--------------------------------------------------------|
+| `static/chrome.css`        | Design tokens (`:root`), base body/typography, header (`.hdr`+nav), footer (`.ftr`), `main` slot, page chrome (`.page-title`, `.divider`, ...), base `.btn` + `.primary` + `.ghost`. Everything `src/layout/chrome.ts` renders. | Both — `src/style.css` and `static/gallery-v2.css` each `@import url("/chrome.css")` at the top. |
+| `src/style.css`            | Editor-surface extensions to the base reset (touch-first `user-select: none`, etc.), `.canvas-banner`, `.flash`, `.btn` variants (`.icon`/`.sm`/`.xs`/`[disabled]`/...), and every Vite-served page (editor `.ed-*`, merch `.mc-*`, order, share, identity, pow-test). | Vite-served pages only.                                |
+| `static/gallery-v2.css`    | Builder-only classes: `.img-grid`, `.gal-archive-list`, `.pager`, `.dr-*`, `.pr-*`, `.mono-trunc`.                                                  | Builder templates (`/gallery-v2.css` link tag).        |
+
+Rule of thumb when adding a class:
+1. If `src/layout/chrome.ts` renders it → `chrome.css`.
+2. If it's on a Vite-served HTML entry (index/merch/share/order/identity/pow-test) → `src/style.css`.
+3. If it's only on a `builder/templates/*.ts` page → `static/gallery-v2.css`.
+
+A change that affects both editor and builder surfaces (e.g. footer
+margins, header height, button hover) belongs in `chrome.css`. If you
+catch yourself editing `.hdr`/`.ftr`/`.btn` in `src/style.css` or
+`static/gallery-v2.css`, stop — it's the wrong file.
+
 ## Repo layout
 
 ```

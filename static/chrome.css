@@ -1,0 +1,209 @@
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap");
+
+/* =====================================================================
+   Drawbang chrome — design tokens + header/footer + base typography
+   shared between every surface. Single source of truth for everything
+   in the chrome rendered by src/layout/chrome.ts.
+
+   Linked from:
+     - src/style.css     (Vite-served pages: editor, merch, share, ...)
+     - static/gallery-v2.css (builder-rendered pages: gallery, drawing, ...)
+
+   Surface-specific files extend on top of this one. Do NOT mirror rules
+   from here into either consumer — both pull this file at runtime.
+   ===================================================================== */
+
+:root {
+  --font: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --tap: 40px;
+  --pad: 16px;
+  --pad-sm: 8px;
+  --border: 1px;
+
+  --t-xs: 11px;
+  --t-sm: 13px;
+  --t-md: 14px;
+  --t-lg: 16px;
+  --t-xl: 20px;
+  --t-2xl: 28px;
+
+  --bg: #0a0a0a;
+  --bg-elev: #141414;
+  --bg-sunk: #050505;
+  --fg: #f0ece4;
+  --fg-muted: #8a857c;
+  --fg-dim: #b8b3a8;
+  --border-c: #3a3833;
+  --border-strong: #5a5650;
+  --accent: oklch(0.74 0.22 340);
+  --accent-on: #0a0a0a;
+  --canvas-bg: #0a0a0a;
+  --canvas-grid: #1f1d1a;
+
+  /* legacy aliases — older modules still reference --panel directly. */
+  --panel: var(--bg-elev);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 var(--t-md)/1.5 var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+img { image-rendering: pixelated; image-rendering: crisp-edges; }
+button { font: inherit; color: inherit; }
+
+a { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { text-decoration-thickness: 2px; }
+
+/* ===== Header ===== */
+.hdr {
+  border-bottom: var(--border) solid var(--border-c);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 24px;
+  gap: 24px;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 30;
+}
+.hdr-logo { color: var(--fg); display: block; height: 24px; text-decoration: none; flex: 0 0 auto; }
+.hdr-logo svg { display: block; height: 24px; width: auto; }
+.hdr-right { display: flex; align-items: center; gap: 12px; position: relative; }
+.hdr-nav { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+
+.navlink {
+  font: 500 var(--t-sm)/1 var(--font);
+  background: transparent;
+  color: var(--fg);
+  text-decoration: none;
+  padding: 8px 10px;
+  border: var(--border) solid transparent;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+}
+.navlink:hover { color: var(--accent); text-decoration: none; }
+.navlink[aria-current="page"] {
+  color: var(--accent);
+  border-color: var(--border-c);
+  background: var(--bg-elev);
+}
+
+/* Mobile hamburger — kept from v1 chrome so narrow viewports still
+   collapse the nav. Hidden on wide; chrome-toggle.js flips aria. */
+.chrome-menu-toggle {
+  background: var(--bg-elev);
+  color: var(--fg);
+  border: var(--border) solid var(--border-c);
+  padding: 0 12px;
+  height: 36px;
+  min-height: 36px;
+  font: 500 var(--t-sm) var(--font);
+  cursor: pointer;
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 767px) {
+  .chrome-menu-toggle { display: inline-flex; align-items: center; }
+  .hdr { padding: 10px 14px; gap: 12px; }
+  .hdr-logo, .hdr-logo svg { height: 16px; }
+  .hdr-nav {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    background: var(--bg-elev);
+    border: var(--border) solid var(--border-c);
+    padding: 6px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    z-index: 10;
+  }
+  .hdr-nav.chrome-nav-open { display: flex; }
+  .hdr-nav .navlink {
+    padding: 6px 10px;
+    text-align: left;
+    border-color: transparent;
+    background: transparent;
+  }
+  .hdr-nav .navlink[aria-current="page"] {
+    color: var(--accent);
+    background: transparent;
+    border-color: transparent;
+  }
+}
+@media (min-width: 768px) {
+  .chrome-menu-toggle { display: none; }
+}
+
+/* ===== Footer ===== */
+.ftr {
+  border-top: var(--border) solid var(--border-c);
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: var(--t-xs);
+  color: var(--fg-muted);
+}
+.ftr a { color: var(--fg-muted); }
+.ftr-left { display: flex; flex-direction: column; gap: 8px; }
+.ftr-right { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; margin-left: auto; }
+.ftr-links { display: flex; gap: 16px; flex-wrap: wrap; }
+.ftr-social { display: flex; gap: 12px; flex-wrap: wrap; }
+.ftr-repo { color: var(--fg-muted); }
+.ftr-feedback { display: inline-flex; align-items: center; gap: 6px; color: var(--fg-muted); }
+.ftr-feedback svg { display: block; }
+@media (max-width: 640px) { .ftr { padding: 12px 14px; } }
+
+/* ===== Main slot ===== */
+main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; }
+@media (max-width: 640px) { main { padding: 12px 14px 80px; } }
+
+/* ===== Page chrome ===== */
+.page-title { font-size: var(--t-lg); font-weight: 700; margin: 0 0 16px; letter-spacing: 0; }
+.page-sub { font-size: var(--t-sm); color: var(--fg-muted); margin: -16px 0 24px; }
+.divider { height: var(--border); background: var(--border-c); margin: 24px 0; border: 0; }
+.panel-h {
+  font-size: var(--t-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-muted);
+  margin: 0 0 12px;
+}
+.muted { color: var(--fg-muted); font-size: var(--t-sm); }
+
+/* ===== Button (base) =====
+   Surface-specific variants (.btn.icon / .sm / .xs / [aria-pressed] / ...)
+   live in src/style.css since builder pages only use the base + .primary
+   + .ghost set. */
+.btn {
+  font: 500 var(--t-sm)/1 var(--font);
+  background: var(--bg-elev);
+  color: var(--fg);
+  border: var(--border) solid var(--border-c);
+  padding: 0 12px;
+  height: var(--tap);
+  min-width: var(--tap);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+  letter-spacing: 0.02em;
+  transition: transform 60ms;
+}
+.btn:hover { border-color: var(--border-strong); text-decoration: none; }
+.btn:active { transform: translate(2px, 2px); }
+.btn.primary { background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
+.btn.primary:hover { filter: brightness(0.95); }
+.btn.ghost { background: transparent; }
