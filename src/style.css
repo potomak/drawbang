@@ -394,14 +394,19 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
 
 .ed-palette-wrap {
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-items: stretch;
   padding: 8px;
   border: var(--border) solid var(--border-c);
   background: var(--bg-elev);
   width: 100%;
   max-width: 320px;
   flex: 0 1 auto;
+}
+.ed-palette-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
 }
 
 /* Single editor breakpoint, matched to the menu-collapse width (767px).
