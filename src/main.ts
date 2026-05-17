@@ -46,6 +46,7 @@ import {
   type TileClaimRef,
 } from "./submit.js";
 import { mountCanvasBanner, type CanvasBannerHandle } from "./canvas-banner.js";
+import { showFlash, hideFlash } from "./layout/flash.js";
 import { canvasName, isCanvasIdValid, TILES_PER_SIDE } from "../config/canvases.js";
 
 // Native resolution of the main canvas. 16×35 = 560 — matches the v2
@@ -180,7 +181,6 @@ app.innerHTML = /* html */ `
       <div id="frameList" class="ed-frames-strip"></div>
     </div>
 
-    <p id="status">${PUBLISH_DISABLED ? "Demo mode — draw, export a GIF, or copy a share link." : ""}</p>
   </main>
 
   <dialog id="palettePicker">
@@ -240,7 +240,6 @@ const mainCanvas = new PixelCanvas(mainCanvasEl, {
 });
 const frameListEl = document.getElementById("frameList")!;
 const paletteEl = document.getElementById("palette")!;
-const statusEl = document.getElementById("status")!;
 const picker = document.getElementById("palettePicker") as HTMLDialogElement;
 const baseGridEl = document.getElementById("baseGrid")!;
 const merchBtnEl = document.getElementById("merchBtn") as HTMLButtonElement | null;
@@ -549,7 +548,7 @@ function addFrame(): void {
   stopPlay();
   const undo = addFrameOp(state, MAX_FRAMES);
   if (!undo) {
-    flashStatus(`Max ${MAX_FRAMES} frames.`);
+    showFlash({ kind: "info", message: `Max ${MAX_FRAMES} frames.`, autoDismissMs: 5000 });
     return;
   }
   history.push(() => {
@@ -563,7 +562,7 @@ function addFrame(): void {
 function deleteFrameAt(idx: number): void {
   stopPlay();
   if (state.frames.length <= 1) {
-    flashStatus("Can't delete the only frame.");
+    showFlash({ kind: "info", message: "Can't delete the only frame.", autoDismissMs: 5000 });
     return;
   }
   const before = { frames: state.frames.slice(), current: state.current };
@@ -581,7 +580,7 @@ function deleteFrameAt(idx: number): void {
 function copyFrame(): void {
   clipboard = state.frames[state.current].clone();
   pasteBtnEl.disabled = false;
-  flashStatus(`Copied frame ${state.current + 1}.`);
+  showFlash({ kind: "info", message: `Copied frame ${state.current + 1}.`, autoDismissMs: 5000 });
 }
 
 // Inserts the clipboard as a new frame after the current one. The original
@@ -589,11 +588,11 @@ function copyFrame(): void {
 function pasteAsNewFrame(): void {
   stopPlay();
   if (!clipboard) {
-    flashStatus("Nothing to paste — copy a frame first.");
+    showFlash({ kind: "info", message: "Nothing to paste — copy a frame first.", autoDismissMs: 5000 });
     return;
   }
   if (state.frames.length >= MAX_FRAMES) {
-    flashStatus(`Max ${MAX_FRAMES} frames.`);
+    showFlash({ kind: "info", message: `Max ${MAX_FRAMES} frames.`, autoDismissMs: 5000 });
     return;
   }
   const insertAt = state.current + 1;
@@ -633,7 +632,7 @@ function togglePlay(): void {
 function startPlay(): void {
   if (playing) return;
   if (state.frames.length < 2) {
-    flashStatus("Add a second frame to play.");
+    showFlash({ kind: "info", message: "Add a second frame to play.", autoDismissMs: 5000 });
     return;
   }
   if (playTimer !== null) {
@@ -747,30 +746,36 @@ function openPickerForSlot(slot: number): void {
 
 async function handlePublish(): Promise<void> {
   const gif = encodeGif({ frames: state.frames, activePalette });
-  setStatus("Starting proof of work…");
+  showFlash({ kind: "info", message: "Starting proof of work…" });
   try {
     const result = await submit({
       ingestUrl: INGEST_URL,
       stateUrl: STATE_URL,
       gif,
       tileClaim: activeTileClaim ?? undefined,
-      onPhase: (phase, detail) => setStatus(`${phase}: ${detail}`),
+      onPhase: (phase, detail) =>
+        showFlash({ kind: "info", message: `${phase}: ${detail}` }),
       onProgress: (p) => {
         const rate = (p.hashes / Math.max(1, p.elapsedMs / 1000)).toFixed(0);
-        setStatus(`Solving… ${p.hashes.toLocaleString()} hashes (${rate}/s)`);
+        showFlash({
+          kind: "info",
+          message: `Solving… ${p.hashes.toLocaleString()} hashes (${rate}/s)`,
+        });
       },
     });
-    statusEl.innerHTML = "";
-    statusEl.appendChild(document.createTextNode("Published: "));
     const link = document.createElement("a");
     link.href = result.share_url;
     link.textContent = result.share_url;
     link.target = "_blank";
     link.rel = "noopener";
-    statusEl.appendChild(link);
-    statusEl.appendChild(
-      document.createTextNode(` (${result.required_bits} bits in ${result.solve_ms}ms)`),
-    );
+    showFlash({
+      kind: "success",
+      message: [
+        "Published: ",
+        link,
+        ` (${result.required_bits} bits in ${result.solve_ms}ms)`,
+      ],
+    });
     if (localId) {
       await local.save({
         id: localId,
@@ -783,25 +788,32 @@ async function handlePublish(): Promise<void> {
     resetEditor({ keepPublishedId: true });
   } catch (err) {
     if (err instanceof MissingIdentityError) {
-      setStatus("Set up your key before publishing.");
+      showFlash({ kind: "error", message: "Set up your key before publishing." });
       openIdentityBootstrap();
       return;
     }
     if (err instanceof TileTakenError) {
-      setStatus(`This tile was just taken — pick another from the canvas.`);
+      showFlash({
+        kind: "error",
+        message: "This tile was just taken — pick another from the canvas.",
+      });
       return;
     }
     if (err instanceof CanvasClaimRejectedError) {
-      setStatus(`Canvas publish rejected: ${err.message}`);
+      showFlash({ kind: "error", message: `Canvas publish rejected: ${err.message}` });
       return;
     }
     if (err instanceof CanvasCooldownError) {
-      setStatus(
-        `Cooldown active — wait ${err.retryAfterS}s before publishing to this canvas again.`,
-      );
+      showFlash({
+        kind: "error",
+        message: `Cooldown active — wait ${err.retryAfterS}s before publishing to this canvas again.`,
+      });
       return;
     }
-    setStatus(`Publish failed: ${err instanceof Error ? err.message : String(err)}`);
+    showFlash({
+      kind: "error",
+      message: `Publish failed: ${err instanceof Error ? err.message : String(err)}`,
+    });
   }
 }
 
@@ -821,11 +833,11 @@ function copyShareLink(): void {
   const hash = encodeShare({ frames: state.frames, activePalette });
   const url = `${location.origin}${location.pathname}#d=${hash}`;
   navigator.clipboard?.writeText(url);
-  setStatus(`Share link copied (${hash.length} chars).`);
-}
-
-function setStatus(msg: string): void {
-  statusEl.textContent = msg;
+  showFlash({
+    kind: "success",
+    message: `Share link copied (${hash.length} chars).`,
+    autoDismissMs: 5000,
+  });
 }
 
 // -- Canvas banner ---------------------------------------------------------
@@ -899,9 +911,11 @@ async function initTileClaimBanner(tc: TileClaimRef): Promise<void> {
       y: tc.y,
       stateUrl: canvasStateUrl(tc.canvasId),
       claimUrl: CANVAS_CLAIM_URL,
-      onPhase: (phase, detail) => setStatus(`Canvas ${phase}: ${detail}`),
+      onPhase: (phase, detail) =>
+        showFlash({ kind: "info", message: `Canvas ${phase}: ${detail}` }),
     });
     activeTileClaim = tc;
+    hideFlash();
     bannerHandle?.setState({
       mode: "tile-claim",
       canvas_id: tc.canvasId,
@@ -912,6 +926,7 @@ async function initTileClaimBanner(tc: TileClaimRef): Promise<void> {
       claim_expires_at: claim.claim_expires_at,
     });
   } catch (err) {
+    hideFlash();
     bannerHandle?.setState({
       mode: "tile-claim",
       canvas_id: tc.canvasId,
@@ -922,13 +937,6 @@ async function initTileClaimBanner(tc: TileClaimRef): Promise<void> {
       error: err instanceof Error ? err.message : String(err),
     });
   }
-}
-
-function flashStatus(msg: string): void {
-  setStatus(msg);
-  setTimeout(() => {
-    if (statusEl.textContent === msg) statusEl.textContent = "";
-  }, 2000);
 }
 
 function persist(): void {
@@ -1072,6 +1080,12 @@ window.addEventListener("keydown", (ev) => {
 
 async function boot(): Promise<void> {
   buildBaseGrid();
+  if (PUBLISH_DISABLED) {
+    showFlash({
+      kind: "info",
+      message: "Demo mode — draw, export a GIF, or copy a share link.",
+    });
+  }
 
   try {
     identity = await loadStoredIdentity();
@@ -1107,7 +1121,10 @@ async function boot(): Promise<void> {
       state.current = 0;
       setLastPublishedId(forkId);
     } catch (err) {
-      setStatus(`Fork failed: ${err instanceof Error ? err.message : String(err)}`);
+      showFlash({
+        kind: "error",
+        message: `Fork failed: ${err instanceof Error ? err.message : String(err)}`,
+      });
     }
   } else if (hash) {
     try {
@@ -1116,7 +1133,10 @@ async function boot(): Promise<void> {
       activePalette = d.activePalette;
       state.current = 0;
     } catch (err) {
-      setStatus(`Invalid share link: ${err instanceof Error ? err.message : String(err)}`);
+      showFlash({
+        kind: "error",
+        message: `Invalid share link: ${err instanceof Error ? err.message : String(err)}`,
+      });
     }
   }
 

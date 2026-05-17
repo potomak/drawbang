@@ -3,6 +3,7 @@ import { PixelCanvas } from "./editor/canvas.js";
 import { decodeGif } from "./editor/gif.js";
 import { encodeScaledGif } from "./editor/scaled-gif.js";
 import { activePaletteToRgb, DEFAULT_ACTIVE_PALETTE } from "./editor/palette.js";
+import { showFlash, hideFlash } from "./layout/flash.js";
 
 const DRAWING_BASE_URL = import.meta.env.VITE_DRAWING_BASE_URL ?? "/drawings";
 
@@ -14,16 +15,11 @@ const previewCanvasEl = document.getElementById("preview") as HTMLCanvasElement;
 const subredditEl = document.getElementById("subredditInput") as HTMLInputElement;
 const titleEl = document.getElementById("titleInput") as HTMLInputElement;
 const shareBtn = document.getElementById("shareBtn") as HTMLButtonElement;
-const statusEl = document.getElementById("status") as HTMLParagraphElement;
 
 let frames: Bitmap[] = [];
 let activePalette: Uint8Array = new Uint8Array(DEFAULT_ACTIVE_PALETTE);
 let drawingId: string | null = null;
 let busy = false;
-
-function setStatus(msg: string): void {
-  statusEl.textContent = msg;
-}
 
 function renderPreview(): void {
   if (frames.length === 0) return;
@@ -38,14 +34,14 @@ function renderPreview(): void {
 }
 
 async function loadDrawing(id: string): Promise<void> {
-  setStatus("loading drawing…");
+  showFlash({ kind: "info", message: "loading drawing…" });
   const res = await fetch(`${DRAWING_BASE_URL}/${id}.gif`);
   if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
   const bytes = new Uint8Array(await res.arrayBuffer());
   const decoded = decodeGif(bytes);
   frames = decoded.frames;
   if (decoded.activePalette) activePalette = decoded.activePalette;
-  setStatus("");
+  hideFlash();
 }
 
 function downloadBlob(bytes: Uint8Array, filename: string): void {
@@ -75,20 +71,26 @@ async function handleShare(): Promise<void> {
   if (busy || !drawingId || frames.length === 0) return;
   const subreddit = subredditEl.value.trim().replace(/^\/?r\//i, "");
   if (!subreddit) {
-    setStatus("subreddit can't be empty");
+    showFlash({ kind: "error", message: "subreddit can't be empty", autoDismissMs: 5000 });
     return;
   }
   busy = true;
   shareBtn.disabled = true;
-  setStatus("generating GIF…");
+  showFlash({ kind: "info", message: "generating GIF…" });
   try {
     const bytes = encodeScaledGif({ frames, activePalette, scale: SCALE });
     downloadBlob(bytes, `drawbang-${drawingId.slice(0, 8)}-320.gif`);
     const reddit = buildRedditUrl(subreddit, titleEl.value);
-    setStatus("opening Reddit in a new tab — drag the downloaded GIF into the form");
+    showFlash({
+      kind: "success",
+      message: "opening Reddit in a new tab — drag the downloaded GIF into the form",
+    });
     window.open(reddit, "_blank", "noopener,noreferrer");
   } catch (err) {
-    setStatus(`failed: ${err instanceof Error ? err.message : String(err)}`);
+    showFlash({
+      kind: "error",
+      message: `failed: ${err instanceof Error ? err.message : String(err)}`,
+    });
   } finally {
     busy = false;
     shareBtn.disabled = false;
@@ -99,7 +101,7 @@ async function boot(): Promise<void> {
   const params = new URL(location.href).searchParams;
   drawingId = params.get("d");
   if (!drawingId || !/^[0-9a-f]{64}$/.test(drawingId)) {
-    setStatus("missing or malformed ?d=<drawing id>");
+    showFlash({ kind: "error", message: "missing or malformed ?d=<drawing id>" });
     shareBtn.disabled = true;
     return;
   }
@@ -108,7 +110,10 @@ async function boot(): Promise<void> {
     await loadDrawing(drawingId);
     renderPreview();
   } catch (err) {
-    setStatus(`could not load drawing: ${err instanceof Error ? err.message : String(err)}`);
+    showFlash({
+      kind: "error",
+      message: `could not load drawing: ${err instanceof Error ? err.message : String(err)}`,
+    });
     shareBtn.disabled = true;
     return;
   }

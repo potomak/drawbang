@@ -1,6 +1,8 @@
 // Standalone PoW test bed. Spins up the same Web Worker the editor uses
 // (`pow.worker.ts`) so timings reflect what real publishers see.
 
+import { showFlash, hideFlash } from "./layout/flash.js";
+
 const FIXED_BASELINE = "1970-01-01T00:00:00.000Z";
 
 const bitsEl = document.getElementById("bits") as HTMLInputElement;
@@ -11,16 +13,11 @@ const benchBtn = document.getElementById("benchBtn") as HTMLButtonElement;
 const solveBtn = document.getElementById("solveBtn") as HTMLButtonElement;
 const stopBtn = document.getElementById("stopBtn") as HTMLButtonElement;
 const clearBtn = document.getElementById("clearBtn") as HTMLButtonElement;
-const statusEl = document.getElementById("status")!;
 const resultsEl = document.getElementById("results")!;
 
 let worker: Worker | null = null;
 let lastHps: number | null = null;
 let runCounter = 0;
-
-function setStatus(msg: string): void {
-  statusEl.textContent = msg;
-}
 
 function spawnWorker(): Worker {
   return new Worker(new URL("./pow.worker.ts", import.meta.url), { type: "module" });
@@ -61,14 +58,17 @@ function prependRow(cells: string[], cls?: string): void {
 benchBtn.addEventListener("click", () => {
   killWorker();
   setRunning(true);
-  setStatus("running benchmark…");
+  showFlash({ kind: "info", message: "running benchmark…" });
   const ms = Number(benchMsEl.value);
   worker = spawnWorker();
   worker.addEventListener("message", (ev) => {
     const data = ev.data as { type: string; hps?: number; message?: string };
     if (data.type === "benchResult") {
       lastHps = data.hps ?? null;
-      setStatus(`benchmark: ${lastHps?.toLocaleString() ?? "?"} hashes/s over ${ms} ms`);
+      showFlash({
+        kind: "info",
+        message: `benchmark: ${lastHps?.toLocaleString() ?? "?"} hashes/s over ${ms} ms`,
+      });
       runCounter++;
       prependRow([
         String(runCounter),
@@ -82,7 +82,7 @@ benchBtn.addEventListener("click", () => {
       killWorker();
       setRunning(false);
     } else if (data.type === "error") {
-      setStatus(`error: ${data.message ?? "unknown"}`);
+      showFlash({ kind: "error", message: `error: ${data.message ?? "unknown"}` });
       killWorker();
       setRunning(false);
     }
@@ -99,7 +99,10 @@ solveBtn.addEventListener("click", () => {
   const gif = makePayload(payloadSize);
 
   setRunning(true);
-  setStatus(`solving ${bits} bits against ${payloadSize}-byte payload…`);
+  showFlash({
+    kind: "info",
+    message: `solving ${bits} bits against ${payloadSize}-byte payload…`,
+  });
   const startedAt = performance.now();
 
   worker = spawnWorker();
@@ -117,9 +120,10 @@ solveBtn.addEventListener("click", () => {
       const hashes = data.hashes ?? 0;
       const elapsed = data.elapsedMs ?? 0;
       const rate = elapsed > 0 ? Math.round((hashes * 1000) / elapsed) : 0;
-      setStatus(
-        `solving ${bits} bits… ${hashes.toLocaleString()} hashes (${rate.toLocaleString()}/s)`,
-      );
+      showFlash({
+        kind: "info",
+        message: `solving ${bits} bits… ${hashes.toLocaleString()} hashes (${rate.toLocaleString()}/s)`,
+      });
     } else if (data.type === "done") {
       const wallMs = Math.round(performance.now() - startedAt);
       const solveMs = data.solveMs ?? wallMs;
@@ -135,11 +139,14 @@ solveBtn.addEventListener("click", () => {
         data.nonce ?? "",
         data.hashHex ?? "",
       ]);
-      setStatus(`done: ${bits} bits in ${solveMs} ms (${hashes.toLocaleString()} hashes)`);
+      showFlash({
+        kind: "success",
+        message: `done: ${bits} bits in ${solveMs} ms (${hashes.toLocaleString()} hashes)`,
+      });
       killWorker();
       setRunning(false);
     } else if (data.type === "error") {
-      setStatus(`error: ${data.message ?? "unknown"}`);
+      showFlash({ kind: "error", message: `error: ${data.message ?? "unknown"}` });
       killWorker();
       setRunning(false);
     }
@@ -150,13 +157,11 @@ solveBtn.addEventListener("click", () => {
 stopBtn.addEventListener("click", () => {
   killWorker();
   setRunning(false);
-  setStatus("stopped");
+  showFlash({ kind: "info", message: "stopped", autoDismissMs: 5000 });
 });
 
 clearBtn.addEventListener("click", () => {
   resultsEl.innerHTML = "";
   runCounter = 0;
-  setStatus("");
+  hideFlash();
 });
-
-setStatus("idle");

@@ -184,6 +184,64 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
 .cv-banner--error .cv-banner-emoji { color: var(--accent); }
 @media (max-width: 640px) { .canvas-banner { padding: 12px 14px 0; } }
 
+/* ===== Flash slot =====
+   Singleton notification overlay pinned below the sticky header. Position
+   is fixed so the message stays visible during scroll. Top offset matches
+   the computed .hdr height (14+14+24+1 desktop, 10+10+16+1 mobile). */
+.flash {
+  position: fixed;
+  top: 53px;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 24px 8px 21px;
+  background: var(--bg-elev);
+  border-bottom: var(--border) solid var(--border-c);
+  border-left: 3px solid var(--border-strong);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  animation: flash-in 140ms ease-out;
+}
+.flash[hidden] { display: none; }
+.flash[data-kind="success"] { border-left-color: var(--accent); }
+.flash[data-kind="error"] { border-left-color: #ff6060; }
+.flash-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--t-sm);
+  color: var(--fg);
+}
+.flash-msg { word-break: break-word; }
+.flash-msg a { color: var(--fg); text-decoration: underline; user-select: text; -webkit-user-select: text; }
+.flash-action { color: var(--accent); white-space: nowrap; }
+.flash-close {
+  flex: 0 0 auto;
+  background: transparent;
+  color: var(--fg-muted);
+  border: 0;
+  width: var(--tap);
+  height: var(--tap);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.flash-close:hover { color: var(--fg); }
+@keyframes flash-in {
+  from { transform: translateY(-6px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@media (max-width: 640px) {
+  .flash { top: 37px; padding: 10px 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flash { animation: none; }
+}
+
 /* ===== Button (pixel-native) ===== */
 .btn {
   font: 500 var(--t-sm)/1 var(--font);
@@ -439,16 +497,6 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
   border-style: dashed;
 }
 .ed-frame-add:hover { color: var(--accent); border-color: var(--accent); border-style: solid; }
-
-/* ===== Editor status line ===== */
-#status {
-  font-size: var(--t-xs);
-  color: var(--fg-muted);
-  min-height: 1.5em;
-  word-break: break-all;
-  margin: 16px 0 0;
-}
-#status a { color: var(--fg); user-select: text; -webkit-user-select: text; }
 
 /* ===== Identity dialogs (kept from v1 — pixel-native restyle) ===== */
 dialog {
@@ -868,7 +916,6 @@ dialog form menu button:hover { border-color: var(--border-strong); }
   font-size: var(--t-sm);
 }
 .share-input-prefix input { border: 0; flex: 1; background: transparent; }
-.share-status { font-size: var(--t-xs); color: var(--fg-muted); min-height: 1.2em; margin: 0; }
 @media (max-width: 720px) {
   .share-page { grid-template-columns: 1fr; }
   .share-preview canvas#preview { width: 100%; height: auto; aspect-ratio: 1 / 1; max-width: 280px; }
@@ -930,4 +977,3 @@ dialog form menu button:hover { border-color: var(--border-strong); }
 .pow-test-body th { color: var(--fg-muted); font-weight: 500; }
 .pow-test-body td.mono { font-family: var(--font); }
 .pow-test-body td.hash { word-break: break-all; }
-.pow-test-body #status { color: var(--fg-muted); font-size: var(--t-sm); min-height: 1.2em; margin: 8px 0; }
