@@ -379,16 +379,14 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
   .ed-palette-wrap { max-width: none; }
 }
 .ed-palette {
-  flex: 1;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, 36px);
   gap: 6px;
   align-content: start;
   min-width: 0;
 }
 .ed-swatch {
-  width: 100%;
-  aspect-ratio: 1;
+  width: 36px; height: 36px;
   border: var(--border) solid var(--border-c);
   cursor: pointer;
   padding: 0;
@@ -398,7 +396,7 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
    rigid 4-column matrix in favor of an auto-fill flow that fits whatever
    columns the viewport gives us. */
 @media (max-width: 767px) {
-  .ed-palette { grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); }
+  .ed-palette { flex: 1; grid-template-columns: repeat(auto-fill, 36px); }
 }
 .ed-swatch.selected {
   border-color: var(--accent);
