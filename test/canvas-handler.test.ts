@@ -287,6 +287,50 @@ describe("GET /canvas/{id}/state", () => {
     assert.equal(published?.drawing_id, "deadbeef");
   });
 
+  test("required_bits reflects current age of last_claim_at, not last claim's difficulty", async () => {
+    const { storage } = await tmpStorage();
+    const canvasStore = new MemoryCanvasStore();
+    const t0 = new Date("2026-05-13T12:00:00Z");
+    const { canvasId } = liveCanvasFor(t0);
+    const baseline = "1970-01-01T00:00:00.000Z";
+
+    // First-ever claim → server records last_difficulty_bits=14 (age=∞ bracket).
+    const claim = await buildClaim({ canvasId, x: 3, y: 4, baseline, bits: 14 });
+    const claimRes = await handleCanvasClaim(claim.req, {
+      storage,
+      canvasStore,
+      publicBaseUrl: "https://example.test",
+      now: () => t0,
+    });
+    assert.equal(claimRes.status, 201);
+
+    // 300s later — age sits in the (60s, 600s] bracket → 16 bits.
+    const r = await handleCanvasState(canvasId, {
+      storage,
+      canvasStore,
+      publicBaseUrl: "https://example.test",
+      now: () => new Date(t0.getTime() + 300_000),
+    });
+    const body = r.body as CanvasStateResponseBody;
+    assert.equal(body.required_bits, 16);
+    assert.equal(body.last_claim_at, t0.toISOString());
+  });
+
+  test("required_bits on a never-claimed canvas → easiest bracket", async () => {
+    const { storage } = await tmpStorage();
+    const canvasStore = new MemoryCanvasStore();
+    const now = new Date("2026-05-13T12:00:00Z");
+    const { canvasId } = liveCanvasFor(now);
+    const r = await handleCanvasState(canvasId, {
+      storage,
+      canvasStore,
+      publicBaseUrl: "https://example.test",
+      now: () => now,
+    });
+    const body = r.body as CanvasStateResponseBody;
+    assert.equal(body.required_bits, 14);
+  });
+
   test("locked canvas → immutable cache + locked:true", async () => {
     const { storage } = await tmpStorage();
     const canvasStore = new MemoryCanvasStore();

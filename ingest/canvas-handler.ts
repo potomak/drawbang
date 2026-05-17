@@ -326,7 +326,16 @@ export async function handleCanvasState(
     return t;
   });
 
-  const { state } = await loadOrInitState(cfg.storage, canvasId);
+  const { state, firstEver } = await loadOrInitState(cfg.storage, canvasId);
+
+  // Report the bits the *next* claim would need given the current age of
+  // last_claim_at — not the bits that satisfied the previous claim. Echoing
+  // last_difficulty_bits caused clients to under-solve when more than a few
+  // seconds had passed since the prior claim (the difficulty curve hardens
+  // as age drops below the next bracket and softens as it grows past one).
+  const baselineAge = firstEver
+    ? Number.POSITIVE_INFINITY
+    : Math.max(0, ageSecondsBetween(now.toISOString(), state.last_claim_at));
 
   const body: CanvasStateResponseBody = {
     canvas_id: canvasId,
@@ -334,7 +343,7 @@ export async function handleCanvasState(
     opens_at: opensAt.toISOString(),
     closes_at: closesAt.toISOString(),
     locked,
-    required_bits: state.last_difficulty_bits,
+    required_bits: requiredBits(baselineAge),
     last_claim_at: state.last_claim_at,
     tiles: tiles.filter((t): t is NonNullable<typeof t> => t !== null),
   };
