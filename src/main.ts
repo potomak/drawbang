@@ -97,6 +97,10 @@ let clipboard: Bitmap | null = null;
 const history = new History();
 let localId: string | null = null;
 let lastPublishedId: string | null = null;
+// Set when the editor boots with ?fork=<id>. Forwarded to ingest as
+// `parent` on the next publish so the new drawing records its lineage.
+// Cleared on every reset — a blank canvas isn't a fork of anything.
+let parentId: string | null = null;
 let identity: StoredIdentity | null = null;
 let onion = false;
 // GIF playback is locked at 5 fps (200 ms/frame) — matches the encoded
@@ -622,6 +626,7 @@ function resetEditor(opts: { keepPublishedId?: boolean } = {}): void {
   activePalette = new Uint8Array(DEFAULT_ACTIVE_PALETTE);
   selectedSlot = 1;
   setActiveTool("pixel");
+  parentId = null;
   if (!opts.keepPublishedId) setLastPublishedId(null);
   render();
   persist();
@@ -760,6 +765,7 @@ async function handlePublish(): Promise<void> {
       ingestUrl: INGEST_URL,
       stateUrl: STATE_URL,
       gif,
+      parent: parentId ?? undefined,
       tileClaim: activeTileClaim ?? undefined,
       onPhase: (phase, detail) =>
         showFlash({ kind: "info", message: `${phase}: ${detail}` }),
@@ -1134,6 +1140,7 @@ async function boot(): Promise<void> {
       state.frames = decoded.frames;
       if (decoded.activePalette) activePalette = decoded.activePalette;
       state.current = 0;
+      parentId = forkId;
       setLastPublishedId(forkId);
     } catch (err) {
       showFlash({
