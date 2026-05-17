@@ -306,10 +306,47 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
   margin-bottom: 16px;
   padding-bottom: 16px;
   border-bottom: var(--border) solid var(--border-c);
 }
+.ed-palette-select-wrap {
+  display: inline-flex;
+  align-items: stretch;
+  height: var(--tap);
+  border: var(--border) solid var(--border-c);
+  background: var(--bg-elev);
+  cursor: pointer;
+  letter-spacing: 0.02em;
+}
+.ed-palette-select-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  font: 500 var(--t-sm) var(--font);
+  color: var(--fg-muted);
+  border-right: var(--border) solid var(--border-c);
+}
+.ed-palette-select {
+  font: 500 var(--t-sm) var(--font);
+  color: var(--fg);
+  background: transparent;
+  border: 0;
+  padding: 0 28px 0 10px;
+  height: 100%;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--fg-muted) 50%),
+                    linear-gradient(135deg, var(--fg-muted) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 18px, calc(100% - 9px) 18px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+.ed-palette-select:focus { outline: none; }
+.ed-palette-select-wrap:hover { border-color: var(--border-strong); }
+.ed-palette-select-wrap:focus-within { border-color: var(--accent); }
 
 .ed-grid {
   display: grid;

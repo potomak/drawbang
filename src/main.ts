@@ -12,7 +12,10 @@ import {
   DEFAULT_ACTIVE_PALETTE,
   activePaletteToHex,
   activePaletteToRgb,
+  hexToRgb,
+  nearestBaseIndex,
 } from "./editor/palette.js";
+import { RETRO_PALETTES, type RetroPalette } from "../config/palettes.js";
 import {
   drawPixel,
   fillArea,
@@ -84,6 +87,10 @@ function truthy(v: string | undefined): boolean {
 
 const state: FrameState = { frames: [new Bitmap()], current: 0 };
 let activePalette: Uint8Array = new Uint8Array(DEFAULT_ACTIVE_PALETTE);
+// "default" or a RetroPalette.id. Persisted to localStorage and applied
+// on boot + on every editor reset so the user's last pick survives a
+// publish or Clear.
+let currentPaletteId = "default";
 let selectedSlot = 1;
 let tool: "pixel" | "erase" | "fill" = "pixel";
 let painting = false;
@@ -145,6 +152,15 @@ app.innerHTML = /* html */ `
       <button class="btn" data-action="share">${ICON.share} Copy share link</button>
       <button class="btn" data-action="export-gif">${ICON.download} Download GIF</button>
       <button class="btn ghost" data-action="open-identity" id="identityBtn" hidden>${ICON.key} Key</button>
+      <label class="ed-palette-select-wrap">
+        <span class="ed-palette-select-label">Palette</span>
+        <select id="paletteSelect" class="ed-palette-select" aria-label="Palette">
+          <option value="default">Default</option>
+          ${RETRO_PALETTES.map(
+            (p) => `<option value="${p.id}">${p.name}</option>`,
+          ).join("")}
+        </select>
+      </label>
     </div>
 
     <div class="ed-grid">
@@ -244,6 +260,7 @@ const mainCanvas = new PixelCanvas(mainCanvasEl, {
 });
 const frameListEl = document.getElementById("frameList")!;
 const paletteEl = document.getElementById("palette")!;
+const paletteSelectEl = document.getElementById("paletteSelect") as HTMLSelectElement | null;
 const picker = document.getElementById("palettePicker") as HTMLDialogElement;
 const baseGridEl = document.getElementById("baseGrid")!;
 const identityBtnEl = document.getElementById("identityBtn") as HTMLButtonElement | null;
@@ -381,6 +398,49 @@ async function copyPubkey(): Promise<void> {
 
 function setLastPublishedId(id: string | null): void {
   lastPublishedId = id;
+}
+
+const PALETTE_LS_KEY = "drawbang:palette";
+
+function findRetroPalette(id: string): RetroPalette | null {
+  return RETRO_PALETTES.find((p) => p.id === id) ?? null;
+}
+
+function paletteToActiveIndices(palette: RetroPalette): Uint8Array {
+  const out = new Uint8Array(palette.colors.length);
+  for (let i = 0; i < palette.colors.length; i++) {
+    out[i] = nearestBaseIndex(hexToRgb(palette.colors[i]));
+  }
+  return out;
+}
+
+// Applies the named palette to activePalette, resets the selected swatch,
+// re-renders, and (when persist=true) saves the choice to localStorage. The
+// "default" id maps to DEFAULT_ACTIVE_PALETTE verbatim — we don't re-snap
+// it through nearestBaseIndex because the perceptual ordering is the
+// source of truth for that one.
+function applyPalette(id: string, persist = true): void {
+  if (id === "default") {
+    activePalette = new Uint8Array(DEFAULT_ACTIVE_PALETTE);
+    currentPaletteId = "default";
+  } else {
+    const palette = findRetroPalette(id);
+    if (!palette) return;
+    activePalette = paletteToActiveIndices(palette);
+    currentPaletteId = palette.id;
+  }
+  selectedSlot = 1;
+  if (persist) {
+    try {
+      localStorage.setItem(PALETTE_LS_KEY, currentPaletteId);
+    } catch {
+      // Quota / private-mode — UX still works for the session.
+    }
+  }
+  if (paletteSelectEl && paletteSelectEl.value !== currentPaletteId) {
+    paletteSelectEl.value = currentPaletteId;
+  }
+  render();
 }
 
 function openMerch(): void {
@@ -622,8 +682,10 @@ function resetEditor(opts: { keepPublishedId?: boolean } = {}): void {
   state.current = 0;
   history.clear();
   localId = null;
-  activePalette = new Uint8Array(DEFAULT_ACTIVE_PALETTE);
-  selectedSlot = 1;
+  // Restore the user's chosen retro palette on reset rather than always
+  // forcing the EGA default — picking a palette is an intentional
+  // workflow choice that should outlive a publish or Clear.
+  applyPalette(currentPaletteId, false);
   setActiveTool("pixel");
   parentId = null;
   if (!opts.keepPublishedId) setLastPublishedId(null);
@@ -1032,6 +1094,10 @@ document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>
   }),
 );
 
+paletteSelectEl?.addEventListener("change", () => {
+  applyPalette(paletteSelectEl.value);
+});
+
 async function handleGenerateFromBootstrap(): Promise<void> {
   setBootstrapError(null);
   try {
@@ -1106,6 +1172,17 @@ window.addEventListener("keydown", (ev) => {
 
 async function boot(): Promise<void> {
   buildBaseGrid();
+  // Rehydrate the palette pick from localStorage. Unknown ids silently
+  // fall back to default — covers the case where a previously-shipped
+  // palette is later removed.
+  try {
+    const stored = localStorage.getItem(PALETTE_LS_KEY);
+    if (stored && (stored === "default" || findRetroPalette(stored))) {
+      applyPalette(stored, false);
+    }
+  } catch {
+    // ignore — applyPalette default state is already in place
+  }
   if (PUBLISH_DISABLED) {
     showFlash({
       kind: "info",
