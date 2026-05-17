@@ -199,8 +199,10 @@ Resources:
           FunctionAssociations:
             - EventType: viewer-request
               FunctionARN: !GetAtt RewriteCleanUrls.FunctionMetadata.FunctionARN
-        # Don't cache the state file — the editor needs to see fresh baselines
-        # within seconds of publish. Manifest stays cached at the default TTL.
+        # Don't cache the state files that drive PoW difficulty — the editor
+        # needs to see fresh baselines within seconds of publish.
+        # /state/current-canvas.json falls through to the default behavior so
+        # the 60s Cache-Control on the object actually applies at the edge.
         CacheBehaviors:
           - PathPattern: /state/last-publish.json
             TargetOriginId: assets
@@ -208,12 +210,6 @@ Resources:
             AllowedMethods: [GET, HEAD]
             CachedMethods: [GET, HEAD]
             # Managed CachingDisabled.
-            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
-          - PathPattern: /state/current-canvas.json
-            TargetOriginId: assets
-            ViewerProtocolPolicy: redirect-to-https
-            AllowedMethods: [GET, HEAD]
-            CachedMethods: [GET, HEAD]
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
           - PathPattern: /state/canvas/*
             TargetOriginId: assets

@@ -128,6 +128,39 @@ async function claim(opts: {
 }
 
 describe("ingest + canvas_claim", () => {
+  test("publish refreshes current-canvas snapshot with live tile count", async () => {
+    const storage = new MemoryStorage();
+    const canvasStore = new MemoryCanvasStore();
+    const identity = await generateIdentity();
+    const now = new Date("2026-05-13T12:00:00Z");
+    const canvasId = canvasIdForDate(now);
+
+    await claim({ canvasStore, storage, canvasId, x: 3, y: 7, identity, now });
+    const body = await publishBody(makeGif(), identity, INITIAL_STATE.last_publish_at, {
+      canvas_claim: { canvas_id: canvasId, x: 3, y: 7 },
+    });
+    const r = await handleIngest(body, {
+      storage,
+      publicBaseUrl: "https://example.test",
+      canvasStore,
+      now: () => now,
+    });
+    assert.equal(r.status, 202);
+
+    const snapshot = await storage.getJSON<{
+      canvas_id: string;
+      name: string;
+      tiles_published: number;
+      tiles_claimed: number;
+      tiles_total: number;
+    }>("public/state/current-canvas.json");
+    assert.ok(snapshot, "snapshot should be written");
+    assert.equal(snapshot.canvas_id, canvasId);
+    assert.equal(snapshot.tiles_published, 1);
+    assert.equal(snapshot.tiles_claimed, 0);
+    assert.equal(snapshot.tiles_total, 256);
+  });
+
   test("publish with valid canvas_claim → 202 + tile published + membership recorded", async () => {
     const storage = new MemoryStorage();
     const canvasStore = new MemoryCanvasStore();

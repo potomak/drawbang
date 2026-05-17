@@ -197,7 +197,7 @@ export async function canvasPass(
     CURRENT_STATE_KEY,
     enc.encode(JSON.stringify(current)),
     "application/json",
-    "no-store",
+    "public, max-age=60",
   );
 
   // 5) Render the current canvas page (live; hydrated client-side) and any

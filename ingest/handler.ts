@@ -8,11 +8,16 @@ import {
   PUBLISH_COOLDOWN_S,
   TILES_PER_SIDE,
   canvasClosesAt,
+  canvasIdForDate,
   canvasName,
   canvasOpensAt,
   isCanvasIdValid,
   tileKey,
 } from "../config/canvases.js";
+import {
+  CURRENT_STATE_KEY,
+  type CurrentCanvasState,
+} from "../builder/canvas-pass.js";
 import { validateGif } from "./gif-validate.js";
 import type { Storage } from "./storage.js";
 import {
@@ -375,6 +380,44 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
       claimed_by_short: req.pubkey.slice(0, 8),
     };
     await appendCanvasMembership(cfg.storage, id, appendedMembership);
+
+    // Refresh the home-banner snapshot so /state/current-canvas.json picks up
+    // the new tile within ~60s of edge cache, without making every home-page
+    // visit pay for a Lambda+DDB hit on /canvas/<id>/state. Gated on the
+    // canvas being the *current* one (canvasIdForDate(now)) — publishing into
+    // a not-yet-rolled-over canvas during builder lag must not overwrite the
+    // "current" pointer with a stale canvas. Wrapped in try/catch because the
+    // publish has already committed and a snapshot write failure must not
+    // bubble out as a publish failure.
+    if (cc.canvas_id === canvasIdForDate(now)) {
+      try {
+        const tiles = await cfg.canvasStore!.getTiles(cc.canvas_id);
+        const nowEpoch = Math.floor(now.getTime() / 1000);
+        let tiles_claimed = 0;
+        let tiles_published = 0;
+        for (const t of tiles) {
+          if (t.drawing_id) tiles_published++;
+          else if (t.claim_expires_at && t.claim_expires_at > nowEpoch) tiles_claimed++;
+        }
+        const current: CurrentCanvasState = {
+          canvas_id: cc.canvas_id,
+          name: canvasName(cc.canvas_id),
+          opens_at: canvasOpensAt(cc.canvas_id).toISOString(),
+          closes_at: canvasClosesAt(cc.canvas_id).toISOString(),
+          tiles_total: TILES_PER_SIDE * TILES_PER_SIDE,
+          tiles_claimed,
+          tiles_published,
+        };
+        await cfg.storage.put(
+          CURRENT_STATE_KEY,
+          enc.encode(JSON.stringify(current)),
+          "application/json",
+          "public, max-age=60",
+        );
+      } catch (e) {
+        console.error("[ingest] failed to refresh current-canvas snapshot", e);
+      }
+    }
   }
 
   // -- 9. (Re-)render drawing page with the canvases[] in scope --------------

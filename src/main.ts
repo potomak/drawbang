@@ -932,32 +932,55 @@ function ensureBannerContainer(): HTMLElement {
   return el;
 }
 
+// Derived from VITE_STATE_URL so the editor only needs one configured
+// origin for the static-state files. Both files sit next to each other under
+// /state/ on the CloudFront distribution.
+const CURRENT_CANVAS_URL = STATE_URL.replace(/last-publish\.json$/, "current-canvas.json");
+
 async function initHomeBanner(): Promise<void> {
   const container = ensureBannerContainer();
+  const expectedCanvasId = canvasIdForDate(new Date());
+  const fallback = (): void => {
+    bannerHandle = mountCanvasBanner(container, {
+      mode: "home",
+      canvas_id: expectedCanvasId,
+      name: canvasName(expectedCanvasId),
+      tiles_published: 0,
+      tiles_total: TILES_PER_SIDE * TILES_PER_SIDE,
+    });
+  };
   try {
-    // Derive the current canvas id locally rather than reading the
-    // builder-written /state/current-canvas.json snapshot — the snapshot
-    // only refreshes when the daily builder runs, so it lags real publish
-    // counts by up to 24h. The live /canvas/<id>/state endpoint reflects
-    // DDB on every request.
-    const canvasId = canvasIdForDate(new Date());
-    const res = await fetch(canvasStateUrl(canvasId), { cache: "no-store" });
-    if (!res.ok) return;
+    // Read the ingest+builder-written snapshot from CloudFront (60s edge
+    // cache + S3) instead of hitting /canvas/<id>/state every home visit —
+    // the banner only needs the count, and the snapshot is rewritten on every
+    // publish so it stays fresh within ~60s.
+    const res = await fetch(CURRENT_CANVAS_URL);
+    if (!res.ok) {
+      fallback();
+      return;
+    }
     const j = (await res.json()) as {
       canvas_id: string;
       name: string;
-      tiles: Array<{ drawing_id?: string }>;
+      tiles_published: number;
+      tiles_total: number;
     };
-    const tiles_published = j.tiles.filter((t) => t.drawing_id).length;
+    // Between weekly rollover and the first publish, the snapshot may still
+    // point at last week's canvas. Show the new canvas with a zero count
+    // rather than a stale name.
+    if (j.canvas_id !== expectedCanvasId) {
+      fallback();
+      return;
+    }
     bannerHandle = mountCanvasBanner(container, {
       mode: "home",
       canvas_id: j.canvas_id,
       name: j.name,
-      tiles_published,
-      tiles_total: TILES_PER_SIDE * TILES_PER_SIDE,
+      tiles_published: j.tiles_published,
+      tiles_total: j.tiles_total,
     });
   } catch {
-    // Best-effort: if the API is unreachable, no banner. Editor still works.
+    fallback();
   }
 }
 
