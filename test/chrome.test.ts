@@ -40,6 +40,14 @@ test("renderHeader: active='gallery' marks only the gallery link with aria-curre
   assert.doesNotMatch(html, /data-nav="identity"[^>]*aria-current/);
 });
 
+test("renderFooter exposes X, Discord, and Facebook social links in a nav", () => {
+  const footer = renderFooter({ repoUrl: REPO });
+  assert.match(footer, /<nav class="ftr-social" aria-label="Social">/);
+  assert.match(footer, /href="https:\/\/x\.com\/drawbang"[^>]*>X</);
+  assert.match(footer, /href="https:\/\/discord\.gg\/mXA4NQjcxg"[^>]*>Discord</);
+  assert.match(footer, /href="https:\/\/facebook\.com\/drawbang"[^>]*>Facebook</);
+});
+
 test("renderFooter contains the repo link and the same nav as the header", () => {
   const footer = renderFooter({ repoUrl: REPO });
   assert.match(footer, /<a class="ftr-repo" href="https:\/\/github\.com\/potomak\/drawbang"/);

@@ -153,6 +153,7 @@ a:hover { text-decoration-thickness: 2px; }
 }
 .ftr a { color: var(--fg-muted); }
 .ftr-links { display: flex; gap: 16px; flex-wrap: wrap; }
+.ftr-social { display: flex; gap: 12px; flex-wrap: wrap; }
 .ftr-repo { color: var(--fg-muted); }
 @media (max-width: 640px) { .ftr { padding: 12px 14px; } }
 

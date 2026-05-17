@@ -81,6 +81,10 @@ export function renderFooter(opts: FooterOptions): string {
   const items = allLinks(opts)
     .map((l) => renderFooterLink(l, opts.active))
     .join("\n      ");
+  const social = SOCIAL_LINKS.map(
+    (s) =>
+      `<a href="${esc(s.href)}" target="_blank" rel="noopener">${esc(s.label)}</a>`,
+  ).join("\n      ");
   // The hamburger toggle (#170) and the identity-link patcher (#171)
   // both ship as plain JS at stable URLs, so every surface — Vite-built
   // or builder-rendered — loads them from the same place without bundle
@@ -89,11 +93,20 @@ export function renderFooter(opts: FooterOptions): string {
   <nav class="ftr-links" aria-label="Footer">
       ${items}
   </nav>
+  <nav class="ftr-social" aria-label="Social">
+      ${social}
+  </nav>
   <a class="ftr-repo" href="${esc(opts.repoUrl)}" target="_blank" rel="noopener">Source on GitHub</a>
 </footer>
 <script src="/chrome-toggle.js"></script>
 <script src="/chrome-identity.js"></script>`;
 }
+
+const SOCIAL_LINKS: ReadonlyArray<{ label: string; href: string }> = [
+  { label: "X", href: "https://x.com/drawbang" },
+  { label: "Discord", href: "https://discord.gg/mXA4NQjcxg" },
+  { label: "Facebook", href: "https://facebook.com/drawbang" },
+];
 
 function renderFooterLink(link: NavLink, active: NavLink["id"] | undefined): string {
   const ariaCurrent = link.id === active ? ' aria-current="page"' : "";
