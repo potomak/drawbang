@@ -380,18 +380,25 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
 }
 .ed-palette {
   flex: 1;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
-  align-items: center;
+  align-content: start;
   min-width: 0;
 }
 .ed-swatch {
-  width: 36px; height: 36px;
+  width: 100%;
+  aspect-ratio: 1;
   border: var(--border) solid var(--border-c);
   cursor: pointer;
   padding: 0;
   background: transparent;
+}
+/* Below the editor breakpoint the panel goes full-width and we drop the
+   rigid 4-column matrix in favor of an auto-fill flow that fits whatever
+   columns the viewport gives us. */
+@media (max-width: 767px) {
+  .ed-palette { grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); }
 }
 .ed-swatch.selected {
   border-color: var(--accent);
