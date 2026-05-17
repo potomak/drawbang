@@ -49,6 +49,7 @@ const API_BASE = INGEST_URL.replace(/\/ingest\/?$/, "");
 const PREVIEW_PIXEL_SIZE = 16;
 const THUMB_PIXEL_SIZE = 4;
 
+const backToDrawingEl = document.getElementById("backToDrawing") as HTMLAnchorElement;
 const statusEl = document.getElementById("status") as HTMLParagraphElement;
 const productGridEl = document.getElementById("productGrid") as HTMLDivElement;
 const placementPickerEl = document.getElementById("placementPicker") as HTMLDivElement;
@@ -437,6 +438,8 @@ async function boot(): Promise<void> {
     return;
   }
   drawingId = id;
+  backToDrawingEl.href = `/d/${drawingId}`;
+  backToDrawingEl.hidden = false;
 
   setStatus("loading drawing…");
   try {

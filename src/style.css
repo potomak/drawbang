@@ -712,6 +712,14 @@ dialog form menu button:hover { border-color: var(--border-strong); }
    MERCH PICKER (/merch?d=<id>)
    ===================================================================== */
 .merch-body main { padding-top: 12px; }
+.mc-back {
+  display: inline-block;
+  font-size: var(--t-sm);
+  color: var(--fg-muted);
+  text-decoration: none;
+  margin-bottom: 12px;
+}
+.mc-back:hover { color: var(--fg); text-decoration: underline; }
 .mc-grid {
   display: grid;
   grid-template-columns: 360px 1fr;
