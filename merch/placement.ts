@@ -11,7 +11,6 @@ export const NAMED_PRESETS = [
   "full-chest",
   "left-chest",
   "right-chest",
-  "center-pocket",
 ] as const;
 
 export const PATTERN_PRESETS = [
@@ -42,11 +41,15 @@ export interface PrintifyImageEntry {
   angle: number;
 }
 
+// Chest placements pin to the top corners with a ~2% margin from the
+// placeholder edge: image center at (scale/2 + 0.02, scale/2 + 0.02), so
+// at scale 0.25 the image-left edge sits at 0.02 fractional units from
+// the placeholder. Margin gives Printify's DTG aligner a small safe zone
+// without sacrificing the corner-pinned look.
 const NAMED: Record<(typeof NAMED_PRESETS)[number], { x: number; y: number; scale: number }> = {
-  "full-chest":    { x: 0.5, y: 0.5,  scale: 1 },
-  "left-chest":    { x: 0.3, y: 0.25, scale: 0.25 },
-  "right-chest":   { x: 0.7, y: 0.25, scale: 0.25 },
-  "center-pocket": { x: 0.5, y: 0.3,  scale: 0.25 },
+  "full-chest":  { x: 0.5,   y: 0.5,   scale: 1 },
+  "left-chest":  { x: 0.145, y: 0.145, scale: 0.25 },
+  "right-chest": { x: 0.855, y: 0.145, scale: 0.25 },
 };
 
 export function expandPlacement(placement: Placement, imageId: string): PrintifyImageEntry[] {

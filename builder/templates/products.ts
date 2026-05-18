@@ -66,6 +66,7 @@ function prevHref(n: number): string {
 // if the catalog grows before the redesign catches up.
 const MOCKUP_BY_PRODUCT: Record<string, { src: string; cls: string }> = {
   tee: { src: "/mockups/tee.jpg", cls: "pr-art-tee" },
+  "tee-softstyle": { src: "/mockups/tee.jpg", cls: "pr-art-tee" },
   mug: { src: "/mockups/mug.jpg", cls: "pr-art-mug" },
   "sticker-sheet": { src: "/mockups/sticker-sheet.jpg", cls: "pr-art-sticker" },
 };

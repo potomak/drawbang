@@ -14,6 +14,19 @@
         }
       ]
     },
+    "tee-softstyle": {
+      "mockup_url": "/mockups/tee.jpg",
+      "mockup_width": 1200,
+      "mockup_height": 1200,
+      "placeholders": [
+        {
+          "x": 424,
+          "y": 354,
+          "width": 352,
+          "height": 432
+        }
+      ]
+    },
     "mug": {
       "mockup_url": "/mockups/mug.jpg",
       "mockup_width": 1200,

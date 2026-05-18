@@ -13,7 +13,11 @@ import { StripeHelper } from "./stripe.js";
 
 export interface MerchVariant {
   id: number;
-  label: string;
+  // Structured size/color axes. The merch picker derives separate size and
+  // color pill groups from these; products with a single SKU (the mug) omit
+  // both fields and auto-select. Either can be present alone.
+  size?: string;
+  color?: string;
   base_cost_cents: number;
   retail_cents: number;
 }
@@ -194,7 +198,7 @@ async function checkout(
   const successUrl = body.success_url.replace("{ORDER_ID}", orderId);
   const session = await deps.stripe.createCheckoutSession({
     orderId,
-    productName: variant.label,
+    productName: variantDisplayName(product, variant),
     amountCents: variant.retail_cents,
     shippingCents: product.shipping_cents,
     successUrl,
@@ -206,6 +210,11 @@ async function checkout(
   await deps.orders.transition(orderId, "pending", { stripe_session_id: session.id });
 
   return json(200, { order_id: orderId, checkout_url: session.url });
+}
+
+function variantDisplayName(product: MerchProduct, variant: MerchVariant): string {
+  const axes = [variant.size, variant.color].filter(Boolean).join(" / ");
+  return axes ? `${product.name} — ${axes}` : product.name;
 }
 
 async function webhook(

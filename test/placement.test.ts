@@ -33,13 +33,10 @@ test("expandPlacement: full-chest centres at (0.5, 0.5) scale 1 — matches the 
 
 test("expandPlacement: small named presets land in the right corners at scale 0.25", () => {
   assert.deepEqual(expandPlacement("left-chest", "img-1"), [
-    { id: "img-1", x: 0.3, y: 0.25, scale: 0.25, angle: 0 },
+    { id: "img-1", x: 0.145, y: 0.145, scale: 0.25, angle: 0 },
   ]);
   assert.deepEqual(expandPlacement("right-chest", "img-1"), [
-    { id: "img-1", x: 0.7, y: 0.25, scale: 0.25, angle: 0 },
-  ]);
-  assert.deepEqual(expandPlacement("center-pocket", "img-1"), [
-    { id: "img-1", x: 0.5, y: 0.3, scale: 0.25, angle: 0 },
+    { id: "img-1", x: 0.855, y: 0.145, scale: 0.25, angle: 0 },
   ]);
 });
 

@@ -15,8 +15,8 @@ const FIXTURE_CATALOG: MerchCatalog = {
       print_area_px: { width: 4500, height: 5400 },
       shipping_cents: 500,
       variants: [
-        { id: 18395, label: "S / Black", base_cost_cents: 1199, retail_cents: 2400 },
-        { id: 18396, label: "M / Black", base_cost_cents: 1199, retail_cents: 2400 },
+        { id: 18395, size: "S", color: "Black", base_cost_cents: 1199, retail_cents: 2400 },
+        { id: 18396, size: "M", color: "Black", base_cost_cents: 1199, retail_cents: 2400 },
       ],
     },
   ],
@@ -288,7 +288,7 @@ test("POST /merch/checkout: happy path persists, calls Stripe, transitions, retu
   assert.equal(stripeArgs.orderId, "ord_test_1");
   assert.equal(stripeArgs.amountCents, 2400);
   assert.equal(stripeArgs.shippingCents, 500);
-  assert.equal(stripeArgs.productName, "M / Black");
+  assert.equal(stripeArgs.productName, "Unisex T-shirt — M / Black");
   assert.equal(stripeArgs.customerEmail, "buyer@example.com");
   assert.deepEqual(stripeArgs.shippingCountries, ["US", "CA", "GB"]);
 

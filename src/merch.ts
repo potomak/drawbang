@@ -18,7 +18,8 @@ import mockupsConfig from "../config/mockups.json" with { type: "json" };
 
 interface MerchVariant {
   id: number;
-  label: string;
+  size?: string;
+  color?: string;
   base_cost_cents: number;
   retail_cents: number;
 }
@@ -53,12 +54,14 @@ const backToDrawingEl = document.getElementById("backToDrawing") as HTMLAnchorEl
 const statusEl = document.getElementById("status") as HTMLParagraphElement;
 const productGridEl = document.getElementById("productGrid") as HTMLDivElement;
 const placementPickerEl = document.getElementById("placementPicker") as HTMLDivElement;
-const variantPickerEl = document.getElementById("variantPicker") as HTMLDivElement;
+const sizePickerEl = document.getElementById("sizePicker") as HTMLDivElement;
+const colorPickerEl = document.getElementById("colorPicker") as HTMLDivElement;
 const checkoutBtn = document.getElementById("checkoutBtn") as HTMLButtonElement;
 const previewCanvasEl = document.getElementById("preview") as HTMLCanvasElement;
 const frameStripEl = document.getElementById("frameStrip") as HTMLDivElement;
 const stepPlacementEl = document.getElementById("step-placement") as HTMLElement | null;
-const stepVariantEl = document.getElementById("step-variant") as HTMLElement | null;
+const stepSizeEl = document.getElementById("step-size") as HTMLElement | null;
+const stepColorEl = document.getElementById("step-color") as HTMLElement | null;
 const shippingNoteEl = document.getElementById("shippingNote") as HTMLParagraphElement | null;
 const sumSubtotalEl = document.getElementById("sumSubtotal") as HTMLElement | null;
 const sumShippingEl = document.getElementById("sumShipping") as HTMLElement | null;
@@ -87,7 +90,11 @@ let activePalette: Uint8Array = new Uint8Array(DEFAULT_ACTIVE_PALETTE);
 let drawingId: string | null = null;
 let currentFrame = 0;
 let selectedProduct: MerchProduct | null = null;
-let selectedVariant: MerchVariant | null = null;
+// Size and color are independent axes; the picked variant is whichever row
+// in selectedProduct.variants matches both (or just one if the product has a
+// single axis, e.g. mug has neither and gets its single variant auto-selected).
+let selectedSize: string | null = null;
+let selectedColor: string | null = null;
 let selectedPlacement: Placement = DEFAULT_PLACEMENT;
 let checkoutInFlight = false;
 let previewCanvas: PixelCanvas | null = null;
@@ -95,13 +102,12 @@ let previewCanvas: PixelCanvas | null = null;
 // Tees support every placement. Other products keep the original
 // full-bleed-only behaviour — a "left chest" pattern doesn't make sense
 // on a sticker, and the mug wrap is one continuous print.
-const PLACEMENT_PRODUCTS = new Set<string>(["tee"]);
+const PLACEMENT_PRODUCTS = new Set<string>(["tee", "tee-softstyle"]);
 
 const PLACEMENT_LABELS: Record<Placement, string> = {
   "full-chest": "Full chest",
   "left-chest": "Left chest",
   "right-chest": "Right chest",
-  "center-pocket": "Center pocket",
   "pattern-2x2": "Pattern · 2×2 (4)",
   "pattern-3x3": "Pattern · 3×3 (9)",
   "pattern-4x4": "Pattern · 4×4 (16)",
@@ -250,7 +256,13 @@ function renderCatalog(catalog: MerchCatalog): void {
 
 function selectProduct(product: MerchProduct): void {
   selectedProduct = product;
-  selectedVariant = null;
+  // Auto-select size/color when the product has only one option on each axis
+  // (the mug has none, so both stay null and currentVariant() returns the
+  // sole variant). Otherwise reset so the user explicitly picks.
+  const sizes = uniqueAxisValues(product, "size");
+  const colors = uniqueAxisValues(product, "color");
+  selectedSize = sizes.length === 1 ? sizes[0] : null;
+  selectedColor = colors.length === 1 ? colors[0] : null;
   // Switching to a product that doesn't support placement (mug, sticker)
   // forces the placement back to the default so the request body stays
   // honest if the user keeps clicking through.
@@ -261,10 +273,34 @@ function selectProduct(product: MerchProduct): void {
     el.classList.toggle("selected", el.dataset.productId === product.id);
   });
   renderPlacementPicker();
-  renderVariantPicker();
+  renderSizePicker();
+  renderColorPicker();
   updateCheckoutButton();
   updateSummary();
   repaintCardPreviews();
+}
+
+function uniqueAxisValues(product: MerchProduct, axis: "size" | "color"): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of product.variants) {
+    const val = v[axis];
+    if (val && !seen.has(val)) {
+      seen.add(val);
+      out.push(val);
+    }
+  }
+  return out;
+}
+
+function currentVariant(): MerchVariant | null {
+  if (!selectedProduct) return null;
+  return (
+    selectedProduct.variants.find(
+      (v) =>
+        (v.size ?? null) === selectedSize && (v.color ?? null) === selectedColor,
+    ) ?? null
+  );
 }
 
 function placementForCard(productId: string): Placement {
@@ -314,45 +350,81 @@ function renderPlacementPicker(): void {
   }
 }
 
-function renderVariantPicker(): void {
-  variantPickerEl.innerHTML = "";
+function renderAxisPicker(
+  axis: "size" | "color",
+  pickerEl: HTMLDivElement,
+  stepEl: HTMLElement | null,
+  current: string | null,
+  onPick: (value: string) => void,
+): void {
+  pickerEl.innerHTML = "";
   if (!selectedProduct) {
-    if (stepVariantEl) stepVariantEl.hidden = true;
-    if (shippingNoteEl) shippingNoteEl.hidden = true;
+    if (stepEl) stepEl.hidden = true;
     return;
   }
-  if (stepVariantEl) stepVariantEl.hidden = false;
-  for (const variant of selectedProduct.variants) {
+  const values = uniqueAxisValues(selectedProduct, axis);
+  // Hide the step entirely when the product has no axis (mug) or only one
+  // value (auto-selected on product pick).
+  if (values.length <= 1) {
+    if (stepEl) stepEl.hidden = true;
+    return;
+  }
+  if (stepEl) stepEl.hidden = false;
+  for (const value of values) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "btn sm";
-    btn.dataset.variantId = String(variant.id);
-    btn.setAttribute(
-      "aria-pressed",
-      selectedVariant?.id === variant.id ? "true" : "false",
-    );
-    btn.textContent = `${variant.label} — ${formatUsd(variant.retail_cents)}`;
-    btn.addEventListener("click", () => {
-      selectedVariant = variant;
-      variantPickerEl.querySelectorAll<HTMLButtonElement>("[data-variant-id]").forEach((el) => {
-        el.setAttribute(
-          "aria-pressed",
-          el.dataset.variantId === String(variant.id) ? "true" : "false",
-        );
-      });
-      updateCheckoutButton();
-      updateSummary();
-    });
-    variantPickerEl.appendChild(btn);
+    btn.dataset.axisValue = value;
+    btn.setAttribute("aria-pressed", value === current ? "true" : "false");
+    btn.textContent = value;
+    btn.addEventListener("click", () => onPick(value));
+    pickerEl.appendChild(btn);
   }
+}
+
+function renderSizePicker(): void {
+  renderAxisPicker("size", sizePickerEl, stepSizeEl, selectedSize, (value) => {
+    selectedSize = value;
+    // Keep the existing color if a variant with this (size, color) exists;
+    // otherwise clear it so the user explicitly re-picks.
+    if (selectedColor && !variantExists(selectedSize, selectedColor)) {
+      selectedColor = null;
+    }
+    renderSizePicker();
+    renderColorPicker();
+    updateCheckoutButton();
+    updateSummary();
+  });
+  // Shipping note lives under the size step (the first one that always
+  // shows for paid products with multiple sizes).
   if (shippingNoteEl) {
-    if (selectedProduct.shipping_cents > 0) {
+    if (selectedProduct && selectedProduct.shipping_cents > 0) {
       shippingNoteEl.hidden = false;
       shippingNoteEl.textContent = `+ ${formatUsd(selectedProduct.shipping_cents)} standard shipping & handling, added at checkout.`;
     } else {
       shippingNoteEl.hidden = true;
     }
   }
+}
+
+function renderColorPicker(): void {
+  renderAxisPicker("color", colorPickerEl, stepColorEl, selectedColor, (value) => {
+    selectedColor = value;
+    if (selectedSize && !variantExists(selectedSize, selectedColor)) {
+      selectedSize = null;
+    }
+    renderSizePicker();
+    renderColorPicker();
+    updateCheckoutButton();
+    updateSummary();
+  });
+}
+
+function variantExists(size: string | null, color: string | null): boolean {
+  if (!selectedProduct) return false;
+  return selectedProduct.variants.some(
+    (v) => (v.size ?? null) === size && (v.color ?? null) === color,
+  );
 }
 
 function updateSummary(): void {
@@ -363,17 +435,16 @@ function updateSummary(): void {
     sumTotalEl.textContent = "—";
     return;
   }
-  const sub = selectedVariant
-    ? selectedVariant.retail_cents
-    : lowestPrice(selectedProduct);
+  const variant = currentVariant();
+  const sub = variant ? variant.retail_cents : lowestPrice(selectedProduct);
   const ship = selectedProduct.shipping_cents;
-  sumSubtotalEl.textContent = selectedVariant ? formatUsd(sub) : `from ${formatUsd(sub)}`;
+  sumSubtotalEl.textContent = variant ? formatUsd(sub) : `from ${formatUsd(sub)}`;
   sumShippingEl.textContent = ship > 0 ? formatUsd(ship) : "Free";
-  sumTotalEl.textContent = selectedVariant ? formatUsd(sub + ship) : `from ${formatUsd(sub + ship)}`;
+  sumTotalEl.textContent = variant ? formatUsd(sub + ship) : `from ${formatUsd(sub + ship)}`;
 }
 
 function updateCheckoutButton(): void {
-  const ready = !!(drawingId && selectedProduct && selectedVariant && !checkoutInFlight);
+  const ready = !!(drawingId && currentVariant() && !checkoutInFlight);
   checkoutBtn.disabled = !ready;
   checkoutBtn.textContent = checkoutInFlight ? "Redirecting…" : "Continue to checkout";
 }
@@ -392,7 +463,8 @@ async function fetchDrawing(id: string): Promise<Uint8Array> {
 }
 
 async function handleCheckout(): Promise<void> {
-  if (!drawingId || !selectedProduct || !selectedVariant || checkoutInFlight) return;
+  const variant = currentVariant();
+  if (!drawingId || !selectedProduct || !variant || checkoutInFlight) return;
   checkoutInFlight = true;
   updateCheckoutButton();
   setStatus("creating checkout session…");
@@ -407,7 +479,7 @@ async function handleCheckout(): Promise<void> {
         drawing_id: drawingId,
         frame: currentFrame,
         product_id: selectedProduct.id,
-        variant_id: selectedVariant.id,
+        variant_id: variant.id,
         // Omit the default — lambda's idle path is happy with no field
         // and the order record stays cleaner for pre-feature parity.
         ...(selectedPlacement !== DEFAULT_PLACEMENT ? { placement: selectedPlacement } : {}),

@@ -1,5 +1,5 @@
 {
-  "_pricing_note": "Retail is flat per product (not per size) — easier to communicate, no surprise jumps for larger sizes. base_cost_cents per variant is tracked for internal margin sanity only; the Printify charge at order time uses Printify's actual cost. 2XL/3XL/4XL base estimates follow the Gildan 5000 typical tier (XL→2XL ≈ +$2, then +$1/step); refine after first live orders if they drift.",
+  "_pricing_note": "Retail is flat per product (not per size) — easier to communicate, no surprise jumps for larger sizes. base_cost_cents per variant is tracked for internal margin sanity only; the Printify charge at order time uses Printify's actual cost. 2XL base estimates follow the Gildan 5000 typical tier (XL→2XL ≈ +$2); refine after first live orders if they drift. Each variant carries structured `size` and `color` fields — the merch picker uses them to drive two separate pill groups instead of a single combined label.",
   "_todo": "Replace shipping_cents with the real Printify shipping calc: POST /v1/shops/{shop_id}/orders/shipping.json with the same payload the dispatch builds. Call it inside merch/lambda.ts checkout() before stripe.createCheckoutSession.",
   "products": [
     {
@@ -11,20 +11,39 @@
       "brand_decorations": [{ "position": "neck" }],
       "shipping_cents": 499,
       "variants": [
-        { "id": 12126, "label": "S / Black",   "base_cost_cents": 1150, "retail_cents": 2289 },
-        { "id": 12125, "label": "M / Black",   "base_cost_cents": 1150, "retail_cents": 2289 },
-        { "id": 12124, "label": "L / Black",   "base_cost_cents": 1150, "retail_cents": 2289 },
-        { "id": 12127, "label": "XL / Black",  "base_cost_cents": 1250, "retail_cents": 2289 },
-        { "id": 12128, "label": "2XL / Black", "base_cost_cents": 1450, "retail_cents": 2289 },
-        { "id": 12129, "label": "3XL / Black", "base_cost_cents": 1550, "retail_cents": 2289 },
-        { "id": 24039, "label": "4XL / Black", "base_cost_cents": 1650, "retail_cents": 2289 },
-        { "id": 12102, "label": "S / White",   "base_cost_cents": 1099, "retail_cents": 2289 },
-        { "id": 12101, "label": "M / White",   "base_cost_cents": 1099, "retail_cents": 2289 },
-        { "id": 12100, "label": "L / White",   "base_cost_cents": 1099, "retail_cents": 2289 },
-        { "id": 12103, "label": "XL / White",  "base_cost_cents": 1199, "retail_cents": 2289 },
-        { "id": 12104, "label": "2XL / White", "base_cost_cents": 1399, "retail_cents": 2289 },
-        { "id": 12105, "label": "3XL / White", "base_cost_cents": 1499, "retail_cents": 2289 },
-        { "id": 24031, "label": "4XL / White", "base_cost_cents": 1599, "retail_cents": 2289 }
+        { "id": 12126, "size": "S",   "color": "Black", "base_cost_cents": 1150, "retail_cents": 2289 },
+        { "id": 12125, "size": "M",   "color": "Black", "base_cost_cents": 1150, "retail_cents": 2289 },
+        { "id": 12124, "size": "L",   "color": "Black", "base_cost_cents": 1150, "retail_cents": 2289 },
+        { "id": 12127, "size": "XL",  "color": "Black", "base_cost_cents": 1250, "retail_cents": 2289 },
+        { "id": 12128, "size": "2XL", "color": "Black", "base_cost_cents": 1450, "retail_cents": 2289 },
+        { "id": 12102, "size": "S",   "color": "White", "base_cost_cents": 1099, "retail_cents": 2289 },
+        { "id": 12101, "size": "M",   "color": "White", "base_cost_cents": 1099, "retail_cents": 2289 },
+        { "id": 12100, "size": "L",   "color": "White", "base_cost_cents": 1099, "retail_cents": 2289 },
+        { "id": 12103, "size": "XL",  "color": "White", "base_cost_cents": 1199, "retail_cents": 2289 },
+        { "id": 12104, "size": "2XL", "color": "White", "base_cost_cents": 1399, "retail_cents": 2289 }
+      ]
+    },
+    {
+      "id": "tee-softstyle",
+      "name": "Unisex Softstyle T-Shirt (Gildan 64000)",
+      "blueprint_id": 145,
+      "print_provider_id": 99,
+      "print_area_px": { "width": 3185, "height": 3636 },
+      "brand_decorations": [{ "position": "neck" }],
+      "shipping_cents": 499,
+      "variants": [
+        { "id": 67831, "size": "XS",  "color": "Black", "base_cost_cents": 1099, "retail_cents": 2289 },
+        { "id": 38164, "size": "S",   "color": "Black", "base_cost_cents": 1099, "retail_cents": 2289 },
+        { "id": 38178, "size": "M",   "color": "Black", "base_cost_cents": 1099, "retail_cents": 2289 },
+        { "id": 38192, "size": "L",   "color": "Black", "base_cost_cents": 1099, "retail_cents": 2289 },
+        { "id": 38206, "size": "XL",  "color": "Black", "base_cost_cents": 1199, "retail_cents": 2289 },
+        { "id": 38220, "size": "2XL", "color": "Black", "base_cost_cents": 1399, "retail_cents": 2289 },
+        { "id": 67829, "size": "XS",  "color": "White", "base_cost_cents": 1049, "retail_cents": 2289 },
+        { "id": 38163, "size": "S",   "color": "White", "base_cost_cents": 1049, "retail_cents": 2289 },
+        { "id": 38177, "size": "M",   "color": "White", "base_cost_cents": 1049, "retail_cents": 2289 },
+        { "id": 38191, "size": "L",   "color": "White", "base_cost_cents": 1049, "retail_cents": 2289 },
+        { "id": 38205, "size": "XL",  "color": "White", "base_cost_cents": 1149, "retail_cents": 2289 },
+        { "id": 38219, "size": "2XL", "color": "White", "base_cost_cents": 1349, "retail_cents": 2289 }
       ]
     },
     {
@@ -35,7 +54,7 @@
       "print_area_px": { "width": 2376, "height": 2024 },
       "shipping_cents": 699,
       "variants": [
-        { "id": 33765, "label": "15oz", "base_cost_cents": 1450, "retail_cents": 3489 }
+        { "id": 33765, "base_cost_cents": 1450, "retail_cents": 3489 }
       ]
     },
     {
@@ -47,12 +66,12 @@
       "print_area_px": { "width": 1575, "height": 1200 },
       "shipping_cents": 499,
       "variants": [
-        { "id": 72840, "label": "6\" × 4\" / White",          "base_cost_cents": 612,  "retail_cents": 1499 },
-        { "id": 75561, "label": "6\" × 4\" / Transparent",    "base_cost_cents": 750,  "retail_cents": 1499 },
-        { "id": 75564, "label": "6\" × 4\" / Holographic",    "base_cost_cents": 999,  "retail_cents": 1499 },
-        { "id": 72841, "label": "11\" × 8.5\" / White",       "base_cost_cents": 850,  "retail_cents": 1999 },
-        { "id": 75562, "label": "11\" × 8.5\" / Transparent", "base_cost_cents": 999,  "retail_cents": 1999 },
-        { "id": 75565, "label": "11\" × 8.5\" / Holographic", "base_cost_cents": 1299, "retail_cents": 1999 }
+        { "id": 72840, "size": "6\" × 4\"",    "color": "White",       "base_cost_cents": 612,  "retail_cents": 1499 },
+        { "id": 75561, "size": "6\" × 4\"",    "color": "Transparent", "base_cost_cents": 750,  "retail_cents": 1499 },
+        { "id": 75564, "size": "6\" × 4\"",    "color": "Holographic", "base_cost_cents": 999,  "retail_cents": 1499 },
+        { "id": 72841, "size": "11\" × 8.5\"", "color": "White",       "base_cost_cents": 850,  "retail_cents": 1999 },
+        { "id": 75562, "size": "11\" × 8.5\"", "color": "Transparent", "base_cost_cents": 999,  "retail_cents": 1999 },
+        { "id": 75565, "size": "11\" × 8.5\"", "color": "Holographic", "base_cost_cents": 1299, "retail_cents": 1999 }
       ]
     }
   ]

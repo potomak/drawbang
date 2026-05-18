@@ -4,6 +4,7 @@ import { Bitmap } from "../src/editor/bitmap.js";
 import { encodeGif } from "../src/editor/gif.js";
 import { DEFAULT_ACTIVE_PALETTE } from "../src/editor/palette.js";
 import { placePrintifyOrder, type PlacePrintifyOrderDeps } from "../merch/dispatch.js";
+import { expandPlacement, type Placement } from "../merch/placement.js";
 import type { MerchCatalog } from "../merch/lambda.js";
 import type { Order, OrderStatus, OrdersStore } from "../merch/orders.js";
 import { PrintifyError, type PrintifyClient } from "../merch/printify.js";
@@ -19,7 +20,7 @@ const FIXTURE_CATALOG: MerchCatalog = {
       print_area_px: { width: 4500, height: 5400 },
       shipping_cents: 500,
       variants: [
-        { id: 18395, label: "S / Black", base_cost_cents: 1199, retail_cents: 2400 },
+        { id: 18395, size: "S", color: "Black", base_cost_cents: 1199, retail_cents: 2400 },
       ],
     },
   ],
@@ -290,7 +291,7 @@ test("placeholder_positions: each configured position uploads the same image", a
         print_area_px: { width: 1575, height: 1200 },
         shipping_cents: 500,
         placeholder_positions: ["front_1", "front_2", "front_3", "front_4"],
-        variants: [{ id: 18395, label: "x", base_cost_cents: 369, retail_cents: 800 }],
+        variants: [{ id: 18395, base_cost_cents: 369, retail_cents: 800 }],
       },
     ],
   };
@@ -324,7 +325,7 @@ test("upscale to a giant print area still uploads a tiny SVG", async () => {
         print_provider_id: 1,
         print_area_px: { width: 4500, height: 5400 },
         shipping_cents: 500,
-        variants: [{ id: 18395, label: "x", base_cost_cents: 1, retail_cents: 1 }],
+        variants: [{ id: 18395, base_cost_cents: 1, retail_cents: 1 }],
       },
     ],
   };
@@ -493,7 +494,7 @@ test("brand_decorations: appends a neck placeholder with the brand logo image id
         print_area_px: { width: 3951, height: 4919 },
         brand_decorations: [{ position: "neck" }],
         shipping_cents: 500,
-        variants: [{ id: 18395, label: "x", base_cost_cents: 1199, retail_cents: 2400 }],
+        variants: [{ id: 18395, base_cost_cents: 1199, retail_cents: 2400 }],
       },
     ],
   };
@@ -561,7 +562,7 @@ test("brand_decorations: configured but no provider injected -> dispatch silentl
         print_area_px: { width: 3951, height: 4919 },
         brand_decorations: [{ position: "neck" }],
         shipping_cents: 500,
-        variants: [{ id: 18395, label: "x", base_cost_cents: 1199, retail_cents: 2400 }],
+        variants: [{ id: 18395, base_cost_cents: 1199, retail_cents: 2400 }],
       },
     ],
   };
@@ -673,14 +674,28 @@ test("placement: defaults to full-chest when order.placement is absent (pre-#147
   assert.deepEqual(placeholders[0].images[0], { id: "img_1", x: 0.5, y: 0.5, scale: 1, angle: 0 });
 });
 
-test("placement: left-chest sends one entry at x=0.3, y=0.25, scale=0.25", async () => {
+test("placement: left-chest pins to the top-left corner with 2% margin", async () => {
   const { deps, printifyCalls } = buildDeps({
     order: makeOrder({ placement: "left-chest" }),
   });
   await placePrintifyOrder("ord_42", deps);
   const front = printifyCalls.createProduct[0].print_areas[0].placeholders[0];
   assert.equal(front.images.length, 1);
-  assert.deepEqual(front.images[0], { id: "img_1", x: 0.3, y: 0.25, scale: 0.25, angle: 0 });
+  assert.deepEqual(front.images[0], { id: "img_1", x: 0.145, y: 0.145, scale: 0.25, angle: 0 });
+});
+
+test("placement: right-chest pins to the top-right corner with 2% margin", async () => {
+  const { deps, printifyCalls } = buildDeps({
+    order: makeOrder({ placement: "right-chest" }),
+  });
+  await placePrintifyOrder("ord_42", deps);
+  const front = printifyCalls.createProduct[0].print_areas[0].placeholders[0];
+  assert.equal(front.images.length, 1);
+  assert.deepEqual(front.images[0], { id: "img_1", x: 0.855, y: 0.145, scale: 0.25, angle: 0 });
+});
+
+test("placement: center-pocket is no longer a known preset", () => {
+  assert.throws(() => expandPlacement("center-pocket" as Placement, "img_1"), /unknown placement/);
 });
 
 test("placement: pattern-3x3 expands to 9 entries on a third-cell grid, scale 1/3", async () => {
@@ -715,7 +730,7 @@ test("placement: brand decorations stay centred regardless of user-facing placem
         print_area_px: { width: 3951, height: 4919 },
         brand_decorations: [{ position: "neck" }],
         shipping_cents: 500,
-        variants: [{ id: 18395, label: "x", base_cost_cents: 1199, retail_cents: 2400 }],
+        variants: [{ id: 18395, base_cost_cents: 1199, retail_cents: 2400 }],
       },
     ],
   };
@@ -754,7 +769,7 @@ test("placement: each placeholder_positions slot on a multi-up product (sticker 
         print_area_px: { width: 1575, height: 1200 },
         shipping_cents: 500,
         placeholder_positions: ["front_1", "front_2", "front_3", "front_4"],
-        variants: [{ id: 18395, label: "x", base_cost_cents: 369, retail_cents: 800 }],
+        variants: [{ id: 18395, base_cost_cents: 369, retail_cents: 800 }],
       },
     ],
   };

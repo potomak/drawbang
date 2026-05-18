@@ -19,9 +19,9 @@ const CATALOG: MerchCatalog = {
       print_area_px: { width: 3951, height: 4919 },
       shipping_cents: 500,
       variants: [
-        { id: 1, label: "S/Black", base_cost_cents: 1150, retail_cents: 2400 },
+        { id: 1, size: "S", color: "Black", base_cost_cents: 1150, retail_cents: 2400 },
         // Cheaper "from $" anchor — the join should pick this one.
-        { id: 2, label: "M/Black", base_cost_cents: 1100, retail_cents: 2200 },
+        { id: 2, size: "M", color: "Black", base_cost_cents: 1100, retail_cents: 2200 },
       ],
     },
     {
@@ -32,7 +32,7 @@ const CATALOG: MerchCatalog = {
       print_area_px: { width: 2475, height: 1155 },
       shipping_cents: 800,
       variants: [
-        { id: 10, label: "11oz", base_cost_cents: 800, retail_cents: 1600 },
+        { id: 10, base_cost_cents: 800, retail_cents: 1600 },
       ],
     },
   ],
