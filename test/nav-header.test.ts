@@ -109,9 +109,9 @@ test("every builder template threads repo_url into the chrome footer", () => {
   }
 });
 
-test("static merch + order + share pages use the chrome marker — plugin (#168) injects the nav", async () => {
+test("static merch + order pages use the chrome marker — plugin (#168) injects the nav", async () => {
   const root = path.resolve(import.meta.dirname ?? path.dirname(new URL(import.meta.url).pathname), "..");
-  for (const rel of ["merch.html", "order.html", "share.html"]) {
+  for (const rel of ["merch.html", "order.html"]) {
     const html = await fs.readFile(path.join(root, rel), "utf8");
     assert.match(html, /<!--CHROME:HEADER-->/, `${rel} should use the chrome header marker`);
     assert.match(html, /<!--CHROME:FOOTER-->/, `${rel} should use the chrome footer marker`);

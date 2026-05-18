@@ -154,3 +154,18 @@ test("drawing page: drops the legacy 16x16 og:image — only the -large.gif tag 
     new RegExp(`og:image" content="/drawings/${id}\\.gif"`),
   );
 });
+
+test("drawing page: Reddit button links directly to reddit.com/submit, not the /share page", () => {
+  const html = renderDrawing(baseView);
+  const id = "f".repeat(64);
+  // Stage 2 of the OG plan: the dedicated /share page is gone. The Reddit
+  // submit page now uses the drawing's OG tags for the preview, so the
+  // button can just open reddit.com/submit?url=... directly.
+  const expectedUrl = encodeURIComponent(`https://pixel.drawbang.com/d/${id}`);
+  const expectedTitle = encodeURIComponent("Pixel art from Draw! · Drawing ID ffffffff");
+  const reddit = new RegExp(
+    `<a class="btn" href="https://www\\.reddit\\.com/submit\\?url=${expectedUrl}&amp;title=${expectedTitle}"[^>]*>Share to Reddit</a>`,
+  );
+  assert.match(html, reddit);
+  assert.doesNotMatch(html, /href="\/share\?d=/);
+});

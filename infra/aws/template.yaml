@@ -141,8 +141,6 @@ Resources:
             req.uri = "/order.html";
           } else if (/^\/keys\/[0-9a-f]{64}$/.test(uri)) {
             req.uri = uri + ".html";
-          } else if (uri === "/share") {
-            req.uri = "/share.html";
           } else if (uri === "/products") {
             req.uri = "/products.html";
           } else if (/^\/products\/p\/\d+$/.test(uri)) {

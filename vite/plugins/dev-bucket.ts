@@ -99,7 +99,6 @@ const BUILDER_ROUTES: BuilderRoute[] = [
 // CloudFront rules so dev navigation behaves the same as prod.
 function viteEntryRewrite(uri: string): string | null {
   if (uri === "/merch") return "/merch.html";
-  if (uri === "/share") return "/share.html";
   if (uri === "/identity") return "/identity.html";
   if (UUID_36.test(uri.slice("/merch/order/".length)) && uri.startsWith("/merch/order/")) {
     return "/order.html";

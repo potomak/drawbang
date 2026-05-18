@@ -27,7 +27,6 @@ export default defineConfig({
         "pow-test": resolve(__dirname, "pow-test.html"),
         merch: resolve(__dirname, "merch.html"),
         order: resolve(__dirname, "order.html"),
-        share: resolve(__dirname, "share.html"),
         identity: resolve(__dirname, "identity.html"),
       },
     },
