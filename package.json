@@ -13,6 +13,7 @@
     "builder": "tsx builder/build.ts",
     "ingest:dev": "tsx ingest/dev-server.ts",
     "og:logo": "tsx scripts/generate-og-logo.ts",
+    "og:backfill": "tsx scripts/backfill-large-gifs.ts",
     "dev:all": "concurrently -n vite,ingest -c blue,green \"vite\" \"tsx ingest/dev-server.ts\"",
     "lambda:build": "node infra/aws/build-lambda.mjs",
     "lambda:deploy": "npm run lambda:build && (cd infra/aws && sam deploy)"
