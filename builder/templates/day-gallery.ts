@@ -1,4 +1,5 @@
-import { renderAnalytics, renderFooter, renderHeader, renderMetaPixel } from "../../src/layout/chrome.js";
+import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
+import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
 
 export interface DayGalleryView {

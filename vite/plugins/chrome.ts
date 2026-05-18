@@ -1,11 +1,10 @@
 import type { Plugin } from "vite";
 import {
-  renderAnalytics,
   renderFooter,
   renderHeader,
-  renderMetaPixel,
   type NavLink,
 } from "../../src/layout/chrome.js";
+import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 
 // Vite plugin that injects the shared header/footer (#167) into every
 // HTML entry at transformIndexHtml time. The page declares its active
