@@ -224,6 +224,7 @@ export async function build(opts: BuildOptions): Promise<{
       const html = templates.drawing({
         ...drawingViewModel(d),
         canvases,
+        public_base_url: opts.publicBaseUrl,
         repo_url: repoUrl,
       });
       await opts.storage.put(`public/d/${d.id}.html`, enc.encode(html), "text/html", CC_HTML);
@@ -271,7 +272,9 @@ export interface Templates {
   products: (v: ProductsView) => string;
 }
 
-export function drawingViewModel(d: DrawingMetadata): Omit<DrawingView, "repo_url"> {
+export function drawingViewModel(
+  d: DrawingMetadata,
+): Omit<DrawingView, "repo_url" | "public_base_url"> {
   return {
     id: d.id,
     id_short: d.id.slice(0, 8),

@@ -24,6 +24,7 @@ const SAMPLE_DRAWING = {
   bench_hps: 100000,
   parent: null,
   author: null,
+  public_base_url: "https://pixel.drawbang.com",
   repo_url: REPO,
 };
 

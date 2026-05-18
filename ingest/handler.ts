@@ -18,6 +18,8 @@ import {
   CURRENT_STATE_KEY,
   type CurrentCanvasState,
 } from "../builder/canvas-pass.js";
+import { decodeGif } from "../src/editor/gif.js";
+import { encodeScaledGif } from "../src/editor/scaled-gif.js";
 import { validateGif } from "./gif-validate.js";
 import type { Storage } from "./storage.js";
 import {
@@ -295,6 +297,36 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
       ),
     ]);
 
+    // 320×320 nearest-neighbor upscale, written next to the original at
+    // public/drawings/<id>-large.gif. Used as og:image on the drawing page;
+    // crawlers (Reddit, X, Slack, Discord, …) hit this URL when they
+    // resolve the OG tags. Wrapped in try/catch — the original gif is
+    // already committed and an upscale failure must not surface as a
+    // publish error.
+    try {
+      const decoded = decodeGif(gif);
+      // validateGif (section 1) already rejects gifs missing the DRAWBANG
+      // application extension, so activePalette must be non-null here.
+      // Guard defensively in case the validator's contract loosens.
+      if (!decoded.activePalette) {
+        throw new Error("decoded gif has no active palette");
+      }
+      const large = encodeScaledGif({
+        frames: decoded.frames,
+        activePalette: decoded.activePalette,
+        scale: 20,
+        delayMs: decoded.delayMs,
+      });
+      await cfg.storage.put(
+        `public/drawings/${id}-large.gif`,
+        large,
+        "image/gif",
+        "public, max-age=31536000, immutable",
+      );
+    } catch (e) {
+      console.error("[ingest] failed to write 320x320 og gif", e);
+    }
+
     // Streak / total counters (#115). Bump only when this branch fires —
     // i.e. a brand-new gif. The early-return at section 6 already filters
     // out re-publishes of an existing gif without canvas_claim; the canvas
@@ -438,6 +470,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
       : null,
     author: { pubkey: req.pubkey, pubkey_short: req.pubkey.slice(0, 8) },
     canvases,
+    public_base_url: cfg.publicBaseUrl,
     repo_url: cfg.repoUrl ?? "https://github.com/potomak/drawbang",
   });
   await cfg.storage.put(

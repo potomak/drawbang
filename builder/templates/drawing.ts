@@ -25,6 +25,10 @@ export interface DrawingView {
   // the operator's keypair so this becomes uniform across the corpus.
   author: { pubkey: string; pubkey_short: string } | null;
   canvases?: DrawingCanvasMembership[];
+  // Absolute base URL (e.g. https://pixel.drawbang.com) — needed for the
+  // OG / canonical tags. Both ingest (cfg.publicBaseUrl) and the builder
+  // (opts.publicBaseUrl) thread this in.
+  public_base_url: string;
   repo_url: string;
 }
 
@@ -74,8 +78,19 @@ export default function renderDrawing(v: DrawingView): string {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Draw! · ${esc(v.id_short)}</title>
+    <meta name="description" content="Pixel art from Draw! · Create your own at https://pixel.drawbang.com" />
+    <link rel="canonical" href="${esc(v.public_base_url)}/d/${esc(v.id)}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Draw!" />
+    <meta property="og:title" content="Drawing ID ${esc(v.id_short)}" />
+    <meta property="og:description" content="Pixel art from Draw! · Create your own pixel art at https://pixel.drawbang.com" />
+    <meta property="og:url" content="${esc(v.public_base_url)}/d/${esc(v.id)}" />
+    <meta property="og:image" content="${esc(v.public_base_url)}/drawings/${esc(v.id)}-large.gif" />
+    <meta property="og:image:type" content="image/gif" />
+    <meta property="og:image:width" content="320" />
+    <meta property="og:image:height" content="320" />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="stylesheet" href="/gallery-v2.css" />
-    <meta property="og:image" content="/drawings/${esc(v.id)}.gif" />
   </head>
   <body>
     ${renderHeader({ active: "gallery" })}

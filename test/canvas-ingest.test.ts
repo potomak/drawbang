@@ -508,4 +508,37 @@ describe("ingest + canvas_claim", () => {
     assert.equal(stats.canvas_streak_current, 2);
     assert.equal(stats.canvas_last_id, canvasIdNext);
   });
+
+  test("publish writes the 320x320 -large.gif alongside the 16x16 original", async () => {
+    // Stage 1 of the OG-image plan: ingest decodes the just-uploaded GIF,
+    // upscales each frame 20×, and stores the result at
+    // public/drawings/<id>-large.gif with the same immutable cache header
+    // as the original. Used as og:image so crawlers see a 320×320 preview
+    // instead of a 16×16 speck.
+    const storage = new MemoryStorage();
+    const identity = await generateIdentity();
+    const now = new Date("2026-05-13T12:00:00Z");
+    const gif = makeGif(99);
+    const body = await publishBody(gif, identity, INITIAL_STATE.last_publish_at);
+    const r = await handleIngest(body, {
+      storage,
+      publicBaseUrl: "https://example.test",
+      now: () => now,
+    });
+    assert.equal(r.status, 202);
+    if (r.status !== 202) return;
+    const id = r.body.id;
+
+    const large = await storage.getBytes(`public/drawings/${id}-large.gif`);
+    assert.ok(large, "expected -large.gif to be written");
+    // GIF89a magic header. Crawlers sniff the magic before content-type.
+    assert.equal(large[0], 0x47); // G
+    assert.equal(large[1], 0x49); // I
+    assert.equal(large[2], 0x46); // F
+    // Logical screen descriptor width/height live at bytes 6-9, little-endian.
+    const w = large[6] | (large[7] << 8);
+    const h = large[8] | (large[9] << 8);
+    assert.equal(w, 320);
+    assert.equal(h, 320);
+  });
 });

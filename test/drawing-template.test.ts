@@ -8,6 +8,7 @@ const baseView = {
   created_at: "2026-05-08T04:24:56.088Z",
   parent: null,
   author: { pubkey: "a".repeat(64), pubkey_short: "aaaaaaaa" },
+  public_base_url: "https://pixel.drawbang.com",
   repo_url: "https://github.com/example/drawbang",
 };
 
@@ -106,4 +107,50 @@ test("drawing page: copy handler loads /flash.js and surfaces a flash on success
   assert.match(html, /window\.drawbangShowFlash/);
   // execCommand path for browsers without async clipboard.
   assert.match(html, /document\.execCommand\('copy'\)/);
+});
+
+test("drawing page: emits the full OG suite with absolute URLs and the -large.gif image", () => {
+  const html = renderDrawing(baseView);
+  const id = "f".repeat(64);
+  // Each tag with the value crawlers (Reddit, X, Slack, Discord) consume.
+  assert.match(
+    html,
+    /<meta name="description" content="Pixel art from Draw! · Create your own at https:\/\/pixel\.drawbang\.com"/,
+  );
+  assert.match(
+    html,
+    new RegExp(`<link rel="canonical" href="https://pixel\\.drawbang\\.com/d/${id}"`),
+  );
+  assert.match(html, /<meta property="og:type" content="website"/);
+  assert.match(html, /<meta property="og:site_name" content="Draw!"/);
+  assert.match(html, /<meta property="og:title" content="Drawing ID ffffffff"/);
+  assert.match(
+    html,
+    /<meta property="og:description" content="Pixel art from Draw! · Create your own pixel art at https:\/\/pixel\.drawbang\.com"/,
+  );
+  assert.match(
+    html,
+    new RegExp(`<meta property="og:url" content="https://pixel\\.drawbang\\.com/d/${id}"`),
+  );
+  assert.match(
+    html,
+    new RegExp(
+      `<meta property="og:image" content="https://pixel\\.drawbang\\.com/drawings/${id}-large\\.gif"`,
+    ),
+  );
+  assert.match(html, /<meta property="og:image:type" content="image\/gif"/);
+  assert.match(html, /<meta property="og:image:width" content="320"/);
+  assert.match(html, /<meta property="og:image:height" content="320"/);
+  assert.match(html, /<meta name="twitter:card" content="summary_large_image"/);
+});
+
+test("drawing page: drops the legacy 16x16 og:image — only the -large.gif tag survives", () => {
+  const html = renderDrawing(baseView);
+  const id = "f".repeat(64);
+  // Regression: the previous og:image pointed at the raw 16×16 gif which
+  // rendered as a pixel speck on every preview surface.
+  assert.doesNotMatch(
+    html,
+    new RegExp(`og:image" content="/drawings/${id}\\.gif"`),
+  );
 });
