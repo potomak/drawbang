@@ -253,6 +253,74 @@ test("builder writes null pubkey + signature for legacy inbox sidecars (pre-feat
   assert.equal(/href="\/keys\//.test(sansScripts), false);
 });
 
+test("builder renders streaks + badges on owner page when userStatsSource is wired", async () => {
+  // #115/#116: rebuildOwners reads the per-pubkey row and the template
+  // surfaces it as a stats block. Verifies the badges helper composes
+  // correctly with the rendered HTML (daily_total 7 → daily-7 badge).
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
+  const storage = new FsStorage(root);
+
+  const pubkey = "a".repeat(64);
+  const signature = "b".repeat(128);
+  await seedDrawing(root, "2026-04-19", 21, { pubkey, signature });
+
+  const userStatsSource = {
+    async get(pk: string) {
+      if (pk !== pubkey) return null;
+      return {
+        pubkey,
+        daily_total: 7,
+        daily_streak_current: 3,
+        daily_streak_longest: 5,
+        daily_last_date: "2026-04-19",
+        canvas_total: 2,
+        canvas_streak_current: 1,
+        canvas_streak_longest: 2,
+        canvas_last_id: "canvas-2026-W16",
+        updated_at: "2026-04-19T10:00:00Z",
+      };
+    },
+  };
+
+  await build({
+    storage,
+    publicBaseUrl: "https://example.test",
+    today: "2026-04-20",
+    userStatsSource,
+  });
+
+  const ownerHtml = await fs.readFile(path.join(root, `public/keys/${pubkey}.html`), "utf8");
+  assert.match(ownerHtml, /<dl class="ow-stats">/);
+  assert.match(ownerHtml, /3-day streak/);
+  assert.match(ownerHtml, /best 5/);
+  assert.match(ownerHtml, /7 drawings total/);
+  assert.match(ownerHtml, /1-week streak/);
+  assert.match(ownerHtml, /2 canvases total/);
+  // daily_total === 7 unlocks daily-7; canvas_total === 2 unlocks nothing.
+  assert.match(ownerHtml, /data-badge-id="daily-7"/);
+  assert.ok(
+    !/data-badge-id="daily-30"/.test(ownerHtml),
+    "daily-30 should not appear at daily_total=7",
+  );
+  assert.ok(
+    !/data-badge-id="canvas-10"/.test(ownerHtml),
+    "canvas-10 should not appear at canvas_total=2",
+  );
+});
+
+test("builder omits stats block when userStatsSource is absent", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
+  const storage = new FsStorage(root);
+  const pubkey = "a".repeat(64);
+  const signature = "b".repeat(128);
+  await seedDrawing(root, "2026-04-19", 22, { pubkey, signature });
+
+  await build({ storage, publicBaseUrl: "https://example.test", today: "2026-04-20" });
+
+  const ownerHtml = await fs.readFile(path.join(root, `public/keys/${pubkey}.html`), "utf8");
+  assert.ok(!/<dl class="ow-stats">/.test(ownerHtml), "no stats block without source");
+});
+
 test("builder preserves canvas membership when re-rendering an existing drawing page", async () => {
   // Regression: a forced re-render used to wipe the "Canvases" section
   // because drawingViewModel didn't load the per-drawing .canvases.json

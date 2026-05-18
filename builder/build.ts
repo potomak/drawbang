@@ -2,8 +2,10 @@ import { PER_PAGE } from "../config/constants.js";
 import type { Storage } from "../ingest/storage.js";
 import type { CanvasStore } from "../ingest/canvas-store.js";
 import { loadCanvases } from "../ingest/canvases-sidecar.js";
+import type { UserStatsRow } from "../ingest/user-stats-store.js";
 import { canvasPass } from "./canvas-pass.js";
 import { validateGif } from "../ingest/gif-validate.js";
+import { earnedBadges } from "../config/badges.js";
 import type { MerchCatalog } from "../merch/lambda.js";
 import type { ProductCounter } from "../merch/product-counters.js";
 import { contentHash, hashHex, leadingZeroBits, powHash } from "../src/pow.js";
@@ -22,6 +24,14 @@ import type { ProductCard, ProductsView } from "./templates/products.js";
 
 export interface ProductCountersSource {
   listAll: () => Promise<ProductCounter[]>;
+}
+
+// Narrow read-only view over UserStatsStore.get(). The builder only needs
+// to look up per-owner stats at render time — kept as its own interface so
+// dev/test paths can supply a fixture without depending on the full
+// streak-bumping write API.
+export interface UserStatsSource {
+  get(pubkey: string): Promise<UserStatsRow | null>;
 }
 
 export interface BuildOptions {
@@ -45,6 +55,9 @@ export interface BuildOptions {
   // Optional: enables the canvas pass to read live tile state. Without it,
   // /state/current-canvas.json still gets a fresh manifest + zero counts.
   canvasStore?: CanvasStore;
+  // Optional: per-owner streak/total counters for /keys/<pubkey>.html
+  // (#115/#116). Without it, owner pages render without the stats block.
+  userStatsSource?: UserStatsSource;
   // Optional: API Gateway base URL for the canvas page's state hydration.
   // See CanvasPassOptions.apiBaseUrl for the why.
   apiBaseUrl?: string;
@@ -380,14 +393,40 @@ async function rebuildOwners(
     if (!indexBytes) continue;
     const all = parseJsonl(dec.decode(indexBytes));
     all.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    const stats = opts.userStatsSource
+      ? await ownerStatsViewModel(opts.userStatsSource, pubkey)
+      : undefined;
     const html = templates.owner({
       pubkey,
       pubkey_short: pubkey.slice(0, 8),
       drawings: all.map((d) => ({ id: d.id, id_short: d.id.slice(0, 8) })),
+      stats,
       repo_url: repoUrl,
     });
     await opts.storage.put(`public/keys/${pubkey}.html`, enc.encode(html), "text/html", CC_HTML);
   }
+}
+
+async function ownerStatsViewModel(
+  source: UserStatsSource,
+  pubkey: string,
+): Promise<import("./templates/owner.js").OwnerStats> {
+  const row = await source.get(pubkey);
+  const totals = {
+    daily_total: row?.daily_total ?? 0,
+    canvas_total: row?.canvas_total ?? 0,
+  };
+  const badges = earnedBadges(totals);
+  return {
+    daily_total: totals.daily_total,
+    daily_streak_current: row?.daily_streak_current ?? 0,
+    daily_streak_longest: row?.daily_streak_longest ?? 0,
+    canvas_total: totals.canvas_total,
+    canvas_streak_current: row?.canvas_streak_current ?? 0,
+    canvas_streak_longest: row?.canvas_streak_longest ?? 0,
+    daily_badges: badges.daily,
+    canvas_badges: badges.canvas,
+  };
 }
 
 async function rebuildRolling(
@@ -567,6 +606,7 @@ async function cli(): Promise<void> {
   let productCountersSource: ProductCountersSource | undefined;
   let merchCatalog: MerchCatalog | undefined;
   let canvasStore: CanvasStore | undefined;
+  let userStatsSource: UserStatsSource | undefined;
   if (s3Bucket) {
     const { ProductCountersStore } = await import("../merch/product-counters.js");
     const store = new ProductCountersStore({ tableName: countersTable });
@@ -581,6 +621,12 @@ async function cli(): Promise<void> {
       tilesTable: process.env.DRAWBANG_CANVAS_TILES_TABLE ?? "drawbang-canvas-tiles",
       cooldownsTable: process.env.DRAWBANG_CANVAS_COOLDOWNS_TABLE ?? "drawbang-canvas-cooldowns",
     });
+    // Per-pubkey streak + total counters drive the stats block on
+    // /keys/<pubkey>.html. Builder reads only; ingest is the writer.
+    const { DynamoUserStatsStore } = await import("../ingest/user-stats-store.js");
+    userStatsSource = new DynamoUserStatsStore({
+      tableName: process.env.DRAWBANG_USER_STATS_TABLE ?? "drawbang-user-stats",
+    });
   }
 
   const result = await build({
@@ -592,6 +638,7 @@ async function cli(): Promise<void> {
     productCountersSource,
     merchCatalog,
     canvasStore,
+    userStatsSource,
     apiBaseUrl,
     logger: (m) => console.log(m),
   });

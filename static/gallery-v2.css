@@ -80,6 +80,35 @@
 .mono-trunc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .dr-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
 
+/* Owner stats block (/keys/<pubkey>) — streaks + badges (#115/#116).
+   Same grid shape as .dr-meta so it sits comfortably above the drawings grid. */
+.ow-stats {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 8px 12px;
+  margin: 0 0 24px;
+  font-size: var(--t-sm);
+}
+.ow-stats dt { color: var(--fg-muted); }
+.ow-stats dd { margin: 0; }
+.ow-badges {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ow-badges li {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--canvas-bg);
+  color: var(--fg);
+  font-size: var(--t-xs);
+  border: 1px solid var(--fg-muted);
+}
+
 /* =====================================================================
    PRODUCTS LIST (/products)
    ===================================================================== */

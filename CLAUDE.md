@@ -239,6 +239,8 @@ Lambda (runtime, set via SAM):
   `drawbang-canvas-tiles`).
 - `DRAWBANG_CANVAS_COOLDOWNS_TABLE` — DynamoDB table for per-pubkey-
   per-canvas publish cooldowns (default `drawbang-canvas-cooldowns`).
+- `DRAWBANG_USER_STATS_TABLE` — DynamoDB table for per-pubkey streak +
+  total counters (#115/#116, default `drawbang-user-stats`).
 
 Builder CLI:
 - `DRAWBANG_S3_BUCKET` — if set, uses S3Storage; otherwise FsStorage at `DRAWBANG_BUCKET`.
@@ -249,6 +251,9 @@ Builder CLI:
 - `DRAWBANG_PRODUCT_COUNTERS_TABLE` — DynamoDB table for the /products gallery
   (default `drawbang-product-counters`). Only read when `DRAWBANG_S3_BUCKET` is
   set; local dev with FsStorage skips the /products surface.
+- `DRAWBANG_USER_STATS_TABLE` — DynamoDB table read for the streaks/badges
+  block on `/keys/<pubkey>.html` (default `drawbang-user-stats`). Only read
+  when `DRAWBANG_S3_BUCKET` is set; local dev with FsStorage omits the block.
 
 ## AWS deployment
 
