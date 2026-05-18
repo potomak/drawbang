@@ -1,5 +1,10 @@
 import type { Plugin } from "vite";
-import { renderFooter, renderHeader, type NavLink } from "../../src/layout/chrome.js";
+import {
+  renderAnalytics,
+  renderFooter,
+  renderHeader,
+  type NavLink,
+} from "../../src/layout/chrome.js";
 
 // Vite plugin that injects the shared header/footer (#167) into every
 // HTML entry at transformIndexHtml time. The page declares its active
@@ -13,6 +18,7 @@ export interface ChromePluginOptions {
 const ACTIVE_META = /<meta\s+name="drawbang:active"\s+content="([^"]*)"\s*\/?>\s*\n?/i;
 const HEADER_MARKER = "<!--CHROME:HEADER-->";
 const FOOTER_MARKER = "<!--CHROME:FOOTER-->";
+const ANALYTICS_MARKER = "<!--CHROME:ANALYTICS-->";
 
 export function chromePlugin(opts: ChromePluginOptions = {}): Plugin {
   const repoUrl = opts.repoUrl ?? "https://github.com/potomak/drawbang";
@@ -33,5 +39,6 @@ export function injectChrome(html: string, repoUrl: string): string {
   let out = match ? html.replace(ACTIVE_META, "") : html;
   out = out.replace(HEADER_MARKER, renderHeader({ active }));
   out = out.replace(FOOTER_MARKER, renderFooter({ active, repoUrl }));
+  out = out.replace(ANALYTICS_MARKER, renderAnalytics());
   return out;
 }

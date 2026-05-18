@@ -1,4 +1,4 @@
-import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
+import { renderAnalytics, renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { TILES_PER_CANVAS } from "../../config/canvases.js";
 import { esc } from "./_escape.js";
 
@@ -41,6 +41,7 @@ export default function renderCanvasesArchive(v: CanvasesArchiveView): string {
   return `<!doctype html>
 <html lang="en">
   <head>
+    ${renderAnalytics()}
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Draw! · Canvases</title>

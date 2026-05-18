@@ -1,4 +1,4 @@
-import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
+import { renderAnalytics, renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { esc } from "./_escape.js";
 
 export interface ProductCard {
@@ -39,6 +39,7 @@ ${v.cards.map(renderCard).join("\n")}
   return `<!doctype html>
 <html lang="en">
   <head>
+    ${renderAnalytics()}
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Draw! · Products · page ${esc(v.page)}</title>

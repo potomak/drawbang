@@ -1,4 +1,4 @@
-import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
+import { renderAnalytics, renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { esc } from "./_escape.js";
 
 export interface DayGalleryView {
@@ -45,6 +45,7 @@ export default function renderDayGallery(v: DayGalleryView): string {
   return `<!doctype html>
 <html lang="en">
   <head>
+    ${renderAnalytics()}
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Draw! · ${esc(v.date)} · page ${esc(v.page)}</title>

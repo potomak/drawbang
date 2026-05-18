@@ -31,6 +31,24 @@ export interface FooterOptions extends ChromeOptions {
  */
 export const IDENTITY_FALLBACK_HREF = "/identity";
 
+// Google Analytics measurement ID. Single source of truth used by both
+// Vite-served pages (via the <!--CHROME:ANALYTICS--> marker in the Vite
+// chrome plugin) and builder templates (which call renderAnalytics()
+// directly inside their <head>).
+export const GA_MEASUREMENT_ID = "G-5F5HPX6QYC";
+
+export function renderAnalytics(): string {
+  return `<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', '${GA_MEASUREMENT_ID}');
+</script>`;
+}
+
 /**
  * Fixed nav entries. The identity link is dynamic (its href depends on
  * whether the viewer has a pubkey), so it's appended at render time.
