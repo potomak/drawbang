@@ -145,4 +145,62 @@ describe("canvas pass", () => {
     assert.equal(state?.tiles_claimed, 1);
     assert.equal(state?.tiles_published, 1);
   });
+
+  test("re-renders already-locked canvases from current DDB state when canvasStore is wired", async () => {
+    // Reproduces and pins the W20-wipe bug: an earlier canvasPass ran without
+    // canvasStore and locked the prior canvas with empty tiles + an immutable
+    // cache-control. DDB still holds the publish; a subsequent pass with a
+    // wired canvasStore must re-render the locked HTML from DDB rather than
+    // skipping it because it's already locked in the registry.
+    const { storage } = await tmpStorage();
+    const canvasStore = new MemoryCanvasStore();
+    const t1 = new Date("2026-05-13T12:00:00Z");
+    const t2 = new Date("2026-05-20T12:00:00Z");
+    const w20 = canvasIdForDate(t1);
+    const drawingId = "d".repeat(64);
+    const pubkey = "a".repeat(64);
+    const nowEpoch1 = Math.floor(t1.getTime() / 1000);
+
+    await canvasStore.claimTile({
+      canvas_id: w20,
+      tile_key: "5,5",
+      pubkey,
+      now_epoch: nowEpoch1,
+      ttl_s: 1800,
+    });
+    await canvasStore.publishTile({
+      canvas_id: w20,
+      tile_key: "5,5",
+      pubkey,
+      drawing_id: drawingId,
+      now_epoch: nowEpoch1,
+      cooldown_s: 900,
+      cooldown_ttl_s: 7 * 86_400,
+    });
+
+    // First pass at t1: W20 is current, with the published tile.
+    await canvasPass({ storage, canvasStore, now: t1 });
+
+    // Second pass at t2 WITHOUT canvasStore: W20 transitions to locked and
+    // gets re-rendered with empty tiles — the bug.
+    await canvasPass({ storage, now: t2 });
+    const broken = await storage.getBytes(`public/canvases/${w20}.html`);
+    assert.ok(broken, "expected locked canvas HTML to exist");
+    const brokenHtml = new TextDecoder().decode(broken);
+    assert.ok(
+      !brokenHtml.includes(`/drawings/${drawingId}.gif`),
+      "precondition: the without-canvasStore pass should have wiped the tile",
+    );
+
+    // Third pass at t2 WITH canvasStore: re-renders every locked canvas from
+    // DDB. The published tile must come back.
+    await canvasPass({ storage, canvasStore, now: t2 });
+    const fixed = await storage.getBytes(`public/canvases/${w20}.html`);
+    assert.ok(fixed, "expected locked canvas HTML to still exist");
+    const fixedHtml = new TextDecoder().decode(fixed);
+    assert.ok(
+      fixedHtml.includes(`/drawings/${drawingId}.gif`),
+      "expected the published tile to be re-rendered from DDB",
+    );
+  });
 });

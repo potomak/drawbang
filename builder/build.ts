@@ -559,12 +559,21 @@ async function cli(): Promise<void> {
   // no-op so `npm run builder` against ./dev-bucket stays self-contained.
   let productCountersSource: ProductCountersSource | undefined;
   let merchCatalog: MerchCatalog | undefined;
+  let canvasStore: CanvasStore | undefined;
   if (s3Bucket) {
     const { ProductCountersStore } = await import("../merch/product-counters.js");
     const store = new ProductCountersStore({ tableName: countersTable });
     productCountersSource = { listAll: () => store.listAll() };
     const catalogModule = await import("../config/merch.json", { with: { type: "json" } });
     merchCatalog = catalogModule.default as MerchCatalog;
+    // Canvas tile state lives in DDB; without this, canvasPass renders the
+    // current canvas + every locked canvas with empty tile arrays, and the
+    // immutable cache-control on locked-canvas HTML pins the wiped state.
+    const { DynamoCanvasStore } = await import("../ingest/canvas-store.js");
+    canvasStore = new DynamoCanvasStore({
+      tilesTable: process.env.DRAWBANG_CANVAS_TILES_TABLE ?? "drawbang-canvas-tiles",
+      cooldownsTable: process.env.DRAWBANG_CANVAS_COOLDOWNS_TABLE ?? "drawbang-canvas-cooldowns",
+    });
   }
 
   const result = await build({
@@ -575,6 +584,7 @@ async function cli(): Promise<void> {
     forceRerender,
     productCountersSource,
     merchCatalog,
+    canvasStore,
     apiBaseUrl,
     logger: (m) => console.log(m),
   });

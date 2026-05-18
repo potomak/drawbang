@@ -200,8 +200,11 @@ export async function canvasPass(
     "public, max-age=60",
   );
 
-  // 5) Render the current canvas page (live; hydrated client-side) and any
-  //    canvases that just transitioned to locked (frozen forever).
+  // 5) Render the current canvas page (live; hydrated client-side) and every
+  //    locked canvas. Locked DDB rows are immutable, so re-rendering every
+  //    pass is byte-idempotent — and self-heals if any earlier pass wrote an
+  //    empty page (e.g. ran without canvasStore wired, as the builder CLI
+  //    did before this was fixed).
   const currentTilesView = tilesToView(currentTiles);
   await opts.storage.put(
     `public/canvases/${currentId}.html`,
@@ -221,7 +224,15 @@ export async function canvasPass(
     "public, max-age=60",
   );
 
-  for (const m of lockedNow) {
+  // Iterate the post-merge registry so freshly-locked canvases (in lockedNow)
+  // and canvases locked on a prior pass are both rendered. Without a
+  // canvasStore we can only honour the "transition" set with empty tiles,
+  // matching the legacy behaviour; with a store, every locked canvas is
+  // rebuilt from current DDB state.
+  const lockedNowIds = new Set(lockedNow.map((m) => m.id));
+  for (const m of merged) {
+    if (!m.locked) continue;
+    if (!opts.canvasStore && !lockedNowIds.has(m.id)) continue;
     const tiles = opts.canvasStore ? await opts.canvasStore.getTiles(m.id) : [];
     const view = tilesToView(tiles);
     await opts.storage.put(
