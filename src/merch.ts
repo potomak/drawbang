@@ -2,6 +2,7 @@ import { Bitmap } from "./editor/bitmap.js";
 import { PixelCanvas } from "./editor/canvas.js";
 import { decodeGif } from "./editor/gif.js";
 import { activePaletteToRgb, DEFAULT_ACTIVE_PALETTE } from "./editor/palette.js";
+import { trackBeginCheckout, trackViewItem } from "./analytics.js";
 import {
   loadMockupImage,
   paintMockupPreview,
@@ -278,6 +279,14 @@ function selectProduct(product: MerchProduct): void {
   updateCheckoutButton();
   updateSummary();
   repaintCardPreviews();
+  // GA4 view_item — fired for the URL-preselected product on initial load
+  // and again whenever the user clicks a different card. Variant isn't
+  // known yet at this stage, so price reports the cheapest variant.
+  trackViewItem({
+    item_id: product.id,
+    item_name: product.name,
+    price: lowestPrice(product) / 100,
+  });
 }
 
 function uniqueAxisValues(product: MerchProduct, axis: "size" | "color"): string[] {
@@ -465,6 +474,22 @@ async function fetchDrawing(id: string): Promise<Uint8Array> {
 async function handleCheckout(): Promise<void> {
   const variant = currentVariant();
   if (!drawingId || !selectedProduct || !variant || checkoutInFlight) return;
+  // GA4 begin_checkout — fire at intent (click), not at Stripe-redirect
+  // success, so we capture drop-offs caused by network errors on the
+  // /merch/checkout POST.
+  const variantLabel = [variant.size, variant.color].filter(Boolean).join(" / ");
+  trackBeginCheckout({
+    value: (variant.retail_cents + selectedProduct.shipping_cents) / 100,
+    items: [
+      {
+        item_id: selectedProduct.id,
+        item_name: selectedProduct.name,
+        price: variant.retail_cents / 100,
+        quantity: 1,
+        ...(variantLabel ? { item_variant: variantLabel } : {}),
+      },
+    ],
+  });
   checkoutInFlight = true;
   updateCheckoutButton();
   setStatus("creating checkout session…");
