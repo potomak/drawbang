@@ -288,3 +288,38 @@ API Gateway URL appears in `sam deploy` output as `IngestEndpoint`. Update the
   workflow runs on every push to `master`. If you do work on a feature
   branch (e.g. for handoff between sessions), fast-forward merge it into
   `master` as soon as it's ready and push.
+
+## UI / UX consistency (paramount)
+
+Before introducing any visible UI affordance — toast, modal, button
+variant, status strip, banner, picker, page title style, link hover, etc. —
+**search the repo first** for an existing implementation. Reuse beats new.
+
+Specifically:
+- Cross-surface notifications: `src/layout/flash.ts` (Vite consumers) +
+  `static/flash.js` (`window.drawbangFlash`, loaded as a plain script by
+  builder-rendered pages, e.g. `/d/<id>`). Styles live in `chrome.css` so
+  every surface picks them up via the existing import chain.
+- Cross-surface chrome (header, footer, nav, identity link, hamburger
+  toggle): `src/layout/chrome.ts` + the `<!--CHROME:HEADER-->` /
+  `<!--CHROME:FOOTER-->` markers for Vite pages; `renderHeader` /
+  `renderFooter` called directly from `builder/templates/*.ts`.
+- Buttons: `.btn` / `.primary` / `.ghost` in `chrome.css` (works on both
+  `<a>` and `<button>`). Variants `.icon` / `.sm` / `.xs` in `src/style.css`
+  (Vite surfaces only).
+- Tracking: `src/layout/tracking.ts` (`renderAnalytics`, `renderMetaPixel`)
+  is the single source for both GA and Meta Pixel snippets.
+- Per-page status / progress / "X copied" confirmations: the flash system
+  above — never invent a new toast/snackbar/banner.
+
+When you find that a new surface (e.g. a builder-rendered page) doesn't
+have access to a Vite-only helper, **prefer lifting it to the shared layer
+over writing a parallel implementation**. The lift pattern is documented:
+hand-port to `static/<name>.js` (plain JS, exposes a `window.drawbang*`
+global), move its CSS to `chrome.css`, load via `<script src="/<name>.js">`.
+This is how `chrome-toggle.js` / `chrome-identity.js` already work.
+
+If reuse genuinely isn't viable (e.g. the surface needs a different
+interaction model), say so explicitly in the commit message and ask before
+proceeding — divergent UX is harder to walk back than a slightly bigger
+refactor.

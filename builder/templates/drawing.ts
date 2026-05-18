@@ -99,7 +99,7 @@ export default function renderDrawing(v: DrawingView): string {
           <div class="dr-actions">
             <a class="btn primary" href="/merch?d=${esc(v.id)}&amp;frame=0" rel="nofollow noreferrer">Make merch</a>
             <a class="btn" href="/?fork=${esc(v.id)}">Fork &amp; edit</a>
-            <a class="btn" href="/d/${esc(v.id)}">Copy link</a>
+            <button class="btn" id="dr-copy-link" type="button">Copy link</button>
             <a class="btn" href="/share?d=${esc(v.id)}" rel="nofollow noreferrer">Share to Reddit</a>
             <a class="btn ghost" href="/drawings/${esc(v.id)}.gif" download>Download GIF</a>
           </div>
@@ -107,6 +107,7 @@ export default function renderDrawing(v: DrawingView): string {
       </div>
     </main>
     ${renderFooter({ active: "gallery", repoUrl: v.repo_url })}
+    <script src="/flash.js"></script>
     <script>
 (async function () {
   try {
@@ -130,6 +131,46 @@ export default function renderDrawing(v: DrawingView): string {
   } catch (e) {
     // Non-fatal — parent page renders without the children section.
   }
+})();
+(function () {
+  // Copy-link button — reuses the shared flash UI loaded via /flash.js
+  // above (CLAUDE.md "UI/UX consistency"). Falls back to execCommand on
+  // browsers without async-clipboard (older Safari, http:// contexts).
+  var btn = document.getElementById('dr-copy-link');
+  if (!btn) return;
+  function flash(kind, message) {
+    if (typeof window.drawbangShowFlash === 'function') {
+      window.drawbangShowFlash({ kind: kind, message: message, autoDismissMs: 1800 });
+    }
+  }
+  async function fallbackCopy(url) {
+    var tmp = document.createElement('textarea');
+    tmp.value = url;
+    tmp.setAttribute('readonly', '');
+    tmp.style.position = 'fixed';
+    tmp.style.top = '-9999px';
+    document.body.appendChild(tmp);
+    tmp.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(tmp);
+    return ok;
+  }
+  btn.addEventListener('click', async function () {
+    var url = window.location.href;
+    var ok = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+        ok = true;
+      } else {
+        ok = await fallbackCopy(url);
+      }
+    } catch (e) {
+      ok = await fallbackCopy(url);
+    }
+    flash(ok ? 'success' : 'error', ok ? 'Link copied' : 'Could not copy — try long-pressing the URL');
+  });
 })();
     </script>
   </body>

@@ -86,3 +86,24 @@ test("drawing page: hydration script fetches /drawings/<id>.children.json", () =
   assert.match(html, new RegExp(`"${"f".repeat(64)}"`));
   assert.match(html, /\.children\.json/);
 });
+
+test("drawing page: Copy link is an interactive button, not a self-link", () => {
+  const html = renderDrawing(baseView);
+  // Regression: this used to be `<a href="/d/<id>">Copy link</a>` which
+  // just reloaded the current page. Now a button driven by the inline
+  // copy handler that calls navigator.clipboard.writeText.
+  assert.match(html, /<button class="btn" id="dr-copy-link" type="button">Copy link<\/button>/);
+  assert.doesNotMatch(html, /<a class="btn" href="\/d\/[^"]+">Copy link<\/a>/);
+});
+
+test("drawing page: copy handler loads /flash.js and surfaces a flash on success", () => {
+  // UI consistency (CLAUDE.md): the copy confirmation reuses the shared
+  // flash slot rather than a one-off toast. /flash.js must be loaded
+  // before the inline script that calls window.drawbangShowFlash.
+  const html = renderDrawing(baseView);
+  assert.match(html, /<script src="\/flash\.js"><\/script>/);
+  assert.match(html, /navigator\.clipboard\.writeText/);
+  assert.match(html, /window\.drawbangShowFlash/);
+  // execCommand path for browsers without async clipboard.
+  assert.match(html, /document\.execCommand\('copy'\)/);
+});

@@ -44,63 +44,6 @@ body > main, .app > main { display: block; }
 .cv-banner--error .cv-banner-emoji { color: var(--accent); }
 @media (max-width: 640px) { .canvas-banner { padding: 12px 14px 0; } }
 
-/* ===== Flash slot =====
-   Singleton notification overlay pinned below the sticky header. Position
-   is fixed so the message stays visible during scroll. Top offset matches
-   the computed .hdr height (14+14+24+1 desktop, 10+10+16+1 mobile). */
-.flash {
-  position: fixed;
-  top: 53px;
-  left: 0;
-  right: 0;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 24px 8px 21px;
-  background: var(--bg-elev);
-  border-bottom: var(--border) solid var(--border-c);
-  border-left: 3px solid var(--border-strong);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-  animation: flash-in 140ms ease-out;
-}
-.flash[hidden] { display: none; }
-.flash[data-kind="success"] { border-left-color: var(--accent); }
-.flash[data-kind="error"] { border-left-color: #ff6060; }
-.flash-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: var(--t-sm);
-  color: var(--fg);
-}
-.flash-msg { word-break: break-word; }
-.flash-msg a { color: var(--fg); text-decoration: underline; user-select: text; -webkit-user-select: text; }
-.flash-action { color: var(--accent); white-space: nowrap; }
-.flash-close {
-  flex: 0 0 auto;
-  background: transparent;
-  color: var(--fg-muted);
-  border: 0;
-  width: var(--tap);
-  height: var(--tap);
-  font-size: 22px;
-  line-height: 1;
-  cursor: pointer;
-}
-.flash-close:hover { color: var(--fg); }
-@keyframes flash-in {
-  from { transform: translateY(-6px); opacity: 0; }
-  to { transform: none; opacity: 1; }
-}
-@media (max-width: 640px) {
-  .flash { top: 37px; padding: 10px 14px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .flash { animation: none; }
-}
 
 /* ===== Button (editor-only variants) =====
    Base .btn / .primary / .ghost live in chrome.css. Variants below are
