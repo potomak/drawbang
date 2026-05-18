@@ -116,6 +116,7 @@ export default function renderDrawing(v: DrawingView): string {
             <a class="btn" href="/?fork=${esc(v.id)}">Fork &amp; edit</a>
             <button class="btn" id="dr-copy-link" type="button">Copy link</button>
             <a class="btn" href="https://www.reddit.com/submit?url=${encodeURIComponent(`${v.public_base_url}/d/${v.id}`)}&amp;title=${encodeURIComponent(`Pixel art from Draw! · Drawing ID ${v.id_short}`)}" target="_blank" rel="nofollow noopener noreferrer">Share to Reddit</a>
+            <a class="btn" href="https://twitter.com/intent/tweet?url=${encodeURIComponent(`${v.public_base_url}/d/${v.id}`)}&amp;text=${encodeURIComponent(`Pixel art from Draw! · Drawing ID ${v.id_short}`)}" target="_blank" rel="nofollow noopener noreferrer">Share to X</a>
             <a class="btn ghost" href="/drawings/${esc(v.id)}.gif" download>Download GIF</a>
           </div>
         </div>

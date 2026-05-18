@@ -169,3 +169,18 @@ test("drawing page: Reddit button links directly to reddit.com/submit, not the /
   assert.match(html, reddit);
   assert.doesNotMatch(html, /href="\/share\?d=/);
 });
+
+test("drawing page: X share button opens twitter.com/intent/tweet with the drawing URL", () => {
+  const html = renderDrawing(baseView);
+  const id = "f".repeat(64);
+  // Stage 3: X share. twitter.com/intent/tweet is a universal link / app
+  // link on iOS + Android; the installed app handles it without a custom
+  // scheme. We use twitter.com (not x.com) because the latter currently
+  // 301-redirects to twitter.com and avoiding the hop is cheap.
+  const expectedUrl = encodeURIComponent(`https://pixel.drawbang.com/d/${id}`);
+  const expectedText = encodeURIComponent("Pixel art from Draw! · Drawing ID ffffffff");
+  const x = new RegExp(
+    `<a class="btn" href="https://twitter\\.com/intent/tweet\\?url=${expectedUrl}&amp;text=${expectedText}"[^>]*>Share to X</a>`,
+  );
+  assert.match(html, x);
+});
