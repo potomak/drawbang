@@ -332,6 +332,19 @@ Resources:
         AttributeName: ttl_epoch
         Enabled: true
 
+  # Per-pubkey aggregated streak + total counters for #115/#116. One row
+  # per author with daily-drawings + weekly-canvas dimensions, updated
+  # under optimistic concurrency from the ingest handler.
+  UserStatsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: drawbang-user-stats
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: pubkey, AttributeType: S }
+      KeySchema:
+        - { AttributeName: pubkey, KeyType: HASH }
+
   # -- Ingest Lambda + API Gateway --------------------------------------------
 
   IngestFunction:
@@ -350,12 +363,14 @@ Resources:
           REPO_URL: !Ref RepoUrl
           DRAWBANG_CANVAS_TILES_TABLE: !Ref CanvasTilesTable
           DRAWBANG_CANVAS_COOLDOWNS_TABLE: !Ref CanvasCooldownsTable
+          DRAWBANG_USER_STATS_TABLE: !Ref UserStatsTable
           NODE_OPTIONS: "--enable-source-maps"
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
         - DynamoDBCrudPolicy: { TableName: !Ref CanvasTilesTable }
         - DynamoDBCrudPolicy: { TableName: !Ref CanvasCooldownsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref UserStatsTable }
       Events:
         Ingest:
           Type: HttpApi
@@ -484,6 +499,9 @@ Outputs:
   CanvasCooldownsTableName:
     Description: DynamoDB table for per-pubkey-per-canvas publish cooldowns.
     Value: !Ref CanvasCooldownsTable
+  UserStatsTableName:
+    Description: DynamoDB table for per-pubkey streak + total counters (#115/#116).
+    Value: !Ref UserStatsTable
   IngestEndpoint:
     Description: POST here with the IngestRequest body.
     Value: !Sub "https://${IngestApi}.execute-api.${AWS::Region}.amazonaws.com/ingest"

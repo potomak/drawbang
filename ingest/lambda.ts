@@ -11,12 +11,14 @@ import {
 } from "./canvas-handler.js";
 import { S3Storage } from "./s3-storage.js";
 import { DynamoCanvasStore } from "./canvas-store.js";
+import { DynamoUserStatsStore } from "./user-stats-store.js";
 
 const bucket = required("DRAWBANG_BUCKET");
 const publicBaseUrl = required("PUBLIC_BASE_URL");
 const repoUrl = required("REPO_URL");
 const canvasTilesTable = required("DRAWBANG_CANVAS_TILES_TABLE");
 const canvasCooldownsTable = required("DRAWBANG_CANVAS_COOLDOWNS_TABLE");
+const userStatsTable = required("DRAWBANG_USER_STATS_TABLE");
 
 // Reused across invocations in a warm Lambda container. Cold start pays the
 // SDK init cost once; subsequent requests reuse the connection pool.
@@ -24,6 +26,9 @@ const storage = new S3Storage({ bucket });
 const canvasStore = new DynamoCanvasStore({
   tilesTable: canvasTilesTable,
   cooldownsTable: canvasCooldownsTable,
+});
+const userStatsStore = new DynamoUserStatsStore({
+  tableName: userStatsTable,
 });
 
 // Module-scope rolling baseline windows (publish + per-canvas claim). Both
@@ -67,6 +72,7 @@ async function handleIngestRoute(
     repoUrl,
     baselineHistory,
     canvasStore,
+    userStatsStore,
   });
   return json(result.status, result.body);
 }

@@ -32,6 +32,7 @@ import {
   appendCanvasMembership,
   loadCanvases,
 } from "./canvases-sidecar.js";
+import type { UserStatsStore } from "./user-stats-store.js";
 
 export interface CanvasClaimRef {
   canvas_id: string;
@@ -78,6 +79,9 @@ export interface HandlerConfig {
   baselineHistory?: string[]; // optional: last N baselines to accept
   // Required only for canvas-aware ingest. Non-canvas publishes never touch it.
   canvasStore?: CanvasStore;
+  // Per-pubkey streak / total counters (#115, #116). Optional so dev/tests
+  // can omit it; when absent the publish proceeds without bumping counters.
+  userStatsStore?: UserStatsStore;
 }
 
 export interface ChildEntry {
@@ -290,6 +294,24 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
         "public, max-age=31536000, immutable",
       ),
     ]);
+
+    // Streak / total counters (#115). Bump only when this branch fires —
+    // i.e. a brand-new gif. The early-return at section 6 already filters
+    // out re-publishes of an existing gif without canvas_claim; the canvas
+    // branch below handles same-gif-into-new-canvas separately. Wrapped in
+    // try/catch because the gif has already been persisted and a stats
+    // failure must not surface as a publish failure.
+    if (cfg.userStatsStore) {
+      try {
+        await cfg.userStatsStore.recordDailyDrawing({
+          pubkey: req.pubkey,
+          date_utc: nowISO.slice(0, 10),
+          now_iso: nowISO,
+        });
+      } catch (e) {
+        console.error("[ingest] failed to record daily drawing stats", e);
+      }
+    }
   }
 
   // -- 7b. Fork lineage: append this drawing to the parent's children list.
@@ -344,6 +366,23 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
       claimed_by_short: req.pubkey.slice(0, 8),
     };
     await appendCanvasMembership(cfg.storage, id, appendedMembership);
+
+    // Canvas-participation streak (#115). First publish into canvas_id by
+    // this pubkey bumps canvas_total + advances the consecutive-weeks
+    // streak; same-canvas re-publishes are no-ops at the store layer. Same
+    // try/catch policy as the daily hook above and the snapshot refresh
+    // below — stats failures must not surface as publish failures.
+    if (cfg.userStatsStore) {
+      try {
+        await cfg.userStatsStore.recordCanvasParticipation({
+          pubkey: req.pubkey,
+          canvas_id: cc.canvas_id,
+          now_iso: nowISO,
+        });
+      } catch (e) {
+        console.error("[ingest] failed to record canvas participation stats", e);
+      }
+    }
 
     // Refresh the home-banner snapshot so /state/current-canvas.json picks up
     // the new tile within ~60s of edge cache, without making every home-page

@@ -22,6 +22,7 @@ import type { Storage } from "../ingest/storage.js";
 import { handleIngest, type IngestRequest } from "../ingest/handler.js";
 import { handleCanvasClaim } from "../ingest/canvas-handler.js";
 import { MemoryCanvasStore } from "../ingest/canvas-store.js";
+import { MemoryUserStatsStore } from "../ingest/user-stats-store.js";
 import { canvasIdForDate, tileKey } from "../config/canvases.js";
 
 class MemoryStorage implements Storage {
@@ -417,5 +418,94 @@ describe("ingest + canvas_claim", () => {
     }
     void now2;
     void tileKey;
+  });
+
+  test("publish bumps both daily + canvas counters via userStatsStore", async () => {
+    // Hooks #115/#116. A canvas publish is the case that exercises BOTH
+    // hooks in one request: !alreadyHere fires recordDailyDrawing, the
+    // canvas branch fires recordCanvasParticipation.
+    const storage = new MemoryStorage();
+    const canvasStore = new MemoryCanvasStore();
+    const userStatsStore = new MemoryUserStatsStore();
+    const identity = await generateIdentity();
+    const pubkey = await pubKeyHex(identity);
+    const now = new Date("2026-05-13T12:00:00Z");
+    const canvasId = canvasIdForDate(now);
+
+    await claim({ canvasStore, storage, canvasId, x: 5, y: 5, identity, now });
+    const body = await publishBody(makeGif(2), identity, INITIAL_STATE.last_publish_at, {
+      canvas_claim: { canvas_id: canvasId, x: 5, y: 5 },
+    });
+    const r = await handleIngest(body, {
+      storage,
+      publicBaseUrl: "https://example.test",
+      canvasStore,
+      userStatsStore,
+      now: () => now,
+    });
+    assert.equal(r.status, 202);
+
+    const stats = await userStatsStore.get(pubkey);
+    assert.ok(stats, "expected a user-stats row to be written");
+    assert.equal(stats.daily_total, 1);
+    assert.equal(stats.daily_streak_current, 1);
+    assert.equal(stats.daily_last_date, "2026-05-13");
+    assert.equal(stats.canvas_total, 1);
+    assert.equal(stats.canvas_streak_current, 1);
+    assert.equal(stats.canvas_last_id, canvasId);
+  });
+
+  test("re-publishing same gif into a NEW canvas tile bumps canvas_total but NOT daily_total", async () => {
+    // Idempotency contract from the handoff doc: re-publish of an existing
+    // gif WITH canvas_claim flows through the canvas branch (the gif isn't
+    // re-persisted, but the tile is newly placed). The daily hook must NOT
+    // re-fire — same content-addressed gif, no new "drawing today".
+    const storage = new MemoryStorage();
+    const canvasStore = new MemoryCanvasStore();
+    const userStatsStore = new MemoryUserStatsStore();
+    const identity = await generateIdentity();
+    const pubkey = await pubKeyHex(identity);
+    const now = new Date("2026-05-13T12:00:00Z");
+    const canvasId = canvasIdForDate(now);
+
+    // First publish — into (5,5). Both counters bump.
+    await claim({ canvasStore, storage, canvasId, x: 5, y: 5, identity, now });
+    const gif = makeGif(3);
+    const body1 = await publishBody(gif, identity, INITIAL_STATE.last_publish_at, {
+      canvas_claim: { canvas_id: canvasId, x: 5, y: 5 },
+    });
+    const r1 = await handleIngest(body1, {
+      storage,
+      publicBaseUrl: "https://example.test",
+      canvasStore,
+      userStatsStore,
+      now: () => now,
+    });
+    assert.equal(r1.status, 202);
+
+    // Cooldown blocks publish into a 2nd tile on the same canvas. Use a
+    // distinct canvas a week later to legitimately bump canvas_total again.
+    const nowNext = new Date("2026-05-20T12:00:00Z");
+    const canvasIdNext = canvasIdForDate(nowNext);
+    assert.notEqual(canvasId, canvasIdNext);
+    await claim({ canvasStore, storage, canvasId: canvasIdNext, x: 1, y: 1, identity, now: nowNext });
+    const body2 = await publishBody(gif, identity, INITIAL_STATE.last_publish_at, {
+      canvas_claim: { canvas_id: canvasIdNext, x: 1, y: 1 },
+    });
+    const r2 = await handleIngest(body2, {
+      storage,
+      publicBaseUrl: "https://example.test",
+      canvasStore,
+      userStatsStore,
+      now: () => nowNext,
+    });
+    assert.equal(r2.status, 202);
+
+    const stats = await userStatsStore.get(pubkey);
+    assert.ok(stats);
+    assert.equal(stats.daily_total, 1, "daily_total must not bump on re-publish of an existing gif");
+    assert.equal(stats.canvas_total, 2);
+    assert.equal(stats.canvas_streak_current, 2);
+    assert.equal(stats.canvas_last_id, canvasIdNext);
   });
 });
