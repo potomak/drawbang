@@ -396,11 +396,19 @@ async function rebuildOwners(
     const stats = opts.userStatsSource
       ? await ownerStatsViewModel(opts.userStatsSource, pubkey)
       : undefined;
+    // Only emit the client-hydration script when the stats endpoint is
+    // reachable (i.e. apiBaseUrl is wired). Dev/test runs with no
+    // apiBaseUrl keep the page free of hydration to avoid 404s on the
+    // local proxy.
+    const stats_url = stats && opts.apiBaseUrl
+      ? `${opts.apiBaseUrl}/keys/${pubkey}/stats`
+      : undefined;
     const html = templates.owner({
       pubkey,
       pubkey_short: pubkey.slice(0, 8),
       drawings: all.map((d) => ({ id: d.id, id_short: d.id.slice(0, 8) })),
       stats,
+      stats_url,
       repo_url: repoUrl,
     });
     await opts.storage.put(`public/keys/${pubkey}.html`, enc.encode(html), "text/html", CC_HTML);

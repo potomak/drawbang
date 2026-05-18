@@ -9,6 +9,7 @@ import {
   handleCanvasState,
   type CanvasClaimRequest,
 } from "./canvas-handler.js";
+import { handleUserStats } from "./user-stats-handler.js";
 import { S3Storage } from "./s3-storage.js";
 import { DynamoCanvasStore } from "./canvas-store.js";
 import { DynamoUserStatsStore } from "./user-stats-store.js";
@@ -53,6 +54,10 @@ export async function handler(
   // /canvas/{id}/state — match both raw and templated paths.
   if (method === "GET" && /^\/canvas\/[^\/]+\/state$/.test(path)) {
     return handleStateRoute(event, path);
+  }
+  // /keys/{pubkey}/stats — per-pubkey streak / total counters (#115/#116).
+  if (method === "GET" && /^\/keys\/[^\/]+\/stats$/.test(path)) {
+    return handleUserStatsRoute(event, path);
   }
   return text(405, "method not allowed");
 }
@@ -109,6 +114,17 @@ async function handleStateRoute(
     canvasStore,
     publicBaseUrl,
   });
+  return jsonWithHeaders(result.status, result.body, result.headers);
+}
+
+async function handleUserStatsRoute(
+  event: APIGatewayProxyEventV2,
+  path: string,
+): Promise<APIGatewayProxyResultV2> {
+  const fromParam = event.pathParameters?.pubkey;
+  const fromPath = path.match(/^\/keys\/([^\/]+)\/stats$/)?.[1];
+  const pubkey = fromParam ?? fromPath ?? "";
+  const result = await handleUserStats(pubkey, { userStatsStore });
   return jsonWithHeaders(result.status, result.body, result.headers);
 }
 

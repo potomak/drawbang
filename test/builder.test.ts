@@ -321,6 +321,63 @@ test("builder omits stats block when userStatsSource is absent", async () => {
   assert.ok(!/<dl class="ow-stats">/.test(ownerHtml), "no stats block without source");
 });
 
+test("builder emits the owner-page hydration script only when apiBaseUrl is set", async () => {
+  // Stats endpoint freshness path. With apiBaseUrl wired the page ships an
+  // inline fetch() to /keys/<pubkey>/stats so visits see counts from the
+  // live DDB row, not the last builder run. Without apiBaseUrl (dev /
+  // FsStorage) the script is suppressed to keep dev pages free of 404s.
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
+  const storage = new FsStorage(root);
+  const pubkey = "a".repeat(64);
+  const signature = "b".repeat(128);
+  await seedDrawing(root, "2026-04-19", 23, { pubkey, signature });
+  const userStatsSource = {
+    async get() {
+      return {
+        pubkey,
+        daily_total: 1, daily_streak_current: 1, daily_streak_longest: 1,
+        daily_last_date: "2026-04-19",
+        canvas_total: 0, canvas_streak_current: 0, canvas_streak_longest: 0,
+        canvas_last_id: null,
+        updated_at: "2026-04-19T10:00:00Z",
+      };
+    },
+  };
+
+  // (1) With apiBaseUrl — script present, fetches the expected URL.
+  await build({
+    storage,
+    publicBaseUrl: "https://example.test",
+    today: "2026-04-20",
+    userStatsSource,
+    apiBaseUrl: "https://api.example.test",
+  });
+  const withApi = await fs.readFile(path.join(root, `public/keys/${pubkey}.html`), "utf8");
+  assert.match(withApi, /data-stats-daily/, "expected hydration target attribute on the daily dd");
+  assert.match(
+    withApi,
+    /fetch\("https:\/\/api\.example\.test\/keys\/a{64}\/stats"\)/,
+    "expected the hydration script to fetch the stats endpoint",
+  );
+
+  // (2) Without apiBaseUrl — stats block still rendered, but no script.
+  const root2 = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
+  const storage2 = new FsStorage(root2);
+  await seedDrawing(root2, "2026-04-19", 23, { pubkey, signature });
+  await build({
+    storage: storage2,
+    publicBaseUrl: "https://example.test",
+    today: "2026-04-20",
+    userStatsSource,
+  });
+  const noApi = await fs.readFile(path.join(root2, `public/keys/${pubkey}.html`), "utf8");
+  assert.match(noApi, /<dl class="ow-stats">/);
+  assert.ok(
+    !/fetch\([^)]*\/stats/.test(noApi),
+    "no hydration fetch when apiBaseUrl is absent",
+  );
+});
+
 test("builder preserves canvas membership when re-rendering an existing drawing page", async () => {
   // Regression: a forced re-render used to wipe the "Canvases" section
   // because drawingViewModel didn't load the per-drawing .canvases.json

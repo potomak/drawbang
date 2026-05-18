@@ -390,6 +390,12 @@ Resources:
             ApiId: !Ref IngestApi
             Method: GET
             Path: /canvas/{id}/state
+        UserStats:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /keys/{pubkey}/stats
 
   IngestApi:
     Type: AWS::Serverless::HttpApi

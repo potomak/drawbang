@@ -106,8 +106,12 @@ ingest/               Shared ingest logic
                       cooldownRemaining) + MemoryCanvasStore for dev/tests.
                       All multi-row writes via TransactWriteItems.
   canvas-handler.ts   POST /canvas/claim + GET /canvas/{id}/state.
+  user-stats-store.ts DDB wrapper for per-pubkey streak + total counters
+                      (#115/#116) + MemoryUserStatsStore for dev/tests.
+  user-stats-handler.ts GET /keys/{pubkey}/stats — fresh counters + badges.
   lambda.ts           API Gateway v2 entry point — routes /ingest,
-                      /canvas/claim, /canvas/{id}/state.
+                      /canvas/claim, /canvas/{id}/state,
+                      /keys/{pubkey}/stats.
   dev-server.ts       Node HTTP shim for `npm run ingest:dev` — uses
                       MemoryCanvasStore for canvas routes.
 

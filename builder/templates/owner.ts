@@ -24,6 +24,11 @@ export interface OwnerView {
   // template renders nothing when omitted so legacy tests / dev paths
   // stay unaffected.
   stats?: OwnerStats;
+  // Optional: when set, the page ships an inline hydration script that
+  // GETs this URL on load and overlays fresh stats on the server-rendered
+  // ones. Without it the stats block is whatever the last builder run
+  // emitted (typically hours stale).
+  stats_url?: string;
   repo_url: string;
 }
 
@@ -46,6 +51,7 @@ ${items}
       </ul>`
     : `      <p class="muted">No drawings published with this key yet.</p>`;
   const stats = v.stats ? renderStats(v.stats) : "";
+  const hydrate = v.stats && v.stats_url ? renderHydrateScript(v.stats_url) : "";
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -63,31 +69,80 @@ ${items}
 ${stats}${body}
     </main>
     ${renderFooter({ active: "identity", repoUrl: v.repo_url })}
+    ${hydrate}
   </body>
 </html>
 `;
 }
 
 function renderStats(s: OwnerStats): string {
-  const dailyLine = s.daily_total === 0
-    ? `No drawings yet`
-    : `${esc(s.daily_streak_current)}-day streak · best ${esc(s.daily_streak_longest)} · ${esc(s.daily_total)} drawing${s.daily_total === 1 ? "" : "s"} total`;
-  const canvasLine = s.canvas_total === 0
-    ? `No weekly canvases yet`
-    : `${esc(s.canvas_streak_current)}-week streak · best ${esc(s.canvas_streak_longest)} · ${esc(s.canvas_total)} canvas${s.canvas_total === 1 ? "" : "es"} total`;
+  const dailyLine = formatDailyLine(s);
+  const canvasLine = formatCanvasLine(s);
   const badges = [...s.daily_badges, ...s.canvas_badges];
-  const badgesBlock = badges.length === 0
-    ? ""
-    : `      <dt>Badges</dt>
-      <dd><ul class="ow-badges">${badges
-        .map((b) => `<li data-badge-id="${esc(b.id)}">${esc(b.label)}</li>`)
-        .join("")}</ul></dd>
-`;
+  // Badges row always emitted (hidden when empty server-side) so the
+  // hydration script can unhide it without DOM construction when fresh
+  // stats unlock a new tier between builder runs.
+  const badgesHidden = badges.length === 0 ? " hidden" : "";
   return `      <dl class="ow-stats">
       <dt>Daily drawings</dt>
-      <dd>${dailyLine}</dd>
+      <dd data-stats-daily>${dailyLine}</dd>
       <dt>Weekly canvas</dt>
-      <dd>${canvasLine}</dd>
-${badgesBlock}      </dl>
+      <dd data-stats-canvas>${canvasLine}</dd>
+      <dt data-stats-badges-dt${badgesHidden}>Badges</dt>
+      <dd data-stats-badges-dd${badgesHidden}><ul class="ow-badges" data-stats-badges>${badges
+        .map((b) => `<li data-badge-id="${esc(b.id)}">${esc(b.label)}</li>`)
+        .join("")}</ul></dd>
+      </dl>
 `;
+}
+
+function formatDailyLine(s: OwnerStats): string {
+  if (s.daily_total === 0) return "No drawings yet";
+  return `${esc(s.daily_streak_current)}-day streak · best ${esc(s.daily_streak_longest)} · ${esc(s.daily_total)} drawing${s.daily_total === 1 ? "" : "s"} total`;
+}
+
+function formatCanvasLine(s: OwnerStats): string {
+  if (s.canvas_total === 0) return "No weekly canvases yet";
+  return `${esc(s.canvas_streak_current)}-week streak · best ${esc(s.canvas_streak_longest)} · ${esc(s.canvas_total)} canvas${s.canvas_total === 1 ? "" : "es"} total`;
+}
+
+function renderHydrateScript(statsUrl: string): string {
+  // Inline because the owner page doesn't load any other JS bundles. Keeps
+  // the read-side optional: a transient API outage or ad blocker just
+  // leaves the server-rendered values in place. Stats endpoint already
+  // sets Cache-Control: max-age=15 so two visits within ~15s hit edge,
+  // not the Lambda.
+  return `<script>
+(async function () {
+  try {
+    const res = await fetch(${JSON.stringify(statsUrl)});
+    if (!res.ok) return;
+    const s = await res.json();
+    const daily = document.querySelector('[data-stats-daily]');
+    const canvas = document.querySelector('[data-stats-canvas]');
+    if (daily) daily.textContent = s.daily_total === 0
+      ? 'No drawings yet'
+      : s.daily_streak_current + '-day streak · best ' + s.daily_streak_longest + ' · ' + s.daily_total + ' drawing' + (s.daily_total === 1 ? '' : 's') + ' total';
+    if (canvas) canvas.textContent = s.canvas_total === 0
+      ? 'No weekly canvases yet'
+      : s.canvas_streak_current + '-week streak · best ' + s.canvas_streak_longest + ' · ' + s.canvas_total + ' canvas' + (s.canvas_total === 1 ? '' : 'es') + ' total';
+    const all = (s.daily_badges || []).concat(s.canvas_badges || []);
+    const ul = document.querySelector('[data-stats-badges]');
+    const dt = document.querySelector('[data-stats-badges-dt]');
+    const dd = document.querySelector('[data-stats-badges-dd]');
+    if (ul) {
+      var items = '';
+      for (var i = 0; i < all.length; i++) {
+        var b = all[i];
+        items += '<li data-badge-id="' + b.id + '">' + b.label + '</li>';
+      }
+      ul.innerHTML = items;
+    }
+    if (dt) dt.hidden = all.length === 0;
+    if (dd) dd.hidden = all.length === 0;
+  } catch (e) {
+    // Non-fatal — server-rendered values stand.
+  }
+})();
+</script>`;
 }
