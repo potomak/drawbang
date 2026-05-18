@@ -4,6 +4,10 @@ import { decodeGif } from "./editor/gif.js";
 import { activePaletteToRgb, DEFAULT_ACTIVE_PALETTE } from "./editor/palette.js";
 import { trackBeginCheckout, trackViewItem } from "./analytics.js";
 import {
+  trackInitiateCheckout as trackPixelInitiateCheckout,
+  trackViewContent as trackPixelViewContent,
+} from "./meta-pixel.js";
+import {
   loadMockupImage,
   paintMockupPreview,
   type MockupConfig,
@@ -279,13 +283,20 @@ function selectProduct(product: MerchProduct): void {
   updateCheckoutButton();
   updateSummary();
   repaintCardPreviews();
-  // GA4 view_item — fired for the URL-preselected product on initial load
-  // and again whenever the user clicks a different card. Variant isn't
-  // known yet at this stage, so price reports the cheapest variant.
+  // GA4 view_item + Meta Pixel ViewContent — fired for the URL-preselected
+  // product on initial load and again whenever the user clicks a different
+  // card. Variant isn't known yet at this stage, so price reports the
+  // cheapest variant.
+  const viewPrice = lowestPrice(product) / 100;
   trackViewItem({
     item_id: product.id,
     item_name: product.name,
-    price: lowestPrice(product) / 100,
+    price: viewPrice,
+  });
+  trackPixelViewContent({
+    content_id: product.id,
+    content_name: product.name,
+    value: viewPrice,
   });
 }
 
@@ -474,12 +485,13 @@ async function fetchDrawing(id: string): Promise<Uint8Array> {
 async function handleCheckout(): Promise<void> {
   const variant = currentVariant();
   if (!drawingId || !selectedProduct || !variant || checkoutInFlight) return;
-  // GA4 begin_checkout — fire at intent (click), not at Stripe-redirect
-  // success, so we capture drop-offs caused by network errors on the
-  // /merch/checkout POST.
+  // GA4 begin_checkout + Meta Pixel InitiateCheckout — fire at intent
+  // (click), not at Stripe-redirect success, so we capture drop-offs caused
+  // by network errors on the /merch/checkout POST.
   const variantLabel = [variant.size, variant.color].filter(Boolean).join(" / ");
+  const checkoutValue = (variant.retail_cents + selectedProduct.shipping_cents) / 100;
   trackBeginCheckout({
-    value: (variant.retail_cents + selectedProduct.shipping_cents) / 100,
+    value: checkoutValue,
     items: [
       {
         item_id: selectedProduct.id,
@@ -488,6 +500,15 @@ async function handleCheckout(): Promise<void> {
         quantity: 1,
         ...(variantLabel ? { item_variant: variantLabel } : {}),
       },
+    ],
+  });
+  trackPixelInitiateCheckout({
+    content_ids: [selectedProduct.id],
+    content_name: selectedProduct.name,
+    value: checkoutValue,
+    num_items: 1,
+    contents: [
+      { id: selectedProduct.id, item_price: variant.retail_cents / 100, quantity: 1 },
     ],
   });
   checkoutInFlight = true;

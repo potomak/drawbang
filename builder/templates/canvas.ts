@@ -1,4 +1,4 @@
-import { renderAnalytics, renderFooter, renderHeader } from "../../src/layout/chrome.js";
+import { renderAnalytics, renderFooter, renderHeader, renderMetaPixel } from "../../src/layout/chrome.js";
 import { TILES_PER_SIDE } from "../../config/canvases.js";
 import { esc } from "./_escape.js";
 
@@ -82,6 +82,7 @@ export default function renderCanvas(v: CanvasView): string {
 <html lang="en">
   <head>
     ${renderAnalytics()}
+    ${renderMetaPixel()}
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Draw! · ${esc(v.name)}</title>

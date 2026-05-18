@@ -49,6 +49,33 @@ export function renderAnalytics(): string {
 </script>`;
 }
 
+// Meta (Facebook) Pixel ID. Loaded via the same dual-marker approach as
+// renderAnalytics — <!--CHROME:META-PIXEL--> for Vite pages,
+// ${renderMetaPixel()} inline for builder templates.
+//
+// The base snippet Meta documents also includes a <noscript><img> fallback
+// for JS-disabled visitors. We drop it: Vite's parse5 step rejects
+// <noscript><img> inside <head> per the HTML5 spec, and the editor requires
+// JS to function — there is no JS-disabled audience to track.
+export const META_PIXEL_ID = "2264137094389658";
+
+export function renderMetaPixel(): string {
+  return `<!-- Meta Pixel Code -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '${META_PIXEL_ID}');
+fbq('track', 'PageView');
+</script>
+<!-- End Meta Pixel Code -->`;
+}
+
 /**
  * Fixed nav entries. The identity link is dynamic (its href depends on
  * whether the viewer has a pubkey), so it's appended at render time.

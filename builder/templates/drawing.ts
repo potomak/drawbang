@@ -1,4 +1,4 @@
-import { renderAnalytics, renderFooter, renderHeader } from "../../src/layout/chrome.js";
+import { renderAnalytics, renderFooter, renderHeader, renderMetaPixel } from "../../src/layout/chrome.js";
 import { esc } from "./_escape.js";
 
 export interface DrawingCanvasMembership {
@@ -69,6 +69,7 @@ export default function renderDrawing(v: DrawingView): string {
 <html lang="en">
   <head>
     ${renderAnalytics()}
+    ${renderMetaPixel()}
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Draw! · ${esc(v.id_short)}</title>

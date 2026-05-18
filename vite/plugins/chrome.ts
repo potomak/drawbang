@@ -3,6 +3,7 @@ import {
   renderAnalytics,
   renderFooter,
   renderHeader,
+  renderMetaPixel,
   type NavLink,
 } from "../../src/layout/chrome.js";
 
@@ -19,6 +20,7 @@ const ACTIVE_META = /<meta\s+name="drawbang:active"\s+content="([^"]*)"\s*\/?>\s
 const HEADER_MARKER = "<!--CHROME:HEADER-->";
 const FOOTER_MARKER = "<!--CHROME:FOOTER-->";
 const ANALYTICS_MARKER = "<!--CHROME:ANALYTICS-->";
+const META_PIXEL_MARKER = "<!--CHROME:META-PIXEL-->";
 
 export function chromePlugin(opts: ChromePluginOptions = {}): Plugin {
   const repoUrl = opts.repoUrl ?? "https://github.com/potomak/drawbang";
@@ -40,5 +42,6 @@ export function injectChrome(html: string, repoUrl: string): string {
   out = out.replace(HEADER_MARKER, renderHeader({ active }));
   out = out.replace(FOOTER_MARKER, renderFooter({ active, repoUrl }));
   out = out.replace(ANALYTICS_MARKER, renderAnalytics());
+  out = out.replace(META_PIXEL_MARKER, renderMetaPixel());
   return out;
 }
