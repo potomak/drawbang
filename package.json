@@ -12,11 +12,13 @@
     "test": "node --test --import tsx 'test/**/*.test.ts'",
     "builder": "tsx builder/build.ts",
     "ingest:dev": "tsx ingest/dev-server.ts",
+    "og:logo": "tsx scripts/generate-og-logo.ts",
     "dev:all": "concurrently -n vite,ingest -c blue,green \"vite\" \"tsx ingest/dev-server.ts\"",
     "lambda:build": "node infra/aws/build-lambda.mjs",
     "lambda:deploy": "npm run lambda:build && (cd infra/aws && sam deploy)"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@types/aws-lambda": "^8.10.161",
     "@types/node": "^22.5.0",
     "@types/pngjs": "^6.0.5",
