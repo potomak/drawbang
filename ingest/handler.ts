@@ -28,6 +28,10 @@ import {
   TileLockedError,
   type CanvasStore,
 } from "./canvas-store.js";
+import {
+  appendCanvasMembership,
+  loadCanvases,
+} from "./canvases-sidecar.js";
 
 export interface CanvasClaimRef {
   canvas_id: string;
@@ -74,46 +78,6 @@ export interface HandlerConfig {
   baselineHistory?: string[]; // optional: last N baselines to accept
   // Required only for canvas-aware ingest. Non-canvas publishes never touch it.
   canvasStore?: CanvasStore;
-}
-
-interface CanvasesFile {
-  drawing_id: string;
-  canvases: DrawingCanvasMembership[];
-}
-
-function canvasesFileKey(id: string): string {
-  return `public/drawings/${id}.canvases.json`;
-}
-
-async function loadCanvases(
-  storage: Storage,
-  id: string,
-): Promise<DrawingCanvasMembership[]> {
-  const f = await storage.getJSON<CanvasesFile>(canvasesFileKey(id));
-  return f?.canvases ?? [];
-}
-
-async function appendCanvasMembership(
-  storage: Storage,
-  id: string,
-  entry: DrawingCanvasMembership,
-): Promise<DrawingCanvasMembership[]> {
-  const existing = await loadCanvases(storage, id);
-  // De-dupe by (canvas_id, x, y) so an idempotent re-publish doesn't grow
-  // the list. Last writer wins on claimant attribution (which shouldn't
-  // happen given DDB's drawing_id-set constraint, but be defensive).
-  const filtered = existing.filter(
-    (e) => !(e.id === entry.id && e.x === entry.x && e.y === entry.y),
-  );
-  filtered.push(entry);
-  const payload: CanvasesFile = { drawing_id: id, canvases: filtered };
-  await storage.put(
-    canvasesFileKey(id),
-    new TextEncoder().encode(JSON.stringify(payload)),
-    "application/json",
-    "no-store",
-  );
-  return filtered;
 }
 
 export interface ChildEntry {

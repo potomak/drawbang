@@ -1,6 +1,7 @@
 import { PER_PAGE } from "../config/constants.js";
 import type { Storage } from "../ingest/storage.js";
 import type { CanvasStore } from "../ingest/canvas-store.js";
+import { loadCanvases } from "../ingest/canvases-sidecar.js";
 import { canvasPass } from "./canvas-pass.js";
 import { validateGif } from "../ingest/gif-validate.js";
 import type { MerchCatalog } from "../merch/lambda.js";
@@ -199,11 +200,17 @@ export async function build(opts: BuildOptions): Promise<{
     if (allForDay.length === 0) continue;
 
     // Render per-drawing pages. Normally only fresh drawings; on forceRerender,
-    // every known drawing for the day so template changes propagate.
+    // every known drawing for the day so template changes propagate. Each
+    // render reads the per-drawing .canvases.json sidecar so the "Canvases"
+    // section that ingest wrote on publish survives a forced re-render.
+    // Without this, every builder pass wipes canvas membership off old
+    // drawings.
     const drawingsToRender = opts.forceRerender ? allForDay : drawings;
     for (const d of drawingsToRender) {
+      const canvases = await loadCanvases(opts.storage, d.id);
       const html = templates.drawing({
         ...drawingViewModel(d),
+        canvases,
         repo_url: repoUrl,
       });
       await opts.storage.put(`public/d/${d.id}.html`, enc.encode(html), "text/html", CC_HTML);

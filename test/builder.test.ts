@@ -252,3 +252,60 @@ test("builder writes null pubkey + signature for legacy inbox sidecars (pre-feat
   const sansScripts = drawingHtml.replace(/<script>[\s\S]*?<\/script>/g, "");
   assert.equal(/href="\/keys\//.test(sansScripts), false);
 });
+
+test("builder preserves canvas membership when re-rendering an existing drawing page", async () => {
+  // Regression: a forced re-render used to wipe the "Canvases" section
+  // because drawingViewModel didn't load the per-drawing .canvases.json
+  // sidecar that ingest wrote on canvas publish. Builders re-render with
+  // DRAWBANG_FORCE_RERENDER=1 on every deploy, so any drawing that had been
+  // placed into a canvas lost the canvas link the next day.
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
+  const storage = new FsStorage(root);
+
+  const pubkey = "a".repeat(64);
+  const signature = "b".repeat(128);
+  const id = await seedDrawing(root, "2026-04-19", 14, { pubkey, signature });
+
+  // Seed the canvases sidecar at the same key ingest writes — different
+  // pubkey for claimed_by than the drawing author, to also pin the
+  // CLAUDE.md invariant that the canvas page attributes use to the claimer
+  // and not the original author.
+  const claimedBy = "c".repeat(64);
+  const sidecarPath = path.join(root, `public/drawings/${id}.canvases.json`);
+  await fs.mkdir(path.dirname(sidecarPath), { recursive: true });
+  await fs.writeFile(
+    sidecarPath,
+    JSON.stringify({
+      drawing_id: id,
+      canvases: [
+        {
+          id: "canvas-2026-W16",
+          name: "Week 16, 2026",
+          x: 3,
+          y: 4,
+          claimed_by: claimedBy,
+          claimed_by_short: claimedBy.slice(0, 8),
+        },
+      ],
+    }),
+  );
+
+  // forceRerender mirrors the deploy workflow's DRAWBANG_FORCE_RERENDER=1.
+  await build({
+    storage,
+    publicBaseUrl: "https://example.test",
+    today: "2026-04-20",
+    forceRerender: true,
+  });
+
+  const drawingHtml = await fs.readFile(path.join(root, `public/d/${id}.html`), "utf8");
+  assert.match(drawingHtml, /<dt>Canvases<\/dt>/);
+  assert.match(
+    drawingHtml,
+    /href="\/canvases\/canvas-2026-W16#tile-3-4"/,
+  );
+  assert.ok(
+    drawingHtml.includes(`/keys/${claimedBy}`),
+    "expected claimed_by attribution in the canvas membership link",
+  );
+});
