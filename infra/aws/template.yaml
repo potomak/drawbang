@@ -147,6 +147,8 @@ Resources:
             req.uri = uri + ".html";
           } else if (uri === "/identity") {
             req.uri = "/identity.html";
+          } else if (uri === "/privacy") {
+            req.uri = "/privacy.html";
           } else if (uri === "/canvases") {
             req.uri = "/canvases.html";
           } else if (/^\/canvases\/canvas-\d{4}-W\d{2}$/.test(uri)) {

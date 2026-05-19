@@ -63,3 +63,33 @@ describe("home page OG / meta tags (index.html)", () => {
     assert.equal(h, 320);
   });
 });
+
+describe("privacy disclosure (#163 ported to GA / Pixel reality)", () => {
+  test("privacy.html exists and uses the chrome marker pattern", async () => {
+    const html = await fs.readFile(path.join(REPO, "privacy.html"), "utf8");
+    assert.match(html, /<!--CHROME:HEADER-->/);
+    assert.match(html, /<!--CHROME:FOOTER-->/);
+    assert.match(html, /<title>Draw! · Privacy<\/title>/);
+  });
+
+  test("privacy.html names both trackers + the localStorage opt-out key", async () => {
+    const html = await fs.readFile(path.join(REPO, "privacy.html"), "utf8");
+    assert.match(html, /Google Analytics/);
+    assert.match(html, /Meta \(Facebook\) Pixel/);
+    assert.match(html, /drawbang:analytics_opt_out/);
+    assert.match(html, /Do Not Track/);
+  });
+
+  test("privacy.html exposes the toggle button + status hooks the script wires", async () => {
+    const html = await fs.readFile(path.join(REPO, "privacy.html"), "utf8");
+    assert.match(html, /id="pv-toggle"/);
+    assert.match(html, /id="pv-status-text"/);
+    assert.match(html, /id="pv-reload-note"/);
+  });
+
+  test("renderFooter() links to /privacy on every page that uses the chrome", async () => {
+    const { renderFooter } = await import("../src/layout/chrome.js");
+    const html = renderFooter({ repoUrl: "https://example.test" });
+    assert.match(html, /<a class="ftr-privacy" href="\/privacy">Privacy<\/a>/);
+  });
+});

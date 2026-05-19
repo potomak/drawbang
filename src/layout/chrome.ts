@@ -100,6 +100,7 @@ export function renderFooter(opts: FooterOptions): string {
   </div>
   <div class="ftr-right">
     <a class="ftr-repo" href="${esc(opts.repoUrl)}" target="_blank" rel="noopener">Source on GitHub</a>
+    <a class="ftr-privacy" href="/privacy">Privacy</a>
     <a class="ftr-feedback" href="${esc(FEEDBACK_URL)}" target="_blank" rel="noopener">${FEEDBACK_ICON_SVG}<span>Feedback</span></a>
   </div>
 </footer>

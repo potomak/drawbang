@@ -100,6 +100,7 @@ const BUILDER_ROUTES: BuilderRoute[] = [
 function viteEntryRewrite(uri: string): string | null {
   if (uri === "/merch") return "/merch.html";
   if (uri === "/identity") return "/identity.html";
+  if (uri === "/privacy") return "/privacy.html";
   if (UUID_36.test(uri.slice("/merch/order/".length)) && uri.startsWith("/merch/order/")) {
     return "/order.html";
   }
