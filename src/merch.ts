@@ -74,7 +74,6 @@ const frameStripEl = document.getElementById("frameStrip") as HTMLDivElement;
 const stepPlacementEl = document.getElementById("step-placement") as HTMLElement | null;
 const stepSizeEl = document.getElementById("step-size") as HTMLElement | null;
 const stepColorEl = document.getElementById("step-color") as HTMLElement | null;
-const shippingNoteEl = document.getElementById("shippingNote") as HTMLParagraphElement | null;
 const sumSubtotalEl = document.getElementById("sumSubtotal") as HTMLElement | null;
 const sumShippingEl = document.getElementById("sumShipping") as HTMLElement | null;
 const sumTotalEl = document.getElementById("sumTotal") as HTMLElement | null;
@@ -287,6 +286,7 @@ function selectProduct(product: MerchProduct): void {
   renderPlacementPicker();
   renderSizePicker();
   renderColorPicker();
+  updateStepNumbers();
   updateCheckoutButton();
   updateSummary();
   repaintCardPreviews();
@@ -431,15 +431,16 @@ function renderSizePicker(): void {
     updateCheckoutButton();
     updateSummary();
   });
-  // Shipping note lives under the size step (the first one that always
-  // shows for paid products with multiple sizes).
-  if (shippingNoteEl) {
-    if (selectedProduct && selectedProduct.shipping_cents > 0) {
-      shippingNoteEl.hidden = false;
-      shippingNoteEl.textContent = `+ ${formatUsd(selectedProduct.shipping_cents)} standard shipping & handling, added at checkout.`;
-    } else {
-      shippingNoteEl.hidden = true;
-    }
+}
+
+function updateStepNumbers(): void {
+  const steps = document.querySelectorAll<HTMLElement>(".mc-step");
+  let n = 1;
+  for (const step of steps) {
+    if (step.hidden) continue;
+    const num = step.querySelector<HTMLElement>(".mc-step-num");
+    if (num) num.textContent = String(n).padStart(2, "0");
+    n++;
   }
 }
 
@@ -606,9 +607,11 @@ async function boot(): Promise<void> {
     setStatus("");
     updateSummary();
     // Deep-link from /products card: auto-select the product so the user
-    // only has to pick a variant. Unknown product id silently falls back
-    // to the un-selected state.
-    const preselected = pickProductFromQuery(catalog.products, productParam);
+    // only has to pick a variant. Unknown product id falls back to the
+    // first product so the configurator never renders with empty step
+    // sections.
+    const preselected =
+      pickProductFromQuery(catalog.products, productParam) ?? catalog.products[0] ?? null;
     if (preselected) selectProduct(preselected);
   } catch (err) {
     setStatus(`failed to load catalog: ${err instanceof Error ? err.message : String(err)}`);
@@ -616,6 +619,16 @@ async function boot(): Promise<void> {
 
   checkoutBtn.addEventListener("click", () => {
     void handleCheckout();
+  });
+
+  // Restoring from bfcache (browser back from Stripe Checkout) preserves
+  // module state, so checkoutInFlight would stay true and leave the button
+  // stuck at "Redirecting…". Reset on every persisted restore.
+  window.addEventListener("pageshow", (event) => {
+    if (!event.persisted) return;
+    checkoutInFlight = false;
+    setStatus("");
+    updateCheckoutButton();
   });
 }
 
