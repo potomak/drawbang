@@ -87,8 +87,8 @@ export default function renderDrawing(v: DrawingView): string {
     <meta property="og:url" content="${esc(v.public_base_url)}/d/${esc(v.id)}" />
     <meta property="og:image" content="${esc(v.public_base_url)}/drawings/${esc(v.id)}-large.gif" />
     <meta property="og:image:type" content="image/gif" />
-    <meta property="og:image:width" content="320" />
-    <meta property="og:image:height" content="320" />
+    <meta property="og:image:width" content="960" />
+    <meta property="og:image:height" content="960" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="stylesheet" href="/gallery-v2.css" />
   </head>

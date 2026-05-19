@@ -26,7 +26,7 @@ function rgbaAt(rgba: Uint8Array, width: number, x: number, y: number): [number,
   return [rgba[i], rgba[i + 1], rgba[i + 2], rgba[i + 3]];
 }
 
-test("emits a valid 320×320 GIF for a single-frame drawing", () => {
+test("emits a valid 960×960 GIF for a single-frame drawing", () => {
   const b = new Bitmap();
   b.set(5, 5, 3);
   const bytes = encodeShareGif({
@@ -37,7 +37,7 @@ test("emits a valid 320×320 GIF for a single-frame drawing", () => {
   assert.equal(r.width, SHARE_W);
   assert.equal(r.height, SHARE_H);
   assert.equal(r.numFrames(), 1);
-  assert.ok(bytes.length < 50_000, `share gif unexpectedly large: ${bytes.length} bytes`);
+  assert.ok(bytes.length < 200_000, `share gif unexpectedly large: ${bytes.length} bytes`);
 });
 
 test("preserves frame count + delay for animated drawings", () => {
@@ -56,8 +56,8 @@ test("preserves frame count + delay for animated drawings", () => {
   assert.equal(r.frameInfo(0).delay, 20);
 });
 
-test("renders one swatch per used color, none for unused colors", () => {
-  // Use slots 2, 5, 7 only.
+test("renders one swatch per used color, none for unused colors, sorted dark→light", () => {
+  // Use slots 2 (blue), 5 (bright green), 7 (cyan).
   const frame = new Bitmap();
   frame.set(0, 0, 2);
   frame.set(1, 0, 5);
@@ -72,12 +72,16 @@ test("renders one swatch per used color, none for unused colors", () => {
   r.decodeAndBlitFrameRGBA(0, rgba);
 
   const palette = activePaletteToRgb(DEFAULT_ACTIVE_PALETTE);
-  // Swatch layout: SWATCH_X=8, SWATCH_Y=8, SWATCH_SIZE=6, gutter=1.
-  // Used slots in ascending order: [2, 5, 7] → columns 0, 1, 2.
-  const used = [2, 5, 7];
-  used.forEach((slot, col) => {
-    const cx = 8 + col * 7 + 3; // center of swatch
-    const cy = 8 + 3;
+  // Sort the input by ITU-R BT.709 luminance, ascending; assert the
+  // swatch columns match that order, not the slot-index order.
+  const rel = (rgb: typeof palette[number]) =>
+    0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+  const usedSortedDarkToLight = [2, 5, 7].sort((a, b) => rel(palette[a]) - rel(palette[b]));
+
+  // Swatch layout: SWATCH_X=24, SWATCH_Y=24, SWATCH_SIZE=18, gutter=3.
+  usedSortedDarkToLight.forEach((slot, col) => {
+    const cx = 24 + col * 21 + 9; // center of swatch
+    const cy = 24 + 9;
     const [r0, g0, b0] = palette[slot];
     const [pr, pg, pb] = rgbaAt(rgba, r.width, cx, cy);
     assert.equal(pr, r0, `swatch col=${col} slot=${slot} red`);
@@ -85,16 +89,11 @@ test("renders one swatch per used color, none for unused colors", () => {
     assert.equal(pb, b0, `swatch col=${col} slot=${slot} blue`);
   });
 
-  // A swatch position for an unused slot (col=3 → slot would have been the
-  // 4th used color, but there isn't one) should be the background color
-  // instead, not any palette slot 0..15. We just assert it isn't slot 0's
-  // RGB unless slot 0 happens to match the bg.
-  const [bgR, bgG, bgB] = rgbaAt(rgba, r.width, 8 + 3 * 7 + 3, 8 + 3);
-  // Background must be opaque (no transparent fills in chrome region).
-  const [, , , bgA] = rgbaAt(rgba, r.width, 8 + 3 * 7 + 3, 8 + 3);
+  // Beyond the 3rd swatch the chrome shows the derived background. Sample
+  // a pixel where col=4 would be (well past the rendered swatch row).
+  const [bgR, bgG, bgB, bgA] = rgbaAt(rgba, r.width, 24 + 4 * 21 + 9, 24 + 9);
   assert.equal(bgA, 255);
-  // And not be the same as any used swatch (sanity — bg is derived/darkened).
-  for (const s of used) {
+  for (const s of usedSortedDarkToLight) {
     const [r0, g0, b0] = palette[s];
     assert.ok(
       !(bgR === r0 && bgG === g0 && bgB === b0),
@@ -114,11 +113,11 @@ test("renders the logo in the bottom-right corner", () => {
   const rgba = new Uint8Array(r.width * r.height * 4);
   r.decodeAndBlitFrameRGBA(0, rgba);
 
-  // Logo origin is at (270, 296). The first column of the wordmark is
-  // entirely ink (the "D"'s left edge); sample a row mid-glyph and assert
-  // the pixel differs from the background color sampled far from the logo.
-  const inkPx = rgbaAt(rgba, r.width, 270, 296);
-  const bgPx = rgbaAt(rgba, r.width, 160, 160);
+  // Logo origin is at (810, 888). The first column of the wordmark is
+  // entirely ink (the "D"'s left edge); sample mid-glyph and assert the
+  // pixel differs from the bg sampled far from any chrome.
+  const inkPx = rgbaAt(rgba, r.width, 810, 888);
+  const bgPx = rgbaAt(rgba, r.width, 720, 720);
   assert.notDeepEqual([inkPx[0], inkPx[1], inkPx[2]], [bgPx[0], bgPx[1], bgPx[2]]);
 });
 
@@ -136,7 +135,7 @@ test("handles a fully-transparent drawing via the fallback background", () => {
   r.decodeAndBlitFrameRGBA(0, rgba);
 
   // Center pixel should be the fallback bg [40, 50, 60].
-  const [cr, cg, cb, ca] = rgbaAt(rgba, r.width, 160, 160);
+  const [cr, cg, cb, ca] = rgbaAt(rgba, r.width, 480, 480);
   assert.equal(ca, 255);
   assert.equal(cr, 40);
   assert.equal(cg, 50);

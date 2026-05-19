@@ -509,12 +509,13 @@ describe("ingest + canvas_claim", () => {
     assert.equal(stats.canvas_last_id, canvasIdNext);
   });
 
-  test("publish writes the 320x320 -large.gif alongside the 16x16 original", async () => {
-    // Stage 1 of the OG-image plan: ingest decodes the just-uploaded GIF,
-    // upscales each frame 20×, and stores the result at
+  test("publish writes the 960x960 -large.gif alongside the 16x16 original", async () => {
+    // The OG share image. Ingest decodes the just-uploaded GIF and
+    // re-encodes it via encodeShareGif: 42× upscale on a derived
+    // background with a used-colors swatch and the wordmark, stored at
     // public/drawings/<id>-large.gif with the same immutable cache header
-    // as the original. Used as og:image so crawlers see a 320×320 preview
-    // instead of a 16×16 speck.
+    // as the original. Crawlers see this 960×960 preview instead of a
+    // 16×16 speck.
     const storage = new MemoryStorage();
     const identity = await generateIdentity();
     const now = new Date("2026-05-13T12:00:00Z");
@@ -538,7 +539,7 @@ describe("ingest + canvas_claim", () => {
     // Logical screen descriptor width/height live at bytes 6-9, little-endian.
     const w = large[6] | (large[7] << 8);
     const h = large[8] | (large[9] << 8);
-    assert.equal(w, 320);
-    assert.equal(h, 320);
+    assert.equal(w, 960);
+    assert.equal(h, 960);
   });
 });

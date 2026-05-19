@@ -12,28 +12,37 @@ import { activePaletteToRgb, type RGB } from "./palette.js";
 // @ts-expect-error omggif ships no TS types
 import { GifWriter } from "omggif";
 
-// 320×320 share image: the source 16×16 art upscaled 14× and inset on a
+// 960×960 share image: the source 16×16 art upscaled 42× and inset on a
 // derived background, with a used-colors palette swatch top-left and the
 // Drawbang wordmark bottom-right. Used as og:image on every drawing page.
 // Output is a plain GIF (no DRAWBANG extension) — not editable, strictly
 // a social preview artifact. See #195.
+//
+// Dimensions are chosen so every overlay element snaps to a clean integer
+// pixel grid even after social-media platforms scale the asset down to
+// their preview size — at 320×320 the wordmark and swatches read as
+// sub-pixel mush after browser resampling.
 
-export const SHARE_W = 320;
-export const SHARE_H = 320;
-const ART_SCALE = 14;
-const ART_W = WIDTH * ART_SCALE; // 224
-const ART_H = HEIGHT * ART_SCALE; // 224
-const ART_X = (SHARE_W - ART_W) / 2; // 48
-const ART_Y = (SHARE_H - ART_H) / 2; // 48
+export const SHARE_W = 960;
+export const SHARE_H = 960;
+const ART_SCALE = 42;
+const ART_W = WIDTH * ART_SCALE; // 672
+const ART_H = HEIGHT * ART_SCALE; // 672
+const ART_X = (SHARE_W - ART_W) / 2; // 144
+const ART_Y = (SHARE_H - ART_H) / 2; // 144
 
-const SWATCH_X = 8;
-const SWATCH_Y = 8;
-const SWATCH_SIZE = 6;
-const SWATCH_GUTTER = 1;
+const SWATCH_X = 24;
+const SWATCH_Y = 24;
+const SWATCH_SIZE = 18;
+const SWATCH_GUTTER = 3;
+const SWATCH_BORDER = 3;
 const SWATCH_COLS = 8;
 
-const LOGO_X = SHARE_W - LOGO_W - 8; // 270
-const LOGO_Y = SHARE_H - LOGO_H - 8; // 296
+const LOGO_SCALE = 3;
+const LOGO_RENDER_W = LOGO_W * LOGO_SCALE; // 126
+const LOGO_RENDER_H = LOGO_H * LOGO_SCALE; // 48
+const LOGO_X = SHARE_W - LOGO_RENDER_W - 24; // 810
+const LOGO_Y = SHARE_H - LOGO_RENDER_H - 24; // 888
 
 const GCT_SIZE = 32;
 const BG_SLOT = 17;
@@ -69,6 +78,9 @@ export function encodeShareGif({
   for (let i = 0; i < ACTIVE_PALETTE_SIZE; i++) {
     if (usage[i] > 0) usedSlots.push(i);
   }
+  // Sort dark → light so the swatch reads as a tonal ramp regardless of
+  // the order the user picked colors in. Ties keep ascending slot order.
+  usedSlots.sort((a, b) => luminance(paletteRgb[a]) - luminance(paletteRgb[b]) || a - b);
 
   const { bg, fg } = deriveColors(paletteRgb, usage, usedSlots);
 
@@ -148,6 +160,10 @@ function sumRgb([r, g, b]: RGB): number {
   return r + g + b;
 }
 
+function luminance([r, g, b]: RGB): number {
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
 function buildGct(paletteRgb: RGB[], bg: RGB, fg: RGB): number[] {
   const gct = new Array<number>(GCT_SIZE).fill(0);
   for (let i = 0; i < ACTIVE_PALETTE_SIZE; i++) {
@@ -179,11 +195,11 @@ function paintSwatch(buf: Uint8Array, usedSlots: number[]): void {
   const blockW = cols * (SWATCH_SIZE + SWATCH_GUTTER) - SWATCH_GUTTER;
   const blockH = rows * (SWATCH_SIZE + SWATCH_GUTTER) - SWATCH_GUTTER;
 
-  // 1px foreground border around the block.
-  fillRect(buf, SWATCH_X - 1, SWATCH_Y - 1, blockW + 2, 1, FG_SLOT);
-  fillRect(buf, SWATCH_X - 1, SWATCH_Y + blockH, blockW + 2, 1, FG_SLOT);
-  fillRect(buf, SWATCH_X - 1, SWATCH_Y, 1, blockH, FG_SLOT);
-  fillRect(buf, SWATCH_X + blockW, SWATCH_Y, 1, blockH, FG_SLOT);
+  // Foreground border around the block, thickness = SWATCH_BORDER.
+  fillRect(buf, SWATCH_X - SWATCH_BORDER, SWATCH_Y - SWATCH_BORDER, blockW + 2 * SWATCH_BORDER, SWATCH_BORDER, FG_SLOT);
+  fillRect(buf, SWATCH_X - SWATCH_BORDER, SWATCH_Y + blockH, blockW + 2 * SWATCH_BORDER, SWATCH_BORDER, FG_SLOT);
+  fillRect(buf, SWATCH_X - SWATCH_BORDER, SWATCH_Y, SWATCH_BORDER, blockH, FG_SLOT);
+  fillRect(buf, SWATCH_X + blockW, SWATCH_Y, SWATCH_BORDER, blockH, FG_SLOT);
 
   usedSlots.forEach((slot, i) => {
     const col = i % SWATCH_COLS;
@@ -197,8 +213,14 @@ function paintSwatch(buf: Uint8Array, usedSlots: number[]): void {
 function paintLogo(buf: Uint8Array): void {
   for (let y = 0; y < LOGO_H; y++) {
     for (let x = 0; x < LOGO_W; x++) {
-      if (LOGO_BITMAP[y * LOGO_W + x]) {
-        buf[(LOGO_Y + y) * SHARE_W + (LOGO_X + x)] = FG_SLOT;
+      if (!LOGO_BITMAP[y * LOGO_W + x]) continue;
+      const baseX = LOGO_X + x * LOGO_SCALE;
+      const baseY = LOGO_Y + y * LOGO_SCALE;
+      for (let dy = 0; dy < LOGO_SCALE; dy++) {
+        const rowStart = (baseY + dy) * SHARE_W + baseX;
+        for (let dx = 0; dx < LOGO_SCALE; dx++) {
+          buf[rowStart + dx] = FG_SLOT;
+        }
       }
     }
   }

@@ -139,8 +139,8 @@ test("drawing page: emits the full OG suite with absolute URLs and the -large.gi
     ),
   );
   assert.match(html, /<meta property="og:image:type" content="image\/gif"/);
-  assert.match(html, /<meta property="og:image:width" content="320"/);
-  assert.match(html, /<meta property="og:image:height" content="320"/);
+  assert.match(html, /<meta property="og:image:width" content="960"/);
+  assert.match(html, /<meta property="og:image:height" content="960"/);
   assert.match(html, /<meta name="twitter:card" content="summary_large_image"/);
 });
 
