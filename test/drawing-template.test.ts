@@ -164,7 +164,7 @@ test("drawing page: Reddit button links directly to reddit.com/submit, not the /
   const expectedUrl = encodeURIComponent(`https://pixel.drawbang.com/d/${id}`);
   const expectedTitle = encodeURIComponent("Pixel art from Draw! · Drawing ID ffffffff");
   const reddit = new RegExp(
-    `<a class="btn" href="https://www\\.reddit\\.com/submit\\?url=${expectedUrl}&amp;title=${expectedTitle}"[^>]*>Share to Reddit</a>`,
+    `<a class="btn" id="dr-share-reddit" href="https://www\\.reddit\\.com/submit\\?url=${expectedUrl}&amp;title=${expectedTitle}"[^>]*>Share to Reddit</a>`,
   );
   assert.match(html, reddit);
   assert.doesNotMatch(html, /href="\/share\?d=/);
@@ -180,7 +180,7 @@ test("drawing page: X share button opens twitter.com/intent/tweet with the drawi
   const expectedUrl = encodeURIComponent(`https://pixel.drawbang.com/d/${id}`);
   const expectedText = encodeURIComponent("Pixel art from Draw! · Drawing ID ffffffff");
   const x = new RegExp(
-    `<a class="btn" href="https://twitter\\.com/intent/tweet\\?url=${expectedUrl}&amp;text=${expectedText}"[^>]*>Share to X</a>`,
+    `<a class="btn" id="dr-share-x" href="https://twitter\\.com/intent/tweet\\?url=${expectedUrl}&amp;text=${expectedText}"[^>]*>Share to X</a>`,
   );
   assert.match(html, x);
 });
@@ -207,4 +207,26 @@ test("drawing page: Web Share script feature-tests navigator.share and falls bac
   assert.match(html, /navigator\.share\(payload\)/);
   // AbortError check is the "user cancelled" path — flash only on real errors.
   assert.match(html, /e\.name !== 'AbortError'/);
+});
+
+test("drawing page: inline GA tracking wires each action button to its event", () => {
+  const html = renderDrawing(baseView);
+  // Anchor IDs the inline tracking IIFE iterates over.
+  assert.match(html, /id="dr-make-merch"/);
+  assert.match(html, /id="dr-fork"/);
+  assert.match(html, /id="dr-share-reddit"/);
+  assert.match(html, /id="dr-share-x"/);
+  assert.match(html, /id="dr-download-gif"/);
+  // Event names baked into the IIFE.
+  for (const ev of [
+    "make_merch_click",
+    "fork_click",
+    "share_click",
+    "gif_download_click",
+    "copy_share_link_click",
+  ]) {
+    assert.match(html, new RegExp(`'${ev}'`));
+  }
+  // window.gtag is feature-tested before each call.
+  assert.match(html, /typeof window\.gtag !== 'function'/);
 });

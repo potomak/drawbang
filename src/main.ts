@@ -1,4 +1,12 @@
 import { MAX_FRAMES } from "../config/constants.js";
+import {
+  trackFrameAddClick,
+  trackFrameDeleteClick,
+  trackGifDownloadClick,
+  trackPublishClick,
+  trackPublishSuccess,
+  trackToolClick,
+} from "./analytics.js";
 import { Bitmap, TRANSPARENT } from "./editor/bitmap.js";
 import { PixelCanvas } from "./editor/canvas.js";
 import { decodeGif, encodeGif } from "./editor/gif.js";
@@ -612,6 +620,7 @@ function addFrame(): void {
   });
   render();
   persist();
+  trackFrameAddClick(state.frames.length);
 }
 
 function deleteFrameAt(idx: number): void {
@@ -630,6 +639,7 @@ function deleteFrameAt(idx: number): void {
   });
   render();
   persist();
+  trackFrameDeleteClick(state.frames.length);
 }
 
 function copyFrame(): void {
@@ -806,6 +816,7 @@ function openPickerForSlot(slot: number): void {
 
 async function handlePublish(): Promise<void> {
   const gif = encodeGif({ frames: state.frames, activePalette });
+  trackPublishClick(state.frames.length);
   showFlash({ kind: "info", message: "Starting proof of work…" });
   try {
     const result = await submit({
@@ -837,6 +848,7 @@ async function handlePublish(): Promise<void> {
         ` (${result.required_bits} bits in ${result.solve_ms}ms)`,
       ],
     });
+    trackPublishSuccess({ frames: state.frames.length, solve_ms: result.solve_ms });
     if (localId) {
       await local.save({
         id: localId,
@@ -888,6 +900,7 @@ function downloadGif(): void {
   a.download = "drawbang.gif";
   a.click();
   URL.revokeObjectURL(url);
+  trackGifDownloadClick({ source: "editor", frames: state.frames.length });
 }
 
 function copyShareLink(): void {
@@ -1072,7 +1085,12 @@ window.addEventListener("pointercancel", () => {
 });
 
 document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach((b) =>
-  b.addEventListener("click", () => setActiveTool(b.dataset.tool as typeof tool)),
+  b.addEventListener("click", () => {
+    const next = b.dataset.tool as typeof tool;
+    if (next === tool) return; // No-op re-click — don't bother GA.
+    trackToolClick(next);
+    setActiveTool(next);
+  }),
 );
 
 document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>

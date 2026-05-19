@@ -112,13 +112,13 @@ export default function renderDrawing(v: DrawingView): string {
             <dd><code class="mono-trunc">${esc(v.id_short)}</code></dd>
           </dl>
           <div class="dr-actions">
-            <a class="btn primary" href="/merch?d=${esc(v.id)}&amp;frame=0" rel="nofollow noreferrer">Make merch</a>
-            <a class="btn" href="/?fork=${esc(v.id)}">Fork &amp; edit</a>
+            <a class="btn primary" id="dr-make-merch" href="/merch?d=${esc(v.id)}&amp;frame=0" rel="nofollow noreferrer">Make merch</a>
+            <a class="btn" id="dr-fork" href="/?fork=${esc(v.id)}">Fork &amp; edit</a>
             <button class="btn" id="dr-copy-link" type="button">Copy link</button>
             <button class="btn" id="dr-share" type="button" hidden>Share…</button>
-            <a class="btn" href="https://www.reddit.com/submit?url=${encodeURIComponent(`${v.public_base_url}/d/${v.id}`)}&amp;title=${encodeURIComponent(`Pixel art from Draw! · Drawing ID ${v.id_short}`)}" target="_blank" rel="nofollow noopener noreferrer">Share to Reddit</a>
-            <a class="btn" href="https://twitter.com/intent/tweet?url=${encodeURIComponent(`${v.public_base_url}/d/${v.id}`)}&amp;text=${encodeURIComponent(`Pixel art from Draw! · Drawing ID ${v.id_short}`)}" target="_blank" rel="nofollow noopener noreferrer">Share to X</a>
-            <a class="btn ghost" href="/drawings/${esc(v.id)}.gif" download>Download GIF</a>
+            <a class="btn" id="dr-share-reddit" href="https://www.reddit.com/submit?url=${encodeURIComponent(`${v.public_base_url}/d/${v.id}`)}&amp;title=${encodeURIComponent(`Pixel art from Draw! · Drawing ID ${v.id_short}`)}" target="_blank" rel="nofollow noopener noreferrer">Share to Reddit</a>
+            <a class="btn" id="dr-share-x" href="https://twitter.com/intent/tweet?url=${encodeURIComponent(`${v.public_base_url}/d/${v.id}`)}&amp;text=${encodeURIComponent(`Pixel art from Draw! · Drawing ID ${v.id_short}`)}" target="_blank" rel="nofollow noopener noreferrer">Share to X</a>
+            <a class="btn ghost" id="dr-download-gif" href="/drawings/${esc(v.id)}.gif" download>Download GIF</a>
           </div>
         </div>
       </div>
@@ -187,6 +187,7 @@ export default function renderDrawing(v: DrawingView): string {
       ok = await fallbackCopy(url);
     }
     flash(ok ? 'success' : 'error', ok ? 'Link copied' : 'Could not copy — try long-pressing the URL');
+    if (typeof window.gtag === 'function') window.gtag('event', 'copy_share_link_click', {});
   });
 })();
 (function () {
@@ -208,6 +209,7 @@ export default function renderDrawing(v: DrawingView): string {
   if (typeof navigator.canShare === 'function' && !navigator.canShare(payload)) return;
   btn.hidden = false;
   btn.addEventListener('click', async function () {
+    if (typeof window.gtag === 'function') window.gtag('event', 'share_click', { target: 'web_share' });
     try {
       await navigator.share(payload);
     } catch (e) {
@@ -221,6 +223,31 @@ export default function renderDrawing(v: DrawingView): string {
       }
     }
   });
+})();
+(function () {
+  // Anchor-style action buttons. Each one's native navigation runs;
+  // we only attach a click listener to fire a GA event. window.gtag is
+  // guarded so DNT/opt-out users (gate runs before gtag.js loads) are
+  // silently no-op.
+  function track(name, params) {
+    if (typeof window.gtag !== 'function') return;
+    window.gtag('event', name, params);
+  }
+  var drawingId = ${JSON.stringify(v.id)};
+  var anchors = [
+    { id: 'dr-make-merch',  event: 'make_merch_click',   props: { drawing_id: drawingId } },
+    { id: 'dr-fork',        event: 'fork_click',         props: { drawing_id: drawingId } },
+    { id: 'dr-share-reddit',event: 'share_click',        props: { target: 'reddit' } },
+    { id: 'dr-share-x',     event: 'share_click',        props: { target: 'x' } },
+    { id: 'dr-download-gif',event: 'gif_download_click', props: { source: 'drawing_page' } },
+  ];
+  for (var i = 0; i < anchors.length; i++) {
+    (function (a) {
+      var el = document.getElementById(a.id);
+      if (!el) return;
+      el.addEventListener('click', function () { track(a.event, a.props); });
+    })(anchors[i]);
+  }
 })();
     </script>
   </body>

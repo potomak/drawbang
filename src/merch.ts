@@ -2,7 +2,14 @@ import { Bitmap } from "./editor/bitmap.js";
 import { PixelCanvas } from "./editor/canvas.js";
 import { decodeGif } from "./editor/gif.js";
 import { activePaletteToRgb, DEFAULT_ACTIVE_PALETTE } from "./editor/palette.js";
-import { trackBeginCheckout, trackViewItem } from "./analytics.js";
+import {
+  trackBeginCheckout,
+  trackMerchColorClick,
+  trackMerchPlacementClick,
+  trackMerchProductClick,
+  trackMerchSizeClick,
+  trackViewItem,
+} from "./analytics.js";
 import {
   trackInitiateCheckout as trackPixelInitiateCheckout,
   trackViewContent as trackPixelViewContent,
@@ -298,6 +305,9 @@ function selectProduct(product: MerchProduct): void {
     content_name: product.name,
     value: viewPrice,
   });
+  // Buyer-funnel step: which product card was picked, separate from the
+  // ecommerce view_item that GA's Monetization report aggregates against.
+  trackMerchProductClick(product.id);
 }
 
 function uniqueAxisValues(product: MerchProduct, axis: "size" | "color"): string[] {
@@ -365,6 +375,9 @@ function renderPlacementPicker(): void {
         el.setAttribute("aria-pressed", el.dataset.placement === preset ? "true" : "false");
       });
       repaintCardPreviews();
+      if (selectedProduct) {
+        trackMerchPlacementClick({ product_id: selectedProduct.id, placement: preset });
+      }
     });
     placementPickerEl.appendChild(btn);
   }
@@ -405,6 +418,9 @@ function renderAxisPicker(
 function renderSizePicker(): void {
   renderAxisPicker("size", sizePickerEl, stepSizeEl, selectedSize, (value) => {
     selectedSize = value;
+    if (selectedProduct) {
+      trackMerchSizeClick({ product_id: selectedProduct.id, size: value });
+    }
     // Keep the existing color if a variant with this (size, color) exists;
     // otherwise clear it so the user explicitly re-picks.
     if (selectedColor && !variantExists(selectedSize, selectedColor)) {
@@ -430,6 +446,9 @@ function renderSizePicker(): void {
 function renderColorPicker(): void {
   renderAxisPicker("color", colorPickerEl, stepColorEl, selectedColor, (value) => {
     selectedColor = value;
+    if (selectedProduct) {
+      trackMerchColorClick({ product_id: selectedProduct.id, color: value });
+    }
     if (selectedSize && !variantExists(selectedSize, selectedColor)) {
       selectedSize = null;
     }

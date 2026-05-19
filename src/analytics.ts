@@ -58,3 +58,113 @@ export function trackBeginCheckout(args: {
     items: args.items,
   });
 }
+
+export function trackPurchase(args: {
+  transaction_id: string;
+  value: number;
+  items: AnalyticsItem[];
+}): void {
+  trackEvent("purchase", {
+    currency: "USD",
+    transaction_id: args.transaction_id,
+    value: args.value,
+    items: args.items,
+  });
+}
+
+// -- Custom click / completion events ----------------------------------------
+//
+// Naming convention (see plan): <noun>_click for user-initiated clicks,
+// <noun>_success for multi-step completions, <noun>_view for surfaces
+// not already covered by GA4's automatic page_view. Each wrapper exists
+// so call sites can't drift in name / param shape across files.
+
+export type EditorTool =
+  | "pixel"
+  | "erase"
+  | "fill"
+  | "eyedrop"
+  | "shift"
+  | "clear"
+  | string;
+
+export function trackToolClick(tool: EditorTool): void {
+  trackEvent("tool_click", { tool });
+}
+
+export function trackFrameAddClick(totalAfter: number): void {
+  trackEvent("frame_add_click", { total_after: totalAfter });
+}
+
+export function trackFrameDeleteClick(totalAfter: number): void {
+  trackEvent("frame_delete_click", { total_after: totalAfter });
+}
+
+export function trackPublishClick(frames: number): void {
+  trackEvent("publish_click", { frames });
+}
+
+export function trackPublishSuccess(args: {
+  frames: number;
+  solve_ms: number;
+}): void {
+  trackEvent("publish_success", args);
+}
+
+export type GifDownloadSource = "editor" | "drawing_page";
+
+export function trackGifDownloadClick(args: {
+  source: GifDownloadSource;
+  frames?: number;
+}): void {
+  // `frames` is editor-only; the drawing page hits the static gif URL via
+  // the browser's download attribute and doesn't know the frame count.
+  trackEvent("gif_download_click", args);
+}
+
+export function trackCopyShareLinkClick(): void {
+  trackEvent("copy_share_link_click", {});
+}
+
+export type ShareTarget = "reddit" | "x" | "web_share";
+
+export function trackShareClick(target: ShareTarget): void {
+  trackEvent("share_click", { target });
+}
+
+export function trackForkClick(drawingId: string): void {
+  trackEvent("fork_click", { drawing_id: drawingId });
+}
+
+export function trackMakeMerchClick(drawingId: string): void {
+  trackEvent("make_merch_click", { drawing_id: drawingId });
+}
+
+export function trackMerchProductClick(productId: string): void {
+  trackEvent("merch_product_click", { product_id: productId });
+}
+
+export function trackMerchPlacementClick(args: {
+  product_id: string;
+  placement: string;
+}): void {
+  trackEvent("merch_placement_click", args);
+}
+
+export function trackMerchSizeClick(args: {
+  product_id: string;
+  size: string;
+}): void {
+  trackEvent("merch_size_click", args);
+}
+
+export function trackMerchColorClick(args: {
+  product_id: string;
+  color: string;
+}): void {
+  trackEvent("merch_color_click", args);
+}
+
+export function trackOrderStatusView(status: string): void {
+  trackEvent("order_status_view", { status });
+}

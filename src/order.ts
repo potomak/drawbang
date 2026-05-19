@@ -1,3 +1,5 @@
+import { trackOrderStatusView, trackPurchase } from "./analytics.js";
+
 interface OrderView {
   order_id?: string;
   drawing_id?: string;
@@ -37,6 +39,22 @@ const STATUS_COPY: Record<string, string> = {
 
 const cardEl = document.getElementById("orderCard") as HTMLDivElement;
 let pollTimer: ReturnType<typeof setTimeout> | null = null;
+// Within a page lifetime, don't re-emit order_status_view on every poll if
+// the status hasn't actually changed (the poll fires every 30s).
+let lastTrackedStatus: string | null = null;
+
+// localStorage flag so `purchase` fires AT MOST ONCE per order across
+// refreshes / multiple tabs / link revisits. GA's Monetization funnel
+// double-counts purchases otherwise.
+const PURCHASE_FIRED_KEY_PREFIX = "drawbang:purchase_fired:";
+function hasPurchaseFired(orderId: string): boolean {
+  try { return localStorage.getItem(PURCHASE_FIRED_KEY_PREFIX + orderId) === "1"; }
+  catch { return false; }
+}
+function markPurchaseFired(orderId: string): void {
+  try { localStorage.setItem(PURCHASE_FIRED_KEY_PREFIX + orderId, "1"); }
+  catch { /* private mode etc. — accept the rare double-count */ }
+}
 
 function parseOrderId(): string | null {
   const m = location.pathname.match(/\/merch\/order\/([0-9a-f-]+)\/?$/);
@@ -124,7 +142,39 @@ async function load(id: string): Promise<void> {
     return;
   }
   renderOrder(order);
+  trackStatusEvents(order);
   schedulePoll(id, order.status ?? "");
+}
+
+function trackStatusEvents(order: OrderView): void {
+  const status = order.status ?? "unknown";
+  if (status !== lastTrackedStatus) {
+    trackOrderStatusView(status);
+    lastTrackedStatus = status;
+  }
+  // GA4 Monetization `purchase` — fire once the order is paid. Idempotent
+  // via the localStorage flag so a page refresh on a paid order doesn't
+  // double-count revenue in GA reports.
+  if (
+    status === "paid" &&
+    order.order_id &&
+    order.product_id &&
+    typeof order.retail_cents === "number" &&
+    !hasPurchaseFired(order.order_id)
+  ) {
+    trackPurchase({
+      transaction_id: order.order_id,
+      value: order.retail_cents / 100,
+      items: [{
+        item_id: order.product_id,
+        item_name: order.product_id,
+        price: order.retail_cents / 100,
+        quantity: 1,
+        ...(order.variant_id !== undefined ? { item_variant: String(order.variant_id) } : {}),
+      }],
+    });
+    markPurchaseFired(order.order_id);
+  }
 }
 
 function schedulePoll(id: string, status: string): void {

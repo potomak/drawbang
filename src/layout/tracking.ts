@@ -16,8 +16,41 @@
 // Google Analytics measurement ID.
 export const GA_MEASUREMENT_ID = "G-5F5HPX6QYC";
 
+// localStorage key inspected by the pre-snippet gate below AND by the
+// /privacy "Don't track me" toggle that the user clicks. Setting it to
+// "1" makes the next page load disable GA + Meta Pixel completely
+// (no cookies, no network requests).
+export const ANALYTICS_OPT_OUT_KEY = "drawbang:analytics_opt_out";
+
 export function renderAnalytics(): string {
-  return `<!-- Google tag (gtag.js) -->
+  // The pre-snippet gate must run BEFORE gtag.js and pixel.js load. Both
+  // libraries respect their own kill-switches when set at module init,
+  // and the async scripts below haven't fetched yet at this point.
+  //
+  // - window['ga-disable-<MID>'] = true is the documented GA4 kill-switch:
+  //   gtag.js reads it on every call and short-circuits both cookie writes
+  //   and the analytics beacon.
+  // - window.fbq = function(){} replaces the Pixel global with a no-op
+  //   before fbevents.js can install the real one; subsequent fbq('init')
+  //   / fbq('track', ...) calls become no-ops.
+  //
+  // Triggered by navigator.doNotTrack === '1' OR a user-set localStorage
+  // flag (set by the /privacy opt-out toggle). The localStorage access is
+  // wrapped in try/catch for browsers that throw under file:// or strict
+  // private mode.
+  return `<!-- Drawbang analytics opt-out gate -->
+<script>
+(function () {
+  var dnt = (navigator.doNotTrack === '1') || (window.doNotTrack === '1');
+  var optOut = false;
+  try { optOut = localStorage.getItem(${JSON.stringify(ANALYTICS_OPT_OUT_KEY)}) === '1'; } catch (e) {}
+  if (dnt || optOut) {
+    window[${JSON.stringify("ga-disable-" + GA_MEASUREMENT_ID)}] = true;
+    window.fbq = function () {};
+  }
+})();
+</script>
+<!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
