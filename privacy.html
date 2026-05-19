@@ -13,66 +13,10 @@
     <main class="identity-page">
       <h2>Privacy</h2>
       <p>
-        Drawbang is a 16×16 pixel-art editor with an anonymous public gallery.
-        There are no accounts, no logins, and no advertising profiles we build.
-        Two third-party analytics tools are loaded on every page so the
-        operator can understand how the site is used; you can disable both
-        with one click below.
+        Drawbang loads third-party analytics on every page. You can disable
+        them with one click below; the choice is stored per-browser and
+        <em>Do Not Track</em> is also honoured.
       </p>
-
-      <h3>What we collect</h3>
-      <ul>
-        <li>
-          <strong>Google Analytics 4.</strong> Pageviews and a small set of
-          named events (which buttons you click, which products you preview).
-          Loaded from <code>googletagmanager.com</code>; data ends up in
-          Google's analytics service in the US. Sets a few cookies
-          (<code>_ga</code>, <code>_ga_*</code>) that identify your browser
-          to GA across pages on this site.
-        </li>
-        <li>
-          <strong>Meta (Facebook) Pixel.</strong> Pageviews plus two
-          ecommerce events (<code>ViewContent</code>,
-          <code>InitiateCheckout</code>). Loaded from
-          <code>connect.facebook.net</code>; data ends up in Meta's pixel
-          service. Sets the <code>_fbp</code> cookie.
-        </li>
-        <li>
-          <strong>Order details — only when you place an order.</strong> Your
-          shipping address, email, and the Stripe session id, stored in the
-          operator's AWS account (<code>drawbang-orders</code> table). Used
-          to deliver the merch you bought and to send status emails. Never
-          shared with the analytics tools above.
-        </li>
-      </ul>
-
-      <h3>What we don't collect</h3>
-      <ul>
-        <li>No fingerprinting or persistent identifiers beyond the cookies
-          Google and Meta set for their own tools.</li>
-        <li>No personal information in the analytics events — drawing ids and
-          product ids are public, your name and email never appear there.</li>
-        <li>No advertising audience that we sell or pass on.</li>
-      </ul>
-
-      <h3>How to opt out</h3>
-      <p>
-        Pick either path — both fully disable Google Analytics and the Meta
-        Pixel on the next page load. With opt-out on, neither script loads,
-        neither cookie gets set, and no event leaves your browser.
-      </p>
-      <ul>
-        <li>
-          <strong>Browser setting.</strong> Flip <em>Do Not Track</em> on in
-          your browser. Drawbang honours it.
-        </li>
-        <li>
-          <strong>Per-device toggle.</strong> Click the button below. The
-          choice is stored in this browser's <code>localStorage</code> under
-          <code>drawbang:analytics_opt_out</code> and persists until you
-          clear site data.
-        </li>
-      </ul>
 
       <div class="identity-pubkey" id="pv-status" data-state="loading">
         <code id="pv-status-text">Checking opt-out state…</code>
@@ -80,13 +24,6 @@
       </div>
       <p class="muted" id="pv-reload-note" hidden>
         Reload the page to apply the new setting.
-      </p>
-
-      <h3>Questions</h3>
-      <p>
-        Anything unclear or off?
-        <a href="https://github.com/potomak/drawbang/issues/new?labels=privacy" target="_blank" rel="noopener">Open an issue</a>
-        and the operator will respond.
       </p>
     </main>
     <!--CHROME:FOOTER-->

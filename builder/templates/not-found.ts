@@ -21,10 +21,6 @@ export default function renderNotFound(v: NotFoundView): string {
     ${renderHeader()}
     <main>
       <h1 class="page-title">Page not found</h1>
-      <p class="muted">
-        The URL you followed doesn't match a drawing, a profile, a canvas, or
-        any other page on Drawbang.
-      </p>
       <p>
         Try the <a href="/gallery">gallery</a>, the
         <a href="/canvases">canvases archive</a>, or open

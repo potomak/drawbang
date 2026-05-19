@@ -72,11 +72,9 @@ describe("privacy disclosure (#163 ported to GA / Pixel reality)", () => {
     assert.match(html, /<title>Draw! · Privacy<\/title>/);
   });
 
-  test("privacy.html names both trackers + the localStorage opt-out key", async () => {
+  test("privacy.html discloses analytics + honours Do Not Track", async () => {
     const html = await fs.readFile(path.join(REPO, "privacy.html"), "utf8");
-    assert.match(html, /Google Analytics/);
-    assert.match(html, /Meta \(Facebook\) Pixel/);
-    assert.match(html, /drawbang:analytics_opt_out/);
+    assert.match(html, /analytics/i);
     assert.match(html, /Do Not Track/);
   });
 
