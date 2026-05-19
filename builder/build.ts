@@ -13,12 +13,14 @@ import renderDayGallery from "./templates/day-gallery.js";
 import renderDrawing from "./templates/drawing.js";
 import renderIndex from "./templates/index.js";
 import renderFeed from "./templates/feed.js";
+import renderNotFound from "./templates/not-found.js";
 import renderOwner from "./templates/owner.js";
 import renderProducts from "./templates/products.js";
 import type { DayGalleryView } from "./templates/day-gallery.js";
 import type { DrawingView } from "./templates/drawing.js";
 import type { IndexView } from "./templates/index.js";
 import type { FeedView } from "./templates/feed.js";
+import type { NotFoundView } from "./templates/not-found.js";
 import type { OwnerView } from "./templates/owner.js";
 import type { ProductCard, ProductsView } from "./templates/products.js";
 
@@ -68,6 +70,7 @@ export const DEFAULT_TEMPLATES: Templates = {
   drawing: renderDrawing,
   index: renderIndex,
   feed: renderFeed,
+  notFound: renderNotFound,
   owner: renderOwner,
   products: renderProducts,
 };
@@ -268,6 +271,7 @@ export interface Templates {
   drawing: (v: DrawingView) => string;
   index: (v: IndexView) => string;
   feed: (v: FeedView) => string;
+  notFound: (v: NotFoundView) => string;
   owner: (v: OwnerView) => string;
   products: (v: ProductsView) => string;
 }
@@ -497,6 +501,12 @@ async function rebuildRolling(
     })),
   });
   await opts.storage.put("public/feed.rss", enc.encode(feed), "application/rss+xml", CC_RSS);
+
+  // Site-wide 404 page. CloudFront's CustomErrorResponses (infra/aws/template.yaml)
+  // serve this body whenever S3 returns 404 / 403 (the latter happens for keys
+  // outside the public/* prefix under OAC).
+  const notFoundHtml = templates.notFound({ repo_url: repoUrl });
+  await opts.storage.put("public/404.html", enc.encode(notFoundHtml), "text/html", CC_HTML);
 }
 
 async function rebuildProducts(

@@ -495,8 +495,16 @@ async function fetchCatalog(): Promise<MerchCatalog> {
   return (await res.json()) as MerchCatalog;
 }
 
+class DrawingNotFoundError extends Error {
+  constructor() {
+    super("drawing not found");
+    this.name = "DrawingNotFoundError";
+  }
+}
+
 async function fetchDrawing(id: string): Promise<Uint8Array> {
   const res = await fetch(`${DRAWING_BASE_URL}/${id}.gif`);
+  if (res.status === 404) throw new DrawingNotFoundError();
   if (!res.ok) throw new Error(`drawing fetch failed: ${res.status}`);
   const buf = await res.arrayBuffer();
   return new Uint8Array(buf);
@@ -571,8 +579,15 @@ async function boot(): Promise<void> {
   const id = params.get("d");
   const frameParam = params.get("frame");
   const productParam = params.get("product");
-  if (!id || !/^[0-9a-f]{64}$/.test(id)) {
-    setStatus("missing or malformed drawing id (?d=<64 hex>).");
+  // No drawing param at all → /merch has no useful state to render; send the
+  // user to the catalog. Malformed-shape id → treat as a 404 (someone typing
+  // a junk URL).
+  if (!id) {
+    location.replace("/products");
+    return;
+  }
+  if (!/^[0-9a-f]{64}$/.test(id)) {
+    location.replace("/404");
     return;
   }
   drawingId = id;
@@ -586,6 +601,10 @@ async function boot(): Promise<void> {
     frames = decoded.frames;
     if (decoded.activePalette) activePalette = decoded.activePalette;
   } catch (err) {
+    if (err instanceof DrawingNotFoundError) {
+      location.replace("/404");
+      return;
+    }
     setStatus(`failed to load drawing: ${err instanceof Error ? err.message : String(err)}`);
     return;
   }

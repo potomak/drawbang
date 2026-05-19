@@ -79,10 +79,6 @@ function escapeHtml(s: string): string {
   });
 }
 
-function renderError(msg: string): void {
-  cardEl.innerHTML = `<p class="merch-status">${escapeHtml(msg)}</p>`;
-}
-
 function renderRetry(msg: string, onRetry: () => void): void {
   cardEl.innerHTML = `
     <p class="merch-status">${escapeHtml(msg)}</p>
@@ -138,7 +134,7 @@ async function load(id: string): Promise<void> {
     return;
   }
   if (!order) {
-    renderError("Order not found.");
+    location.replace("/404");
     return;
   }
   renderOrder(order);
@@ -189,7 +185,7 @@ function schedulePoll(id: string, status: string): void {
 function boot(): void {
   const id = parseOrderId();
   if (!id) {
-    renderError("Order id missing or malformed in URL.");
+    location.replace("/404");
     return;
   }
   void load(id);

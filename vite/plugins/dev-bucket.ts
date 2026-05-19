@@ -107,6 +107,17 @@ function viteEntryRewrite(uri: string): string | null {
   return null;
 }
 
+// Anything that looks like a clean URL (no file extension) but matches no
+// known route gets the chrome'd 404 page if the builder has produced one.
+// Mirrors CloudFront's CustomErrorResponses → /404.html mapping. Asset
+// requests (those with an extension) fall through to Vite so its own
+// 404 handling still kicks in for dev-time bundle misses.
+function looksLikeCleanUrl(uri: string): boolean {
+  if (uri === "/" || uri === "") return false;
+  const last = uri.split("/").pop() ?? "";
+  return !last.includes(".");
+}
+
 export function devBucketPlugin(opts: DevBucketPluginOptions = {}): Plugin {
   const bucketRoot = path.resolve(opts.bucketRoot ?? "./dev-bucket");
   const publicRoot = path.join(bucketRoot, "public");
@@ -145,20 +156,46 @@ export function devBucketPlugin(opts: DevBucketPluginOptions = {}): Plugin {
           } catch (err) {
             const e = err as NodeJS.ErrnoException;
             if (e.code === "ENOENT") {
-              res.statusCode = 404;
-              res.setHeader("Content-Type", "text/plain; charset=utf-8");
-              res.end(
-                `Not found in dev-bucket: ${rel}\n\n` +
-                  `Publish a drawing or run \`npm run builder\` to generate this page.\n`,
-              );
-              return;
+              return serveNotFound(publicRoot, res, next, rel);
             }
             return next(err);
           }
+        }
+
+        // 3. Unmatched clean URLs (e.g. /canvase typo, /404 itself) → /404.html.
+        if (pathOnly === "/404" || looksLikeCleanUrl(pathOnly)) {
+          return serveNotFound(publicRoot, res, next, pathOnly);
         }
 
         next();
       });
     },
   };
+}
+
+async function serveNotFound(
+  publicRoot: string,
+  res: import("node:http").ServerResponse,
+  next: (err?: unknown) => void,
+  requested: string,
+): Promise<void> {
+  try {
+    const body = await fs.readFile(path.join(publicRoot, "404.html"));
+    res.statusCode = 404;
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
+    res.end(body);
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException;
+    if (e.code === "ENOENT") {
+      res.statusCode = 404;
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.end(
+        `Not found: ${requested}\n\n` +
+          `Run \`npm run builder\` to generate the 404 page.\n`,
+      );
+      return;
+    }
+    next(err);
+  }
 }

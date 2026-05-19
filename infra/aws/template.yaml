@@ -153,6 +153,8 @@ Resources:
             req.uri = "/canvases.html";
           } else if (/^\/canvases\/canvas-\d{4}-W\d{2}$/.test(uri)) {
             req.uri = uri + ".html";
+          } else if (uri === "/404") {
+            req.uri = "/404.html";
           }
           return req;
         }
@@ -217,6 +219,20 @@ Resources:
             AllowedMethods: [GET, HEAD]
             CachedMethods: [GET, HEAD]
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+        # Map S3 misses to the chrome'd /404.html the builder writes. Both
+        # codes are routed because OAC returns 403 for keys outside the
+        # public/* prefix and 404 for missing keys inside it. Short cache
+        # TTL so a freshly-published drawing isn't pinned to 404 by edge
+        # caches after a transient miss.
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponsePagePath: /404.html
+            ResponseCode: 404
+            ErrorCachingMinTTL: 60
+          - ErrorCode: 403
+            ResponsePagePath: /404.html
+            ResponseCode: 404
+            ErrorCachingMinTTL: 60
         Aliases: !If [HasCustomDomain, [!Ref DomainName], !Ref AWS::NoValue]
         ViewerCertificate: !If
           - HasCustomDomain
