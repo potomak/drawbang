@@ -184,3 +184,27 @@ test("drawing page: X share button opens twitter.com/intent/tweet with the drawi
   );
   assert.match(html, x);
 });
+
+test("drawing page: Web Share button is rendered hidden by default (progressive enhancement)", () => {
+  // #107 Option A: Native Share… button as one extra entry next to the
+  // targeted Reddit/X buttons. Starts hidden so browsers without
+  // navigator.share (notably desktop Firefox) keep the dedicated
+  // buttons as the working fallback.
+  const html = renderDrawing(baseView);
+  assert.match(
+    html,
+    /<button class="btn" id="dr-share" type="button" hidden>Share…<\/button>/,
+  );
+});
+
+test("drawing page: Web Share script feature-tests navigator.share and falls back silently", () => {
+  // The inline script must check navigator.share (and canShare when
+  // present) before unhiding the button. AbortError on the resulting
+  // promise = user dismissed the sheet, not an error — must not flash.
+  const html = renderDrawing(baseView);
+  assert.match(html, /typeof navigator\.share !== 'function'/);
+  assert.match(html, /navigator\.canShare/);
+  assert.match(html, /navigator\.share\(payload\)/);
+  // AbortError check is the "user cancelled" path — flash only on real errors.
+  assert.match(html, /e\.name !== 'AbortError'/);
+});

@@ -115,6 +115,7 @@ export default function renderDrawing(v: DrawingView): string {
             <a class="btn primary" href="/merch?d=${esc(v.id)}&amp;frame=0" rel="nofollow noreferrer">Make merch</a>
             <a class="btn" href="/?fork=${esc(v.id)}">Fork &amp; edit</a>
             <button class="btn" id="dr-copy-link" type="button">Copy link</button>
+            <button class="btn" id="dr-share" type="button" hidden>Share…</button>
             <a class="btn" href="https://www.reddit.com/submit?url=${encodeURIComponent(`${v.public_base_url}/d/${v.id}`)}&amp;title=${encodeURIComponent(`Pixel art from Draw! · Drawing ID ${v.id_short}`)}" target="_blank" rel="nofollow noopener noreferrer">Share to Reddit</a>
             <a class="btn" href="https://twitter.com/intent/tweet?url=${encodeURIComponent(`${v.public_base_url}/d/${v.id}`)}&amp;text=${encodeURIComponent(`Pixel art from Draw! · Drawing ID ${v.id_short}`)}" target="_blank" rel="nofollow noopener noreferrer">Share to X</a>
             <a class="btn ghost" href="/drawings/${esc(v.id)}.gif" download>Download GIF</a>
@@ -186,6 +187,39 @@ export default function renderDrawing(v: DrawingView): string {
       ok = await fallbackCopy(url);
     }
     flash(ok ? 'success' : 'error', ok ? 'Link copied' : 'Could not copy — try long-pressing the URL');
+  });
+})();
+(function () {
+  // Web Share API. Progressive enhancement: the button stays hidden when
+  // navigator.share is unavailable (notably desktop Firefox), so users on
+  // those browsers fall back to the dedicated Reddit / X buttons. On
+  // mobile + modern desktop, one tap opens the OS share sheet — every
+  // installed app the user has, no per-platform intent URL to maintain.
+  var btn = document.getElementById('dr-share');
+  if (!btn) return;
+  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') return;
+  var payload = {
+    title: 'Drawing ID ' + ${JSON.stringify(v.id_short)},
+    text: 'Pixel art from Draw!',
+    url: window.location.href,
+  };
+  // canShare is the stricter preflight (some browsers reject a payload
+  // shape silently otherwise). Skip the check when the API isn't there.
+  if (typeof navigator.canShare === 'function' && !navigator.canShare(payload)) return;
+  btn.hidden = false;
+  btn.addEventListener('click', async function () {
+    try {
+      await navigator.share(payload);
+    } catch (e) {
+      // AbortError = user dismissed the sheet — not an error, no flash.
+      if (e && e.name !== 'AbortError' && typeof window.drawbangShowFlash === 'function') {
+        window.drawbangShowFlash({
+          kind: 'error',
+          message: 'Could not open share sheet',
+          autoDismissMs: 1800,
+        });
+      }
+    }
   });
 })();
     </script>
