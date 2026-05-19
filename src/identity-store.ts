@@ -19,6 +19,24 @@ const KEY = "current";
 // any localStorage access.
 export const PUBKEY_MIRROR_KEY = "drawbang:pubkey";
 
+// Sibling flag set by submit.ts after the first successful publish. The
+// chrome's identity-link patcher (#171) refuses to upgrade the link to
+// /keys/<pubkey> until both this flag and the pubkey mirror are present,
+// because /keys/<pubkey>.html doesn't exist on S3 until the daily builder
+// has seen at least one drawing from that key. Same try/catch shape as
+// the pubkey mirror — Safari private mode is allowed to fail silently.
+export const PUBLISHED_FLAG_KEY = "drawbang:has_published";
+
+export function markPublished(): void {
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(PUBLISHED_FLAG_KEY, "1");
+  } catch {
+    // private-mode or disabled storage — the patcher falls back to the
+    // build-time /identity href, which is the safe default.
+  }
+}
+
 function writePubkeyMirror(pubkeyHex: string | null): void {
   try {
     if (typeof localStorage === "undefined") return;

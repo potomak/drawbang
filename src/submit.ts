@@ -1,5 +1,5 @@
 import { importIdentity, signCanvasClaim, signDrawingId } from "./identity.js";
-import { loadStoredIdentity } from "./identity-store.js";
+import { loadStoredIdentity, markPublished } from "./identity-store.js";
 import type { LastPublishState, SolveProgress } from "./pow.js";
 import {
   INITIAL_STATE,
@@ -146,6 +146,10 @@ export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
       }
       throw new Error(`ingest rejected: ${res.status} ${msg}`);
     }
+    // Unlocks the chrome's /keys/<pubkey> upgrade. Set before returning so
+    // the next page load (post-publish) finds the flag without waiting on
+    // the caller to remember to mark it.
+    markPublished();
     return (await res.json()) as IngestResponse;
   } finally {
     worker.terminate();

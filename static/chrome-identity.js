@@ -9,15 +9,21 @@
   window.__drawbangChromeIdentityInit = true;
 
   const MIRROR_KEY = "drawbang:pubkey";
+  const PUBLISHED_KEY = "drawbang:has_published";
 
   let pubkey = null;
+  let published = null;
   try {
     pubkey = localStorage.getItem(MIRROR_KEY);
+    published = localStorage.getItem(PUBLISHED_KEY);
   } catch {
     // private-mode or disabled storage — fall through to the build-time
     // fallback href, which is the right behaviour for anonymous viewers.
   }
   if (!pubkey || !/^[0-9a-f]{64}$/.test(pubkey)) return;
+  // /keys/<pubkey>.html only exists after the builder has seen a drawing
+  // from this key. Without the published flag, leave the link at /identity.
+  if (published !== "1") return;
 
   const apply = () => {
     const links = document.querySelectorAll('[data-identity-link="1"]');
