@@ -126,7 +126,7 @@ export function trackCopyShareLinkClick(): void {
   trackEvent("copy_share_link_click", {});
 }
 
-export type ShareTarget = "reddit" | "x" | "web_share";
+export type ShareTarget = "reddit" | "x" | "threads" | "web_share";
 
 export function trackShareClick(target: ShareTarget): void {
   trackEvent("share_click", { target });

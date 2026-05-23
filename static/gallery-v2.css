@@ -78,7 +78,8 @@
 .dr-meta dt { color: var(--fg-muted); }
 .dr-meta dd { margin: 0; word-break: break-all; }
 .mono-trunc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.dr-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+.dr-actions { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+.dr-action-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* Owner stats block (/keys/<pubkey>) — streaks + badges (#115/#116).
    Same grid shape as .dr-meta so it sits comfortably above the drawings grid. */

@@ -185,6 +185,25 @@ test("drawing page: X share button opens twitter.com/intent/tweet with the drawi
   assert.match(html, x);
 });
 
+test("drawing page: Threads share button opens threads.net/intent/post with caption + url", () => {
+  const html = renderDrawing(baseView);
+  const id = "f".repeat(64);
+  // Threads Web Intents: /intent/post?text=...&url=... — same caption/url
+  // split as the X button. text is the caption, url attaches the drawing link.
+  const expectedText = encodeURIComponent("Pixel art from Draw! · Drawing ID ffffffff");
+  const expectedUrl = encodeURIComponent(`https://pixel.drawbang.com/d/${id}`);
+  const threads = new RegExp(
+    `<a class="btn" id="dr-share-threads" href="https://www\\.threads\\.net/intent/post\\?text=${expectedText}&amp;url=${expectedUrl}"[^>]*>Share to Threads</a>`,
+  );
+  assert.match(html, threads);
+});
+
+test("drawing page: actions split into two .dr-action-row groups", () => {
+  const html = renderDrawing(baseView);
+  const groups = html.match(/class="dr-action-row"/g) ?? [];
+  assert.equal(groups.length, 2);
+});
+
 test("drawing page: Web Share button is rendered hidden by default (progressive enhancement)", () => {
   // #107 Option A: Native Share… button as one extra entry next to the
   // targeted Reddit/X buttons. Starts hidden so browsers without
@@ -214,6 +233,7 @@ test("drawing page: inline GA tracking wires each action button to its event", (
   // Anchor IDs the inline tracking IIFE iterates over.
   assert.match(html, /id="dr-make-merch"/);
   assert.match(html, /id="dr-fork"/);
+  assert.match(html, /id="dr-share-threads"/);
   assert.match(html, /id="dr-share-reddit"/);
   assert.match(html, /id="dr-share-x"/);
   assert.match(html, /id="dr-download-gif"/);
