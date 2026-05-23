@@ -2,14 +2,14 @@ import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
 
-export interface IndexView {
+export interface GalleryView {
   today: string;
   drawings: { id: string; id_short: string }[];
   days: { date: string; count: number; pages: number }[];
   repo_url: string;
 }
 
-export default function renderIndex(v: IndexView): string {
+export default function renderGallery(v: GalleryView): string {
   const items = v.drawings
     .map(
       (d) => `          <li>

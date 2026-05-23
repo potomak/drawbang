@@ -70,7 +70,7 @@ export interface IngestError {
   status: 400 | 403 | 409 | 413 | 429 | 500;
   body: { error: string; retry_after_s?: number };
 }
-export type IngestResult = IngestSuccess | IngestError;
+export type IngestHandlerResult = IngestSuccess | IngestError;
 
 export interface HandlerConfig {
   storage: Storage;
@@ -136,7 +136,7 @@ async function appendChild(
 // window so concurrent solvers racing on the same baseline both succeed.
 const defaultBaselineHistory: string[] = [];
 
-export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Promise<IngestResult> {
+export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Promise<IngestHandlerResult> {
   const now = cfg.now ? cfg.now() : new Date();
   const nowISO = now.toISOString();
   const shareUrlFor = (id: string): string => `${cfg.publicBaseUrl}/d/${id}`;

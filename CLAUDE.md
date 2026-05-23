@@ -34,7 +34,7 @@ asset, new tracking script) must consider every entry below.
 | URL                            | Rendered by                                       | Surface |
 |--------------------------------|---------------------------------------------------|---------|
 | `/`                            | `index.html` + `src/main.ts`                      | Editor (Vite) |
-| `/gallery`                     | `builder/templates/index.ts` → `gallery.html`     | Builder |
+| `/gallery`                     | `builder/templates/gallery.ts` → `gallery.html`   | Builder |
 | `/days/<YYYY-MM-DD>/p/<N>`     | `builder/templates/day-gallery.ts`                | Builder |
 | `/d/<64hex>`                   | `builder/templates/drawing.ts`                    | Builder + sync-rendered by ingest Lambda on publish |
 | `/keys/<64hex>`                | `builder/templates/owner.ts`                      | Builder (per-owner profile gallery) |

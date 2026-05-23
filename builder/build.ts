@@ -11,14 +11,14 @@ import type { ProductCounter } from "../merch/product-counters.js";
 import { contentHash, hashHex, leadingZeroBits, powHash } from "../src/pow.js";
 import renderDayGallery from "./templates/day-gallery.js";
 import renderDrawing from "./templates/drawing.js";
-import renderIndex from "./templates/index.js";
+import renderGallery from "./templates/gallery.js";
 import renderFeed from "./templates/feed.js";
 import renderNotFound from "./templates/not-found.js";
 import renderOwner from "./templates/owner.js";
 import renderProducts from "./templates/products.js";
 import type { DayGalleryView } from "./templates/day-gallery.js";
 import type { DrawingView } from "./templates/drawing.js";
-import type { IndexView } from "./templates/index.js";
+import type { GalleryView } from "./templates/gallery.js";
 import type { FeedView } from "./templates/feed.js";
 import type { NotFoundView } from "./templates/not-found.js";
 import type { OwnerView } from "./templates/owner.js";
@@ -68,7 +68,7 @@ export interface BuildOptions {
 export const DEFAULT_TEMPLATES: Templates = {
   dayGallery: renderDayGallery,
   drawing: renderDrawing,
-  index: renderIndex,
+  gallery: renderGallery,
   feed: renderFeed,
   notFound: renderNotFound,
   owner: renderOwner,
@@ -269,7 +269,7 @@ export async function build(opts: BuildOptions): Promise<{
 export interface Templates {
   dayGallery: (v: DayGalleryView) => string;
   drawing: (v: DrawingView) => string;
-  index: (v: IndexView) => string;
+  gallery: (v: GalleryView) => string;
   feed: (v: FeedView) => string;
   notFound: (v: NotFoundView) => string;
   owner: (v: OwnerView) => string;
@@ -472,7 +472,7 @@ async function rebuildRolling(
   latestDrawings.sort((a, b) => b.created_at.localeCompare(a.created_at));
   const latest = latestDrawings.slice(0, PER_PAGE);
 
-  const indexHtml = templates.index({
+  const galleryHtml = templates.gallery({
     today: latestDay,
     drawings: latest.map((d) => ({ id: d.id, id_short: d.id.slice(0, 8) })),
     days: days.filter((d) => d.date !== latestDay),
@@ -480,7 +480,7 @@ async function rebuildRolling(
   });
   // Gallery landing lives at /gallery.html (CloudFront rewrites /gallery ->
   // /gallery.html) so it doesn't shadow the editor's index.html at "/".
-  await opts.storage.put("public/gallery.html", enc.encode(indexHtml), "text/html", CC_HTML);
+  await opts.storage.put("public/gallery.html", enc.encode(galleryHtml), "text/html", CC_HTML);
 
   // RSS: latest 100 across all days.
   const allRecent: DrawingMetadata[] = [];

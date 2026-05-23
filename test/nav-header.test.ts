@@ -4,7 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import renderDayGallery from "../builder/templates/day-gallery.js";
 import renderDrawing from "../builder/templates/drawing.js";
-import renderIndex from "../builder/templates/index.js";
+import renderGallery from "../builder/templates/gallery.js";
 import renderOwner from "../builder/templates/owner.js";
 import renderProducts from "../builder/templates/products.js";
 
@@ -33,8 +33,8 @@ function activeFor(html: string): string | null {
   return m?.[1] ?? null;
 }
 
-test("index.ts (gallery landing) emits chrome and marks gallery active", () => {
-  const html = renderIndex({
+test("gallery.ts (gallery landing) emits chrome and marks gallery active", () => {
+  const html = renderGallery({
     today: "2026-05-11",
     drawings: [],
     days: [],
@@ -98,7 +98,7 @@ test("every builder template threads repo_url into the chrome footer", () => {
   // surface.
   const sentinel = "https://example.test/sentinel-repo";
   const surfaces = [
-    renderIndex({ today: "x", drawings: [], days: [], repo_url: sentinel }),
+    renderGallery({ today: "x", drawings: [], days: [], repo_url: sentinel }),
     renderDayGallery({ date: "x", page: 1, total_pages: 1, drawings: [], prev_page: null, next_page: null, prev_day: null, next_day: null, repo_url: sentinel }),
     renderDrawing({ ...SAMPLE_DRAWING, repo_url: sentinel }),
     renderOwner({ pubkey: "b".repeat(64), pubkey_short: "bbbbbbbb", drawings: [], repo_url: sentinel }),
