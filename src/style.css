@@ -89,6 +89,7 @@ body > main, .app > main { display: block; }
   background: var(--bg-elev);
   cursor: pointer;
   letter-spacing: 0.02em;
+  max-width: 100%;
 }
 .ed-palette-select-label {
   display: inline-flex;
@@ -113,6 +114,10 @@ body > main, .app > main { display: block; }
   background-position: calc(100% - 14px) 18px, calc(100% - 9px) 18px;
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .ed-palette-select:focus { outline: none; }
 .ed-palette-select-wrap:hover { border-color: var(--border-strong); }
