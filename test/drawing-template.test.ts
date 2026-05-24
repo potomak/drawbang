@@ -7,7 +7,7 @@ const baseView = {
   id_short: "ffffffff",
   created_at: "2026-05-08T04:24:56.088Z",
   parent: null,
-  author: { pubkey: "a".repeat(64), pubkey_short: "aaaaaaaa" },
+  author: { user_id: "a".repeat(64), username: "alice" },
   public_base_url: "https://pixel.drawbang.com",
   repo_url: "https://github.com/example/drawbang",
 };
@@ -55,7 +55,7 @@ test("drawing page: no Advanced disclosure / no technical fields", () => {
 
 test("drawing page: author label (signed)", () => {
   const html = renderDrawing(baseView);
-  assert.match(html, /<dt>Author<\/dt><dd><a href="\/keys\/a{64}">aaaaaaaa<\/a><\/dd>/);
+  assert.match(html, /<dt>Author<\/dt><dd><a href="\/u\/alice">alice<\/a><\/dd>/);
 });
 
 test("drawing page: author label (anonymous)", () => {

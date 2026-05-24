@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!--CHROME:ANALYTICS-->
+    <!--CHROME:META-PIXEL-->
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Draw! · Sign in</title>
+    <meta name="drawbang:active" content="identity" />
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <!--CHROME:HEADER-->
+    <main class="identity-page">
+      <h2>Sign in</h2>
+      <form class="auth-form" id="login-form" novalidate>
+        <label class="auth-field">
+          <span>Email</span>
+          <input type="email" id="login-email" name="email" autocomplete="email" required />
+        </label>
+        <label class="auth-field">
+          <span>Password</span>
+          <input type="password" id="login-password" name="password" autocomplete="current-password" required />
+        </label>
+        <p class="auth-error" id="login-error" hidden></p>
+        <button class="btn primary" id="login-submit" type="submit">Sign in</button>
+      </form>
+      <p class="muted">
+        <a href="/reset">Forgot your password?</a> · New here?
+        <a href="/signup">Create an account</a>
+      </p>
+    </main>
+    <!--CHROME:FOOTER-->
+    <script type="module" src="./src/login.ts"></script>
+  </body>
+</html>

@@ -9,16 +9,34 @@ import {
 } from "./canvas-handler.js";
 import { FsStorage } from "./storage.js";
 import { MemoryCanvasStore } from "./canvas-store.js";
+import { MemoryUserStore } from "./user-store.js";
+import { ConsoleEmailSender } from "./email.js";
+import { JwtError, verifyJwt } from "./jwt.js";
+import type { AuthedUser } from "./handler.js";
+import {
+  handleLogin,
+  handleRegister,
+  handleResetConfirm,
+  handleResetRequest,
+  type AuthHandlerConfig,
+} from "./auth-handler.js";
 import { build } from "../builder/build.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..", "dev-bucket");
 const PORT = Number(process.env.PORT ?? 8787);
 const PUBLIC_BASE = process.env.PUBLIC_BASE ?? "http://localhost:5173";
+const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret";
 
 const storage = new FsStorage(ROOT);
 const canvasStore = new MemoryCanvasStore();
 const canvasBaselineHistory = new Map<string, string[]>();
+const authConfig: AuthHandlerConfig = {
+  userStore: new MemoryUserStore(),
+  email: new ConsoleEmailSender(),
+  jwtSecret: JWT_SECRET,
+  publicBaseUrl: PUBLIC_BASE,
+};
 
 // Inline rebuild after every successful ingest. The builder is incremental
 // and FsStorage is local, so the round-trip is well under a second on a
@@ -55,6 +73,11 @@ const server = http.createServer(async (req, res) => {
     cors(res);
 
     if (req.method === "POST" && req.url === "/ingest") {
+      const auth = extractAuth(req);
+      if (!auth) {
+        json(res, 401, { error: "authentication required" });
+        return;
+      }
       const body = await readBody(req);
       let parsed: any;
       try {
@@ -66,6 +89,7 @@ const server = http.createServer(async (req, res) => {
       const result = await handleIngest(parsed, {
         storage,
         publicBaseUrl: PUBLIC_BASE,
+        auth,
         canvasStore,
       });
       json(res, result.status, result.body);
@@ -109,6 +133,11 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && req.url === "/canvas/claim") {
+      const auth = extractAuth(req);
+      if (!auth) {
+        json(res, 401, { error: "authentication required" });
+        return;
+      }
       const body = await readBody(req);
       let parsed: any;
       try {
@@ -121,12 +150,45 @@ const server = http.createServer(async (req, res) => {
         storage,
         canvasStore,
         publicBaseUrl: PUBLIC_BASE,
+        auth,
         baselineHistory: canvasBaselineHistory,
       });
       jsonWithHeaders(res, result.status, result.body, result.headers);
       if (result.status === 201) {
         await rebuildAfterPublish();
       }
+      return;
+    }
+
+    if (req.method === "POST" && req.url && req.url.startsWith("/auth/")) {
+      const body = await readBody(req);
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(body);
+      } catch {
+        json(res, 400, { error: "bad json" });
+        return;
+      }
+      let result;
+      switch (req.url) {
+        case "/auth/register":
+          result = await handleRegister(parsed, authConfig);
+          break;
+        case "/auth/login":
+          result = await handleLogin(parsed, authConfig);
+          break;
+        case "/auth/reset/request":
+          result = await handleResetRequest(parsed, authConfig);
+          break;
+        case "/auth/reset/confirm":
+          result = await handleResetConfirm(parsed, authConfig);
+          break;
+        default:
+          res.writeHead(404);
+          res.end("not found");
+          return;
+      }
+      jsonWithHeaders(res, result.status, result.body, result.headers);
       return;
     }
 
@@ -154,7 +216,23 @@ const server = http.createServer(async (req, res) => {
 function cors(res: http.ServerResponse): void {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+}
+
+function extractAuth(req: http.IncomingMessage): AuthedUser | null {
+  const header = req.headers.authorization ?? "";
+  const m = /^Bearer\s+(.+)$/i.exec(header);
+  if (!m) return null;
+  try {
+    const claims = verifyJwt<{ sub?: string; un?: string }>(m[1], JWT_SECRET);
+    if (typeof claims.sub !== "string" || typeof claims.un !== "string") {
+      return null;
+    }
+    return { user_id: claims.sub, username: claims.un };
+  } catch (e) {
+    if (e instanceof JwtError) return null;
+    throw e;
+  }
 }
 
 function json(res: http.ServerResponse, status: number, body: unknown): void {

@@ -2,9 +2,9 @@ import type { Storage } from "./storage.js";
 import type { DrawingCanvasMembership } from "../builder/templates/drawing.js";
 
 // Sidecar storing each drawing's canvas memberships. Lives next to the gif
-// at public/drawings/<id>.canvases.json. Attribution is `claimed_by` (the
-// pubkey that placed this drawing in a canvas tile), NOT the drawing
-// author — see CLAUDE.md's "Drawing's canvas memberships live in ..."
+// at public/drawings/<id>.canvases.json. Attribution is `claimed_by`
+// (`user_id`) + `claimed_by_username` — the account that placed this drawing
+// in a canvas tile. See CLAUDE.md's "Drawing's canvas memberships live in ..."
 // invariant.
 //
 // Two consumers:

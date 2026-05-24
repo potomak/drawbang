@@ -116,21 +116,21 @@ describe("canvas pass", () => {
     await canvasStore.claimTile({
       canvas_id: id,
       tile_key: "0,0",
-      pubkey: "a".repeat(64),
+      user_id: "a".repeat(64),
       now_epoch: nowEpoch,
       ttl_s: 1800,
     });
     await canvasStore.claimTile({
       canvas_id: id,
       tile_key: "1,0",
-      pubkey: "b".repeat(64),
+      user_id: "b".repeat(64),
       now_epoch: nowEpoch,
       ttl_s: 1800,
     });
     await canvasStore.publishTile({
       canvas_id: id,
       tile_key: "1,0",
-      pubkey: "b".repeat(64),
+      user_id: "b".repeat(64),
       drawing_id: "ff",
       now_epoch: nowEpoch,
       cooldown_s: 900,
@@ -158,20 +158,20 @@ describe("canvas pass", () => {
     const t2 = new Date("2026-05-20T12:00:00Z");
     const w20 = canvasIdForDate(t1);
     const drawingId = "d".repeat(64);
-    const pubkey = "a".repeat(64);
+    const user_id = "a".repeat(64);
     const nowEpoch1 = Math.floor(t1.getTime() / 1000);
 
     await canvasStore.claimTile({
       canvas_id: w20,
       tile_key: "5,5",
-      pubkey,
+      user_id,
       now_epoch: nowEpoch1,
       ttl_s: 1800,
     });
     await canvasStore.publishTile({
       canvas_id: w20,
       tile_key: "5,5",
-      pubkey,
+      user_id,
       drawing_id: drawingId,
       now_epoch: nowEpoch1,
       cooldown_s: 900,

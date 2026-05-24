@@ -3,12 +3,12 @@ import { describe, test } from "node:test";
 import { handleUserStats } from "../ingest/user-stats-handler.js";
 import { MemoryUserStatsStore } from "../ingest/user-stats-store.js";
 
-describe("handleUserStats GET /keys/{pubkey}/stats", () => {
-  test("returns 400 on malformed pubkey", async () => {
+describe("handleUserStats GET /users/{user_id}/stats", () => {
+  test("returns 400 on malformed user_id", async () => {
     const userStatsStore = new MemoryUserStatsStore();
     const r = await handleUserStats("not-hex", { userStatsStore });
     assert.equal(r.status, 400);
-    assert.deepEqual(r.body, { error: "invalid pubkey" });
+    assert.deepEqual(r.body, { error: "invalid user_id" });
   });
 
   test("returns 400 on wrong-length hex", async () => {
@@ -17,14 +17,14 @@ describe("handleUserStats GET /keys/{pubkey}/stats", () => {
     assert.equal(r.status, 400);
   });
 
-  test("returns 200 + zeros for a pubkey with no row", async () => {
+  test("returns 200 + zeros for a user_id with no row", async () => {
     const userStatsStore = new MemoryUserStatsStore();
-    const pubkey = "a".repeat(64);
-    const r = await handleUserStats(pubkey, { userStatsStore });
+    const user_id = "a".repeat(64);
+    const r = await handleUserStats(user_id, { userStatsStore });
     assert.equal(r.status, 200);
     if (r.status !== 200) return;
-    const b = r.body as Extract<typeof r.body, { pubkey: string }>;
-    assert.equal(b.pubkey, pubkey);
+    const b = r.body as Extract<typeof r.body, { user_id: string }>;
+    assert.equal(b.user_id, user_id);
     assert.equal(b.daily_total, 0);
     assert.equal(b.daily_streak_current, 0);
     assert.equal(b.daily_streak_longest, 0);
@@ -37,7 +37,7 @@ describe("handleUserStats GET /keys/{pubkey}/stats", () => {
 
   test("returns 200 + counters + earned badges for a populated row", async () => {
     const userStatsStore = new MemoryUserStatsStore();
-    const pubkey = "a".repeat(64);
+    const user_id = "a".repeat(64);
     // Synthesize a state with daily_total=7 (unlocks daily-7) and
     // canvas_total=10 (unlocks canvas-10) by recording the right number
     // of events. Use distinct dates so daily-streak math doesn't reset
@@ -45,7 +45,7 @@ describe("handleUserStats GET /keys/{pubkey}/stats", () => {
     for (let i = 0; i < 7; i++) {
       const day = `2026-05-${String(11 + i).padStart(2, "0")}`;
       await userStatsStore.recordDailyDrawing({
-        pubkey,
+        user_id,
         date_utc: day,
         now_iso: `${day}T12:00:00Z`,
       });
@@ -59,16 +59,16 @@ describe("handleUserStats GET /keys/{pubkey}/stats", () => {
     ];
     for (const cid of canvasIds) {
       await userStatsStore.recordCanvasParticipation({
-        pubkey,
+        user_id,
         canvas_id: cid,
         now_iso: "2026-05-18T12:00:00Z",
       });
     }
 
-    const r = await handleUserStats(pubkey, { userStatsStore });
+    const r = await handleUserStats(user_id, { userStatsStore });
     assert.equal(r.status, 200);
     if (r.status !== 200) return;
-    const b = r.body as Extract<typeof r.body, { pubkey: string }>;
+    const b = r.body as Extract<typeof r.body, { user_id: string }>;
     assert.equal(b.daily_total, 7);
     assert.equal(b.daily_streak_current, 7);
     assert.equal(b.canvas_total, 10);
@@ -79,8 +79,8 @@ describe("handleUserStats GET /keys/{pubkey}/stats", () => {
 
   test("sets a short cache-control on success and json content-type", async () => {
     const userStatsStore = new MemoryUserStatsStore();
-    const pubkey = "a".repeat(64);
-    const r = await handleUserStats(pubkey, { userStatsStore });
+    const user_id = "a".repeat(64);
+    const r = await handleUserStats(user_id, { userStatsStore });
     assert.equal(r.headers["Content-Type"], "application/json");
     assert.match(r.headers["Cache-Control"], /max-age=\d+/);
   });

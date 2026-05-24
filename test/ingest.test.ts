@@ -4,14 +4,13 @@ import { Bitmap } from "../src/editor/bitmap.js";
 import { encodeGif } from "../src/editor/gif.js";
 import { DEFAULT_ACTIVE_PALETTE } from "../src/editor/palette.js";
 import { INITIAL_STATE, contentHash, hashHex, leadingZeroBits, powHash, requiredBits, solve } from "../src/pow.js";
-import {
-  type DrawbangIdentity,
-  generateIdentity,
-  pubKeyHex,
-  signDrawingId,
-} from "../src/identity.js";
 import type { Storage } from "../ingest/storage.js";
-import { handleIngest, type IngestRequest } from "../ingest/handler.js";
+import {
+  handleIngest,
+  type AuthedUser,
+  type HandlerConfig,
+  type IngestRequest,
+} from "../ingest/handler.js";
 
 // In-memory storage for testing — same Storage contract as FsStorage.
 class MemoryStorage implements Storage {
@@ -50,31 +49,39 @@ class MemoryStorage implements Storage {
   }
 }
 
+const ALICE: AuthedUser = { user_id: "a".repeat(64), username: "alice" };
+const BOB: AuthedUser = { user_id: "b".repeat(64), username: "bob" };
+
 function makeGif(): Uint8Array {
   const frame = new Bitmap();
   for (let i = 0; i < 16; i++) frame.set(i, i, 3);
   return encodeGif({ frames: [frame], activePalette: DEFAULT_ACTIVE_PALETTE });
 }
 
-async function signedBody(
+// Identity now comes from the verified JWT (cfg.auth), not the request body.
+function reqBody(
   gif: Uint8Array,
   sol: { nonce: string; solveMs: number },
   baseline: string,
-  identity: DrawbangIdentity,
   extras: Partial<IngestRequest> = {},
-): Promise<IngestRequest> {
-  const id = hashHex(await contentHash(gif));
-  const pubkey = await pubKeyHex(identity);
-  const signature = await signDrawingId(identity, id);
+): IngestRequest {
   return {
     gif: Buffer.from(gif).toString("base64"),
     nonce: sol.nonce,
     baseline,
     solve_ms: sol.solveMs,
     bench_hps: 5000,
-    pubkey,
-    signature,
     ...extras,
+  };
+}
+
+function cfg(over: Partial<HandlerConfig> & { now?: () => Date } = {}): HandlerConfig {
+  return {
+    storage: new MemoryStorage(),
+    publicBaseUrl: "https://example.test",
+    auth: ALICE,
+    now: () => new Date("2026-04-18T12:00:00.000Z"),
+    ...over,
   };
 }
 
@@ -84,15 +91,10 @@ test("ingest accepts a valid submission with virgin state", async () => {
   const baseline = INITIAL_STATE.last_publish_at;
   const bits = requiredBits(Number.POSITIVE_INFINITY); // 14
   const sol = await solve(gif, baseline, bits);
-  const identity = await generateIdentity();
 
   const res = await handleIngest(
-    await signedBody(gif, sol, baseline, identity, { bench_hps: 10000 }),
-    {
-      storage,
-      publicBaseUrl: "https://example.test",
-      now: () => new Date("2026-04-18T12:00:00.000Z"),
-    },
+    reqBody(gif, sol, baseline, { bench_hps: 10000 }),
+    cfg({ storage }),
   );
 
   assert.equal(res.status, 202);
@@ -100,12 +102,12 @@ test("ingest accepts a valid submission with virgin state", async () => {
   const id = (res.body as { id: string }).id;
   assert.equal(id, hashHex(await contentHash(gif)));
   assert.ok(await storage.exists(`inbox/2026-04-18/${id}.gif`));
-  const meta = await storage.getJSON<{ id: string; pow: string; pubkey: string; signature: string }>(`inbox/2026-04-18/${id}.json`);
+  const meta = await storage.getJSON<{ id: string; pow: string; user_id: string; username: string }>(`inbox/2026-04-18/${id}.json`);
   assert.equal(meta?.id, id);
   assert.equal(meta?.pow, sol.hashHex);
-  // Owner fields persisted on the inbox sidecar
-  assert.equal(meta?.pubkey, await pubKeyHex(identity));
-  assert.match(meta?.signature ?? "", /^[0-9a-f]{128}$/);
+  // Account fields persisted on the inbox sidecar
+  assert.equal(meta?.user_id, ALICE.user_id);
+  assert.equal(meta?.username, ALICE.username);
   const state = await storage.getJSON<{ last_publish_at: string; last_difficulty_bits: number }>("public/state/last-publish.json");
   assert.equal(state?.last_publish_at, "2026-04-18T12:00:00.000Z");
   assert.equal(state?.last_difficulty_bits, 14);
@@ -118,16 +120,9 @@ test("ingest id is stable across different nonce/baseline for the same gif", asy
   assert.equal(id1, id2);
 
   const storage = new MemoryStorage();
-  const cfg = {
-    storage,
-    publicBaseUrl: "https://example.test",
-    now: () => new Date("2026-04-18T12:00:00.000Z"),
-  };
-  const identity = await generateIdentity();
-
   const baselineA = INITIAL_STATE.last_publish_at;
   const solA = await solve(gif, baselineA, 16);
-  const first = await handleIngest(await signedBody(gif, solA, baselineA, identity), cfg);
+  const first = await handleIngest(reqBody(gif, solA, baselineA), cfg({ storage }));
   assert.equal(first.status, 202);
 
   // Second submit uses a fresh baseline (the one the first submit just set)
@@ -135,8 +130,8 @@ test("ingest id is stable across different nonce/baseline for the same gif", asy
   const baselineB = "2026-04-18T12:00:00.000Z";
   const solB = await solve(gif, baselineB, 16);
   const second = await handleIngest(
-    await signedBody(gif, solB, baselineB, identity),
-    { ...cfg, now: () => new Date("2026-04-18T13:00:01.000Z") },
+    reqBody(gif, solB, baselineB),
+    cfg({ storage, now: () => new Date("2026-04-18T13:00:01.000Z") }),
   );
   assert.equal(second.status, 200, "second submit should be idempotent");
   assert.equal((first.body as { id: string }).id, id1);
@@ -149,15 +144,10 @@ test("ingest is idempotent — identical submission returns 200 with same id", a
   const gif = makeGif();
   const baseline = INITIAL_STATE.last_publish_at;
   const sol = await solve(gif, baseline, 16);
-  const identity = await generateIdentity();
-  const body = await signedBody(gif, sol, baseline, identity);
-  const cfg = {
-    storage,
-    publicBaseUrl: "https://example.test",
-    now: () => new Date("2026-04-18T12:00:00.000Z"),
-  };
-  const first = await handleIngest(body, cfg);
-  const second = await handleIngest(body, cfg);
+  const body = reqBody(gif, sol, baseline);
+  const c = cfg({ storage });
+  const first = await handleIngest(body, c);
+  const second = await handleIngest(body, c);
   assert.equal(first.status, 202);
   assert.equal(second.status, 200);
   assert.deepEqual(
@@ -166,75 +156,24 @@ test("ingest is idempotent — identical submission returns 200 with same id", a
   );
 });
 
-test("ingest first-owner-wins: duplicate gif from a different keypair gets the existing id", async () => {
+test("ingest first-owner-wins: duplicate gif from a different account gets the existing id", async () => {
   // Re-uses the existing idempotency branch; no new code path. This is the
-  // contract that makes the CLAUDE.md content-addressed-id invariant hold
-  // even with ownership added.
+  // contract that makes the CLAUDE.md content-addressed-id invariant hold.
   const storage = new MemoryStorage();
   const gif = makeGif();
   const baseline = INITIAL_STATE.last_publish_at;
   const sol = await solve(gif, baseline, 14);
   const id = hashHex(await contentHash(gif));
 
-  const alice = await generateIdentity();
-  const bob = await generateIdentity();
-  const cfg = {
-    storage,
-    publicBaseUrl: "https://example.test",
-    now: () => new Date("2026-04-18T12:00:00.000Z"),
-  };
-
-  const first = await handleIngest(await signedBody(gif, sol, baseline, alice), cfg);
+  const first = await handleIngest(reqBody(gif, sol, baseline), cfg({ storage, auth: ALICE }));
   assert.equal(first.status, 202);
-  // bob signs a fresh submission of the same gif; gets back the existing id.
-  // The on-disk metadata still belongs to alice (first-owner-wins).
-  const second = await handleIngest(await signedBody(gif, sol, baseline, bob), cfg);
+  // bob re-publishes the same gif; gets back the existing id. The on-disk
+  // metadata still belongs to alice (first-owner-wins).
+  const second = await handleIngest(reqBody(gif, sol, baseline), cfg({ storage, auth: BOB }));
   assert.equal(second.status, 200);
   assert.equal((second.body as { id: string }).id, id);
-  const meta = await storage.getJSON<{ pubkey: string }>(`inbox/2026-04-18/${id}.json`);
-  assert.equal(meta?.pubkey, await pubKeyHex(alice));
-});
-
-test("ingest rejects a missing pubkey", async () => {
-  const storage = new MemoryStorage();
-  const gif = makeGif();
-  const baseline = INITIAL_STATE.last_publish_at;
-  const sol = await solve(gif, baseline, 14);
-  const identity = await generateIdentity();
-  const body = await signedBody(gif, sol, baseline, identity);
-  // Strip pubkey out of the body, mimicking an old client.
-  const { pubkey: _drop, ...withoutPubkey } = body;
-
-  const res = await handleIngest(
-    withoutPubkey as unknown as IngestRequest,
-    { storage, publicBaseUrl: "https://example.test", now: () => new Date("2026-04-18T12:00:00.000Z") },
-  );
-  assert.equal(res.status, 400);
-  assert.match((res.body as { error: string }).error, /pubkey/i);
-});
-
-test("ingest rejects a tampered signature", async () => {
-  const storage = new MemoryStorage();
-  const gif = makeGif();
-  const baseline = INITIAL_STATE.last_publish_at;
-  const sol = await solve(gif, baseline, 14);
-  const identity = await generateIdentity();
-  const body = await signedBody(gif, sol, baseline, identity);
-
-  // Flip the leading hex digit of the signature to invalidate it.
-  const tampered: IngestRequest = {
-    ...body,
-    signature: (body.signature[0] === "0" ? "1" : "0") + body.signature.slice(1),
-  };
-  const res = await handleIngest(
-    tampered,
-    { storage, publicBaseUrl: "https://example.test", now: () => new Date("2026-04-18T12:00:00.000Z") },
-  );
-  assert.equal(res.status, 400);
-  assert.match((res.body as { error: string }).error, /signature/i);
-  // Must NOT have persisted anything despite the valid PoW.
-  const id = hashHex(await contentHash(gif));
-  assert.equal(await storage.exists(`inbox/2026-04-18/${id}.gif`), false);
+  const meta = await storage.getJSON<{ user_id: string }>(`inbox/2026-04-18/${id}.json`);
+  assert.equal(meta?.user_id, ALICE.user_id);
 });
 
 test("ingest rejects tampered gifs whose PoW fails", async () => {
@@ -242,20 +181,18 @@ test("ingest rejects tampered gifs whose PoW fails", async () => {
   const gif = makeGif();
   const baseline = INITIAL_STATE.last_publish_at;
   const sol = await solve(gif, baseline, 16);
-  const identity = await generateIdentity();
 
   const tampered = new Uint8Array(gif);
   tampered[tampered.length - 2] ^= 0xff;
 
-  // Body claims the (valid) signature for the original gif's id, but the PoW
-  // is computed over the tampered gif (which doesn't satisfy the bits target
-  // for that nonce). PoW check should fire first.
+  // PoW is computed over the tampered gif (which doesn't satisfy the bits
+  // target for that nonce). PoW check should fire.
   const res = await handleIngest(
     {
-      ...(await signedBody(gif, sol, baseline, identity)),
+      ...reqBody(gif, sol, baseline),
       gif: Buffer.from(tampered).toString("base64"),
     },
-    { storage, publicBaseUrl: "https://example.test", now: () => new Date() },
+    cfg({ storage, now: () => new Date() }),
   );
   assert.equal(res.status, 400);
 });
@@ -274,18 +211,13 @@ test("ingest requires baseline matching state or history", async () => {
   const gif = makeGif();
   const badBaseline = "2020-01-01T00:00:00.000Z";
   const sol = await solve(gif, badBaseline, 12); // low bits, don't waste time
-  const identity = await generateIdentity();
 
-  const res = await handleIngest(
-    await signedBody(gif, sol, badBaseline, identity),
-    { storage, publicBaseUrl: "https://example.test", now: () => new Date("2026-04-18T12:00:00.000Z") },
-  );
+  const res = await handleIngest(reqBody(gif, sol, badBaseline), cfg({ storage }));
   assert.equal(res.status, 400);
 });
 
 test("dynamic difficulty: second submission in the same second requires top-bracket bits", async () => {
   const storage = new MemoryStorage();
-  const pubBase = "https://example.test";
 
   // Seed a just-happened publish.
   const justNow = "2026-04-18T12:00:00.000Z";
@@ -301,13 +233,11 @@ test("dynamic difficulty: second submission in the same second requires top-brac
   const baseline = justNow;
   const bits = requiredBits(0);
   assert.equal(bits, 20, "expected 20-bit bracket when baseline is this second");
-  // Don't actually solve 24 bits here — just verify the bracket calc.
   // Submit with a 16-bit solution and confirm rejection.
   const weak = await solve(gif, baseline, 16);
-  const identity = await generateIdentity();
   const res = await handleIngest(
-    await signedBody(gif, weak, baseline, identity),
-    { storage, publicBaseUrl: pubBase, now: () => new Date("2026-04-18T12:00:02.000Z") },
+    reqBody(gif, weak, baseline),
+    cfg({ storage, now: () => new Date("2026-04-18T12:00:02.000Z") }),
   );
   assert.equal(res.status, 400);
   const hash = await powHash(gif, baseline, weak.nonce);
@@ -316,12 +246,6 @@ test("dynamic difficulty: second submission in the same second requires top-brac
 });
 
 // ---- Fork lineage: parent -> children sidecar -------------------------------
-//
-// Each test publishes a parent first (so we can reference its content-hash id),
-// then publishes one or more children with `parent: <id>` in the request. The
-// children sidecar lives at public/drawings/<parent>.children.json. PoW is the
-// expensive part of these tests; we keep them at 14 bits (virgin bracket) and
-// share state between the parent and child publishes via baseline history.
 
 function makeGifWithMarker(marker: number): Uint8Array {
   const frame = new Bitmap();
@@ -333,8 +257,8 @@ function makeGifWithMarker(marker: number): Uint8Array {
 interface ChildEntry {
   id: string;
   id_short: string;
-  pubkey: string;
-  pubkey_short: string;
+  user_id: string;
+  username: string;
   created_at: string;
 }
 interface ChildrenFile {
@@ -345,19 +269,15 @@ interface ChildrenFile {
 async function publishVirgin(
   storage: MemoryStorage,
   gif: Uint8Array,
-  identity: DrawbangIdentity,
+  auth: AuthedUser,
   nowISO: string,
   extras: Partial<IngestRequest> = {},
 ): Promise<string> {
   const baseline = INITIAL_STATE.last_publish_at;
   const sol = await solve(gif, baseline, 14);
   const res = await handleIngest(
-    await signedBody(gif, sol, baseline, identity, extras),
-    {
-      storage,
-      publicBaseUrl: "https://example.test",
-      now: () => new Date(nowISO),
-    },
+    reqBody(gif, sol, baseline, extras),
+    cfg({ storage, auth, now: () => new Date(nowISO) }),
   );
   assert.equal(res.status, 202);
   return (res.body as { id: string }).id;
@@ -366,7 +286,7 @@ async function publishVirgin(
 async function publishWithBaseline(
   storage: MemoryStorage,
   gif: Uint8Array,
-  identity: DrawbangIdentity,
+  auth: AuthedUser,
   baseline: string,
   nowISO: string,
   history: string[],
@@ -374,33 +294,23 @@ async function publishWithBaseline(
 ): Promise<{ id: string; status: number }> {
   const sol = await solve(gif, baseline, 14);
   const res = await handleIngest(
-    await signedBody(gif, sol, baseline, identity, extras),
-    {
-      storage,
-      publicBaseUrl: "https://example.test",
-      now: () => new Date(nowISO),
-      baselineHistory: history,
-    },
+    reqBody(gif, sol, baseline, extras),
+    cfg({ storage, auth, now: () => new Date(nowISO), baselineHistory: history }),
   );
   return { id: (res.body as { id: string }).id, status: res.status };
 }
 
 test("ingest records a child entry on the parent's children.json", async () => {
   const storage = new MemoryStorage();
-  const author = await generateIdentity();
-  // Space the child publish 11+ minutes after the parent so the baseline
-  // ages past the 600s bracket and 14-bit PoW (virgin difficulty) suffices
-  // for both publishes. Otherwise the dynamic-difficulty bracket would
-  // demand 16-20 bits and balloon the test runtime.
   const parentId = await publishVirgin(
     storage,
     makeGifWithMarker(0xa),
-    author,
+    ALICE,
     "2026-04-18T12:00:00.000Z",
   );
 
   const history: string[] = [];
-  const childAuthor = await generateIdentity();
+  const childAuthor: AuthedUser = { user_id: "c".repeat(64), username: "carol" };
   const { id: childId, status } = await publishWithBaseline(
     storage,
     makeGifWithMarker(0xb),
@@ -420,17 +330,16 @@ test("ingest records a child entry on the parent's children.json", async () => {
   assert.equal(file.children.length, 1);
   assert.equal(file.children[0].id, childId);
   assert.equal(file.children[0].id_short, childId.slice(0, 8));
-  assert.equal(file.children[0].pubkey, await pubKeyHex(childAuthor));
+  assert.equal(file.children[0].username, childAuthor.username);
   assert.equal(file.children[0].created_at, "2026-04-18T12:11:00.000Z");
 });
 
 test("ingest collects multiple children of the same parent in publish order", async () => {
   const storage = new MemoryStorage();
-  const author = await generateIdentity();
   const parentId = await publishVirgin(
     storage,
     makeGifWithMarker(0x1),
-    author,
+    ALICE,
     "2026-04-18T12:00:00.000Z",
   );
 
@@ -438,7 +347,7 @@ test("ingest collects multiple children of the same parent in publish order", as
   const childA = await publishWithBaseline(
     storage,
     makeGifWithMarker(0x2),
-    await generateIdentity(),
+    BOB,
     "2026-04-18T12:00:00.000Z",
     "2026-04-18T12:11:00.000Z",
     history,
@@ -449,7 +358,7 @@ test("ingest collects multiple children of the same parent in publish order", as
   const childB = await publishWithBaseline(
     storage,
     makeGifWithMarker(0x3),
-    await generateIdentity(),
+    { user_id: "d".repeat(64), username: "dave" },
     "2026-04-18T12:11:00.000Z",
     "2026-04-18T12:22:00.000Z",
     history,
@@ -467,22 +376,20 @@ test("ingest collects multiple children of the same parent in publish order", as
 
 test("ingest de-dupes a re-published child against the same parent", async () => {
   const storage = new MemoryStorage();
-  const author = await generateIdentity();
   const parentId = await publishVirgin(
     storage,
     makeGifWithMarker(0x4),
-    author,
+    ALICE,
     "2026-04-18T12:00:00.000Z",
   );
 
   const childGif = makeGifWithMarker(0x5);
-  const childAuthor = await generateIdentity();
   const history: string[] = [];
 
   const first = await publishWithBaseline(
     storage,
     childGif,
-    childAuthor,
+    BOB,
     "2026-04-18T12:00:00.000Z",
     "2026-04-18T12:11:00.000Z",
     history,
@@ -495,7 +402,7 @@ test("ingest de-dupes a re-published child against the same parent", async () =>
   const second = await publishWithBaseline(
     storage,
     childGif,
-    childAuthor,
+    BOB,
     "2026-04-18T12:11:00.000Z",
     "2026-04-18T12:22:00.000Z",
     history,
@@ -511,15 +418,12 @@ test("ingest de-dupes a re-published child against the same parent", async () =>
 
 test("ingest skips children write when parent === id (self-fork guard)", async () => {
   const storage = new MemoryStorage();
-  const author = await generateIdentity();
   const gif = makeGifWithMarker(0x6);
-  // Spy: compute the id up front so we can pass it as `parent` and confirm
-  // no children file is created.
   const id = hashHex(await contentHash(gif));
   await publishVirgin(
     storage,
     gif,
-    author,
+    ALICE,
     "2026-04-18T12:00:00.000Z",
     { parent: id },
   );
@@ -531,13 +435,10 @@ test("ingest skips children write when parent === id (self-fork guard)", async (
 
 test("ingest silently ignores a malformed parent field", async () => {
   const storage = new MemoryStorage();
-  const author = await generateIdentity();
-  // "not-64-hex" is not a valid id; the request still succeeds (parent is
-  // optional) but no children.json is written anywhere.
   await publishVirgin(
     storage,
     makeGifWithMarker(0x7),
-    author,
+    ALICE,
     "2026-04-18T12:00:00.000Z",
     { parent: "not-64-hex" },
   );

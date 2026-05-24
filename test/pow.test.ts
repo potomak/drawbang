@@ -53,7 +53,7 @@ const CLAIM_INPUT = {
   canvasId: "canvas-2026-W20",
   x: 5,
   y: 12,
-  pubkey: "a".repeat(64),
+  userId: "a".repeat(64),
 };
 
 test("claimPowHash is deterministic across equivalent inputs", async () => {

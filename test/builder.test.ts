@@ -11,8 +11,8 @@ import { FsStorage } from "../ingest/storage.js";
 import { build } from "../builder/build.js";
 
 interface SeedOpts {
-  pubkey?: string;
-  signature?: string;
+  user_id?: string;
+  username?: string;
 }
 
 async function seedDrawing(
@@ -36,8 +36,8 @@ async function seedDrawing(
   await fs.mkdir(path.dirname(gifPath), { recursive: true });
   await fs.writeFile(gifPath, gif);
   // Sidecar shape mirrors what ingest/handler.ts writes. When seedOpts has
-  // pubkey/signature, include them; otherwise leave them out to model legacy
-  // pre-feature inbox JSONs.
+  // user_id/username, include them; otherwise leave them out to model legacy
+  // (account-less) inbox JSONs.
   const sidecar: Record<string, unknown> = {
     id,
     pow,
@@ -49,8 +49,8 @@ async function seedDrawing(
     created_at: `${day}T10:00:00.000Z`,
     parent: null,
   };
-  if (seedOpts.pubkey !== undefined) sidecar.pubkey = seedOpts.pubkey;
-  if (seedOpts.signature !== undefined) sidecar.signature = seedOpts.signature;
+  if (seedOpts.user_id !== undefined) sidecar.user_id = seedOpts.user_id;
+  if (seedOpts.username !== undefined) sidecar.username = seedOpts.username;
   await fs.writeFile(jsonPath, JSON.stringify(sidecar));
   return id;
 }
@@ -111,17 +111,17 @@ test("builder sweeps inbox, renders per-day pages, is incremental", async () => 
 
 interface IndexLine {
   id: string;
-  pubkey: string | null;
-  signature: string | null;
+  user_id: string | null;
+  username: string | null;
 }
 
-test("builder propagates pubkey + signature from inbox to per-day index.jsonl, drawing page renders owner link", async () => {
+test("builder propagates user_id + username from inbox to per-day index.jsonl, drawing page renders profile link", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
   const storage = new FsStorage(root);
 
-  const pubkey = "a".repeat(64);
-  const signature = "b".repeat(128);
-  const id = await seedDrawing(root, "2026-04-19", 11, { pubkey, signature });
+  const user_id = "a".repeat(64);
+  const username = "alice";
+  const id = await seedDrawing(root, "2026-04-19", 11, { user_id, username });
 
   await build({ storage, publicBaseUrl: "https://example.test", today: "2026-04-20" });
 
@@ -133,101 +133,95 @@ test("builder propagates pubkey + signature from inbox to per-day index.jsonl, d
   assert.equal(lines.length, 1);
   const entry = JSON.parse(lines[0]) as IndexLine;
   assert.equal(entry.id, id);
-  assert.equal(entry.pubkey, pubkey);
-  assert.equal(entry.signature, signature);
+  assert.equal(entry.user_id, user_id);
+  assert.equal(entry.username, username);
 
-  // Per-drawing HTML carries an owner badge linking to /keys/<pubkey>.
+  // Per-drawing HTML carries an author link to /u/<username>.
   const drawingHtml = await fs.readFile(path.join(root, `public/d/${id}.html`), "utf8");
-  assert.match(drawingHtml, new RegExp(`<a href="/keys/${pubkey}">`));
-  assert.match(drawingHtml, /<dt>Author<\/dt><dd><a href="\/keys\//);
-  // No "anonymous" fallback when the owner is set.
+  assert.match(drawingHtml, new RegExp(`<dt>Author</dt><dd><a href="/u/${username}">`));
+  // No "anonymous" fallback when the author is set.
   assert.equal(drawingHtml.includes("anonymous"), false);
 });
 
-test("builder per-owner sweep: maintains keys/<pk>/index.jsonl and renders keys/<pk>.html", async () => {
+test("builder per-account sweep: maintains u/<name>/index.jsonl and renders u/<name>.html", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
   const storage = new FsStorage(root);
-  const pubkey = "c".repeat(64);
-  const sig = "d".repeat(128);
+  const user_id = "c".repeat(64);
+  const username = "carol";
 
-  // Two drawings on the same day, same owner.
-  const id1 = await seedDrawing(root, "2026-04-19", 21, { pubkey, signature: sig });
-  const id2 = await seedDrawing(root, "2026-04-19", 22, { pubkey, signature: sig });
+  // Two drawings on the same day, same account.
+  const id1 = await seedDrawing(root, "2026-04-19", 21, { user_id, username });
+  const id2 = await seedDrawing(root, "2026-04-19", 22, { user_id, username });
 
   await build({ storage, publicBaseUrl: "https://example.test", today: "2026-04-20" });
 
-  const ownerIndex = await fs.readFile(
-    path.join(root, `public/keys/${pubkey}/index.jsonl`),
+  const profileIndex = await fs.readFile(
+    path.join(root, `public/u/${username}/index.jsonl`),
     "utf8",
   );
-  const lines = ownerIndex.split("\n").filter(Boolean);
+  const lines = profileIndex.split("\n").filter(Boolean);
   assert.equal(lines.length, 2);
   const ids = lines.map((l) => (JSON.parse(l) as { id: string }).id).sort();
   assert.deepEqual(ids, [id1, id2].sort());
 
-  const ownerHtml = await fs.readFile(path.join(root, `public/keys/${pubkey}.html`), "utf8");
-  // Short pubkey appears in the title; full pubkey was dropped from the
-  // visible page to keep the header tight.
-  assert.match(ownerHtml, /cccccccc/);
+  const profileHtml = await fs.readFile(path.join(root, `public/u/${username}.html`), "utf8");
+  assert.match(profileHtml, /carol/);
   // Both drawings linked by their share URL.
-  assert.match(ownerHtml, new RegExp(`/d/${id1}`));
-  assert.match(ownerHtml, new RegExp(`/d/${id2}`));
-  // Title + count badge surface the key + drawing tally.
-  assert.match(ownerHtml, /Drawings by/);
-  assert.match(ownerHtml, /2 drawings/);
+  assert.match(profileHtml, new RegExp(`/d/${id1}`));
+  assert.match(profileHtml, new RegExp(`/d/${id2}`));
+  // Title + count badge surface the handle + drawing tally.
+  assert.match(profileHtml, /Drawings by/);
+  assert.match(profileHtml, /2 drawings/);
 });
 
-test("builder per-owner sweep: separates two distinct owners on the same day", async () => {
+test("builder per-account sweep: separates two distinct accounts on the same day", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
   const storage = new FsStorage(root);
-  const alice = "a".repeat(64);
-  const bob = "b".repeat(64);
-  const sig = "d".repeat(128);
 
-  const aliceId = await seedDrawing(root, "2026-04-19", 31, { pubkey: alice, signature: sig });
-  const bobId = await seedDrawing(root, "2026-04-19", 32, { pubkey: bob, signature: sig });
+  const aliceId = await seedDrawing(root, "2026-04-19", 31, { user_id: "a".repeat(64), username: "alice" });
+  const bobId = await seedDrawing(root, "2026-04-19", 32, { user_id: "b".repeat(64), username: "bob" });
 
   await build({ storage, publicBaseUrl: "https://example.test", today: "2026-04-20" });
 
   const aliceIdx = await fs.readFile(
-    path.join(root, `public/keys/${alice}/index.jsonl`),
+    path.join(root, `public/u/alice/index.jsonl`),
     "utf8",
   );
   const bobIdx = await fs.readFile(
-    path.join(root, `public/keys/${bob}/index.jsonl`),
+    path.join(root, `public/u/bob/index.jsonl`),
     "utf8",
   );
   assert.equal(aliceIdx.split("\n").filter(Boolean).length, 1);
   assert.equal(bobIdx.split("\n").filter(Boolean).length, 1);
 
-  const aliceHtml = await fs.readFile(path.join(root, `public/keys/${alice}.html`), "utf8");
-  const bobHtml = await fs.readFile(path.join(root, `public/keys/${bob}.html`), "utf8");
-  // Each owner page links its own drawing only.
+  const aliceHtml = await fs.readFile(path.join(root, `public/u/alice.html`), "utf8");
+  const bobHtml = await fs.readFile(path.join(root, `public/u/bob.html`), "utf8");
+  // Each profile page links its own drawing only.
   assert.match(aliceHtml, new RegExp(`/d/${aliceId}`));
   assert.equal(aliceHtml.includes(bobId), false);
   assert.match(bobHtml, new RegExp(`/d/${bobId}`));
   assert.equal(bobHtml.includes(aliceId), false);
 });
 
-test("builder per-owner sweep: skips legacy/anonymous drawings (no /keys/ artifact)", async () => {
+test("builder per-account sweep: skips legacy/anonymous drawings (no /u/ artifact)", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
   const storage = new FsStorage(root);
-  // Sidecar without owner fields -> anonymous.
+  // Sidecar without account fields -> anonymous.
   await seedDrawing(root, "2026-04-19", 41);
 
   await build({ storage, publicBaseUrl: "https://example.test", today: "2026-04-20" });
 
-  // No keys/ directory should have been created at all.
-  const keysExists = await fs.stat(path.join(root, "public/keys")).then(() => true, () => false);
-  assert.equal(keysExists, false);
+  // No u/ directory should have been created at all.
+  const uExists = await fs.stat(path.join(root, "public/u")).then(() => true, () => false);
+  assert.equal(uExists, false);
 });
 
-test("builder writes null pubkey + signature for legacy inbox sidecars (pre-feature), drawing page renders 'anonymous'", async () => {
+test("builder writes null user_id + username for legacy inbox sidecars, drawing page renders 'anonymous'", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
   const storage = new FsStorage(root);
 
-  // No seedOpts -> sidecar omits the owner fields, like every drawing
-  // submitted before #83 landed.
+  // No seedOpts -> sidecar omits the account fields, like every drawing
+  // submitted under the old anonymous keypair scheme.
   const id = await seedDrawing(root, "2026-04-19", 12);
 
   await build({ storage, publicBaseUrl: "https://example.test", today: "2026-04-20" });
@@ -240,35 +234,32 @@ test("builder writes null pubkey + signature for legacy inbox sidecars (pre-feat
   assert.equal(lines.length, 1);
   const entry = JSON.parse(lines[0]) as IndexLine;
   assert.equal(entry.id, id);
-  assert.equal(entry.pubkey, null);
-  assert.equal(entry.signature, null);
+  assert.equal(entry.user_id, null);
+  assert.equal(entry.username, null);
 
-  // Legacy drawing renders the 'anonymous' fallback (no /keys/ link).
+  // Legacy drawing renders the 'anonymous' fallback (no /u/ link).
   const drawingHtml = await fs.readFile(path.join(root, `public/d/${id}.html`), "utf8");
   assert.match(drawingHtml, /<dt>Author<\/dt><dd>anonymous<\/dd>/);
   // Strip <script> blocks first — the children-hydration script contains
-  // the literal string href="/keys/..." as part of its DOM-building
-  // template, but no actual anchor element is rendered.
+  // the literal string href="/u/..." as part of its DOM-building template,
+  // but no actual anchor element is rendered.
   const sansScripts = drawingHtml.replace(/<script>[\s\S]*?<\/script>/g, "");
-  assert.equal(/href="\/keys\//.test(sansScripts), false);
+  assert.equal(/href="\/u\//.test(sansScripts), false);
 });
 
-test("builder renders streaks + badges on owner page when userStatsSource is wired", async () => {
-  // #115/#116: rebuildOwners reads the per-pubkey row and the template
-  // surfaces it as a stats block. Verifies the badges helper composes
-  // correctly with the rendered HTML (daily_total 7 → daily-7 badge).
+test("builder renders streaks + badges on profile page when userStatsSource is wired", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
   const storage = new FsStorage(root);
 
-  const pubkey = "a".repeat(64);
-  const signature = "b".repeat(128);
-  await seedDrawing(root, "2026-04-19", 21, { pubkey, signature });
+  const user_id = "a".repeat(64);
+  const username = "alice";
+  await seedDrawing(root, "2026-04-19", 21, { user_id, username });
 
   const userStatsSource = {
-    async get(pk: string) {
-      if (pk !== pubkey) return null;
+    async get(uid: string) {
+      if (uid !== user_id) return null;
       return {
-        pubkey,
+        user_id,
         daily_total: 7,
         daily_streak_current: 3,
         daily_streak_longest: 5,
@@ -289,21 +280,20 @@ test("builder renders streaks + badges on owner page when userStatsSource is wir
     userStatsSource,
   });
 
-  const ownerHtml = await fs.readFile(path.join(root, `public/keys/${pubkey}.html`), "utf8");
-  assert.match(ownerHtml, /<dl class="ow-stats">/);
-  assert.match(ownerHtml, /3-day streak/);
-  assert.match(ownerHtml, /best 5/);
-  assert.match(ownerHtml, /7 drawings total/);
-  assert.match(ownerHtml, /1-week streak/);
-  assert.match(ownerHtml, /2 canvases total/);
-  // daily_total === 7 unlocks daily-7; canvas_total === 2 unlocks nothing.
-  assert.match(ownerHtml, /data-badge-id="daily-7"/);
+  const profileHtml = await fs.readFile(path.join(root, `public/u/${username}.html`), "utf8");
+  assert.match(profileHtml, /<dl class="ow-stats">/);
+  assert.match(profileHtml, /3-day streak/);
+  assert.match(profileHtml, /best 5/);
+  assert.match(profileHtml, /7 drawings total/);
+  assert.match(profileHtml, /1-week streak/);
+  assert.match(profileHtml, /2 canvases total/);
+  assert.match(profileHtml, /data-badge-id="daily-7"/);
   assert.ok(
-    !/data-badge-id="daily-30"/.test(ownerHtml),
+    !/data-badge-id="daily-30"/.test(profileHtml),
     "daily-30 should not appear at daily_total=7",
   );
   assert.ok(
-    !/data-badge-id="canvas-10"/.test(ownerHtml),
+    !/data-badge-id="canvas-10"/.test(profileHtml),
     "canvas-10 should not appear at canvas_total=2",
   );
 });
@@ -311,30 +301,24 @@ test("builder renders streaks + badges on owner page when userStatsSource is wir
 test("builder omits stats block when userStatsSource is absent", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
   const storage = new FsStorage(root);
-  const pubkey = "a".repeat(64);
-  const signature = "b".repeat(128);
-  await seedDrawing(root, "2026-04-19", 22, { pubkey, signature });
+  await seedDrawing(root, "2026-04-19", 22, { user_id: "a".repeat(64), username: "alice" });
 
   await build({ storage, publicBaseUrl: "https://example.test", today: "2026-04-20" });
 
-  const ownerHtml = await fs.readFile(path.join(root, `public/keys/${pubkey}.html`), "utf8");
-  assert.ok(!/<dl class="ow-stats">/.test(ownerHtml), "no stats block without source");
+  const profileHtml = await fs.readFile(path.join(root, `public/u/alice.html`), "utf8");
+  assert.ok(!/<dl class="ow-stats">/.test(profileHtml), "no stats block without source");
 });
 
-test("builder emits the owner-page hydration script only when apiBaseUrl is set", async () => {
-  // Stats endpoint freshness path. With apiBaseUrl wired the page ships an
-  // inline fetch() to /keys/<pubkey>/stats so visits see counts from the
-  // live DDB row, not the last builder run. Without apiBaseUrl (dev /
-  // FsStorage) the script is suppressed to keep dev pages free of 404s.
+test("builder emits the profile-page hydration script only when apiBaseUrl is set", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
   const storage = new FsStorage(root);
-  const pubkey = "a".repeat(64);
-  const signature = "b".repeat(128);
-  await seedDrawing(root, "2026-04-19", 23, { pubkey, signature });
+  const user_id = "a".repeat(64);
+  const username = "alice";
+  await seedDrawing(root, "2026-04-19", 23, { user_id, username });
   const userStatsSource = {
     async get() {
       return {
-        pubkey,
+        user_id,
         daily_total: 1, daily_streak_current: 1, daily_streak_longest: 1,
         daily_last_date: "2026-04-19",
         canvas_total: 0, canvas_streak_current: 0, canvas_streak_longest: 0,
@@ -352,25 +336,25 @@ test("builder emits the owner-page hydration script only when apiBaseUrl is set"
     userStatsSource,
     apiBaseUrl: "https://api.example.test",
   });
-  const withApi = await fs.readFile(path.join(root, `public/keys/${pubkey}.html`), "utf8");
+  const withApi = await fs.readFile(path.join(root, `public/u/${username}.html`), "utf8");
   assert.match(withApi, /data-stats-daily/, "expected hydration target attribute on the daily dd");
   assert.match(
     withApi,
-    /fetch\("https:\/\/api\.example\.test\/keys\/a{64}\/stats"\)/,
+    /fetch\("https:\/\/api\.example\.test\/users\/a{64}\/stats"\)/,
     "expected the hydration script to fetch the stats endpoint",
   );
 
   // (2) Without apiBaseUrl — stats block still rendered, but no script.
   const root2 = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
   const storage2 = new FsStorage(root2);
-  await seedDrawing(root2, "2026-04-19", 23, { pubkey, signature });
+  await seedDrawing(root2, "2026-04-19", 23, { user_id, username });
   await build({
     storage: storage2,
     publicBaseUrl: "https://example.test",
     today: "2026-04-20",
     userStatsSource,
   });
-  const noApi = await fs.readFile(path.join(root2, `public/keys/${pubkey}.html`), "utf8");
+  const noApi = await fs.readFile(path.join(root2, `public/u/${username}.html`), "utf8");
   assert.match(noApi, /<dl class="ow-stats">/);
   assert.ok(
     !/fetch\([^)]*\/stats/.test(noApi),
@@ -379,22 +363,12 @@ test("builder emits the owner-page hydration script only when apiBaseUrl is set"
 });
 
 test("builder preserves canvas membership when re-rendering an existing drawing page", async () => {
-  // Regression: a forced re-render used to wipe the "Canvases" section
-  // because drawingViewModel didn't load the per-drawing .canvases.json
-  // sidecar that ingest wrote on canvas publish. Builders re-render with
-  // DRAWBANG_FORCE_RERENDER=1 on every deploy, so any drawing that had been
-  // placed into a canvas lost the canvas link the next day.
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
   const storage = new FsStorage(root);
 
-  const pubkey = "a".repeat(64);
-  const signature = "b".repeat(128);
-  const id = await seedDrawing(root, "2026-04-19", 14, { pubkey, signature });
+  const id = await seedDrawing(root, "2026-04-19", 14, { user_id: "a".repeat(64), username: "alice" });
 
-  // Seed the canvases sidecar at the same key ingest writes — different
-  // pubkey for claimed_by than the drawing author, to also pin the
-  // CLAUDE.md invariant that the canvas page attributes use to the claimer
-  // and not the original author.
+  // Seed the canvases sidecar at the same key ingest writes.
   const claimedBy = "c".repeat(64);
   const sidecarPath = path.join(root, `public/drawings/${id}.canvases.json`);
   await fs.mkdir(path.dirname(sidecarPath), { recursive: true });
@@ -409,7 +383,7 @@ test("builder preserves canvas membership when re-rendering an existing drawing 
           x: 3,
           y: 4,
           claimed_by: claimedBy,
-          claimed_by_short: claimedBy.slice(0, 8),
+          claimed_by_username: "carol",
         },
       ],
     }),
@@ -430,7 +404,7 @@ test("builder preserves canvas membership when re-rendering an existing drawing 
     /href="\/canvases\/canvas-2026-W16#tile-3-4"/,
   );
   assert.ok(
-    drawingHtml.includes(`/keys/${claimedBy}`),
-    "expected claimed_by attribution in the canvas membership link",
+    drawingHtml.includes(`/u/carol`),
+    "expected claimed_by_username attribution in the canvas membership link",
   );
 });

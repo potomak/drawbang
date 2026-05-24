@@ -4,9 +4,15 @@ Orientation for future Claude sessions on this repo.
 
 ## What this is
 
-Drawbang is a 16×16 pixel art editor + anonymous public gallery. The stack is
+Drawbang is a 16×16 pixel art editor + public gallery. The stack is
 static-first: a browser editor, a tiny proof-of-work-gated ingest endpoint, and
 a daily batch job that regenerates the gallery as static HTML.
+
+Identity is an **email/password account** (replaced the original anonymous
+Ed25519 keypair scheme). The gallery is publicly viewable and you can draw
+locally without an account, but **publishing and canvas tile claims require a
+logged-in account**. Sessions are stateless HS256 JWTs; the public handle is a
+chosen **username** (profiles live at `/u/<username>`). See "Identity model".
 
 The original Ruby/Sinatra/Redis/RMagick app is archived under `legacy/` and is
 not imported by any current code.
@@ -37,21 +43,51 @@ asset, new tracking script) must consider every entry below.
 | `/gallery`                     | `builder/templates/gallery.ts` → `gallery.html`   | Builder |
 | `/days/<YYYY-MM-DD>/p/<N>`     | `builder/templates/day-gallery.ts`                | Builder |
 | `/d/<64hex>`                   | `builder/templates/drawing.ts`                    | Builder + sync-rendered by ingest Lambda on publish |
-| `/keys/<64hex>`                | `builder/templates/owner.ts`                      | Builder (per-owner profile gallery) |
+| `/u/<username>`                | `builder/templates/owner.ts`                      | Builder (per-account profile gallery) |
 | `/products`, `/products/p/<N>` | `builder/templates/products.ts`                   | Builder |
 | `/merch?d=<id>`                | `merch.html` + `src/merch.ts`                     | Picker (Vite) |
 | `/merch/order/<uuid>`          | `order.html` + `src/order.ts`                     | Order status (Vite) |
 | `/pow-test`                    | `pow-test.html` + `src/pow-test.ts`               | Dev test bed (Vite) |
-| `/identity`                    | `identity.html` (Vite-served, chrome via markers) | Fallback for the chrome identity link when localStorage has no pubkey |
+| `/login`                       | `login.html` + `src/login.ts`                     | Auth (Vite) |
+| `/signup`                      | `signup.html` + `src/signup.ts`                   | Auth (Vite) |
+| `/reset`                       | `reset.html` + `src/reset.ts`                     | Password reset request + confirm (Vite) |
+| `/account`                     | `account.html` + `src/account.ts`                 | Logged-in account / sign-out (Vite) |
 | `/feed.rss`                    | `builder/templates/feed.ts`                       | Builder (RSS, no chrome) |
 | `/canvases`                    | `builder/templates/canvases-archive.ts`           | Builder (archive: current canvas + past) |
 | `/canvases/<canvas-id>`        | `builder/templates/canvas.ts`                     | Builder (16×16 tile grid; live for active, frozen for locked) |
 
 The shared chrome (`src/layout/chrome.ts`, #102) renders the header + footer
-for everything except `/feed.rss` (XML) and `/identity` (no page yet).
-Vite-served pages get the chrome via the `<!--CHROME:HEADER-->` /
-`<!--CHROME:FOOTER-->` markers + `vite/plugins/chrome.ts`. Builder pages call
-`renderHeader` / `renderFooter` from the chrome module directly.
+for everything except `/feed.rss` (XML). Vite-served pages get the chrome via
+the `<!--CHROME:HEADER-->` / `<!--CHROME:FOOTER-->` markers +
+`vite/plugins/chrome.ts`. Builder pages call `renderHeader` / `renderFooter`
+from the chrome module directly. The chrome's identity link defaults to
+`/login` ("Sign in") and is rewritten client-side to `/u/<username>`
+("Profile") by `static/chrome-identity.js` when `localStorage["drawbang:username"]`
+is present.
+
+## Identity model
+
+- **Account** = email (private, unique, login key) + password + a chosen
+  **username** (public, unique, immutable in v1) + a stable random 64-hex
+  `user_id`. Stored in DynamoDB `drawbang-users` (PK email); `drawbang-usernames`
+  reserves the handle. Registration writes both in one `TransactWriteItems`.
+- **Password hashing**: scrypt (`ingest/password.ts`), built-in, no native dep.
+- **Sessions**: stateless HS256 JWT (`ingest/jwt.ts`), `{ sub: user_id, un:
+  username }`, ~30-day exp, signed with `JWT_SECRET`. Client keeps it in
+  `localStorage["drawbang:jwt"]` and mirrors the username to
+  `localStorage["drawbang:username"]`. Publish/claim send `Authorization:
+  Bearer <jwt>`; the route verifies signature + exp (no DB read) and passes
+  `{ user_id, username }` into the handlers.
+- **Password reset**: `ingest/email.ts` sends a link via SES carrying a 1h
+  reset-JWT (`{ email, tv: token_version, purpose: "reset" }`). Confirm checks
+  `tv === token_version` then bumps `token_version`, making the link single-use.
+  No signup email verification. Reset requests always return 200 (no email
+  enumeration).
+- **Auth surface**: `src/auth.ts` (client), `ingest/auth-handler.ts` (server),
+  routes `POST /auth/{register,login,reset/request,reset/confirm}`.
+- Drawing metadata stores `user_id` + `username`; the drawing page and canvas
+  memberships link authors to `/u/<username>`. Legacy keypair-published drawings
+  (fresh start) keep no `username` and render as "anonymous" with no profile.
 
 ## Shared CSS (single source of truth)
 
@@ -84,35 +120,46 @@ config/               Shared constants + POW difficulty table
   canvases.ts         TILES_PER_SIDE=16, CLAIM_TTL_S=1800, PUBLISH_COOLDOWN_S=900,
                       ISO-week canvas-id helpers (canvasIdForDate, opens/closes, tileKey).
 
-src/                  Vite + TypeScript editor (ships to GitHub Pages)
+src/                  Vite + TypeScript editor
   editor/             bitmap, canvas, tools, history, palette, gif
   pow.ts              sha256 PoW + contentHash (Node sync fast path + Web Crypto fallback)
   pow.worker.ts       WebWorker: bench + solve
   share.ts            URL-hash share codec (5 bpp, 17 pixel states)
   local.ts            IndexedDB "My drawings" store
-  submit.ts           Bench, solve, POST to /ingest
-  main.ts             Editor UI
+  auth.ts             Client session: register/login/reset, JWT in localStorage,
+                      authHeader() for publish/claim, getSession/logout.
+  login.ts/signup.ts/reset.ts/account.ts  Auth page controllers (Vite entries)
+  submit.ts           Bench, solve, POST to /ingest with Bearer auth
+  main.ts             Editor UI (publish gated on a logged-in session)
 
 ingest/               Shared ingest logic
   handler.ts          Core logic: validate → content-id → PoW check → write.
-                      Canvas-aware: canvas_claim branch runs BEFORE the
-                      idempotency short-circuit so the same gif can join
-                      multiple canvases.
+                      Identity from cfg.auth ({user_id, username}) set by the
+                      route after JWT verification. Canvas-aware: canvas_claim
+                      branch runs BEFORE the idempotency short-circuit so the
+                      same gif can join multiple canvases.
+  jwt.ts              HS256 sign/verify (Node crypto, no dep) for sessions + reset.
+  password.ts         scrypt hash/verify.
+  user-store.ts       DDB wrapper for accounts (register via TransactWriteItems,
+                      getByEmail, updatePassword) + MemoryUserStore. Tables:
+                      drawbang-users (PK email), drawbang-usernames (PK username).
+  email.ts            SES password-reset sender + ConsoleEmailSender (dev stub).
+  auth-handler.ts     POST /auth/{register,login,reset/request,reset/confirm}.
   gif-validate.ts     GIF89a header check, 16×16, ≤16 frames, DRAWBANG ext
   storage.ts          Storage interface + FsStorage (dev/tests)
   s3-storage.ts       S3Storage (Lambda + daily builder)
   canvas-store.ts     DDB wrapper (claimTile, publishTile, getTiles,
                       cooldownRemaining) + MemoryCanvasStore for dev/tests.
-                      All multi-row writes via TransactWriteItems.
-  canvas-handler.ts   POST /canvas/claim + GET /canvas/{id}/state.
-  user-stats-store.ts DDB wrapper for per-pubkey streak + total counters
+                      All multi-row writes via TransactWriteItems. Keyed on user_id.
+  canvas-handler.ts   POST /canvas/claim (auth via cfg.auth) + GET /canvas/{id}/state.
+  user-stats-store.ts DDB wrapper for per-account streak + total counters
                       (#115/#116) + MemoryUserStatsStore for dev/tests.
-  user-stats-handler.ts GET /keys/{pubkey}/stats — fresh counters + badges.
+  user-stats-handler.ts GET /users/{user_id}/stats — fresh counters + badges.
   lambda.ts           API Gateway v2 entry point — routes /ingest,
-                      /canvas/claim, /canvas/{id}/state,
-                      /keys/{pubkey}/stats.
-  dev-server.ts       Node HTTP shim for `npm run ingest:dev` — uses
-                      MemoryCanvasStore for canvas routes.
+                      /canvas/claim, /canvas/{id}/state, /users/{user_id}/stats,
+                      /auth/*. Verifies the Bearer JWT for /ingest + /canvas/claim.
+  dev-server.ts       Node HTTP shim for `npm run ingest:dev` — MemoryCanvasStore
+                      + MemoryUserStore + ConsoleEmailSender (reset link logged).
 
 builder/              Daily batch job (incremental, day-partitioned)
   build.ts            Sweeps inbox/, publishes to public/, renders HTML.
@@ -138,8 +185,8 @@ scripts/
   smoke-ingest.ts     End-to-end smoke test against a deployed endpoint
 
 docs/
-  identity-considerations.md  Notes on extending the Ed25519 scheme
-                              (domain separation, passkey feasibility)
+  identity-considerations.md  Account model: JWT sessions, scrypt, reset flow,
+                              and the security trade-offs taken.
   gotchas.md                  Build / deploy / SDK quirks worth knowing —
                               consult before debugging anything obscure.
 
@@ -154,6 +201,10 @@ legacy/               Archived Ruby app; read-only reference, never imported
 - **Drawing id is content-addressed on gif bytes alone.**
   `id = hex(sha256(gif_bytes))`. Same drawing → same id, regardless of PoW.
   PoW stays required but lives in metadata as `pow = hex(sha256(gif ‖ baseline ‖ nonce))`.
+- **Identity comes from the verified session JWT, never the request body.**
+  The route (`ingest/lambda.ts` / `ingest/dev-server.ts`) verifies the Bearer
+  JWT and passes `{ user_id, username }` into `handleIngest` / `handleCanvasClaim`
+  via `cfg.auth`. A missing/invalid token is a 401 before the handler runs.
 - **GIF format is fixed.** 16×16, ≤16 frames, 5 FPS (200 ms delay), GCT has 32
   entries: slots 0..15 = active palette RGB, slot 16 = transparent, 17..31 = 0.
 - **DRAWBANG Application Extension** (in `src/editor/gif.ts`): app identifier
@@ -170,15 +221,16 @@ legacy/               Archived Ruby app; read-only reference, never imported
 - **Canvas tile state lives in DynamoDB**, never in S3. S3 has no CAS, so
   two concurrent publishes that read-modify-write a `state.json` will
   clobber. `drawbang-canvas-tiles` (claims/publishes) and
-  `drawbang-canvas-cooldowns` (per-pubkey-per-canvas) are the sole source
+  `drawbang-canvas-cooldowns` (per-user_id-per-canvas) are the sole source
   of truth; the canvas page hydrates from `GET /canvas/{id}/state`.
 - **Soft-claim TTL is enforced by the conditional write**, not a background
   job. The tile row stores `claim_expires_at` (epoch); every claim/publish
   conditional compares it inline against `:now`. DDB TTL (`ttl_epoch`) is
   for housekeeping after canvases close, not for correctness.
-- **Claim PoW exists**. Without it, a takeover attacker keygens → claims →
-  keygens → claims → … for free. `POST /canvas/claim` requires a PoW over
-  `claim:<canvas_id>:<x>:<y>:<pubkey>:<baseline>:<nonce>` at the same
+- **Claim PoW exists**. Per-action PoW (not identity) is what bounds tile
+  takeover, since account creation is cheap (no signup verification).
+  `POST /canvas/claim` requires a PoW over
+  `claim:<canvas_id>:<x>:<y>:<user_id>:<baseline>:<nonce>` at the same
   difficulty curve as publish PoW, per-canvas baseline.
 - **`handleIngest` runs canvas_claim BEFORE the idempotency short-circuit.**
   Drawing ids are content-addressed (`sha256(gif_bytes)`), so the same gif
@@ -186,10 +238,10 @@ legacy/               Archived Ruby app; read-only reference, never imported
   `exists(publishedKey)` is gated on `!canvas_claim` — the canvas branch
   always proceeds to update DDB + the canvases sidecar + drawing page.
 - **Drawing's canvas memberships live in `public/drawings/<id>.canvases.json`**,
-  not in the immutable inbox/day metadata. Each entry attributes the tile
-  use to its `claimed_by`, NOT the original drawing author. The drawing
-  page renders the claimer's pubkey so the original author isn't implicated
-  when key A puts key B's gif in a canvas.
+  not in the immutable inbox/day metadata. Each entry stores `claimed_by`
+  (`user_id`) + `claimed_by_username`; the drawing page links the claimer to
+  `/u/<username>`. (With one identity per request the claimer equals the
+  publishing author.)
 
 ## Commands
 
@@ -211,15 +263,19 @@ npm run lambda:deploy  # lambda:build + sam deploy
 one shell. Together they let you exercise the publish path end-to-end against
 the filesystem:
 
-1. Open http://localhost:5173 — generate an identity if you don't have one.
-2. Draw, then **Publish**. The ingest server writes to `./dev-bucket/`, runs
-   `build()` inline, and logs `[builder] rebuilt in <Xms>`.
-3. Visit `/gallery`, `/d/<id>`, or `/keys/<pubkey>` — the dev-bucket Vite
+1. Open http://localhost:5173 — visit `/signup` and create an account (the
+   dev server uses an in-memory `MemoryUserStore`, so accounts reset on restart).
+2. Draw, then **Publish** (requires a session; otherwise you're sent to
+   `/login`). The ingest server writes to `./dev-bucket/`, runs `build()`
+   inline, and logs `[builder] rebuilt in <Xms>`.
+3. Visit `/gallery`, `/d/<id>`, or `/u/<username>` — the dev-bucket Vite
    plugin (`vite/plugins/dev-bucket.ts`) serves them from
    `./dev-bucket/public/` using the same clean-URL rewrites as the prod
    CloudFront Function.
+4. **Forgot password**: `/reset` → the ingest dev server logs the reset link to
+   its console (`[email] password reset for …`). Open it to set a new password.
 
-The Vite config also proxies `/ingest` and `/state/last-publish.json` to
+The Vite config proxies `/ingest`, `/auth`, and `/state/last-publish.json` to
 `:8787`, so the editor's default relative URLs (`VITE_INGEST_URL=/ingest`,
 etc.) work without overrides. The merch / order / products surfaces still
 depend on DynamoDB and Stripe in prod — they're out of scope for local e2e.
@@ -236,14 +292,21 @@ Editor (build-time):
 
 Lambda (runtime, set via SAM):
 - `DRAWBANG_BUCKET` — S3 bucket name.
-- `PUBLIC_BASE_URL` — `https://${cloudfront-domain}`. Goes into `share_url`.
+- `PUBLIC_BASE_URL` — `https://${cloudfront-domain}`. Goes into `share_url`
+  and the password-reset link.
 - `REPO_URL` — for the footer link on the synchronously-rendered drawing page.
 - `DRAWBANG_CANVAS_TILES_TABLE` — DynamoDB table for tile claims (default
   `drawbang-canvas-tiles`).
-- `DRAWBANG_CANVAS_COOLDOWNS_TABLE` — DynamoDB table for per-pubkey-
+- `DRAWBANG_CANVAS_COOLDOWNS_TABLE` — DynamoDB table for per-account-
   per-canvas publish cooldowns (default `drawbang-canvas-cooldowns`).
-- `DRAWBANG_USER_STATS_TABLE` — DynamoDB table for per-pubkey streak +
+- `DRAWBANG_USER_STATS_TABLE` — DynamoDB table for per-account streak +
   total counters (#115/#116, default `drawbang-user-stats`).
+- `DRAWBANG_USERS_TABLE` — accounts table (default `drawbang-users`).
+- `DRAWBANG_USERNAMES_TABLE` — username reservations (default `drawbang-usernames`).
+- `JWT_SECRET` — HS256 secret for session + reset JWTs. **Required**: the
+  ingest function fails loud at cold start if unset.
+- `SES_FROM_ADDRESS` — verified SES sender for reset emails. Optional; when
+  empty, reset requests still 200 but no email is sent.
 
 Builder CLI:
 - `DRAWBANG_S3_BUCKET` — if set, uses S3Storage; otherwise FsStorage at `DRAWBANG_BUCKET`.
@@ -255,7 +318,7 @@ Builder CLI:
   (default `drawbang-product-counters`). Only read when `DRAWBANG_S3_BUCKET` is
   set; local dev with FsStorage skips the /products surface.
 - `DRAWBANG_USER_STATS_TABLE` — DynamoDB table read for the streaks/badges
-  block on `/keys/<pubkey>.html` (default `drawbang-user-stats`). Only read
+  block on `/u/<username>.html` (default `drawbang-user-stats`). Only read
   when `DRAWBANG_S3_BUCKET` is set; local dev with FsStorage omits the block.
 
 ## AWS deployment
@@ -268,9 +331,15 @@ One-time setup:
    needed for distribution + function updates.)
 2. GitHub secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
    `PRINTIFY_API_TOKEN`, `PRINTIFY_SHOP_ID`, `STRIPE_SECRET_KEY`,
-   `STRIPE_WEBHOOK_SECRET`.
+   `STRIPE_WEBHOOK_SECRET`, `JWT_SECRET` (required for accounts), and
+   `SES_FROM_ADDRESS` (optional, for reset emails).
 3. First deploy happens automatically on push to `master`. SAM creates the S3
-   bucket, Lambda, HTTP API, DynamoDB orders table, and IAM role.
+   bucket, Lambda, HTTP API, DynamoDB tables (orders, canvas, user-stats,
+   users, usernames), and IAM role.
+4. **SES setup** (for password reset): verify a sender identity (domain or
+   address) in SES, set `SES_FROM_ADDRESS` to it, and — if the account is in
+   the SES sandbox — request production access so resets reach arbitrary
+   recipients. Until then, reset links only email pre-verified addresses.
 
 API Gateway URL appears in `sam deploy` output as `IngestEndpoint`. Update the
 `INGEST_URL` env in `.github/workflows/deploy.yml` if it ever changes.

@@ -7,15 +7,12 @@ import {
   handleCanvasClaim,
   handleCanvasState,
   type CanvasClaimRequest,
+  type CanvasHandlerConfig,
   type CanvasStateResponseBody,
 } from "../ingest/canvas-handler.js";
 import { MemoryCanvasStore } from "../ingest/canvas-store.js";
 import { FsStorage } from "../ingest/storage.js";
-import {
-  generateIdentity,
-  pubKeyHex,
-  signCanvasClaim,
-} from "../src/identity.js";
+import type { AuthedUser } from "../ingest/handler.js";
 import { solveClaim } from "../src/pow.js";
 import {
   canvasIdForDate,
@@ -33,29 +30,34 @@ function liveCanvasFor(now: Date): { canvasId: string; opens: Date } {
   return { canvasId: id, opens: canvasOpensAt(id) };
 }
 
+function authFor(userId: string): AuthedUser {
+  return { user_id: userId, username: `u_${userId.slice(0, 6)}` };
+}
+
+const DEFAULT_USER = "a".repeat(64);
+
+// Identity now comes from the verified JWT (cfg.auth); the claim PoW is keyed
+// on the user_id, and the request body no longer carries pubkey/signature.
 async function buildClaim(opts: {
   canvasId: string;
   x: number;
   y: number;
   baseline: string;
   bits: number;
-}): Promise<{ req: CanvasClaimRequest; pubkey: string }> {
-  const id = await generateIdentity();
-  const pubkey = await pubKeyHex(id);
-  const signature = await signCanvasClaim(id, opts.canvasId, opts.x, opts.y);
+  userId?: string;
+}): Promise<{ req: CanvasClaimRequest; auth: AuthedUser }> {
+  const userId = opts.userId ?? DEFAULT_USER;
   const solved = await solveClaim(
-    { canvasId: opts.canvasId, x: opts.x, y: opts.y, pubkey },
+    { canvasId: opts.canvasId, x: opts.x, y: opts.y, userId },
     opts.baseline,
     opts.bits,
   );
   return {
-    pubkey,
+    auth: authFor(userId),
     req: {
       canvas_id: opts.canvasId,
       x: opts.x,
       y: opts.y,
-      pubkey,
-      signature,
       baseline: opts.baseline,
       nonce: solved.nonce,
     },
@@ -69,11 +71,12 @@ describe("POST /canvas/claim", () => {
     const now = new Date("2026-05-13T12:00:00Z");
     const { canvasId } = liveCanvasFor(now);
     const baseline = "1970-01-01T00:00:00.000Z";
-    const { req } = await buildClaim({ canvasId, x: 5, y: 12, baseline, bits: 14 });
+    const { req, auth } = await buildClaim({ canvasId, x: 5, y: 12, baseline, bits: 14 });
     const r = await handleCanvasClaim(req, {
       storage,
       canvasStore,
       publicBaseUrl: "https://example.test",
+      auth,
       now: () => now,
     });
     assert.equal(r.status, 201);
@@ -82,27 +85,7 @@ describe("POST /canvas/claim", () => {
     assert.equal(body.edit_url, `/?c=${canvasId}&x=5&y=12`);
   });
 
-  test("missing pubkey → 400", async () => {
-    const { storage } = await tmpStorage();
-    const canvasStore = new MemoryCanvasStore();
-    const now = new Date("2026-05-13T12:00:00Z");
-    const { canvasId } = liveCanvasFor(now);
-    const r = await handleCanvasClaim(
-      {
-        canvas_id: canvasId,
-        x: 0,
-        y: 0,
-        pubkey: "",
-        signature: "0".repeat(128),
-        baseline: "1970-01-01T00:00:00.000Z",
-        nonce: "0",
-      },
-      { storage, canvasStore, publicBaseUrl: "https://example.test", now: () => now },
-    );
-    assert.equal(r.status, 400);
-  });
-
-  test("bad signature → 400", async () => {
+  test("missing auth → 401", async () => {
     const { storage } = await tmpStorage();
     const canvasStore = new MemoryCanvasStore();
     const now = new Date("2026-05-13T12:00:00Z");
@@ -114,14 +97,13 @@ describe("POST /canvas/claim", () => {
       baseline: "1970-01-01T00:00:00.000Z",
       bits: 14,
     });
-    req.signature = "0".repeat(128);
     const r = await handleCanvasClaim(req, {
       storage,
       canvasStore,
       publicBaseUrl: "https://example.test",
       now: () => now,
-    });
-    assert.equal(r.status, 400);
+    } as CanvasHandlerConfig);
+    assert.equal(r.status, 401);
   });
 
   test("locked canvas → 403", async () => {
@@ -130,7 +112,7 @@ describe("POST /canvas/claim", () => {
     // Today = 2026-05-13. Pick a canvas that's already closed.
     const now = new Date("2026-05-13T12:00:00Z");
     const lockedCanvas = "canvas-2026-W01"; // closed Jan 5, 2026.
-    const { req } = await buildClaim({
+    const { req, auth } = await buildClaim({
       canvasId: lockedCanvas,
       x: 0,
       y: 0,
@@ -141,6 +123,7 @@ describe("POST /canvas/claim", () => {
       storage,
       canvasStore,
       publicBaseUrl: "https://example.test",
+      auth,
       now: () => now,
     });
     assert.equal(r.status, 403);
@@ -151,44 +134,46 @@ describe("POST /canvas/claim", () => {
     const canvasStore = new MemoryCanvasStore();
     const now = new Date("2026-05-13T12:00:00Z");
     const { canvasId } = liveCanvasFor(now);
-    const id = await generateIdentity();
-    const pubkey = await pubKeyHex(id);
-    const signature = await signCanvasClaim(id, canvasId, 0, 0);
     // Trivial nonce won't satisfy 14 bits.
     const r = await handleCanvasClaim(
       {
         canvas_id: canvasId,
         x: 0,
         y: 0,
-        pubkey,
-        signature,
         baseline: "1970-01-01T00:00:00.000Z",
         nonce: "0",
       },
-      { storage, canvasStore, publicBaseUrl: "https://example.test", now: () => now },
+      {
+        storage,
+        canvasStore,
+        publicBaseUrl: "https://example.test",
+        auth: authFor(DEFAULT_USER),
+        now: () => now,
+      },
     );
     assert.equal(r.status, 400);
   });
 
-  test("second pubkey on same tile → 409", async () => {
+  test("second account on same tile → 409", async () => {
     const { storage } = await tmpStorage();
     const canvasStore = new MemoryCanvasStore();
     const now = new Date("2026-05-13T12:00:00Z");
     const { canvasId } = liveCanvasFor(now);
     const baseline = "1970-01-01T00:00:00.000Z";
 
-    const first = await buildClaim({ canvasId, x: 3, y: 4, baseline, bits: 14 });
+    const first = await buildClaim({ canvasId, x: 3, y: 4, baseline, bits: 14, userId: "a".repeat(64) });
     const r1 = await handleCanvasClaim(first.req, {
       storage,
       canvasStore,
       publicBaseUrl: "https://example.test",
+      auth: first.auth,
       now: () => now,
     });
     assert.equal(r1.status, 201);
 
     // After the first claim, last_claim_at = nowISO and the difficulty
     // curve rises (20 bits at age < 10s). Wait until the bracket drops back
-    // to 14 bits (>600s) so the second user's PoW is verifiable cheaply.
+    // to 14 bits (>600s) so the second account's PoW is verifiable cheaply.
     const now2 = new Date(now.getTime() + 700_000);
     const second = await buildClaim({
       canvasId,
@@ -196,11 +181,13 @@ describe("POST /canvas/claim", () => {
       y: 4,
       baseline: now.toISOString(),
       bits: 14,
+      userId: "b".repeat(64),
     });
     const r2 = await handleCanvasClaim(second.req, {
       storage,
       canvasStore,
       publicBaseUrl: "https://example.test",
+      auth: second.auth,
       now: () => now2,
     });
     assert.equal(r2.status, 409);
@@ -251,22 +238,23 @@ describe("GET /canvas/{id}/state", () => {
       storage,
       canvasStore,
       publicBaseUrl: "https://example.test",
+      auth: claim1.auth,
       now: () => now,
     });
 
     // Direct DDB-style write for the published tile (we don't need to
-    // exercise the ingest path here — that's #180).
+    // exercise the ingest path here).
     await canvasStore.claimTile({
       canvas_id: canvasId,
       tile_key: "2,2",
-      pubkey: "c".repeat(64),
+      user_id: "c".repeat(64),
       now_epoch: Math.floor(now.getTime() / 1000),
       ttl_s: 1800,
     });
     await canvasStore.publishTile({
       canvas_id: canvasId,
       tile_key: "2,2",
-      pubkey: "c".repeat(64),
+      user_id: "c".repeat(64),
       drawing_id: "deadbeef",
       now_epoch: Math.floor(now.getTime() / 1000),
       cooldown_s: 900,
@@ -300,6 +288,7 @@ describe("GET /canvas/{id}/state", () => {
       storage,
       canvasStore,
       publicBaseUrl: "https://example.test",
+      auth: claim.auth,
       now: () => t0,
     });
     assert.equal(claimRes.status, 201);

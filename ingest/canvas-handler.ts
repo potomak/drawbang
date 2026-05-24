@@ -15,21 +15,19 @@ import {
   requiredBits,
   verifyClaimPow,
 } from "../src/pow.js";
-import { verifyCanvasClaim } from "../src/identity.js";
 import {
   AlreadyPublishedError,
   TileLockedError,
   type CanvasStore,
   type TileRow,
 } from "./canvas-store.js";
+import type { AuthedUser } from "./handler.js";
 import type { Storage } from "./storage.js";
 
 export interface CanvasClaimRequest {
   canvas_id: string;
   x: number;
   y: number;
-  pubkey: string;
-  signature: string; // 128-hex Ed25519 over `claim:<canvas_id>:<x>:<y>`
   baseline: string;
   nonce: string;
 }
@@ -61,6 +59,9 @@ export interface CanvasHandlerConfig {
   storage: Storage;
   canvasStore: CanvasStore;
   publicBaseUrl: string;
+  // Authenticated claimer (from the verified session JWT). Required for
+  // handleCanvasClaim; unused by handleCanvasState.
+  auth?: AuthedUser;
   now?: () => Date;
   // Optional per-canvas baseline history (rolling grace window).
   baselineHistory?: Map<string, string[]>;
@@ -135,6 +136,9 @@ export async function handleCanvasClaim(
   const nowISO = now.toISOString();
   const nowEpoch = Math.floor(now.getTime() / 1000);
 
+  if (!cfg.auth) return err(401, "not authenticated");
+  const userId = cfg.auth.user_id;
+
   if (typeof req.canvas_id !== "string" || !isCanvasIdValid(req.canvas_id)) {
     return err(400, "invalid canvas_id");
   }
@@ -148,30 +152,8 @@ export async function handleCanvasClaim(
   ) {
     return err(400, "invalid tile coordinates");
   }
-  if (typeof req.pubkey !== "string" || !/^[0-9a-f]{64}$/.test(req.pubkey)) {
-    return err(400, "missing or malformed pubkey");
-  }
-  if (
-    typeof req.signature !== "string" ||
-    !/^[0-9a-f]{128}$/.test(req.signature)
-  ) {
-    return err(400, "missing or malformed signature");
-  }
   if (typeof req.baseline !== "string" || typeof req.nonce !== "string") {
     return err(400, "missing baseline or nonce");
-  }
-
-  // -- Verify ownership signature -------------------------------------------
-  if (
-    !(await verifyCanvasClaim(
-      req.pubkey,
-      req.canvas_id,
-      req.x,
-      req.y,
-      req.signature,
-    ))
-  ) {
-    return err(400, "signature does not verify against pubkey");
   }
 
   // -- Canvas lock check -----------------------------------------------------
@@ -212,7 +194,7 @@ export async function handleCanvasClaim(
       canvasId: req.canvas_id,
       x: req.x,
       y: req.y,
-      pubkey: req.pubkey,
+      userId,
     },
     req.baseline,
     req.nonce,
@@ -231,7 +213,7 @@ export async function handleCanvasClaim(
     const r = await cfg.canvasStore.claimTile({
       canvas_id: req.canvas_id,
       tile_key: tileKey(req.x, req.y),
-      pubkey: req.pubkey,
+      user_id: userId,
       now_epoch: nowEpoch,
       ttl_s: CLAIM_TTL_S,
     });

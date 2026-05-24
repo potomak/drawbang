@@ -85,18 +85,19 @@ test("renderFooter contains the repo link and the same nav as the header", () =>
   assert.deepEqual(datas, expectedIds);
 });
 
-test("identity link: hasIdentity + pubkey → /keys/<pubkey>", () => {
-  const pk = "a".repeat(64);
-  const header = renderHeader({ hasIdentity: true, identityPubkey: pk });
-  assert.match(header, new RegExp(`href="/keys/${pk}" data-nav="identity"`));
-  const footer = renderFooter({ hasIdentity: true, identityPubkey: pk, repoUrl: REPO });
-  assert.match(footer, new RegExp(`href="/keys/${pk}" data-nav="identity"`));
+test("identity link: hasIdentity + username → /u/<username>", () => {
+  const header = renderHeader({ hasIdentity: true, identityUsername: "alice" });
+  assert.match(header, /href="\/u\/alice" data-nav="identity"/);
+  assert.match(header, />Profile</);
+  const footer = renderFooter({ hasIdentity: true, identityUsername: "alice", repoUrl: REPO });
+  assert.match(footer, /href="\/u\/alice" data-nav="identity"/);
 });
 
-test("identity link: no pubkey falls back to the in-page-dialog href", () => {
+test("identity link: no username falls back to the sign-in href", () => {
   const header = renderHeader();
   assert.match(header, new RegExp(`href="${IDENTITY_FALLBACK_HREF}" data-nav="identity"`));
-  // hasIdentity=true alone (no pubkey) also falls back.
+  assert.match(header, />Sign in</);
+  // hasIdentity=true alone (no username) also falls back.
   const header2 = renderHeader({ hasIdentity: true });
   assert.match(header2, new RegExp(`href="${IDENTITY_FALLBACK_HREF}" data-nav="identity"`));
 });
@@ -155,10 +156,10 @@ test("renderHeader exposes the menu toggle button + nav id linkage for #170's re
   assert.match(html, /<nav id="chrome-nav"/);
 });
 
-test("renderHeader escapes user-controlled identityPubkey defensively", () => {
-  // identityPubkey is callsite-supplied — guard against an injection
-  // even though real pubkeys are always 64 hex.
-  const html = renderHeader({ hasIdentity: true, identityPubkey: '"><script>x()</script>' });
+test("renderHeader escapes user-controlled identityUsername defensively", () => {
+  // identityUsername is callsite-supplied — guard against an injection
+  // even though real usernames are always [a-z0-9_-]{3,20}.
+  const html = renderHeader({ hasIdentity: true, identityUsername: '"><script>x()</script>' });
   assert.ok(!html.includes("<script>x()"));
   assert.match(html, /&quot;&gt;&lt;script&gt;/);
 });

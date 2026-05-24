@@ -7,12 +7,9 @@ export interface DrawingCanvasMembership {
   name: string;
   x: number;
   y: number;
-  // The pubkey that claimed *this* tile use, which may differ from the
-  // drawing author. Rendering attributes the canvas use to claimed_by so the
-  // original author isn't implicated when key A puts key B's drawing in a
-  // canvas.
-  claimed_by: string;
-  claimed_by_short: string;
+  // The account that placed this drawing in the tile.
+  claimed_by: string; // user_id
+  claimed_by_username: string;
 }
 
 export interface DrawingView {
@@ -20,10 +17,9 @@ export interface DrawingView {
   id_short: string;
   created_at: string;
   parent: { parent: string; parent_short: string } | null;
-  // null on legacy drawings (pre-ownership feature). They render as
-  // "anonymous" with no link. The operator backfill (#90) signs them with
-  // the operator's keypair so this becomes uniform across the corpus.
-  author: { pubkey: string; pubkey_short: string } | null;
+  // null on legacy drawings (published by an anonymous keypair before the
+  // account system). They render as "anonymous" with no profile link.
+  author: { user_id: string; username: string } | null;
   canvases?: DrawingCanvasMembership[];
   // Absolute base URL (e.g. https://pixel.drawbang.com) — needed for the
   // OG / canonical tags. Both ingest (cfg.publicBaseUrl) and the builder
@@ -58,14 +54,14 @@ export default function renderDrawing(v: DrawingView): string {
     ? `<dt>Parent</dt><dd><a href="/d/${esc(v.parent.parent)}">${esc(v.parent.parent_short)}</a></dd>`
     : "";
   const authorBlock = v.author
-    ? `<dt>Author</dt><dd><a href="/keys/${esc(v.author.pubkey)}">${esc(v.author.pubkey_short)}</a></dd>`
+    ? `<dt>Author</dt><dd><a href="/u/${esc(v.author.username)}">${esc(v.author.username)}</a></dd>`
     : `<dt>Author</dt><dd>anonymous</dd>`;
   const canvases = v.canvases ?? [];
   const canvasesBlock = canvases.length > 0
     ? `<dt>Canvases</dt><dd><ul class="dr-canvases">${canvases
         .map(
           (c) =>
-            `<li><a href="/canvases/${esc(c.id)}#tile-${c.x}-${c.y}">${esc(c.name)}</a> tile (${c.x}, ${c.y}) — by <a href="/keys/${esc(c.claimed_by)}">${esc(c.claimed_by_short)}</a></li>`,
+            `<li><a href="/canvases/${esc(c.id)}#tile-${c.x}-${c.y}">${esc(c.name)}</a> tile (${c.x}, ${c.y}) — by <a href="/u/${esc(c.claimed_by_username)}">${esc(c.claimed_by_username)}</a></li>`,
         )
         .join("")}</ul></dd>`
     : "";
@@ -145,7 +141,7 @@ export default function renderDrawing(v: DrawingView): string {
     var items = '';
     for (var i = 0; i < children.length; i++) {
       var c = children[i];
-      items += '<li><a href="/d/' + c.id + '">' + c.id_short + '</a> · by <a href="/keys/' + c.pubkey + '">' + c.pubkey_short + '</a></li>';
+      items += '<li><a href="/d/' + c.id + '">' + c.id_short + '</a> · by <a href="/u/' + c.username + '">' + c.username + '</a></li>';
     }
     dd.innerHTML = '<ul class="dr-children">' + items + '</ul>';
     dt.hidden = false;

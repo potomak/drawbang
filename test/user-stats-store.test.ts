@@ -67,7 +67,7 @@ describe("nextDailyState", () => {
 
   test("same-day re-publish: total++, streak unchanged", () => {
     const prior = {
-      pubkey: "p",
+      user_id: "p",
       daily_total: 3,
       daily_streak_current: 2,
       daily_streak_longest: 5,
@@ -86,7 +86,7 @@ describe("nextDailyState", () => {
 
   test("consecutive day extends the streak", () => {
     const prior = {
-      pubkey: "p",
+      user_id: "p",
       daily_total: 1,
       daily_streak_current: 1,
       daily_streak_longest: 1,
@@ -105,7 +105,7 @@ describe("nextDailyState", () => {
 
   test("non-consecutive day resets streak to 1, longest preserved", () => {
     const prior = {
-      pubkey: "p",
+      user_id: "p",
       daily_total: 10,
       daily_streak_current: 7,
       daily_streak_longest: 9,
@@ -124,7 +124,7 @@ describe("nextDailyState", () => {
 
   test("longest grows when current surpasses it", () => {
     const prior = {
-      pubkey: "p",
+      user_id: "p",
       daily_total: 5,
       daily_streak_current: 5,
       daily_streak_longest: 5,
@@ -152,7 +152,7 @@ describe("nextCanvasState", () => {
 
   test("same canvas re-publish is a no-op (multiple tiles in one canvas)", () => {
     const prior = {
-      pubkey: "p",
+      user_id: "p",
       daily_total: 0, daily_streak_current: 0, daily_streak_longest: 0, daily_last_date: null,
       canvas_total: 1,
       canvas_streak_current: 1,
@@ -167,7 +167,7 @@ describe("nextCanvasState", () => {
 
   test("consecutive week extends the streak", () => {
     const prior = {
-      pubkey: "p",
+      user_id: "p",
       daily_total: 0, daily_streak_current: 0, daily_streak_longest: 0, daily_last_date: null,
       canvas_total: 1,
       canvas_streak_current: 1,
@@ -184,7 +184,7 @@ describe("nextCanvasState", () => {
 
   test("skipped week resets streak to 1, longest preserved", () => {
     const prior = {
-      pubkey: "p",
+      user_id: "p",
       daily_total: 0, daily_streak_current: 0, daily_streak_longest: 0, daily_last_date: null,
       canvas_total: 3,
       canvas_streak_current: 3,
@@ -202,9 +202,9 @@ describe("nextCanvasState", () => {
 describe("MemoryUserStatsStore", () => {
   test("records consecutive-day streak across two days", async () => {
     const store = new MemoryUserStatsStore();
-    const pubkey = "a".repeat(64);
-    await store.recordDailyDrawing({ pubkey, date_utc: "2026-05-17", now_iso: "2026-05-17T12:00:00Z" });
-    const r = await store.recordDailyDrawing({ pubkey, date_utc: "2026-05-18", now_iso: "2026-05-18T12:00:00Z" });
+    const user_id = "a".repeat(64);
+    await store.recordDailyDrawing({ user_id, date_utc: "2026-05-17", now_iso: "2026-05-17T12:00:00Z" });
+    const r = await store.recordDailyDrawing({ user_id, date_utc: "2026-05-18", now_iso: "2026-05-18T12:00:00Z" });
     assert.equal(r.daily_streak_current, 2);
     assert.equal(r.daily_streak_longest, 2);
     assert.equal(r.daily_total, 2);
@@ -212,12 +212,12 @@ describe("MemoryUserStatsStore", () => {
 
   test("canvas no-op leaves prior state untouched", async () => {
     const store = new MemoryUserStatsStore();
-    const pubkey = "a".repeat(64);
+    const user_id = "a".repeat(64);
     await store.recordCanvasParticipation({
-      pubkey, canvas_id: "canvas-2026-W21", now_iso: "2026-05-18T12:00:00Z",
+      user_id, canvas_id: "canvas-2026-W21", now_iso: "2026-05-18T12:00:00Z",
     });
     const r = await store.recordCanvasParticipation({
-      pubkey, canvas_id: "canvas-2026-W21", now_iso: "2026-05-18T13:00:00Z",
+      user_id, canvas_id: "canvas-2026-W21", now_iso: "2026-05-18T13:00:00Z",
     });
     assert.equal(r.canvas_total, 1);
     assert.equal(r.canvas_streak_current, 1);
@@ -225,10 +225,10 @@ describe("MemoryUserStatsStore", () => {
 
   test("daily and canvas counters are independent", async () => {
     const store = new MemoryUserStatsStore();
-    const pubkey = "a".repeat(64);
-    await store.recordDailyDrawing({ pubkey, date_utc: "2026-05-18", now_iso: "2026-05-18T12:00:00Z" });
+    const user_id = "a".repeat(64);
+    await store.recordDailyDrawing({ user_id, date_utc: "2026-05-18", now_iso: "2026-05-18T12:00:00Z" });
     const r = await store.recordCanvasParticipation({
-      pubkey, canvas_id: "canvas-2026-W21", now_iso: "2026-05-18T12:00:01Z",
+      user_id, canvas_id: "canvas-2026-W21", now_iso: "2026-05-18T12:00:01Z",
     });
     assert.equal(r.daily_total, 1);
     assert.equal(r.daily_streak_current, 1);

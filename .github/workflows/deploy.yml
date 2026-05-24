@@ -61,6 +61,8 @@ jobs:
           PRINTIFY_SHOP_ID: ${{ secrets.PRINTIFY_SHOP_ID }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          SES_FROM_ADDRESS: ${{ secrets.SES_FROM_ADDRESS }}
         run: |
           sam deploy --no-fail-on-empty-changeset \
             --parameter-overrides \
@@ -68,7 +70,9 @@ jobs:
               "PrintifyApiToken=${PRINTIFY_API_TOKEN}" \
               "PrintifyShopId=${PRINTIFY_SHOP_ID}" \
               "StripeSecretKey=${STRIPE_SECRET_KEY}" \
-              "StripeWebhookSecret=${STRIPE_WEBHOOK_SECRET}"
+              "StripeWebhookSecret=${STRIPE_WEBHOOK_SECRET}" \
+              "JwtSecret=${JWT_SECRET}" \
+              "SesFromAddress=${SES_FROM_ADDRESS}"
       - id: outputs
         name: Export stack outputs
         run: |

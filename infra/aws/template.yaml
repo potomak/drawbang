@@ -43,6 +43,22 @@ Parameters:
     NoEcho: true
     Default: ""
     Description: Stripe webhook signing secret (whsec_…). Maps to STRIPE_WEBHOOK_SECRET.
+  # HS256 signing secret for session + password-reset JWTs. No default — the
+  # ingest function fails loud at cold start if unset, since every publish /
+  # claim / auth route depends on it. Supply via parameter_overrides from a
+  # GitHub secret.
+  JwtSecret:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: HS256 secret for session + reset JWTs. Maps to JWT_SECRET.
+  SesFromAddress:
+    Type: String
+    Default: ""
+    Description: |
+      Verified SES sender address for password-reset emails (e.g.
+      no-reply@drawbang.com). Maps to SES_FROM_ADDRESS. Leave empty until SES
+      is set up — reset requests still return 200 but no email is sent.
 
 Conditions:
   HasCustomDomain: !Not [!Equals [!Ref DomainName, ""]]
@@ -66,8 +82,8 @@ Resources:
   #     d/<id>.html              per-drawing pages (also accessible at /d/<id>)
   #     days/<d>/p/<n>.html      per-day galleries
   #     days/<d>/{index.jsonl,manifest.json}
-  #     keys/<pk>/index.jsonl    per-owner index (append-only)
-  #     keys/<pk>.html           per-owner gallery (mutable)
+  #     u/<username>/index.jsonl per-account index (append-only)
+  #     u/<username>.html        per-account profile gallery (mutable)
   #     feed.rss
   #     state/last-publish.json  written by the ingest Lambda
   #   inbox/                     private, ingest writes; builder sweeps
@@ -124,11 +140,11 @@ Resources:
           // /gallery                   -> /gallery.html
           // /merch                     -> /merch.html  (catalog picker SPA)
           // /merch/order/<uuid>        -> /order.html  (order status SPA)
-          // /keys/<64hex>              -> /keys/<64hex>.html  (per-owner gallery)
+          // /u/<username>              -> /u/<username>.html  (per-account profile)
           // /share                      -> /share.html  (Reddit share SPA)
           // /products                   -> /products.html  (popular merch gallery)
           // /products/p/N               -> /products/p/N.html
-          // /identity                   -> /identity.html  (key explainer page)
+          // /login /signup /reset /account -> *.html  (auth SPAs)
           if (/^\/d\/[0-9a-f]{64}$/.test(uri)) {
             req.uri = uri + ".html";
           } else if (/^\/days\/\d{4}-\d{2}-\d{2}\/p\/\d+$/.test(uri)) {
@@ -139,14 +155,20 @@ Resources:
             req.uri = "/merch.html";
           } else if (/^\/merch\/order\/[0-9a-f-]{36}$/.test(uri)) {
             req.uri = "/order.html";
-          } else if (/^\/keys\/[0-9a-f]{64}$/.test(uri)) {
+          } else if (/^\/u\/[a-z0-9_-]{3,20}$/.test(uri)) {
             req.uri = uri + ".html";
           } else if (uri === "/products") {
             req.uri = "/products.html";
           } else if (/^\/products\/p\/\d+$/.test(uri)) {
             req.uri = uri + ".html";
-          } else if (uri === "/identity") {
-            req.uri = "/identity.html";
+          } else if (uri === "/login") {
+            req.uri = "/login.html";
+          } else if (uri === "/signup") {
+            req.uri = "/signup.html";
+          } else if (uri === "/reset") {
+            req.uri = "/reset.html";
+          } else if (uri === "/account") {
+            req.uri = "/account.html";
           } else if (uri === "/privacy") {
             req.uri = "/privacy.html";
           } else if (uri === "/canvases") {
@@ -330,7 +352,7 @@ Resources:
         AttributeName: ttl_epoch
         Enabled: true
 
-  # Per-pubkey-per-canvas cooldown timestamps. Used inside TransactWriteItems
+  # Per-account-per-canvas cooldown timestamps. Used inside TransactWriteItems
   # alongside the publish-tile update so cooldown enforcement is atomic with
   # the publish itself. TTL purges rows after the canvas closes.
   CanvasCooldownsTable:
@@ -339,16 +361,16 @@ Resources:
       TableName: drawbang-canvas-cooldowns
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - { AttributeName: pubkey,    AttributeType: S }
+        - { AttributeName: user_id,   AttributeType: S }
         - { AttributeName: canvas_id, AttributeType: S }
       KeySchema:
-        - { AttributeName: pubkey,    KeyType: HASH }
+        - { AttributeName: user_id,   KeyType: HASH }
         - { AttributeName: canvas_id, KeyType: RANGE }
       TimeToLiveSpecification:
         AttributeName: ttl_epoch
         Enabled: true
 
-  # Per-pubkey aggregated streak + total counters for #115/#116. One row
+  # Per-account aggregated streak + total counters for #115/#116. One row
   # per author with daily-drawings + weekly-canvas dimensions, updated
   # under optimistic concurrency from the ingest handler.
   UserStatsTable:
@@ -357,9 +379,34 @@ Resources:
       TableName: drawbang-user-stats
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - { AttributeName: pubkey, AttributeType: S }
+        - { AttributeName: user_id, AttributeType: S }
       KeySchema:
-        - { AttributeName: pubkey, KeyType: HASH }
+        - { AttributeName: user_id, KeyType: HASH }
+
+  # -- Account tables ---------------------------------------------------------
+  # Email/password accounts. The users table is keyed by email (login + reset
+  # lookups); user_id + username are attributes. The usernames table reserves
+  # each handle — register() writes both in one TransactWriteItems so email AND
+  # username uniqueness are enforced atomically.
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: drawbang-users
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: email, AttributeType: S }
+      KeySchema:
+        - { AttributeName: email, KeyType: HASH }
+
+  UsernamesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: drawbang-usernames
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: username, AttributeType: S }
+      KeySchema:
+        - { AttributeName: username, KeyType: HASH }
 
   # -- Ingest Lambda + API Gateway --------------------------------------------
 
@@ -380,6 +427,10 @@ Resources:
           DRAWBANG_CANVAS_TILES_TABLE: !Ref CanvasTilesTable
           DRAWBANG_CANVAS_COOLDOWNS_TABLE: !Ref CanvasCooldownsTable
           DRAWBANG_USER_STATS_TABLE: !Ref UserStatsTable
+          DRAWBANG_USERS_TABLE: !Ref UsersTable
+          DRAWBANG_USERNAMES_TABLE: !Ref UsernamesTable
+          JWT_SECRET: !Ref JwtSecret
+          SES_FROM_ADDRESS: !Ref SesFromAddress
           NODE_OPTIONS: "--enable-source-maps"
       Policies:
         - S3CrudPolicy:
@@ -387,6 +438,15 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref CanvasTilesTable }
         - DynamoDBCrudPolicy: { TableName: !Ref CanvasCooldownsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref UserStatsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref UsernamesTable }
+        # SES send for password-reset emails. SendEmail/SendRawEmail aren't
+        # resource-scopable in a useful way here (the identity ARN varies),
+        # so allow on "*" — the function only ever sends reset links.
+        - Statement:
+            - Effect: Allow
+              Action: [ses:SendEmail, ses:SendRawEmail]
+              Resource: "*"
       Events:
         Ingest:
           Type: HttpApi
@@ -411,7 +471,31 @@ Resources:
           Properties:
             ApiId: !Ref IngestApi
             Method: GET
-            Path: /keys/{pubkey}/stats
+            Path: /users/{user_id}/stats
+        AuthRegister:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: POST
+            Path: /auth/register
+        AuthLogin:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: POST
+            Path: /auth/login
+        AuthResetRequest:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: POST
+            Path: /auth/reset/request
+        AuthResetConfirm:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: POST
+            Path: /auth/reset/confirm
 
   IngestApi:
     Type: AWS::Serverless::HttpApi
@@ -425,7 +509,7 @@ Resources:
           - !If [HasCustomDomain, !Sub "https://${DomainName}", !Sub "https://${AssetsDistribution.DomainName}"]
           - !Sub "https://${AssetsDistribution.DomainName}"
         AllowMethods: [GET, POST, OPTIONS]
-        AllowHeaders: [content-type]
+        AllowHeaders: [content-type, authorization]
         MaxAge: 3600
 
   # -- Merch Lambda + routes --------------------------------------------------
@@ -522,8 +606,14 @@ Outputs:
     Description: DynamoDB table for per-pubkey-per-canvas publish cooldowns.
     Value: !Ref CanvasCooldownsTable
   UserStatsTableName:
-    Description: DynamoDB table for per-pubkey streak + total counters (#115/#116).
+    Description: DynamoDB table for per-account streak + total counters (#115/#116).
     Value: !Ref UserStatsTable
+  UsersTableName:
+    Description: DynamoDB table for email/password accounts (keyed by email).
+    Value: !Ref UsersTable
+  UsernamesTableName:
+    Description: DynamoDB table reserving unique usernames.
+    Value: !Ref UsernamesTable
   IngestEndpoint:
     Description: POST here with the IngestRequest body.
     Value: !Sub "https://${IngestApi}.execute-api.${AWS::Region}.amazonaws.com/ingest"

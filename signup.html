@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!--CHROME:ANALYTICS-->
+    <!--CHROME:META-PIXEL-->
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Draw! · Create account</title>
+    <meta name="drawbang:active" content="identity" />
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <!--CHROME:HEADER-->
+    <main class="identity-page">
+      <h2>Create an account</h2>
+      <form class="auth-form" id="signup-form" novalidate>
+        <label class="auth-field">
+          <span>Email</span>
+          <input type="email" id="signup-email" name="email" autocomplete="email" required />
+        </label>
+        <label class="auth-field">
+          <span>Username</span>
+          <input type="text" id="signup-username" name="username" autocomplete="username" minlength="3" maxlength="20" required />
+          <small class="muted">3–20 chars: lowercase letters, numbers, <code>_</code> or <code>-</code>. This is your public handle at /u/&lt;username&gt;.</small>
+        </label>
+        <label class="auth-field">
+          <span>Password</span>
+          <input type="password" id="signup-password" name="password" autocomplete="new-password" minlength="8" required />
+          <small class="muted">At least 8 characters.</small>
+        </label>
+        <p class="auth-error" id="signup-error" hidden></p>
+        <button class="btn primary" id="signup-submit" type="submit">Create account</button>
+      </form>
+      <p class="muted">Already have an account? <a href="/login">Sign in</a></p>
+    </main>
+    <!--CHROME:FOOTER-->
+    <script type="module" src="./src/signup.ts"></script>
+  </body>
+</html>

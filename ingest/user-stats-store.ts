@@ -10,9 +10,9 @@ import {
   isCanvasIdValid,
 } from "../config/canvases.js";
 
-// Per-pubkey aggregated stats for streaks + badges (#115, #116).
+// Per-user_id aggregated stats for streaks + badges (#115, #116).
 //
-// One row per pubkey. Two dimensions: daily drawings (any publish that lands
+// One row per user_id. Two dimensions: daily drawings (any publish that lands
 // a new gif under inbox/) and weekly canvas participation (any publish that
 // places a tile via canvas_claim). Each dimension carries a running total
 // (drives badges) and a streak (drives the "consecutive days/weeks" UX).
@@ -28,7 +28,7 @@ import {
 // no-ops here in the store (canvas_last_id === canvas_id short-circuit).
 
 export interface UserStatsRow {
-  pubkey: string;
+  user_id: string;
   daily_total: number;
   daily_streak_current: number;
   daily_streak_longest: number;
@@ -41,14 +41,14 @@ export interface UserStatsRow {
 }
 
 export interface RecordDailyDrawingArgs {
-  pubkey: string;
+  user_id: string;
   // ISO YYYY-MM-DD (UTC). Caller derives this from nowISO.slice(0, 10).
   date_utc: string;
   now_iso: string;
 }
 
 export interface RecordCanvasParticipationArgs {
-  pubkey: string;
+  user_id: string;
   canvas_id: string;
   now_iso: string;
 }
@@ -59,11 +59,11 @@ export interface UserStatsStore {
   // logic doesn't re-fire). Caller MUST gate by gif-novelty (!alreadyHere)
   // so re-publishes of an existing gif don't reach this method.
   recordDailyDrawing(args: RecordDailyDrawingArgs): Promise<UserStatsRow>;
-  // Bumps canvas_total + advances streak the first time pubkey publishes
+  // Bumps canvas_total + advances streak the first time user_id publishes
   // into canvas_id. Additional tiles into the same canvas are no-ops at
   // this layer.
   recordCanvasParticipation(args: RecordCanvasParticipationArgs): Promise<UserStatsRow>;
-  get(pubkey: string): Promise<UserStatsRow | null>;
+  get(user_id: string): Promise<UserStatsRow | null>;
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -83,9 +83,9 @@ function isImmediatelyConsecutiveCanvas(prev: string, next: string): boolean {
   return canvasClosesAt(prev).getTime() === canvasOpensAt(next).getTime();
 }
 
-function zeroRow(pubkey: string, nowIso: string): UserStatsRow {
+function zeroRow(user_id: string, nowIso: string): UserStatsRow {
   return {
-    pubkey,
+    user_id,
     daily_total: 0,
     daily_streak_current: 0,
     daily_streak_longest: 0,
@@ -167,7 +167,7 @@ export interface DynamoUserStatsStoreOptions {
   tableName: string;
   client?: DynamoDBDocumentClient;
   // Max retries on optimistic-concurrency conflict before throwing. Defaults
-  // to 5 — concurrent publishes by the same pubkey are rare in practice (the
+  // to 5 — concurrent publishes by the same user_id are rare in practice (the
   // canvas branch is already cooldown-gated), so 5 is generous.
   maxRetries?: number;
 }
@@ -184,27 +184,27 @@ export class DynamoUserStatsStore implements UserStatsStore {
       opts.client ?? DynamoDBDocumentClient.from(new DynamoDBClient({}));
   }
 
-  async get(pubkey: string): Promise<UserStatsRow | null> {
+  async get(user_id: string): Promise<UserStatsRow | null> {
     const r = await this.doc.send(
-      new GetCommand({ TableName: this.table, Key: { pubkey } }),
+      new GetCommand({ TableName: this.table, Key: { user_id } }),
     );
     if (!r.Item) return null;
-    return this.normalize(r.Item, pubkey);
+    return this.normalize(r.Item, user_id);
   }
 
   async recordDailyDrawing(args: RecordDailyDrawingArgs): Promise<UserStatsRow> {
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
-      const prior = await this.get(args.pubkey);
+      const prior = await this.get(args.user_id);
       const next = nextDailyState(prior, args.date_utc);
       try {
         const r = await this.doc.send(this.dailyUpdate(args, prior, next));
-        return this.normalize(r.Attributes ?? {}, args.pubkey);
+        return this.normalize(r.Attributes ?? {}, args.user_id);
       } catch (e) {
         if (!isConditionalCheckFailed(e)) throw e;
       }
     }
     throw new Error(
-      `recordDailyDrawing: optimistic-concurrency retries exhausted for ${args.pubkey}`,
+      `recordDailyDrawing: optimistic-concurrency retries exhausted for ${args.user_id}`,
     );
   }
 
@@ -212,18 +212,18 @@ export class DynamoUserStatsStore implements UserStatsStore {
     args: RecordCanvasParticipationArgs,
   ): Promise<UserStatsRow> {
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
-      const prior = await this.get(args.pubkey);
+      const prior = await this.get(args.user_id);
       const next = nextCanvasState(prior, args.canvas_id);
-      if (next.noOp) return prior ?? zeroRow(args.pubkey, args.now_iso);
+      if (next.noOp) return prior ?? zeroRow(args.user_id, args.now_iso);
       try {
         const r = await this.doc.send(this.canvasUpdate(args, prior, next));
-        return this.normalize(r.Attributes ?? {}, args.pubkey);
+        return this.normalize(r.Attributes ?? {}, args.user_id);
       } catch (e) {
         if (!isConditionalCheckFailed(e)) throw e;
       }
     }
     throw new Error(
-      `recordCanvasParticipation: optimistic-concurrency retries exhausted for ${args.pubkey}`,
+      `recordCanvasParticipation: optimistic-concurrency retries exhausted for ${args.user_id}`,
     );
   }
 
@@ -243,7 +243,7 @@ export class DynamoUserStatsStore implements UserStatsStore {
     };
     const condition = prior
       ? "daily_total = :prior_dt AND daily_last_date = :prior_dld"
-      : "attribute_not_exists(pubkey)";
+      : "attribute_not_exists(user_id)";
     if (prior) {
       values[":prior_dt"] = prior.daily_total;
       // Use a sentinel string for null prior_dld since DDB conditional
@@ -252,7 +252,7 @@ export class DynamoUserStatsStore implements UserStatsStore {
         values[":prior_dt_only"] = prior.daily_total;
         return new UpdateCommand({
           TableName: this.table,
-          Key: { pubkey: args.pubkey },
+          Key: { user_id: args.user_id },
           UpdateExpression: expr,
           ConditionExpression: "daily_total = :prior_dt_only AND attribute_not_exists(daily_last_date)",
           ExpressionAttributeValues: values,
@@ -263,7 +263,7 @@ export class DynamoUserStatsStore implements UserStatsStore {
     }
     return new UpdateCommand({
       TableName: this.table,
-      Key: { pubkey: args.pubkey },
+      Key: { user_id: args.user_id },
       UpdateExpression: expr,
       ConditionExpression: condition,
       ExpressionAttributeValues: values,
@@ -288,9 +288,9 @@ export class DynamoUserStatsStore implements UserStatsStore {
     if (!prior) {
       return new UpdateCommand({
         TableName: this.table,
-        Key: { pubkey: args.pubkey },
+        Key: { user_id: args.user_id },
         UpdateExpression: expr,
-        ConditionExpression: "attribute_not_exists(pubkey)",
+        ConditionExpression: "attribute_not_exists(user_id)",
         ExpressionAttributeValues: values,
         ReturnValues: "ALL_NEW",
       });
@@ -299,7 +299,7 @@ export class DynamoUserStatsStore implements UserStatsStore {
     if (prior.canvas_last_id === null) {
       return new UpdateCommand({
         TableName: this.table,
-        Key: { pubkey: args.pubkey },
+        Key: { user_id: args.user_id },
         UpdateExpression: expr,
         ConditionExpression: "canvas_total = :prior_ct AND attribute_not_exists(canvas_last_id)",
         ExpressionAttributeValues: values,
@@ -309,7 +309,7 @@ export class DynamoUserStatsStore implements UserStatsStore {
     values[":prior_cli"] = prior.canvas_last_id;
     return new UpdateCommand({
       TableName: this.table,
-      Key: { pubkey: args.pubkey },
+      Key: { user_id: args.user_id },
       UpdateExpression: expr,
       ConditionExpression: "canvas_total = :prior_ct AND canvas_last_id = :prior_cli",
       ExpressionAttributeValues: values,
@@ -317,9 +317,9 @@ export class DynamoUserStatsStore implements UserStatsStore {
     });
   }
 
-  private normalize(item: Record<string, unknown>, pubkey: string): UserStatsRow {
+  private normalize(item: Record<string, unknown>, user_id: string): UserStatsRow {
     return {
-      pubkey: (item.pubkey as string) ?? pubkey,
+      user_id: (item.user_id as string) ?? user_id,
       daily_total: (item.daily_total as number) ?? 0,
       daily_streak_current: (item.daily_streak_current as number) ?? 0,
       daily_streak_longest: (item.daily_streak_longest as number) ?? 0,
@@ -344,42 +344,42 @@ function isConditionalCheckFailed(e: unknown): boolean {
 export class MemoryUserStatsStore implements UserStatsStore {
   private readonly rows = new Map<string, UserStatsRow>();
 
-  async get(pubkey: string): Promise<UserStatsRow | null> {
-    return this.rows.get(pubkey) ?? null;
+  async get(user_id: string): Promise<UserStatsRow | null> {
+    return this.rows.get(user_id) ?? null;
   }
 
   async recordDailyDrawing(args: RecordDailyDrawingArgs): Promise<UserStatsRow> {
-    const prior = this.rows.get(args.pubkey) ?? null;
+    const prior = this.rows.get(args.user_id) ?? null;
     const next = nextDailyState(prior, args.date_utc);
     const merged: UserStatsRow = {
-      ...(prior ?? zeroRow(args.pubkey, args.now_iso)),
-      pubkey: args.pubkey,
+      ...(prior ?? zeroRow(args.user_id, args.now_iso)),
+      user_id: args.user_id,
       daily_total: next.daily_total,
       daily_streak_current: next.daily_streak_current,
       daily_streak_longest: next.daily_streak_longest,
       daily_last_date: next.daily_last_date,
       updated_at: args.now_iso,
     };
-    this.rows.set(args.pubkey, merged);
+    this.rows.set(args.user_id, merged);
     return merged;
   }
 
   async recordCanvasParticipation(
     args: RecordCanvasParticipationArgs,
   ): Promise<UserStatsRow> {
-    const prior = this.rows.get(args.pubkey) ?? null;
+    const prior = this.rows.get(args.user_id) ?? null;
     const next = nextCanvasState(prior, args.canvas_id);
     if (next.noOp && prior) return prior;
     const merged: UserStatsRow = {
-      ...(prior ?? zeroRow(args.pubkey, args.now_iso)),
-      pubkey: args.pubkey,
+      ...(prior ?? zeroRow(args.user_id, args.now_iso)),
+      user_id: args.user_id,
       canvas_total: next.canvas_total,
       canvas_streak_current: next.canvas_streak_current,
       canvas_streak_longest: next.canvas_streak_longest,
       canvas_last_id: next.canvas_last_id,
       updated_at: args.now_iso,
     };
-    this.rows.set(args.pubkey, merged);
+    this.rows.set(args.user_id, merged);
     return merged;
   }
 }

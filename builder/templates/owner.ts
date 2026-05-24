@@ -15,8 +15,8 @@ export interface OwnerStats {
 }
 
 export interface OwnerView {
-  pubkey: string;        // 64 hex
-  pubkey_short: string;  // first 8
+  username: string;      // public handle, used in the URL
+  user_id: string;       // 64-hex stable id, used for stats hydration
   // Newest-first.
   drawings: { id: string; id_short: string }[];
   // Per-pubkey stats (#115/#116). Optional: a brand-new owner with no
@@ -49,7 +49,7 @@ export default function renderOwner(v: OwnerView): string {
       <ul class="img-grid">
 ${items}
       </ul>`
-    : `      <p class="muted">No drawings published with this key yet.</p>`;
+    : `      <p class="muted">No drawings published by this account yet.</p>`;
   const stats = v.stats ? renderStats(v.stats) : "";
   const hydrate = v.stats && v.stats_url ? renderHydrateScript(v.stats_url) : "";
   return `<!doctype html>
@@ -59,13 +59,13 @@ ${items}
     ${renderMetaPixel()}
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Draw! · key ${esc(v.pubkey_short)}</title>
+    <title>Draw! · ${esc(v.username)}</title>
     <link rel="stylesheet" href="/gallery-v2.css" />
   </head>
   <body>
     ${renderHeader({ active: "identity" })}
     <main>
-      <h1 class="page-title">Drawings by ${esc(v.pubkey_short)}</h1>
+      <h1 class="page-title">Drawings by ${esc(v.username)}</h1>
 ${stats}${body}
     </main>
     ${renderFooter({ active: "identity", repoUrl: v.repo_url })}

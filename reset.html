@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!--CHROME:ANALYTICS-->
+    <!--CHROME:META-PIXEL-->
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Draw! · Reset password</title>
+    <meta name="drawbang:active" content="identity" />
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <!--CHROME:HEADER-->
+    <main class="identity-page">
+      <!-- Request form: shown when there's no ?token in the URL. -->
+      <form class="auth-form" id="reset-request-form" novalidate hidden>
+        <h2>Reset your password</h2>
+        <p class="muted">Enter your email and we'll send a reset link.</p>
+        <label class="auth-field">
+          <span>Email</span>
+          <input type="email" id="reset-email" name="email" autocomplete="email" required />
+        </label>
+        <p class="auth-error" id="reset-request-error" hidden></p>
+        <button class="btn primary" id="reset-request-submit" type="submit">Send reset link</button>
+      </form>
+
+      <!-- Confirm form: shown when ?token=… is present. -->
+      <form class="auth-form" id="reset-confirm-form" novalidate hidden>
+        <h2>Choose a new password</h2>
+        <label class="auth-field">
+          <span>New password</span>
+          <input type="password" id="reset-password" name="password" autocomplete="new-password" minlength="8" required />
+          <small class="muted">At least 8 characters.</small>
+        </label>
+        <p class="auth-error" id="reset-confirm-error" hidden></p>
+        <button class="btn primary" id="reset-confirm-submit" type="submit">Set new password</button>
+      </form>
+
+      <p class="auth-note" id="reset-note" hidden></p>
+    </main>
+    <!--CHROME:FOOTER-->
+    <script type="module" src="./src/reset.ts"></script>
+  </body>
+</html>

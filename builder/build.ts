@@ -33,7 +33,7 @@ export interface ProductCountersSource {
 // dev/test paths can supply a fixture without depending on the full
 // streak-bumping write API.
 export interface UserStatsSource {
-  get(pubkey: string): Promise<UserStatsRow | null>;
+  get(user_id: string): Promise<UserStatsRow | null>;
 }
 
 export interface BuildOptions {
@@ -57,8 +57,8 @@ export interface BuildOptions {
   // Optional: enables the canvas pass to read live tile state. Without it,
   // /state/current-canvas.json still gets a fresh manifest + zero counts.
   canvasStore?: CanvasStore;
-  // Optional: per-owner streak/total counters for /keys/<pubkey>.html
-  // (#115/#116). Without it, owner pages render without the stats block.
+  // Optional: per-account streak/total counters for /u/<username>.html
+  // (#115/#116). Without it, profile pages render without the stats block.
   userStatsSource?: UserStatsSource;
   // Optional: API Gateway base URL for the canvas page's state hydration.
   // See CanvasPassOptions.apiBaseUrl for the why.
@@ -83,11 +83,11 @@ interface DrawingMetadata {
   solve_ms: number | null;
   bench_hps: number | null;
   parent: string | null;
-  // Owner fields land via the inbox JSON sidecar that ingest writes (see #83).
-  // null only for entries that predate the ownership feature; the operator
-  // backfill (#90) signs them with the operator's keypair before re-rendering.
-  pubkey: string | null;
-  signature: string | null;
+  // Account fields land via the inbox JSON sidecar that ingest writes. null
+  // only on legacy drawings published by the old anonymous keypair scheme —
+  // those render as "anonymous" with no profile page.
+  user_id: string | null;
+  username: string | null;
 }
 
 interface DayRollup {
@@ -134,10 +134,10 @@ export async function build(opts: BuildOptions): Promise<{
 
   const touchedDays: string[] = [];
   let sweptCount = 0;
-  // Drawings swept this run, grouped by owner. Drives the per-owner sweep
-  // after the day loop. Anonymous (legacy) drawings are skipped — the
-  // operator backfill (#90) signs them so they pick up an owner.
-  const newByOwner = new Map<string, DrawingMetadata[]>();
+  // Drawings swept this run, grouped by username. Drives the per-profile sweep
+  // after the day loop. Legacy (account-less) drawings are skipped — they have
+  // no profile page.
+  const newByUsername = new Map<string, DrawingMetadata[]>();
 
   for (const day of days) {
     const dayFiles = await opts.storage.listPrefix(`inbox/${day}`);
@@ -183,8 +183,8 @@ export async function build(opts: BuildOptions): Promise<{
         solve_ms: meta.solve_ms,
         bench_hps: meta.bench_hps,
         parent: meta.parent,
-        pubkey: meta.pubkey ?? null,
-        signature: meta.signature ?? null,
+        user_id: meta.user_id ?? null,
+        username: meta.username ?? null,
       });
 
       await opts.storage.remove(gifKey);
@@ -193,11 +193,11 @@ export async function build(opts: BuildOptions): Promise<{
     }
 
     for (const d of drawings) {
-      if (!d.pubkey) continue;
-      let bucket = newByOwner.get(d.pubkey);
+      if (!d.username) continue;
+      let bucket = newByUsername.get(d.username);
       if (!bucket) {
         bucket = [];
-        newByOwner.set(d.pubkey, bucket);
+        newByUsername.set(d.username, bucket);
       }
       bucket.push(d);
     }
@@ -243,10 +243,10 @@ export async function build(opts: BuildOptions): Promise<{
   // frozen with next_day=null from whenever it was last rendered.
   await rebuildDayGalleries(opts, templates, repoUrl, touchedDays);
 
-  // Rebuild per-owner galleries (mutable like /gallery.html, not immutable
-  // like the day pages). New entries land via newByOwner; on forceRerender
-  // every existing owner page is also re-rendered.
-  await rebuildOwners(opts, templates, repoUrl, newByOwner);
+  // Rebuild per-account profile galleries (mutable like /gallery.html, not
+  // immutable like the day pages). New entries land via newByUsername; on
+  // forceRerender every existing profile page is also re-rendered.
+  await rebuildProfiles(opts, templates, repoUrl, newByUsername);
 
   // Rebuild rolling surfaces: landing page and RSS feed.
   await rebuildRolling(opts, templates, today, repoUrl);
@@ -284,7 +284,10 @@ export function drawingViewModel(
     id_short: d.id.slice(0, 8),
     created_at: d.created_at,
     parent: d.parent ? { parent: d.parent, parent_short: d.parent.slice(0, 8) } : null,
-    author: d.pubkey ? { pubkey: d.pubkey, pubkey_short: d.pubkey.slice(0, 8) } : null,
+    author:
+      d.user_id && d.username
+        ? { user_id: d.user_id, username: d.username }
+        : null,
   };
 }
 
@@ -363,70 +366,69 @@ async function rebuildDayGalleries(
   }
 }
 
-async function rebuildOwners(
+async function rebuildProfiles(
   opts: BuildOptions,
   templates: Templates,
   repoUrl: string,
-  newByOwner: Map<string, DrawingMetadata[]>,
+  newByUsername: Map<string, DrawingMetadata[]>,
 ): Promise<void> {
-  // Append fresh entries to each owner's append-only index.
-  for (const [pubkey, fresh] of newByOwner) {
-    const existing = (await opts.storage.getBytes(`public/keys/${pubkey}/index.jsonl`)) ?? new Uint8Array();
+  // Append fresh entries to each account's append-only index.
+  for (const [username, fresh] of newByUsername) {
+    const existing = (await opts.storage.getBytes(`public/u/${username}/index.jsonl`)) ?? new Uint8Array();
     let merged = dec.decode(existing);
     for (const d of fresh) merged += JSON.stringify(d) + "\n";
     await opts.storage.put(
-      `public/keys/${pubkey}/index.jsonl`,
+      `public/u/${username}/index.jsonl`,
       enc.encode(merged),
       "application/jsonl",
       CC_INTERNAL,
     );
   }
 
-  // Owners to (re-)render: anyone who got new entries this run; on
-  // forceRerender, every owner whose index already exists.
-  const ownersToRender = new Set<string>(newByOwner.keys());
+  // Profiles to (re-)render: anyone who got new entries this run; on
+  // forceRerender, every account whose index already exists.
+  const profilesToRender = new Set<string>(newByUsername.keys());
   if (opts.forceRerender) {
-    const ownerKeys = await opts.storage.listPrefix("public/keys");
-    for (const k of ownerKeys) {
-      const last = k.split("/").pop()!;
-      // Only the per-owner subdirs (which are 64-hex). Files like
-      // <pk>.html are skipped by the regex (extra suffix).
-      if (/^[0-9a-f]{64}$/.test(last)) ownersToRender.add(last);
+    const keys = await opts.storage.listPrefix("public/u");
+    for (const k of keys) {
+      const m = k.match(/^public\/u\/([a-z0-9_-]{3,20})\/index\.jsonl$/);
+      if (m) profilesToRender.add(m[1]);
     }
   }
 
-  for (const pubkey of ownersToRender) {
-    const indexBytes = await opts.storage.getBytes(`public/keys/${pubkey}/index.jsonl`);
+  for (const username of profilesToRender) {
+    const indexBytes = await opts.storage.getBytes(`public/u/${username}/index.jsonl`);
     if (!indexBytes) continue;
     const all = parseJsonl(dec.decode(indexBytes));
     all.sort((a, b) => b.created_at.localeCompare(a.created_at));
-    const stats = opts.userStatsSource
-      ? await ownerStatsViewModel(opts.userStatsSource, pubkey)
+    const userId = all.find((d) => d.user_id)?.user_id ?? "";
+    const stats = opts.userStatsSource && userId
+      ? await ownerStatsViewModel(opts.userStatsSource, userId)
       : undefined;
     // Only emit the client-hydration script when the stats endpoint is
     // reachable (i.e. apiBaseUrl is wired). Dev/test runs with no
     // apiBaseUrl keep the page free of hydration to avoid 404s on the
     // local proxy.
-    const stats_url = stats && opts.apiBaseUrl
-      ? `${opts.apiBaseUrl}/keys/${pubkey}/stats`
+    const stats_url = stats && opts.apiBaseUrl && userId
+      ? `${opts.apiBaseUrl}/users/${userId}/stats`
       : undefined;
     const html = templates.owner({
-      pubkey,
-      pubkey_short: pubkey.slice(0, 8),
+      username,
+      user_id: userId,
       drawings: all.map((d) => ({ id: d.id, id_short: d.id.slice(0, 8) })),
       stats,
       stats_url,
       repo_url: repoUrl,
     });
-    await opts.storage.put(`public/keys/${pubkey}.html`, enc.encode(html), "text/html", CC_HTML);
+    await opts.storage.put(`public/u/${username}.html`, enc.encode(html), "text/html", CC_HTML);
   }
 }
 
 async function ownerStatsViewModel(
   source: UserStatsSource,
-  pubkey: string,
+  user_id: string,
 ): Promise<import("./templates/owner.js").OwnerStats> {
-  const row = await source.get(pubkey);
+  const row = await source.get(user_id);
   const totals = {
     daily_total: row?.daily_total ?? 0,
     canvas_total: row?.canvas_total ?? 0,
@@ -642,8 +644,8 @@ async function cli(): Promise<void> {
       tilesTable: process.env.DRAWBANG_CANVAS_TILES_TABLE ?? "drawbang-canvas-tiles",
       cooldownsTable: process.env.DRAWBANG_CANVAS_COOLDOWNS_TABLE ?? "drawbang-canvas-cooldowns",
     });
-    // Per-pubkey streak + total counters drive the stats block on
-    // /keys/<pubkey>.html. Builder reads only; ingest is the writer.
+    // Per-account streak + total counters drive the stats block on
+    // /u/<username>.html. Builder reads only; ingest is the writer.
     const { DynamoUserStatsStore } = await import("../ingest/user-stats-store.js");
     userStatsSource = new DynamoUserStatsStore({
       tableName: process.env.DRAWBANG_USER_STATS_TABLE ?? "drawbang-user-stats",

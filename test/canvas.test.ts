@@ -13,12 +13,6 @@ import { Bitmap } from "../src/editor/bitmap.js";
 import { encodeGif } from "../src/editor/gif.js";
 import { DEFAULT_ACTIVE_PALETTE } from "../src/editor/palette.js";
 import { INITIAL_STATE, requiredBits, solve, solveClaim } from "../src/pow.js";
-import {
-  generateIdentity,
-  pubKeyHex,
-  signCanvasClaim,
-  signDrawingId,
-} from "../src/identity.js";
 import { handleIngest, type IngestRequest } from "../ingest/handler.js";
 import { handleCanvasClaim, handleCanvasState } from "../ingest/canvas-handler.js";
 import { MemoryCanvasStore } from "../ingest/canvas-store.js";
@@ -41,8 +35,7 @@ describe("canvas E2E", () => {
   test("claim → publish → state → builder render → archive", async () => {
     const storage = await tmpStorage();
     const canvasStore = new MemoryCanvasStore();
-    const identity = await generateIdentity();
-    const pubkey = await pubKeyHex(identity);
+    const auth = { user_id: "a".repeat(64), username: "alice" };
     const now = new Date("2026-05-13T12:00:00Z");
     const canvasId = canvasIdForDate(now);
 
@@ -54,9 +47,8 @@ describe("canvas E2E", () => {
     // 2. Claim a tile via the handler.
     const baseline = INITIAL_STATE.last_publish_at;
     const bits = requiredBits(Number.POSITIVE_INFINITY);
-    const claimSig = await signCanvasClaim(identity, canvasId, 5, 12);
     const claimSolve = await solveClaim(
-      { canvasId, x: 5, y: 12, pubkey },
+      { canvasId, x: 5, y: 12, userId: auth.user_id },
       baseline,
       bits,
     );
@@ -65,8 +57,6 @@ describe("canvas E2E", () => {
         canvas_id: canvasId,
         x: 5,
         y: 12,
-        pubkey,
-        signature: claimSig,
         baseline,
         nonce: claimSolve.nonce,
       },
@@ -74,6 +64,7 @@ describe("canvas E2E", () => {
         storage,
         canvasStore,
         publicBaseUrl: "https://example.test",
+        auth,
         now: () => now,
       },
     );
@@ -81,11 +72,6 @@ describe("canvas E2E", () => {
 
     // 3. Publish the drawing with canvas_claim.
     const gif = makeGif();
-    const drawSig = await (async () => {
-      const { hashHex, contentHash } = await import("../src/pow.js");
-      const id = hashHex(await contentHash(gif));
-      return signDrawingId(identity, id);
-    })();
     const publishSolve = await solve(gif, baseline, bits);
     const ingestReq: IngestRequest = {
       gif: Buffer.from(gif).toString("base64"),
@@ -93,13 +79,12 @@ describe("canvas E2E", () => {
       baseline,
       solve_ms: publishSolve.solveMs,
       bench_hps: 10_000,
-      pubkey,
-      signature: drawSig,
       canvas_claim: { canvas_id: canvasId, x: 5, y: 12 },
     };
     const publishResult = await handleIngest(ingestReq, {
       storage,
       publicBaseUrl: "https://example.test",
+      auth,
       canvasStore,
       now: () => now,
     });
@@ -145,7 +130,7 @@ describe("canvas E2E", () => {
       const html = new TextDecoder().decode(drawingPage);
       assert.match(html, /Canvases/);
       assert.match(html, new RegExp(`/canvases/${canvasId}`));
-      assert.match(html, new RegExp(pubkey.slice(0, 8)));
+      assert.match(html, new RegExp(`/u/${auth.username}`));
     }
 
     // 7. /state/current-canvas.json reflects the count.

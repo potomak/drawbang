@@ -13,10 +13,10 @@ export interface NavLink {
 export interface ChromeOptions {
   /** id of the link to mark active (aria-current="page"). */
   active?: NavLink["id"];
-  /** True when localStorage carries a known pubkey. */
+  /** True when the viewer has a known account (logged in). */
   hasIdentity?: boolean;
-  /** Pubkey for the identity deep-link. Pair with hasIdentity = true. */
-  identityPubkey?: string | null;
+  /** Username for the profile deep-link. Pair with hasIdentity = true. */
+  identityUsername?: string | null;
 }
 
 export interface FooterOptions extends ChromeOptions {
@@ -24,16 +24,15 @@ export interface FooterOptions extends ChromeOptions {
 }
 
 /**
- * Canonical href the identity link falls back to when no pubkey is known.
- * Concrete behaviour (open the in-page #identityDialog vs. navigate)
- * is wired in #171; for now both consumers agree on this href so the
- * markup is identical across surfaces.
+ * Canonical href the identity link falls back to for logged-out viewers.
+ * The client patcher (/chrome-identity.js) rewrites it to /u/<username>
+ * once a session is present in localStorage.
  */
-export const IDENTITY_FALLBACK_HREF = "/identity";
+export const IDENTITY_FALLBACK_HREF = "/login";
 
 /**
  * Fixed nav entries. The identity link is dynamic (its href depends on
- * whether the viewer has a pubkey), so it's appended at render time.
+ * whether the viewer is logged in), so it's appended at render time.
  * Adding a new top-level section is a one-line change here.
  */
 export const NAV_LINKS: readonly NavLink[] = [
@@ -43,11 +42,9 @@ export const NAV_LINKS: readonly NavLink[] = [
 ];
 
 function identityLink(opts: ChromeOptions): NavLink {
-  const href =
-    opts.hasIdentity && opts.identityPubkey
-      ? `/keys/${opts.identityPubkey}`
-      : IDENTITY_FALLBACK_HREF;
-  return { href, label: "Identity", id: "identity" };
+  const loggedIn = Boolean(opts.hasIdentity && opts.identityUsername);
+  const href = loggedIn ? `/u/${opts.identityUsername}` : IDENTITY_FALLBACK_HREF;
+  return { href, label: loggedIn ? "Profile" : "Sign in", id: "identity" };
 }
 
 function allLinks(opts: ChromeOptions): readonly NavLink[] {
@@ -57,7 +54,7 @@ function allLinks(opts: ChromeOptions): readonly NavLink[] {
 function renderLink(link: NavLink, active: NavLink["id"] | undefined): string {
   const ariaCurrent = link.id === active ? ' aria-current="page"' : "";
   // The identity link is rewritten on the client by /chrome-identity.js
-  // (#171) when the viewer has a pubkey in localStorage. The marker
+  // when the viewer has a username in localStorage. The marker
   // attribute lets the patcher find it without depending on label or
   // href shape.
   const identityFlag = link.id === "identity" ? ' data-identity-link="1"' : "";

@@ -5,7 +5,6 @@ import { Bitmap } from "./editor/bitmap.js";
 export const DB_NAME = "drawbang";
 export const DB_VERSION = 2;
 const STORE = "drawings";
-export const IDENTITY_STORE = "identity";
 
 export interface StoredDrawing {
   id: string; // local uuid (not a PoW hash)
@@ -23,10 +22,6 @@ export function open(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE)) {
         const store = db.createObjectStore(STORE, { keyPath: "id" });
         store.createIndex("created_at", "created_at");
-      }
-      if (!db.objectStoreNames.contains(IDENTITY_STORE)) {
-        // Single-row store, keyed by the fixed string "current".
-        db.createObjectStore(IDENTITY_STORE);
       }
     };
     req.onsuccess = () => resolve(req.result);

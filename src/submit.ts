@@ -1,12 +1,9 @@
-import { importIdentity, signCanvasClaim, signDrawingId } from "./identity.js";
-import { loadStoredIdentity, markPublished } from "./identity-store.js";
+import { authHeader, getSession } from "./auth.js";
 import type { LastPublishState, SolveProgress } from "./pow.js";
 import {
   INITIAL_STATE,
   POW_CONFIG,
   ageSecondsBetween,
-  contentHash,
-  hashHex,
   requiredBits,
 } from "./pow.js";
 
@@ -38,10 +35,10 @@ export interface SubmitOptions {
   signal?: AbortSignal;
 }
 
-export class MissingIdentityError extends Error {
+export class MissingSessionError extends Error {
   constructor() {
-    super("no identity configured — set up your key before publishing");
-    this.name = "MissingIdentityError";
+    super("sign in to publish");
+    this.name = "MissingSessionError";
   }
 }
 
@@ -67,10 +64,10 @@ export class CanvasCooldownError extends Error {
 }
 
 export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
-  // Surface the missing-identity case before kicking off the worker so we
+  // Surface the missing-session case before kicking off the worker so we
   // don't burn CPU on PoW that the server would reject anyway.
-  const stored = await loadStoredIdentity();
-  if (!stored) throw new MissingIdentityError();
+  const session = getSession();
+  if (!session) throw new MissingSessionError();
 
   const state = await fetchState(opts.stateUrl);
   const ageS = Math.max(
@@ -99,16 +96,9 @@ export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
       opts.signal,
     );
 
-    const identity = await importIdentity({
-      jwk_public: stored.jwk_public,
-      jwk_secret: stored.jwk_secret,
-    });
-    const drawingIdHex = hashHex(await contentHash(opts.gif));
-    const signature = await signDrawingId(identity, drawingIdHex);
-
     const res = await fetch(opts.ingestUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeader() },
       body: JSON.stringify({
         gif: base64(opts.gif),
         nonce: solved.nonce,
@@ -116,8 +106,6 @@ export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
         solve_ms: solved.solveMs,
         bench_hps: benchHps,
         parent: opts.parent,
-        pubkey: stored.pubkey_hex,
-        signature,
         ...(opts.tileClaim
           ? {
               canvas_claim: {
@@ -139,6 +127,7 @@ export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
         // Non-JSON body (e.g., 405 text/plain) — fall through.
       }
       const msg = parsed.error ?? bodyText;
+      if (res.status === 401) throw new MissingSessionError();
       if (res.status === 409) throw new TileTakenError(msg);
       if (res.status === 403) throw new CanvasClaimRejectedError(msg);
       if (res.status === 429) {
@@ -146,10 +135,6 @@ export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
       }
       throw new Error(`ingest rejected: ${res.status} ${msg}`);
     }
-    // Unlocks the chrome's /keys/<pubkey> upgrade. Set before returning so
-    // the next page load (post-publish) finds the flag without waiting on
-    // the caller to remember to mark it.
-    markPublished();
     return (await res.json()) as IngestResponse;
   } finally {
     worker.terminate();
@@ -184,8 +169,8 @@ interface CanvasStateForClaim {
 }
 
 export async function claimTile(opts: ClaimTileOptions): Promise<ClaimResponse> {
-  const stored = await loadStoredIdentity();
-  if (!stored) throw new MissingIdentityError();
+  const session = getSession();
+  if (!session) throw new MissingSessionError();
 
   const state = await fetchCanvasState(opts.stateUrl);
   if (state.locked) throw new CanvasClaimRejectedError("canvas is locked");
@@ -218,7 +203,7 @@ export async function claimTile(opts: ClaimTileOptions): Promise<ClaimResponse> 
           canvasId: opts.canvasId,
           x: opts.x,
           y: opts.y,
-          pubkey: stored.pubkey_hex,
+          userId: session.user_id,
         },
         baseline,
         bits,
@@ -231,26 +216,13 @@ export async function claimTile(opts: ClaimTileOptions): Promise<ClaimResponse> 
       opts.signal,
     );
 
-    const identity = await importIdentity({
-      jwk_public: stored.jwk_public,
-      jwk_secret: stored.jwk_secret,
-    });
-    const signature = await signCanvasClaim(
-      identity,
-      opts.canvasId,
-      opts.x,
-      opts.y,
-    );
-
     const res = await fetch(opts.claimUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeader() },
       body: JSON.stringify({
         canvas_id: opts.canvasId,
         x: opts.x,
         y: opts.y,
-        pubkey: stored.pubkey_hex,
-        signature,
         baseline,
         nonce: solved.nonce,
       }),
@@ -265,6 +237,7 @@ export async function claimTile(opts: ClaimTileOptions): Promise<ClaimResponse> 
         // Non-JSON body — keep raw text.
       }
       const msg = parsed.error ?? bodyText;
+      if (res.status === 401) throw new MissingSessionError();
       if (res.status === 409) throw new TileTakenError(msg);
       if (res.status === 403) throw new CanvasClaimRejectedError(msg);
       throw new Error(`claim rejected: ${res.status} ${msg}`);

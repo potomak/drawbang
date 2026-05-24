@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!--CHROME:ANALYTICS-->
+    <!--CHROME:META-PIXEL-->
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Draw! · Account</title>
+    <meta name="drawbang:active" content="identity" />
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <!--CHROME:HEADER-->
+    <main class="identity-page">
+      <h2>Account</h2>
+      <div id="account-body" hidden>
+        <p>Signed in as <strong id="account-username"></strong>.</p>
+        <p>
+          <a class="btn" id="account-profile" href="/">View your profile</a>
+          <button class="btn ghost" id="account-logout" type="button">Sign out</button>
+        </p>
+      </div>
+    </main>
+    <!--CHROME:FOOTER-->
+    <script type="module" src="./src/account.ts"></script>
+  </body>
+</html>

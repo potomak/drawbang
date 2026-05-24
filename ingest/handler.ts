@@ -1,6 +1,5 @@
 import { INITIAL_STATE, ageSecondsBetween, contentHash, hashHex, leadingZeroBits, powHash, requiredBits } from "../src/pow.js";
 import type { LastPublishState } from "../src/pow.js";
-import { verifyDrawingId } from "../src/identity.js";
 import renderDrawing, {
   type DrawingCanvasMembership,
 } from "../builder/templates/drawing.js";
@@ -42,6 +41,13 @@ export interface CanvasClaimRef {
   y: number;
 }
 
+// The authenticated publisher, derived from the verified session JWT by the
+// route (lambda.ts / dev-server.ts). The request body never carries identity.
+export interface AuthedUser {
+  user_id: string; // 64-hex stable account id
+  username: string; // public handle, used in /u/<username>
+}
+
 export interface IngestRequest {
   gif: string; // base64
   nonce: string;
@@ -49,10 +55,8 @@ export interface IngestRequest {
   solve_ms?: number;
   bench_hps?: number;
   parent?: string;
-  pubkey: string;     // 64 hex (Ed25519 raw public key)
-  signature: string;  // 128 hex (Ed25519 signature over hexToBytes(drawing_id))
   // Present only when publishing into a weekly canvas tile. The tile must
-  // have been previously claimed by the same pubkey via POST /canvas/claim.
+  // have been previously claimed by the same account via POST /canvas/claim.
   canvas_claim?: CanvasClaimRef;
 }
 
@@ -75,6 +79,9 @@ export type IngestHandlerResult = IngestSuccess | IngestError;
 export interface HandlerConfig {
   storage: Storage;
   publicBaseUrl: string; // e.g. https://drawbang.example
+  // Authenticated publisher (from the verified session JWT). The route
+  // returns 401 before reaching here when the token is missing/invalid.
+  auth: AuthedUser;
   // GitHub repo URL for the footer link on the synchronous drawing page.
   repoUrl?: string;
   now?: () => Date;
@@ -89,8 +96,8 @@ export interface HandlerConfig {
 export interface ChildEntry {
   id: string;
   id_short: string;
-  pubkey: string;
-  pubkey_short: string;
+  user_id: string;
+  username: string;
   created_at: string;
 }
 
@@ -203,17 +210,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   // id is derived from the gif bytes alone: same drawing => same id, regardless
   // of how many times someone grinds a fresh PoW for it.
   const id = hashHex(await contentHash(gif));
-
-  // -- 4b. Ownership signature -----------------------------------------------
-  if (typeof req.pubkey !== "string" || !/^[0-9a-f]{64}$/.test(req.pubkey)) {
-    return err400("missing or malformed pubkey");
-  }
-  if (typeof req.signature !== "string" || !/^[0-9a-f]{128}$/.test(req.signature)) {
-    return err400("missing or malformed signature");
-  }
-  if (!(await verifyDrawingId(req.pubkey, id, req.signature))) {
-    return err400("signature does not verify against pubkey");
-  }
+  const author = cfg.auth;
 
   // -- 5. Canvas-claim pre-checks --------------------------------------------
   // Run *before* the idempotency check: content-addressed ids mean the same
@@ -279,8 +276,8 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
       required_bits: bits,
       created_at: nowISO,
       parent: req.parent ?? null,
-      pubkey: req.pubkey,
-      signature: req.signature,
+      user_id: author.user_id,
+      username: author.username,
     };
     await Promise.all([
       cfg.storage.put(gifKey, gif, "image/gif"),
@@ -336,7 +333,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     if (cfg.userStatsStore) {
       try {
         await cfg.userStatsStore.recordDailyDrawing({
-          pubkey: req.pubkey,
+          user_id: author.user_id,
           date_utc: nowISO.slice(0, 10),
           now_iso: nowISO,
         });
@@ -358,8 +355,8 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     await appendChild(cfg.storage, req.parent, {
       id,
       id_short: id.slice(0, 8),
-      pubkey: req.pubkey,
-      pubkey_short: req.pubkey.slice(0, 8),
+      user_id: author.user_id,
+      username: author.username,
       created_at: nowISO,
     });
   }
@@ -373,7 +370,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
       await cfg.canvasStore!.publishTile({
         canvas_id: cc.canvas_id,
         tile_key: tk,
-        pubkey: req.pubkey,
+        user_id: author.user_id,
         drawing_id: id,
         now_epoch: Math.floor(now.getTime() / 1000),
         cooldown_s: PUBLISH_COOLDOWN_S,
@@ -394,8 +391,8 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
       name: canvasName(cc.canvas_id),
       x: cc.x,
       y: cc.y,
-      claimed_by: req.pubkey,
-      claimed_by_short: req.pubkey.slice(0, 8),
+      claimed_by: author.user_id,
+      claimed_by_username: author.username,
     };
     await appendCanvasMembership(cfg.storage, id, appendedMembership);
 
@@ -407,7 +404,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     if (cfg.userStatsStore) {
       try {
         await cfg.userStatsStore.recordCanvasParticipation({
-          pubkey: req.pubkey,
+          user_id: author.user_id,
           canvas_id: cc.canvas_id,
           now_iso: nowISO,
         });
@@ -468,7 +465,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     parent: req.parent
       ? { parent: req.parent, parent_short: req.parent.slice(0, 8) }
       : null,
-    author: { pubkey: req.pubkey, pubkey_short: req.pubkey.slice(0, 8) },
+    author: { user_id: author.user_id, username: author.username },
     canvases,
     public_base_url: cfg.publicBaseUrl,
     repo_url: cfg.repoUrl ?? "https://github.com/potomak/drawbang",

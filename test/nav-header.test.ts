@@ -70,8 +70,8 @@ test("drawing.ts emits chrome and marks gallery active", () => {
 
 test("owner.ts emits chrome and marks identity active", () => {
   const html = renderOwner({
-    pubkey: "b".repeat(64),
-    pubkey_short: "bbbbbbbb",
+    username: "bob",
+    user_id: "b".repeat(64),
     drawings: [],
     repo_url: REPO,
   });
@@ -101,7 +101,7 @@ test("every builder template threads repo_url into the chrome footer", () => {
     renderGallery({ today: "x", drawings: [], days: [], repo_url: sentinel }),
     renderDayGallery({ date: "x", page: 1, total_pages: 1, drawings: [], prev_page: null, next_page: null, prev_day: null, next_day: null, repo_url: sentinel }),
     renderDrawing({ ...SAMPLE_DRAWING, repo_url: sentinel }),
-    renderOwner({ pubkey: "b".repeat(64), pubkey_short: "bbbbbbbb", drawings: [], repo_url: sentinel }),
+    renderOwner({ username: "bob", user_id: "b".repeat(64), drawings: [], repo_url: sentinel }),
     renderProducts({ page: 1, total_pages: 1, cards: [], prev_page: null, next_page: null, repo_url: sentinel }),
   ];
   for (const html of surfaces) {

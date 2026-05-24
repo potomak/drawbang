@@ -334,26 +334,6 @@ dialog {
   max-width: 95vw;
 }
 dialog::backdrop { background: rgba(0,0,0,0.6); }
-.identity-dialog { max-width: min(480px, 95vw); }
-.identity-dialog h2 { margin: 0 0 8px; font-size: var(--t-lg); }
-.identity-dialog p { font-size: var(--t-sm); color: var(--fg-dim); margin: 0 0 8px; }
-.identity-dialog p.muted { color: var(--fg-muted); }
-.identity-actions { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
-.identity-actions .btn, .identity-actions button { width: 100%; }
-.identity-import-label {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: var(--tap);
-  padding: 0 14px;
-  background: var(--bg-elev);
-  border: var(--border) solid var(--border-c);
-  cursor: pointer;
-  font: 500 var(--t-sm) var(--font);
-  color: var(--fg);
-  text-align: center;
-}
-.identity-import-label:hover { border-color: var(--border-strong); }
 .identity-pubkey {
   display: flex;
   gap: 8px;
@@ -371,8 +351,6 @@ dialog::backdrop { background: rgba(0,0,0,0.6); }
   user-select: text;
   color: var(--fg);
 }
-.identity-danger { border-color: #d23030 !important; color: #ff6060 !important; }
-.identity-error { color: #ff6060; font-size: var(--t-xs); min-height: 1.2em; }
 dialog form menu { display: flex; gap: 8px; justify-content: flex-end; padding: 0; margin: 12px 0 0; }
 dialog form menu button { font: 500 var(--t-sm) var(--font); background: var(--bg-elev); color: var(--fg); border: var(--border) solid var(--border-c); padding: 0 14px; height: 36px; cursor: pointer; }
 dialog form menu button:hover { border-color: var(--border-strong); }
@@ -587,6 +565,24 @@ dialog form menu button:hover { border-color: var(--border-strong); }
   letter-spacing: 0.02em;
 }
 .identity-cta:hover { filter: brightness(0.95); text-decoration: none; }
+
+/* Auth forms (/login, /signup, /reset, /account) */
+.auth-form { display: flex; flex-direction: column; gap: 14px; max-width: 360px; margin: 0 0 16px; }
+.auth-form h2 { margin: 0; }
+.auth-field { display: flex; flex-direction: column; gap: 4px; }
+.auth-field > span { font-size: var(--t-sm); color: var(--fg); }
+.auth-field input {
+  height: var(--tap);
+  padding: 0 10px;
+  background: var(--bg);
+  border: var(--border) solid var(--border-c);
+  color: var(--fg);
+  font: 400 var(--t-sm) var(--font);
+}
+.auth-field input:focus { outline: none; border-color: var(--border-strong); }
+.auth-field small { font-size: var(--t-xs); }
+.auth-error { color: #ff6060; font-size: var(--t-sm); min-height: 1.2em; margin: 0; }
+.auth-note { font-size: var(--t-sm); color: var(--fg-dim); }
 
 /* =====================================================================
    POW TEST BED (/pow-test)

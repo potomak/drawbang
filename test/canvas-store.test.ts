@@ -30,19 +30,19 @@ for (const { name, build } of makeStores()) {
       const r = await s.claimTile({
         canvas_id: CANVAS,
         tile_key: TILE,
-        pubkey: PUBKEY_A,
+        user_id: PUBKEY_A,
         now_epoch: NOW,
         ttl_s: TTL,
       });
       assert.equal(r.claim_expires_at, NOW + TTL);
     });
 
-    test("second pubkey can't claim an active tile", async () => {
+    test("second user_id can't claim an active tile", async () => {
       const s = build();
       await s.claimTile({
         canvas_id: CANVAS,
         tile_key: TILE,
-        pubkey: PUBKEY_A,
+        user_id: PUBKEY_A,
         now_epoch: NOW,
         ttl_s: TTL,
       });
@@ -51,7 +51,7 @@ for (const { name, build } of makeStores()) {
           s.claimTile({
             canvas_id: CANVAS,
             tile_key: TILE,
-            pubkey: PUBKEY_B,
+            user_id: PUBKEY_B,
             now_epoch: NOW + 1,
             ttl_s: TTL,
           }),
@@ -64,33 +64,33 @@ for (const { name, build } of makeStores()) {
       await s.claimTile({
         canvas_id: CANVAS,
         tile_key: TILE,
-        pubkey: PUBKEY_A,
+        user_id: PUBKEY_A,
         now_epoch: NOW,
         ttl_s: TTL,
       });
       const r = await s.claimTile({
         canvas_id: CANVAS,
         tile_key: TILE,
-        pubkey: PUBKEY_B,
+        user_id: PUBKEY_B,
         now_epoch: NOW + TTL + 1,
         ttl_s: TTL,
       });
       assert.equal(r.claim_expires_at, NOW + TTL + 1 + TTL);
     });
 
-    test("same pubkey can refresh their own active claim", async () => {
+    test("same user_id can refresh their own active claim", async () => {
       const s = build();
       await s.claimTile({
         canvas_id: CANVAS,
         tile_key: TILE,
-        pubkey: PUBKEY_A,
+        user_id: PUBKEY_A,
         now_epoch: NOW,
         ttl_s: TTL,
       });
       const r = await s.claimTile({
         canvas_id: CANVAS,
         tile_key: TILE,
-        pubkey: PUBKEY_A,
+        user_id: PUBKEY_A,
         now_epoch: NOW + 100,
         ttl_s: TTL,
       });
@@ -103,14 +103,14 @@ for (const { name, build } of makeStores()) {
         s.claimTile({
           canvas_id: CANVAS,
           tile_key: TILE,
-          pubkey: PUBKEY_A,
+          user_id: PUBKEY_A,
           now_epoch: NOW,
           ttl_s: TTL,
         }),
         s.claimTile({
           canvas_id: CANVAS,
           tile_key: TILE,
-          pubkey: PUBKEY_B,
+          user_id: PUBKEY_B,
           now_epoch: NOW,
           ttl_s: TTL,
         }),
@@ -129,14 +129,14 @@ for (const { name, build } of makeStores()) {
       await s.claimTile({
         canvas_id: CANVAS,
         tile_key: TILE,
-        pubkey: PUBKEY_A,
+        user_id: PUBKEY_A,
         now_epoch: NOW,
         ttl_s: TTL,
       });
       await s.publishTile({
         canvas_id: CANVAS,
         tile_key: TILE,
-        pubkey: PUBKEY_A,
+        user_id: PUBKEY_A,
         drawing_id: "deadbeef",
         now_epoch: NOW + 60,
         cooldown_s: COOLDOWN,
@@ -154,14 +154,14 @@ for (const { name, build } of makeStores()) {
       await s.claimTile({
         canvas_id: CANVAS,
         tile_key: "0,0",
-        pubkey: PUBKEY_A,
+        user_id: PUBKEY_A,
         now_epoch: NOW,
         ttl_s: TTL,
       });
       await s.publishTile({
         canvas_id: CANVAS,
         tile_key: "0,0",
-        pubkey: PUBKEY_A,
+        user_id: PUBKEY_A,
         drawing_id: "first",
         now_epoch: NOW,
         cooldown_s: COOLDOWN,
@@ -171,7 +171,7 @@ for (const { name, build } of makeStores()) {
       await s.claimTile({
         canvas_id: CANVAS,
         tile_key: "1,0",
-        pubkey: PUBKEY_A,
+        user_id: PUBKEY_A,
         now_epoch: NOW + 60,
         ttl_s: TTL,
       });
@@ -180,7 +180,7 @@ for (const { name, build } of makeStores()) {
           s.publishTile({
             canvas_id: CANVAS,
             tile_key: "1,0",
-            pubkey: PUBKEY_A,
+            user_id: PUBKEY_A,
             drawing_id: "second",
             now_epoch: NOW + 60,
             cooldown_s: COOLDOWN,
@@ -199,14 +199,14 @@ for (const { name, build } of makeStores()) {
       await s.claimTile({
         canvas_id: CANVAS,
         tile_key: "0,0",
-        pubkey: PUBKEY_A,
+        user_id: PUBKEY_A,
         now_epoch: NOW,
         ttl_s: TTL,
       });
       await s.publishTile({
         canvas_id: CANVAS,
         tile_key: "0,0",
-        pubkey: PUBKEY_A,
+        user_id: PUBKEY_A,
         drawing_id: "first",
         now_epoch: NOW,
         cooldown_s: COOLDOWN,
@@ -215,14 +215,14 @@ for (const { name, build } of makeStores()) {
       await s.claimTile({
         canvas_id: CANVAS,
         tile_key: "1,0",
-        pubkey: PUBKEY_A,
+        user_id: PUBKEY_A,
         now_epoch: NOW + COOLDOWN,
         ttl_s: TTL,
       });
       await s.publishTile({
         canvas_id: CANVAS,
         tile_key: "1,0",
-        pubkey: PUBKEY_A,
+        user_id: PUBKEY_A,
         drawing_id: "second",
         now_epoch: NOW + COOLDOWN,
         cooldown_s: COOLDOWN,
@@ -235,7 +235,7 @@ for (const { name, build } of makeStores()) {
       await s.claimTile({
         canvas_id: CANVAS,
         tile_key: TILE,
-        pubkey: PUBKEY_A,
+        user_id: PUBKEY_A,
         now_epoch: NOW,
         ttl_s: TTL,
       });
@@ -244,7 +244,7 @@ for (const { name, build } of makeStores()) {
           s.publishTile({
             canvas_id: CANVAS,
             tile_key: TILE,
-            pubkey: PUBKEY_A,
+            user_id: PUBKEY_A,
             drawing_id: "x",
             now_epoch: NOW + TTL + 1,
             cooldown_s: COOLDOWN,
@@ -254,12 +254,12 @@ for (const { name, build } of makeStores()) {
       );
     });
 
-    test("publish from different pubkey rejected", async () => {
+    test("publish from different user_id rejected", async () => {
       const s = build();
       await s.claimTile({
         canvas_id: CANVAS,
         tile_key: TILE,
-        pubkey: PUBKEY_A,
+        user_id: PUBKEY_A,
         now_epoch: NOW,
         ttl_s: TTL,
       });
@@ -268,7 +268,7 @@ for (const { name, build } of makeStores()) {
           s.publishTile({
             canvas_id: CANVAS,
             tile_key: TILE,
-            pubkey: PUBKEY_B,
+            user_id: PUBKEY_B,
             drawing_id: "x",
             now_epoch: NOW + 60,
             cooldown_s: COOLDOWN,
@@ -283,14 +283,14 @@ for (const { name, build } of makeStores()) {
       await s.claimTile({
         canvas_id: CANVAS,
         tile_key: TILE,
-        pubkey: PUBKEY_A,
+        user_id: PUBKEY_A,
         now_epoch: NOW,
         ttl_s: TTL,
       });
       await s.publishTile({
         canvas_id: CANVAS,
         tile_key: TILE,
-        pubkey: PUBKEY_A,
+        user_id: PUBKEY_A,
         drawing_id: "x",
         now_epoch: NOW + 60,
         cooldown_s: COOLDOWN,
@@ -301,7 +301,7 @@ for (const { name, build } of makeStores()) {
           s.claimTile({
             canvas_id: CANVAS,
             tile_key: TILE,
-            pubkey: PUBKEY_B,
+            user_id: PUBKEY_B,
             now_epoch: NOW + 10_000,
             ttl_s: TTL,
           }),
@@ -314,7 +314,7 @@ for (const { name, build } of makeStores()) {
       await s.claimTile({
         canvas_id: CANVAS,
         tile_key: "7,11",
-        pubkey: PUBKEY_A,
+        user_id: PUBKEY_A,
         now_epoch: NOW,
         ttl_s: TTL,
       });

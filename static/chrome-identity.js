@@ -1,38 +1,30 @@
-// Runtime patcher for the chrome's identity link (#171). Vanilla JS,
-// served at a stable URL like /chrome-toggle.js. Identity is held in
-// IndexedDB by the editor; we mirror the pubkey to localStorage on
-// every save/load so this script can read it synchronously and
-// rewrite the link before first paint.
+// Runtime patcher for the chrome's identity link. Vanilla JS, served at a
+// stable URL like /chrome-toggle.js. The editor mirrors the logged-in
+// account's username to localStorage on login/logout so this script can read
+// it synchronously and rewrite the link before first paint.
 
 (() => {
   if (window.__drawbangChromeIdentityInit) return;
   window.__drawbangChromeIdentityInit = true;
 
-  const MIRROR_KEY = "drawbang:pubkey";
-  const PUBLISHED_KEY = "drawbang:has_published";
+  const USERNAME_KEY = "drawbang:username";
 
-  let pubkey = null;
-  let published = null;
+  let username = null;
   try {
-    pubkey = localStorage.getItem(MIRROR_KEY);
-    published = localStorage.getItem(PUBLISHED_KEY);
+    username = localStorage.getItem(USERNAME_KEY);
   } catch {
     // private-mode or disabled storage — fall through to the build-time
-    // fallback href, which is the right behaviour for anonymous viewers.
+    // fallback href (/login), which is right for logged-out viewers.
   }
-  if (!pubkey || !/^[0-9a-f]{64}$/.test(pubkey)) return;
-  // /keys/<pubkey>.html only exists after the builder has seen a drawing
-  // from this key. Without the published flag, leave the link at /identity.
-  if (published !== "1") return;
+  if (!username || !/^[a-z0-9_-]{3,20}$/.test(username)) return;
 
   const apply = () => {
     const links = document.querySelectorAll('[data-identity-link="1"]');
     for (const link of links) {
       if (!(link instanceof HTMLAnchorElement)) continue;
-      link.href = "/keys/" + pubkey;
-      // Only rewrite the label if it's still the default; the editor's
-      // identity-aware UX may have customised it.
-      if (link.textContent === "Identity" || link.textContent === "identity") {
+      link.href = "/u/" + username;
+      // Only rewrite the default logged-out label.
+      if (link.textContent === "Sign in" || link.textContent === "Identity") {
         link.textContent = "Profile";
       }
     }

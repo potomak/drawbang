@@ -11,7 +11,7 @@ import { parseTileKey } from "../config/canvases.js";
 export class TileLockedError extends Error {
   readonly code = "TILE_LOCKED" as const;
   constructor() {
-    super("tile is currently claimed by another pubkey");
+    super("tile is currently claimed by another account");
   }
 }
 
@@ -25,7 +25,7 @@ export class ClaimExpiredError extends Error {
 export class NotClaimerError extends Error {
   readonly code = "NOT_CLAIMER" as const;
   constructor() {
-    super("publish pubkey is not the claimer of this tile");
+    super("publishing account is not the claimer of this tile");
   }
 }
 
@@ -58,7 +58,7 @@ export interface TileRow {
 export interface ClaimArgs {
   canvas_id: string;
   tile_key: string;
-  pubkey: string;
+  user_id: string;
   now_epoch: number;
   ttl_s: number;
 }
@@ -66,7 +66,7 @@ export interface ClaimArgs {
 export interface PublishArgs {
   canvas_id: string;
   tile_key: string;
-  pubkey: string;
+  user_id: string;
   drawing_id: string;
   now_epoch: number;
   cooldown_s: number;
@@ -78,7 +78,7 @@ export interface CanvasStore {
   publishTile(args: PublishArgs): Promise<void>;
   getTiles(canvas_id: string): Promise<TileRow[]>;
   cooldownRemaining(
-    pubkey: string,
+    user_id: string,
     canvas_id: string,
     now_epoch: number,
     cooldown_s: number,
@@ -124,11 +124,11 @@ export class DynamoCanvasStore implements CanvasStore {
             TableName: this.tilesTable,
             Key: { canvas_id: args.canvas_id, tile_key: args.tile_key },
             UpdateExpression:
-              "SET claimed_by = :pubkey, claimed_at = :now, claim_expires_at = :exp, x = :x, y = :y, ttl_epoch = :ttl",
+              "SET claimed_by = :user_id, claimed_at = :now, claim_expires_at = :exp, x = :x, y = :y, ttl_epoch = :ttl",
             ConditionExpression:
-              "attribute_not_exists(drawing_id) AND (attribute_not_exists(claimed_by) OR claim_expires_at <= :now OR claimed_by = :pubkey)",
+              "attribute_not_exists(drawing_id) AND (attribute_not_exists(claimed_by) OR claim_expires_at <= :now OR claimed_by = :user_id)",
             ExpressionAttributeValues: {
-              ":pubkey": args.pubkey,
+              ":user_id": args.user_id,
               ":now": args.now_epoch,
               ":exp": claim_expires_at,
               ":x": x,
@@ -172,10 +172,10 @@ export class DynamoCanvasStore implements CanvasStore {
             UpdateExpression:
               "SET drawing_id = :did, published_at = :now",
             ConditionExpression:
-              "claimed_by = :pubkey AND claim_expires_at > :now AND attribute_not_exists(drawing_id)",
+              "claimed_by = :user_id AND claim_expires_at > :now AND attribute_not_exists(drawing_id)",
             ExpressionAttributeValues: {
               ":did": args.drawing_id,
-              ":pubkey": args.pubkey,
+              ":user_id": args.user_id,
               ":now": args.now_epoch,
             },
           },
@@ -183,7 +183,7 @@ export class DynamoCanvasStore implements CanvasStore {
         {
           Update: {
             TableName: this.cooldownsTable,
-            Key: { pubkey: args.pubkey, canvas_id: args.canvas_id },
+            Key: { user_id: args.user_id, canvas_id: args.canvas_id },
             UpdateExpression: "SET last_publish_at = :now, ttl_epoch = :ttl",
             ConditionExpression:
               "attribute_not_exists(last_publish_at) OR last_publish_at <= :deadline",
@@ -211,7 +211,7 @@ export class DynamoCanvasStore implements CanvasStore {
         const cooldownFailed = reasons[1]?.Code === "ConditionalCheckFailed";
         if (cooldownFailed && !tileFailed) {
           const remaining = await this.cooldownRemaining(
-            args.pubkey,
+            args.user_id,
             args.canvas_id,
             args.now_epoch,
             args.cooldown_s,
@@ -228,7 +228,7 @@ export class DynamoCanvasStore implements CanvasStore {
         const row = existing.Item as TileRow | undefined;
         if (row?.drawing_id) throw new AlreadyPublishedError();
         if (!row?.claimed_by) throw new NotClaimerError();
-        if (row.claimed_by !== args.pubkey) throw new NotClaimerError();
+        if (row.claimed_by !== args.user_id) throw new NotClaimerError();
         if ((row.claim_expires_at ?? 0) <= args.now_epoch) {
           throw new ClaimExpiredError();
         }
@@ -260,7 +260,7 @@ export class DynamoCanvasStore implements CanvasStore {
   }
 
   async cooldownRemaining(
-    pubkey: string,
+    user_id: string,
     canvas_id: string,
     now_epoch: number,
     cooldown_s: number,
@@ -268,7 +268,7 @@ export class DynamoCanvasStore implements CanvasStore {
     const r = await this.doc.send(
       new GetCommand({
         TableName: this.cooldownsTable,
-        Key: { pubkey, canvas_id },
+        Key: { user_id, canvas_id },
       }),
     );
     const last = r.Item?.last_publish_at as number | undefined;
@@ -292,8 +292,8 @@ export class MemoryCanvasStore implements CanvasStore {
     return m;
   }
 
-  private cooldownKey(pubkey: string, canvas_id: string): string {
-    return `${pubkey}:${canvas_id}`;
+  private cooldownKey(user_id: string, canvas_id: string): string {
+    return `${user_id}:${canvas_id}`;
   }
 
   // Note: no `await` between read and write so the JS event loop can't
@@ -305,7 +305,7 @@ export class MemoryCanvasStore implements CanvasStore {
     if (existing?.drawing_id) throw new AlreadyPublishedError();
     const activeClaim =
       existing?.claim_expires_at && existing.claim_expires_at > args.now_epoch;
-    if (activeClaim && existing!.claimed_by !== args.pubkey) {
+    if (activeClaim && existing!.claimed_by !== args.user_id) {
       throw new TileLockedError();
     }
     const { x, y } = tileXY(args.tile_key);
@@ -316,7 +316,7 @@ export class MemoryCanvasStore implements CanvasStore {
       tile_key: args.tile_key,
       x,
       y,
-      claimed_by: args.pubkey,
+      claimed_by: args.user_id,
       claimed_at: args.now_epoch,
       claim_expires_at,
     });
@@ -328,12 +328,12 @@ export class MemoryCanvasStore implements CanvasStore {
     const existing = map.get(args.tile_key);
     if (!existing || !existing.claimed_by) throw new NotClaimerError();
     if (existing.drawing_id) throw new AlreadyPublishedError();
-    if (existing.claimed_by !== args.pubkey) throw new NotClaimerError();
+    if (existing.claimed_by !== args.user_id) throw new NotClaimerError();
     if ((existing.claim_expires_at ?? 0) <= args.now_epoch) {
       throw new ClaimExpiredError();
     }
     const cooldownLast = this.cooldowns.get(
-      this.cooldownKey(args.pubkey, args.canvas_id),
+      this.cooldownKey(args.user_id, args.canvas_id),
     );
     if (cooldownLast !== undefined) {
       const elapsed = args.now_epoch - cooldownLast;
@@ -347,7 +347,7 @@ export class MemoryCanvasStore implements CanvasStore {
       published_at: args.now_epoch,
     });
     this.cooldowns.set(
-      this.cooldownKey(args.pubkey, args.canvas_id),
+      this.cooldownKey(args.user_id, args.canvas_id),
       args.now_epoch,
     );
   }
@@ -357,12 +357,12 @@ export class MemoryCanvasStore implements CanvasStore {
   }
 
   async cooldownRemaining(
-    pubkey: string,
+    user_id: string,
     canvas_id: string,
     now_epoch: number,
     cooldown_s: number,
   ): Promise<number> {
-    const last = this.cooldowns.get(this.cooldownKey(pubkey, canvas_id));
+    const last = this.cooldowns.get(this.cooldownKey(user_id, canvas_id));
     if (last === undefined) return 0;
     return Math.max(0, last + cooldown_s - now_epoch);
   }

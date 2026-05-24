@@ -7,14 +7,15 @@ import path from "node:path";
 // Vite dev server. Two responsibilities:
 //
 //   1. Serve builder-rendered HTML from ./dev-bucket/public/<...>.html for
-//      /gallery, /d/<id>, /days/<date>/p/<n>, /keys/<pk>, /products,
+//      /gallery, /d/<id>, /days/<date>/p/<n>, /u/<username>, /products,
 //      /products/p/<n>, plus /feed.rss and /drawings/<id>.gif assets.
 //      These only appear once `npm run builder` (or the inline rebuild
 //      hook in ingest/dev-server.ts) has written them.
 //
 //   2. Rewrite clean URLs for Vite-built entries (/merch, /merch/order/<id>,
-//      /share, /identity) to their backing *.html files so Vite serves them.
-//      Doesn't read from disk — sets req.url and falls through to Vite.
+//      /login, /signup, /reset, /account) to their backing *.html files so
+//      Vite serves them. Doesn't read from disk — sets req.url and falls
+//      through to Vite.
 
 export interface DevBucketPluginOptions {
   bucketRoot?: string;
@@ -65,8 +66,8 @@ const BUILDER_ROUTES: BuilderRoute[] = [
   },
   {
     test: (uri) => {
-      const m = uri.match(/^\/keys\/([^/]+)$/);
-      return m && SIXTY_FOUR_HEX.test(m[1]) ? `keys/${m[1]}.html` : null;
+      const m = uri.match(/^\/u\/([a-z0-9_-]{3,20})$/);
+      return m ? `u/${m[1]}.html` : null;
     },
     contentType: "text/html; charset=utf-8",
   },
@@ -99,7 +100,10 @@ const BUILDER_ROUTES: BuilderRoute[] = [
 // CloudFront rules so dev navigation behaves the same as prod.
 function viteEntryRewrite(uri: string): string | null {
   if (uri === "/merch") return "/merch.html";
-  if (uri === "/identity") return "/identity.html";
+  if (uri === "/login") return "/login.html";
+  if (uri === "/signup") return "/signup.html";
+  if (uri === "/reset") return "/reset.html";
+  if (uri === "/account") return "/account.html";
   if (uri === "/privacy") return "/privacy.html";
   if (UUID_36.test(uri.slice("/merch/order/".length)) && uri.startsWith("/merch/order/")) {
     return "/order.html";
