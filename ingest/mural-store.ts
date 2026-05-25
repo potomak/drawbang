@@ -6,7 +6,7 @@ import {
   TransactWriteCommand,
   type TransactWriteCommandInput,
 } from "@aws-sdk/lib-dynamodb";
-import { parseTileKey } from "../config/canvases.js";
+import { parseTileKey } from "../config/murals.js";
 
 export class TileLockedError extends Error {
   readonly code = "TILE_LOCKED" as const;
@@ -44,7 +44,7 @@ export class CooldownError extends Error {
 }
 
 export interface TileRow {
-  canvas_id: string;
+  mural_id: string;
   tile_key: string;
   x: number;
   y: number;
@@ -56,7 +56,7 @@ export interface TileRow {
 }
 
 export interface ClaimArgs {
-  canvas_id: string;
+  mural_id: string;
   tile_key: string;
   user_id: string;
   now_epoch: number;
@@ -64,22 +64,22 @@ export interface ClaimArgs {
 }
 
 export interface PublishArgs {
-  canvas_id: string;
+  mural_id: string;
   tile_key: string;
   user_id: string;
   drawing_id: string;
   now_epoch: number;
   cooldown_s: number;
-  cooldown_ttl_s: number; // how long the cooldown row should live (typically until canvas closes)
+  cooldown_ttl_s: number; // how long the cooldown row should live (typically until mural closes)
 }
 
-export interface CanvasStore {
+export interface MuralStore {
   claimTile(args: ClaimArgs): Promise<{ claim_expires_at: number }>;
   publishTile(args: PublishArgs): Promise<void>;
-  getTiles(canvas_id: string): Promise<TileRow[]>;
+  getTiles(mural_id: string): Promise<TileRow[]>;
   cooldownRemaining(
     user_id: string,
-    canvas_id: string,
+    mural_id: string,
     now_epoch: number,
     cooldown_s: number,
   ): Promise<number>;
@@ -93,18 +93,18 @@ function tileXY(tile_key: string): { x: number; y: number } {
 
 // -- DynamoDB -----------------------------------------------------------------
 
-export interface DynamoCanvasStoreOptions {
+export interface DynamoMuralStoreOptions {
   tilesTable: string;
   cooldownsTable: string;
   client?: DynamoDBDocumentClient;
 }
 
-export class DynamoCanvasStore implements CanvasStore {
+export class DynamoMuralStore implements MuralStore {
   private readonly doc: DynamoDBDocumentClient;
   private readonly tilesTable: string;
   private readonly cooldownsTable: string;
 
-  constructor(opts: DynamoCanvasStoreOptions) {
+  constructor(opts: DynamoMuralStoreOptions) {
     this.tilesTable = opts.tilesTable;
     this.cooldownsTable = opts.cooldownsTable;
     this.doc =
@@ -122,7 +122,7 @@ export class DynamoCanvasStore implements CanvasStore {
         {
           Update: {
             TableName: this.tilesTable,
-            Key: { canvas_id: args.canvas_id, tile_key: args.tile_key },
+            Key: { mural_id: args.mural_id, tile_key: args.tile_key },
             UpdateExpression:
               "SET claimed_by = :user_id, claimed_at = :now, claim_expires_at = :exp, x = :x, y = :y, ttl_epoch = :ttl",
             ConditionExpression:
@@ -150,7 +150,7 @@ export class DynamoCanvasStore implements CanvasStore {
         const existing = await this.doc.send(
           new GetCommand({
             TableName: this.tilesTable,
-            Key: { canvas_id: args.canvas_id, tile_key: args.tile_key },
+            Key: { mural_id: args.mural_id, tile_key: args.tile_key },
           }),
         );
         if (existing.Item?.drawing_id) throw new AlreadyPublishedError();
@@ -168,7 +168,7 @@ export class DynamoCanvasStore implements CanvasStore {
         {
           Update: {
             TableName: this.tilesTable,
-            Key: { canvas_id: args.canvas_id, tile_key: args.tile_key },
+            Key: { mural_id: args.mural_id, tile_key: args.tile_key },
             UpdateExpression:
               "SET drawing_id = :did, published_at = :now",
             ConditionExpression:
@@ -183,7 +183,7 @@ export class DynamoCanvasStore implements CanvasStore {
         {
           Update: {
             TableName: this.cooldownsTable,
-            Key: { user_id: args.user_id, canvas_id: args.canvas_id },
+            Key: { user_id: args.user_id, mural_id: args.mural_id },
             UpdateExpression: "SET last_publish_at = :now, ttl_epoch = :ttl",
             ConditionExpression:
               "attribute_not_exists(last_publish_at) OR last_publish_at <= :deadline",
@@ -212,7 +212,7 @@ export class DynamoCanvasStore implements CanvasStore {
         if (cooldownFailed && !tileFailed) {
           const remaining = await this.cooldownRemaining(
             args.user_id,
-            args.canvas_id,
+            args.mural_id,
             args.now_epoch,
             args.cooldown_s,
           );
@@ -222,7 +222,7 @@ export class DynamoCanvasStore implements CanvasStore {
         const existing = await this.doc.send(
           new GetCommand({
             TableName: this.tilesTable,
-            Key: { canvas_id: args.canvas_id, tile_key: args.tile_key },
+            Key: { mural_id: args.mural_id, tile_key: args.tile_key },
           }),
         );
         const row = existing.Item as TileRow | undefined;
@@ -239,15 +239,15 @@ export class DynamoCanvasStore implements CanvasStore {
     }
   }
 
-  async getTiles(canvas_id: string): Promise<TileRow[]> {
+  async getTiles(mural_id: string): Promise<TileRow[]> {
     const out: TileRow[] = [];
     let ExclusiveStartKey: Record<string, unknown> | undefined;
     do {
       const r = await this.doc.send(
         new QueryCommand({
           TableName: this.tilesTable,
-          KeyConditionExpression: "canvas_id = :c",
-          ExpressionAttributeValues: { ":c": canvas_id },
+          KeyConditionExpression: "mural_id = :c",
+          ExpressionAttributeValues: { ":c": mural_id },
           ExclusiveStartKey,
         }),
       );
@@ -261,14 +261,14 @@ export class DynamoCanvasStore implements CanvasStore {
 
   async cooldownRemaining(
     user_id: string,
-    canvas_id: string,
+    mural_id: string,
     now_epoch: number,
     cooldown_s: number,
   ): Promise<number> {
     const r = await this.doc.send(
       new GetCommand({
         TableName: this.cooldownsTable,
-        Key: { user_id, canvas_id },
+        Key: { user_id, mural_id },
       }),
     );
     const last = r.Item?.last_publish_at as number | undefined;
@@ -279,28 +279,28 @@ export class DynamoCanvasStore implements CanvasStore {
 
 // -- In-memory ----------------------------------------------------------------
 
-export class MemoryCanvasStore implements CanvasStore {
+export class MemoryMuralStore implements MuralStore {
   private readonly tiles = new Map<string, Map<string, TileRow>>();
   private readonly cooldowns = new Map<string, number>();
 
-  private canvasMap(canvas_id: string): Map<string, TileRow> {
-    let m = this.tiles.get(canvas_id);
+  private muralMap(mural_id: string): Map<string, TileRow> {
+    let m = this.tiles.get(mural_id);
     if (!m) {
       m = new Map();
-      this.tiles.set(canvas_id, m);
+      this.tiles.set(mural_id, m);
     }
     return m;
   }
 
-  private cooldownKey(user_id: string, canvas_id: string): string {
-    return `${user_id}:${canvas_id}`;
+  private cooldownKey(user_id: string, mural_id: string): string {
+    return `${user_id}:${mural_id}`;
   }
 
   // Note: no `await` between read and write so the JS event loop can't
   // interleave two concurrent claims — matches the DDB conditional-write
   // contract (exactly one of N parallel claims wins).
   async claimTile(args: ClaimArgs): Promise<{ claim_expires_at: number }> {
-    const map = this.canvasMap(args.canvas_id);
+    const map = this.muralMap(args.mural_id);
     const existing = map.get(args.tile_key);
     if (existing?.drawing_id) throw new AlreadyPublishedError();
     const activeClaim =
@@ -312,7 +312,7 @@ export class MemoryCanvasStore implements CanvasStore {
     const claim_expires_at = args.now_epoch + args.ttl_s;
     map.set(args.tile_key, {
       ...(existing ?? {}),
-      canvas_id: args.canvas_id,
+      mural_id: args.mural_id,
       tile_key: args.tile_key,
       x,
       y,
@@ -324,7 +324,7 @@ export class MemoryCanvasStore implements CanvasStore {
   }
 
   async publishTile(args: PublishArgs): Promise<void> {
-    const map = this.canvasMap(args.canvas_id);
+    const map = this.muralMap(args.mural_id);
     const existing = map.get(args.tile_key);
     if (!existing || !existing.claimed_by) throw new NotClaimerError();
     if (existing.drawing_id) throw new AlreadyPublishedError();
@@ -333,7 +333,7 @@ export class MemoryCanvasStore implements CanvasStore {
       throw new ClaimExpiredError();
     }
     const cooldownLast = this.cooldowns.get(
-      this.cooldownKey(args.user_id, args.canvas_id),
+      this.cooldownKey(args.user_id, args.mural_id),
     );
     if (cooldownLast !== undefined) {
       const elapsed = args.now_epoch - cooldownLast;
@@ -347,22 +347,22 @@ export class MemoryCanvasStore implements CanvasStore {
       published_at: args.now_epoch,
     });
     this.cooldowns.set(
-      this.cooldownKey(args.user_id, args.canvas_id),
+      this.cooldownKey(args.user_id, args.mural_id),
       args.now_epoch,
     );
   }
 
-  async getTiles(canvas_id: string): Promise<TileRow[]> {
-    return [...this.canvasMap(canvas_id).values()];
+  async getTiles(mural_id: string): Promise<TileRow[]> {
+    return [...this.muralMap(mural_id).values()];
   }
 
   async cooldownRemaining(
     user_id: string,
-    canvas_id: string,
+    mural_id: string,
     now_epoch: number,
     cooldown_s: number,
   ): Promise<number> {
-    const last = this.cooldowns.get(this.cooldownKey(user_id, canvas_id));
+    const last = this.cooldowns.get(this.cooldownKey(user_id, mural_id));
     if (last === undefined) return 0;
     return Math.max(0, last + cooldown_s - now_epoch);
   }

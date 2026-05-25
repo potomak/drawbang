@@ -1,25 +1,25 @@
 import {
-  TILES_PER_CANVAS,
+  TILES_PER_MURAL,
   TILES_PER_SIDE,
-  canvasClosesAt,
-  canvasIdForDate,
-  canvasName,
-  canvasOpensAt,
-  isCanvasIdValid,
-} from "../config/canvases.js";
-import type { CanvasStore, TileRow } from "../ingest/canvas-store.js";
+  muralClosesAt,
+  muralIdForDate,
+  muralName,
+  muralOpensAt,
+  isMuralIdValid,
+} from "../config/murals.js";
+import type { MuralStore, TileRow } from "../ingest/mural-store.js";
 import type { Storage } from "../ingest/storage.js";
-import renderCanvas, { type CanvasTileView } from "./templates/canvas.js";
-import renderCanvasesArchive, {
-  type CanvasCard,
-} from "./templates/canvases-archive.js";
+import renderMural, { type MuralTileView } from "./templates/mural.js";
+import renderMuralsArchive, {
+  type MuralCard,
+} from "./templates/murals-archive.js";
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 const CC_INTERNAL = "public, max-age=60";
 const CC_IMMUTABLE = "public, max-age=31536000, immutable";
 
-export interface CanvasManifest {
+export interface MuralManifest {
   id: string;
   name: string;
   opens_at: string;
@@ -29,8 +29,8 @@ export interface CanvasManifest {
   locked: boolean;
 }
 
-export interface CurrentCanvasState {
-  canvas_id: string;
+export interface CurrentMuralState {
+  mural_id: string;
   name: string;
   opens_at: string;
   closes_at: string;
@@ -39,36 +39,36 @@ export interface CurrentCanvasState {
   tiles_published: number;
 }
 
-export interface CanvasPassOptions {
+export interface MuralPassOptions {
   storage: Storage;
-  canvasStore?: CanvasStore;
+  muralStore?: MuralStore;
   // Reference "now" — defaults to wall-clock. Tests inject for determinism.
   now?: Date;
   // Repo URL for the footer. Defaults to the project default.
   repoUrl?: string;
   // Base URL of the API Gateway (e.g. https://X.execute-api.us-east-1...).
-  // The canvas page hydrates from `${apiBaseUrl}/canvas/<id>/state`. CloudFront
+  // The mural page hydrates from `${apiBaseUrl}/mural/<id>/state`. CloudFront
   // can't proxy POSTs to API Gateway and its default behaviour returns 404 for
   // un-routed paths, so the hydration script must call API Gateway directly.
   // In dev this stays empty so relative URLs work through Vite's proxy.
   apiBaseUrl?: string;
 }
 
-export interface CanvasPassResult {
-  current_canvas: string;
-  locked_canvases: string[];
+export interface MuralPassResult {
+  current_mural: string;
+  locked_murals: string[];
   // Manifests that exist after the pass (newly created + previously known).
-  known_canvases: string[];
+  known_murals: string[];
 }
 
 function manifestKey(id: string): string {
-  return `public/canvases/${id}/manifest.json`;
+  return `public/murals/${id}/manifest.json`;
 }
 
-const REGISTRY_KEY = "public/canvases/index.jsonl";
-const CURRENT_STATE_KEY = "public/state/current-canvas.json";
+const REGISTRY_KEY = "public/murals/index.jsonl";
+const CURRENT_STATE_KEY = "public/state/current-mural.json";
 
-async function readRegistry(storage: Storage): Promise<CanvasManifest[]> {
+async function readRegistry(storage: Storage): Promise<MuralManifest[]> {
   const bytes = await storage.getBytes(REGISTRY_KEY);
   if (!bytes) return [];
   return dec
@@ -76,12 +76,12 @@ async function readRegistry(storage: Storage): Promise<CanvasManifest[]> {
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean)
-    .map((l) => JSON.parse(l) as CanvasManifest);
+    .map((l) => JSON.parse(l) as MuralManifest);
 }
 
 async function writeRegistry(
   storage: Storage,
-  entries: CanvasManifest[],
+  entries: MuralManifest[],
 ): Promise<void> {
   const sorted = [...entries].sort((a, b) =>
     a.opens_at.localeCompare(b.opens_at),
@@ -90,12 +90,12 @@ async function writeRegistry(
   await storage.put(REGISTRY_KEY, enc.encode(body), "application/jsonl", CC_INTERNAL);
 }
 
-function newManifest(canvasId: string, locked: boolean): CanvasManifest {
+function newManifest(muralId: string, locked: boolean): MuralManifest {
   return {
-    id: canvasId,
-    name: canvasName(canvasId),
-    opens_at: canvasOpensAt(canvasId).toISOString(),
-    closes_at: canvasClosesAt(canvasId).toISOString(),
+    id: muralId,
+    name: muralName(muralId),
+    opens_at: muralOpensAt(muralId).toISOString(),
+    closes_at: muralClosesAt(muralId).toISOString(),
     rows: TILES_PER_SIDE,
     cols: TILES_PER_SIDE,
     locked,
@@ -104,28 +104,28 @@ function newManifest(canvasId: string, locked: boolean): CanvasManifest {
 
 async function ensureManifest(
   storage: Storage,
-  canvasId: string,
+  muralId: string,
   locked: boolean,
-): Promise<CanvasManifest> {
-  const existing = await storage.getJSON<CanvasManifest>(manifestKey(canvasId));
+): Promise<MuralManifest> {
+  const existing = await storage.getJSON<MuralManifest>(manifestKey(muralId));
   if (existing) {
     // Promote to locked if the existing one says active but we're past close.
     if (locked && !existing.locked) {
-      const updated: CanvasManifest = { ...existing, locked: true };
+      const updated: MuralManifest = { ...existing, locked: true };
       await storage.put(
-        manifestKey(canvasId),
+        manifestKey(muralId),
         enc.encode(JSON.stringify(updated)),
         "application/json",
-        // Locked canvases are immutable from here on.
+        // Locked murals are immutable from here on.
         CC_IMMUTABLE,
       );
       return updated;
     }
     return existing;
   }
-  const m = newManifest(canvasId, locked);
+  const m = newManifest(muralId, locked);
   await storage.put(
-    manifestKey(canvasId),
+    manifestKey(muralId),
     enc.encode(JSON.stringify(m)),
     "application/json",
     locked ? CC_IMMUTABLE : CC_INTERNAL,
@@ -136,31 +136,31 @@ async function ensureManifest(
 // Idempotent registry merge: ensure each manifest appears exactly once with
 // its current locked state.
 function mergeRegistry(
-  prior: CanvasManifest[],
-  upserts: CanvasManifest[],
-): CanvasManifest[] {
-  const byId = new Map<string, CanvasManifest>();
+  prior: MuralManifest[],
+  upserts: MuralManifest[],
+): MuralManifest[] {
+  const byId = new Map<string, MuralManifest>();
   for (const e of prior) byId.set(e.id, e);
   for (const e of upserts) byId.set(e.id, e);
   return [...byId.values()];
 }
 
-export async function canvasPass(
-  opts: CanvasPassOptions,
-): Promise<CanvasPassResult> {
+export async function muralPass(
+  opts: MuralPassOptions,
+): Promise<MuralPassResult> {
   const now = opts.now ?? new Date();
-  const currentId = canvasIdForDate(now);
+  const currentId = muralIdForDate(now);
   const repoUrl = opts.repoUrl ?? "https://github.com/potomak/drawbang";
 
-  // 1) Ensure the current canvas's manifest exists.
+  // 1) Ensure the current mural's manifest exists.
   const currentManifest = await ensureManifest(opts.storage, currentId, false);
 
-  // 2) Walk the registry. Lock any canvases whose closes_at is in the past.
+  // 2) Walk the registry. Lock any murals whose closes_at is in the past.
   const prior = await readRegistry(opts.storage);
-  const lockedNow: CanvasManifest[] = [];
+  const lockedNow: MuralManifest[] = [];
   for (const c of prior) {
     if (c.locked) continue;
-    if (!isCanvasIdValid(c.id)) continue;
+    if (!isMuralIdValid(c.id)) continue;
     if (new Date(c.closes_at).getTime() <= now.getTime()) {
       lockedNow.push(await ensureManifest(opts.storage, c.id, true));
     }
@@ -168,14 +168,14 @@ export async function canvasPass(
 
   // 3) Re-write the registry so it reflects: prior + currentManifest + locked
   //    transitions.
-  const upserts: CanvasManifest[] = [currentManifest, ...lockedNow];
+  const upserts: MuralManifest[] = [currentManifest, ...lockedNow];
   const merged = mergeRegistry(prior, upserts);
   await writeRegistry(opts.storage, merged);
 
-  // 4) Update the current-canvas state file (counts come from DDB when wired).
+  // 4) Update the current-mural state file (counts come from DDB when wired).
   let currentTiles: TileRow[] = [];
-  if (opts.canvasStore) {
-    currentTiles = await opts.canvasStore.getTiles(currentId);
+  if (opts.muralStore) {
+    currentTiles = await opts.muralStore.getTiles(currentId);
   }
   const nowEpoch = Math.floor(now.getTime() / 1000);
   let tiles_claimed = 0;
@@ -184,12 +184,12 @@ export async function canvasPass(
     if (t.drawing_id) tiles_published++;
     else if (t.claim_expires_at && t.claim_expires_at > nowEpoch) tiles_claimed++;
   }
-  const current: CurrentCanvasState = {
-    canvas_id: currentId,
+  const current: CurrentMuralState = {
+    mural_id: currentId,
     name: currentManifest.name,
     opens_at: currentManifest.opens_at,
     closes_at: currentManifest.closes_at,
-    tiles_total: TILES_PER_CANVAS,
+    tiles_total: TILES_PER_MURAL,
     tiles_claimed,
     tiles_published,
   };
@@ -200,23 +200,23 @@ export async function canvasPass(
     "public, max-age=60",
   );
 
-  // 5) Render the current canvas page (live; hydrated client-side) and every
-  //    locked canvas. Locked DDB rows are immutable, so re-rendering every
+  // 5) Render the current mural page (live; hydrated client-side) and every
+  //    locked mural. Locked DDB rows are immutable, so re-rendering every
   //    pass is byte-idempotent — and self-heals if any earlier pass wrote an
-  //    empty page (e.g. ran without canvasStore wired, as the builder CLI
+  //    empty page (e.g. ran without muralStore wired, as the builder CLI
   //    did before this was fixed).
   const currentTilesView = tilesToView(currentTiles);
   await opts.storage.put(
-    `public/canvases/${currentId}.html`,
+    `public/murals/${currentId}.html`,
     enc.encode(
-      renderCanvas({
+      renderMural({
         id: currentId,
         name: currentManifest.name,
         opens_at: currentManifest.opens_at,
         closes_at: currentManifest.closes_at,
         locked: false,
         tiles: currentTilesView,
-        state_url: `${opts.apiBaseUrl ?? ""}/canvas/${currentId}/state`,
+        state_url: `${opts.apiBaseUrl ?? ""}/mural/${currentId}/state`,
         repo_url: repoUrl,
       }),
     ),
@@ -224,28 +224,28 @@ export async function canvasPass(
     "public, max-age=60",
   );
 
-  // Iterate the post-merge registry so freshly-locked canvases (in lockedNow)
-  // and canvases locked on a prior pass are both rendered. Without a
-  // canvasStore we can only honour the "transition" set with empty tiles,
-  // matching the legacy behaviour; with a store, every locked canvas is
+  // Iterate the post-merge registry so freshly-locked murals (in lockedNow)
+  // and murals locked on a prior pass are both rendered. Without a
+  // muralStore we can only honour the "transition" set with empty tiles,
+  // matching the legacy behaviour; with a store, every locked mural is
   // rebuilt from current DDB state.
   const lockedNowIds = new Set(lockedNow.map((m) => m.id));
   for (const m of merged) {
     if (!m.locked) continue;
-    if (!opts.canvasStore && !lockedNowIds.has(m.id)) continue;
-    const tiles = opts.canvasStore ? await opts.canvasStore.getTiles(m.id) : [];
+    if (!opts.muralStore && !lockedNowIds.has(m.id)) continue;
+    const tiles = opts.muralStore ? await opts.muralStore.getTiles(m.id) : [];
     const view = tilesToView(tiles);
     await opts.storage.put(
-      `public/canvases/${m.id}.html`,
+      `public/murals/${m.id}.html`,
       enc.encode(
-        renderCanvas({
+        renderMural({
           id: m.id,
           name: m.name,
           opens_at: m.opens_at,
           closes_at: m.closes_at,
           locked: true,
           tiles: view,
-          state_url: `${opts.apiBaseUrl ?? ""}/canvas/${m.id}/state`,
+          state_url: `${opts.apiBaseUrl ?? ""}/mural/${m.id}/state`,
           repo_url: repoUrl,
         }),
       ),
@@ -254,20 +254,20 @@ export async function canvasPass(
     );
   }
 
-  // 6) Render the /canvases archive page.
+  // 6) Render the /murals archive page.
   await renderArchive(opts, merged, currentId, repoUrl);
 
   return {
-    current_canvas: currentId,
-    locked_canvases: lockedNow.map((m) => m.id),
-    known_canvases: merged.map((m) => m.id),
+    current_mural: currentId,
+    locked_murals: lockedNow.map((m) => m.id),
+    known_murals: merged.map((m) => m.id),
   };
 }
 
-function tilesToView(tiles: TileRow[]): CanvasTileView[] {
+function tilesToView(tiles: TileRow[]): MuralTileView[] {
   return tiles
     .map((t) => {
-      const v: CanvasTileView = { x: t.x, y: t.y };
+      const v: MuralTileView = { x: t.x, y: t.y };
       if (t.drawing_id) {
         v.drawing_id = t.drawing_id;
         return v;
@@ -279,14 +279,14 @@ function tilesToView(tiles: TileRow[]): CanvasTileView[] {
 }
 
 async function renderArchive(
-  opts: CanvasPassOptions,
-  registry: CanvasManifest[],
+  opts: MuralPassOptions,
+  registry: MuralManifest[],
   currentId: string,
   repoUrl: string,
 ): Promise<void> {
-  const cards: CanvasCard[] = [];
+  const cards: MuralCard[] = [];
   for (const m of registry) {
-    const tiles = opts.canvasStore ? await opts.canvasStore.getTiles(m.id) : [];
+    const tiles = opts.muralStore ? await opts.muralStore.getTiles(m.id) : [];
     const publishedDrawings = tiles
       .filter((t) => t.drawing_id)
       .map((t) => t.drawing_id!)
@@ -305,13 +305,13 @@ async function renderArchive(
   const past = cards
     .filter((c) => c.id !== currentId)
     .sort((a, b) => b.opens_at.localeCompare(a.opens_at));
-  const html = renderCanvasesArchive({
+  const html = renderMuralsArchive({
     current,
     past,
     repo_url: repoUrl,
   });
   await opts.storage.put(
-    "public/canvases.html",
+    "public/murals.html",
     enc.encode(html),
     "text/html",
     "public, max-age=60",

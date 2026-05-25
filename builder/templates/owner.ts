@@ -1,24 +1,25 @@
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import type { BadgeDef } from "../../config/badges.js";
+import type { GalleryItem } from "./gallery.js";
 import { esc } from "./_escape.js";
 
 export interface OwnerStats {
   daily_total: number;
   daily_streak_current: number;
   daily_streak_longest: number;
-  canvas_total: number;
-  canvas_streak_current: number;
-  canvas_streak_longest: number;
+  mural_total: number;
+  mural_streak_current: number;
+  mural_streak_longest: number;
   daily_badges: BadgeDef[];
-  canvas_badges: BadgeDef[];
+  mural_badges: BadgeDef[];
 }
 
 export interface OwnerView {
   username: string;      // public handle, used in the URL
   user_id: string;       // 64-hex stable id, used for stats hydration
   // Newest-first.
-  drawings: { id: string; id_short: string }[];
+  drawings: GalleryItem[];
   // Per-pubkey stats (#115/#116). Optional: a brand-new owner with no
   // user_stats row yet renders as all-zeros via builder coercion. The
   // template renders nothing when omitted so legacy tests / dev paths
@@ -36,8 +37,8 @@ export default function renderOwner(v: OwnerView): string {
   const items = v.drawings
     .map(
       (d) => `          <li>
-            <a href="/d/${esc(d.id)}" aria-label="drawing ${esc(d.id_short)}">
-              <img src="/drawings/${esc(d.id)}.gif" alt="" width="128" height="128" loading="lazy" />
+            <a href="${esc(d.href ?? `/d/${d.id}`)}" aria-label="${esc(d.id_short)}">
+              <img src="${esc(d.thumb ?? `/drawings/${d.id}.gif`)}" alt="" width="128" height="128" loading="lazy" />
             </a>
           </li>`,
     )
@@ -77,8 +78,8 @@ ${stats}${body}
 
 function renderStats(s: OwnerStats): string {
   const dailyLine = formatDailyLine(s);
-  const canvasLine = formatCanvasLine(s);
-  const badges = [...s.daily_badges, ...s.canvas_badges];
+  const muralLine = formatMuralLine(s);
+  const badges = [...s.daily_badges, ...s.mural_badges];
   // Badges row always emitted (hidden when empty server-side) so the
   // hydration script can unhide it without DOM construction when fresh
   // stats unlock a new tier between builder runs.
@@ -86,8 +87,8 @@ function renderStats(s: OwnerStats): string {
   return `      <dl class="ow-stats">
       <dt>Daily drawings</dt>
       <dd data-stats-daily>${dailyLine}</dd>
-      <dt>Weekly canvas</dt>
-      <dd data-stats-canvas>${canvasLine}</dd>
+      <dt>Weekly mural</dt>
+      <dd data-stats-mural>${muralLine}</dd>
       <dt data-stats-badges-dt${badgesHidden}>Badges</dt>
       <dd data-stats-badges-dd${badgesHidden}><ul class="ow-badges" data-stats-badges>${badges
         .map((b) => `<li data-badge-id="${esc(b.id)}">${esc(b.label)}</li>`)
@@ -101,9 +102,9 @@ function formatDailyLine(s: OwnerStats): string {
   return `${esc(s.daily_streak_current)}-day streak · best ${esc(s.daily_streak_longest)} · ${esc(s.daily_total)} drawing${s.daily_total === 1 ? "" : "s"} total`;
 }
 
-function formatCanvasLine(s: OwnerStats): string {
-  if (s.canvas_total === 0) return "No weekly canvases yet";
-  return `${esc(s.canvas_streak_current)}-week streak · best ${esc(s.canvas_streak_longest)} · ${esc(s.canvas_total)} canvas${s.canvas_total === 1 ? "" : "es"} total`;
+function formatMuralLine(s: OwnerStats): string {
+  if (s.mural_total === 0) return "No weekly murals yet";
+  return `${esc(s.mural_streak_current)}-week streak · best ${esc(s.mural_streak_longest)} · ${esc(s.mural_total)} mural${s.mural_total === 1 ? "" : "s"} total`;
 }
 
 function renderHydrateScript(statsUrl: string): string {
@@ -119,14 +120,14 @@ function renderHydrateScript(statsUrl: string): string {
     if (!res.ok) return;
     const s = await res.json();
     const daily = document.querySelector('[data-stats-daily]');
-    const canvas = document.querySelector('[data-stats-canvas]');
+    const mural = document.querySelector('[data-stats-mural]');
     if (daily) daily.textContent = s.daily_total === 0
       ? 'No drawings yet'
       : s.daily_streak_current + '-day streak · best ' + s.daily_streak_longest + ' · ' + s.daily_total + ' drawing' + (s.daily_total === 1 ? '' : 's') + ' total';
-    if (canvas) canvas.textContent = s.canvas_total === 0
-      ? 'No weekly canvases yet'
-      : s.canvas_streak_current + '-week streak · best ' + s.canvas_streak_longest + ' · ' + s.canvas_total + ' canvas' + (s.canvas_total === 1 ? '' : 'es') + ' total';
-    const all = (s.daily_badges || []).concat(s.canvas_badges || []);
+    if (mural) mural.textContent = s.mural_total === 0
+      ? 'No weekly murals yet'
+      : s.mural_streak_current + '-week streak · best ' + s.mural_streak_longest + ' · ' + s.mural_total + ' mural' + (s.mural_total === 1 ? '' : 's') + ' total';
+    const all = (s.daily_badges || []).concat(s.mural_badges || []);
     const ul = document.querySelector('[data-stats-badges]');
     const dt = document.querySelector('[data-stats-badges-dt]');
     const dd = document.querySelector('[data-stats-badges-dd]');

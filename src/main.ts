@@ -37,18 +37,30 @@ import { decodeShare, encodeShare } from "./share.js";
 import * as local from "./local.js";
 import { isLoggedIn } from "./auth.js";
 import {
-  CanvasClaimRejectedError,
-  CanvasCooldownError,
+  MuralClaimRejectedError,
+  MuralCooldownError,
   MissingSessionError,
   TileTakenError,
   claimTile,
+  publishCanvas,
   submit,
   type TileClaimRef,
 } from "./submit.js";
-import { mountCanvasBanner, type CanvasBannerHandle } from "./canvas-banner.js";
+import {
+  canGrowCols,
+  canGrowRows,
+  createCanvasDoc,
+  filledCells,
+  framesEmpty,
+  getCell,
+  growCols,
+  growRows,
+  setCell,
+} from "./editor/canvas-doc.js";
+import { mountMuralBanner, type MuralBannerHandle } from "./mural-banner.js";
 import { showFlash, hideFlash } from "./layout/flash.js";
 import { formatDuration } from "./format.js";
-import { canvasIdForDate, canvasName, isCanvasIdValid, TILES_PER_SIDE } from "../config/canvases.js";
+import { muralIdForDate, muralName, isMuralIdValid, TILES_PER_SIDE } from "../config/murals.js";
 
 // Native resolution of the main canvas. 16×35 = 560 — matches the v2
 // editor's max wrap width, so CSS scaling produces clean pixel boundaries.
@@ -58,25 +70,32 @@ const FRAME_THUMB_PIXEL_SIZE = 5;
 const INGEST_URL = import.meta.env.VITE_INGEST_URL ?? "/ingest";
 const STATE_URL = import.meta.env.VITE_STATE_URL ?? "/state/last-publish.json";
 const DRAWING_BASE_URL = import.meta.env.VITE_DRAWING_BASE_URL ?? "";
-// Canvas claim + state live on the same API Gateway as /ingest, which is a
+// Mural claim + state live on the same API Gateway as /ingest, which is a
 // different origin than CloudFront in prod (CloudFront's default behaviour
 // blocks POST). Derive the API base by stripping the /ingest suffix; in dev
-// INGEST_URL is "/ingest" so this resolves to "" and the canvas URLs stay
+// INGEST_URL is "/ingest" so this resolves to "" and the mural URLs stay
 // relative for Vite's proxy.
-const CANVAS_API_BASE = INGEST_URL.replace(/\/ingest$/, "");
-const CANVAS_CLAIM_URL = `${CANVAS_API_BASE}/canvas/claim`;
-const canvasStateUrl = (canvasId: string): string =>
-  `${CANVAS_API_BASE}/canvas/${encodeURIComponent(canvasId)}/state`;
+const MURAL_API_BASE = INGEST_URL.replace(/\/ingest$/, "");
+const MURAL_CLAIM_URL = `${MURAL_API_BASE}/mural/claim`;
+const CANVAS_PUBLISH_URL = `${MURAL_API_BASE}/canvas`;
+const muralStateUrl = (muralId: string): string =>
+  `${MURAL_API_BASE}/mural/${encodeURIComponent(muralId)}/state`;
 
-// Set when the editor loaded via /?c=&x=&y= and a claim has been successfully
+// Set when the editor loaded via /?m=&x=&y= and a claim has been successfully
 // negotiated with the server. Picked up by handlePublish() to thread the
-// canvas_claim through to /ingest.
+// mural_claim through to /ingest.
 let activeTileClaim: TileClaimRef | null = null;
-let bannerHandle: CanvasBannerHandle | null = null;
+// True when the editor loaded in mural-tile mode (?m=&x=&y=). The multi-tile
+// canvas grid is hidden in that mode — you're drawing one tile for the mural.
+let muralMode = false;
+let bannerHandle: MuralBannerHandle | null = null;
 
 // -- Editor state -----------------------------------------------------------
 
 const state: FrameState = { frames: [new Bitmap()], current: 0 };
+// Multi-tile "canvas" document. The active cell's frames ARE state.frames;
+// other cells live in the doc and swap in/out on navigation.
+let canvasDoc = createCanvasDoc();
 let activePalette: Uint8Array = new Uint8Array(DEFAULT_ACTIVE_PALETTE);
 // RetroPalette.id of the currently-applied palette. Persisted to localStorage and applied
 // on boot + on every editor reset so the user's last pick survives a
@@ -498,6 +517,8 @@ function resetEditor(opts: { keepPublishedId?: boolean } = {}): void {
   stopPlay();
   state.frames = [new Bitmap()];
   state.current = 0;
+  canvasDoc = createCanvasDoc();
+  renderGridNav();
   history.clear();
   localId = null;
   // Re-apply the user's chosen palette on reset — picking a palette is an
@@ -647,50 +668,64 @@ async function handlePublish(): Promise<void> {
     redirectToLogin();
     return;
   }
-  const gif = encodeGif({ frames: state.frames, activePalette });
   trackPublishClick(state.frames.length);
   showFlash({ kind: "info", message: "Starting proof of work…" });
-  try {
-    const result = await submit({
-      ingestUrl: INGEST_URL,
-      stateUrl: STATE_URL,
-      gif,
-      parent: parentId ?? undefined,
-      tileClaim: activeTileClaim ?? undefined,
-      onPhase: (phase, detail) =>
-        showFlash({ kind: "info", message: `${phase}: ${detail}` }),
-      onProgress: (p) => {
-        const rate = (p.hashes / Math.max(1, p.elapsedMs / 1000)).toFixed(0);
-        showFlash({
-          kind: "info",
-          message: `Solving… ${p.hashes.toLocaleString()} hashes (${rate}/s)`,
-        });
-      },
-    });
-    const link = document.createElement("a");
-    link.href = result.share_url;
-    link.textContent = result.share_url;
-    link.target = "_blank";
-    link.rel = "noopener";
+  const onPhase = (phase: string, detail: string) =>
+    showFlash({ kind: "info", message: `${phase}: ${detail}` });
+  const onProgress = (p: { hashes: number; elapsedMs: number }) => {
+    const rate = (p.hashes / Math.max(1, p.elapsedMs / 1000)).toFixed(0);
     showFlash({
-      kind: "success",
-      message: [
-        "Published: ",
-        link,
-        ` (${result.required_bits} bits in ${result.solve_ms}ms)`,
-      ],
+      kind: "info",
+      message: `Solving… ${p.hashes.toLocaleString()} hashes (${rate}/s)`,
     });
-    trackPublishSuccess({ frames: state.frames.length, solve_ms: result.solve_ms });
-    if (localId) {
-      await local.save({
-        id: localId,
-        frames: state.frames,
-        activePalette,
-        publishedId: result.id,
+  };
+  try {
+    if (activeTileClaim) {
+      // Mural-tile publish: a single 16×16 placed into the claimed cell.
+      const result = await submit({
+        ingestUrl: INGEST_URL,
+        stateUrl: STATE_URL,
+        gif: encodeGif({ frames: state.frames, activePalette }),
+        parent: parentId ?? undefined,
+        tileClaim: activeTileClaim,
+        onPhase,
+        onProgress,
       });
+      flashPublished(result.share_url);
+      trackPublishSuccess({ frames: state.frames.length, solve_ms: result.solve_ms });
+      if (localId) {
+        await local.save({ id: localId, frames: state.frames, activePalette, publishedId: result.id });
+      }
+      setLastPublishedId(result.id);
+      resetEditor({ keepPublishedId: true });
+      return;
     }
-    setLastPublishedId(result.id);
-    resetEditor({ keepPublishedId: true });
+
+    // Personal canvas publish (1×1 or larger).
+    saveActiveCell();
+    const cells = filledCells(canvasDoc).map((c) => ({
+      x: c.x,
+      y: c.y,
+      gif: encodeGif({ frames: c.frames, activePalette }),
+    }));
+    if (cells.length === 0) {
+      showFlash({ kind: "error", message: "Draw something before publishing." });
+      return;
+    }
+    const result = await publishCanvas({
+      canvasUrl: CANVAS_PUBLISH_URL,
+      stateUrl: STATE_URL,
+      cols: canvasDoc.cols,
+      rows: canvasDoc.rows,
+      cells,
+      parent: parentId ?? undefined,
+      onPhase,
+      onProgress,
+    });
+    flashPublished(result.share_url);
+    trackPublishSuccess({ frames: state.frames.length, solve_ms: 0 });
+    setLastPublishedId(null);
+    resetEditor();
   } catch (err) {
     if (err instanceof MissingSessionError) {
       showFlash({ kind: "error", message: "Sign in to publish." });
@@ -700,18 +735,18 @@ async function handlePublish(): Promise<void> {
     if (err instanceof TileTakenError) {
       showFlash({
         kind: "error",
-        message: "This tile was just taken — pick another from the canvas.",
+        message: "This tile was just taken — pick another from the mural.",
       });
       return;
     }
-    if (err instanceof CanvasClaimRejectedError) {
-      showFlash({ kind: "error", message: `Canvas publish rejected: ${err.message}` });
+    if (err instanceof MuralClaimRejectedError) {
+      showFlash({ kind: "error", message: `Mural publish rejected: ${err.message}` });
       return;
     }
-    if (err instanceof CanvasCooldownError) {
+    if (err instanceof MuralCooldownError) {
       showFlash({
         kind: "error",
-        message: `Cooldown active — wait ${formatDuration(err.retryAfterS)} before publishing to this canvas again.`,
+        message: `Cooldown active — wait ${formatDuration(err.retryAfterS)} before publishing to this mural again.`,
       });
       return;
     }
@@ -720,6 +755,99 @@ async function handlePublish(): Promise<void> {
       message: `Publish failed: ${err instanceof Error ? err.message : String(err)}`,
     });
   }
+}
+
+function flashPublished(shareUrl: string): void {
+  const link = document.createElement("a");
+  link.href = shareUrl;
+  link.textContent = shareUrl;
+  link.target = "_blank";
+  link.rel = "noopener";
+  showFlash({ kind: "success", message: ["Published: ", link] });
+}
+
+// -- Canvas grid navigator (multi-tile) ------------------------------------
+
+const gridNavEl: HTMLDivElement = (() => {
+  const el = document.createElement("div");
+  el.className = "ed-grid-nav";
+  el.id = "gridNav";
+  const grid = document.querySelector(".ed-grid");
+  grid?.parentElement?.insertBefore(el, grid);
+  return el;
+})();
+
+function saveActiveCell(): void {
+  setCell(canvasDoc, canvasDoc.activeX, canvasDoc.activeY, state.frames);
+}
+
+function switchCell(x: number, y: number): void {
+  if (x === canvasDoc.activeX && y === canvasDoc.activeY) return;
+  saveActiveCell();
+  canvasDoc.activeX = x;
+  canvasDoc.activeY = y;
+  const target = getCell(canvasDoc, x, y);
+  state.frames = target ?? [new Bitmap()];
+  if (!target) setCell(canvasDoc, x, y, state.frames);
+  state.current = 0;
+  history.clear();
+  render();
+  renderGridNav();
+}
+
+function renderGridNav(): void {
+  // Hidden while drawing a single mural tile (?m= flow).
+  if (activeTileClaim || muralMode) {
+    gridNavEl.hidden = true;
+    return;
+  }
+  gridNavEl.hidden = false;
+  saveActiveCell(); // keep the active cell's filled-state current
+  gridNavEl.innerHTML = "";
+
+  const label = document.createElement("span");
+  label.className = "ed-grid-size";
+  label.textContent = `Canvas ${canvasDoc.cols}×${canvasDoc.rows}`;
+  gridNavEl.appendChild(label);
+
+  const grid = document.createElement("div");
+  grid.className = "ed-grid-cells";
+  grid.style.gridTemplateColumns = `repeat(${canvasDoc.cols}, 1fr)`;
+  for (let y = 0; y < canvasDoc.rows; y++) {
+    for (let x = 0; x < canvasDoc.cols; x++) {
+      const cell = document.createElement("button");
+      cell.type = "button";
+      const active = x === canvasDoc.activeX && y === canvasDoc.activeY;
+      const frames = getCell(canvasDoc, x, y);
+      const filled = frames ? !framesEmpty(frames) : false;
+      cell.className =
+        "ed-grid-cell" + (active ? " active" : "") + (filled ? " filled" : "");
+      cell.setAttribute("aria-label", `tile ${x + 1}, ${y + 1}`);
+      cell.addEventListener("click", () => switchCell(x, y));
+      grid.appendChild(cell);
+    }
+  }
+  gridNavEl.appendChild(grid);
+
+  const addCol = document.createElement("button");
+  addCol.type = "button";
+  addCol.className = "btn xs";
+  addCol.textContent = "+ col";
+  addCol.disabled = !canGrowCols(canvasDoc);
+  addCol.addEventListener("click", () => {
+    if (growCols(canvasDoc)) renderGridNav();
+  });
+  gridNavEl.appendChild(addCol);
+
+  const addRow = document.createElement("button");
+  addRow.type = "button";
+  addRow.className = "btn xs";
+  addRow.textContent = "+ row";
+  addRow.disabled = !canGrowRows(canvasDoc);
+  addRow.addEventListener("click", () => {
+    if (growRows(canvasDoc)) renderGridNav();
+  });
+  gridNavEl.appendChild(addRow);
 }
 
 function downloadGif(): void {
@@ -746,7 +874,7 @@ function copyShareLink(): void {
   });
 }
 
-// -- Canvas banner ---------------------------------------------------------
+// -- Mural banner ---------------------------------------------------------
 
 function parseTileClaimParams(
   c: string | null,
@@ -754,19 +882,19 @@ function parseTileClaimParams(
   y: string | null,
 ): TileClaimRef | null {
   if (!c || !x || !y) return null;
-  if (!isCanvasIdValid(c)) return null;
+  if (!isMuralIdValid(c)) return null;
   const xi = Number.parseInt(x, 10);
   const yi = Number.parseInt(y, 10);
   if (!Number.isFinite(xi) || !Number.isFinite(yi)) return null;
   if (xi < 0 || xi >= TILES_PER_SIDE || yi < 0 || yi >= TILES_PER_SIDE) return null;
-  return { canvasId: c, x: xi, y: yi };
+  return { muralId: c, x: xi, y: yi };
 }
 
 function ensureBannerContainer(): HTMLElement {
-  let el = document.getElementById("canvas-banner");
+  let el = document.getElementById("mural-banner");
   if (!el) {
     el = document.createElement("div");
-    el.id = "canvas-banner";
+    el.id = "mural-banner";
     const app = document.getElementById("app");
     if (app?.parentNode) {
       app.parentNode.insertBefore(el, app);
@@ -780,46 +908,46 @@ function ensureBannerContainer(): HTMLElement {
 // Derived from VITE_STATE_URL so the editor only needs one configured
 // origin for the static-state files. Both files sit next to each other under
 // /state/ on the CloudFront distribution.
-const CURRENT_CANVAS_URL = STATE_URL.replace(/last-publish\.json$/, "current-canvas.json");
+const CURRENT_MURAL_URL = STATE_URL.replace(/last-publish\.json$/, "current-mural.json");
 
 async function initHomeBanner(): Promise<void> {
   const container = ensureBannerContainer();
-  const expectedCanvasId = canvasIdForDate(new Date());
+  const expectedMuralId = muralIdForDate(new Date());
   const fallback = (): void => {
-    bannerHandle = mountCanvasBanner(container, {
+    bannerHandle = mountMuralBanner(container, {
       mode: "home",
-      canvas_id: expectedCanvasId,
-      name: canvasName(expectedCanvasId),
+      mural_id: expectedMuralId,
+      name: muralName(expectedMuralId),
       tiles_published: 0,
       tiles_total: TILES_PER_SIDE * TILES_PER_SIDE,
     });
   };
   try {
     // Read the ingest+builder-written snapshot from CloudFront (60s edge
-    // cache + S3) instead of hitting /canvas/<id>/state every home visit —
+    // cache + S3) instead of hitting /mural/<id>/state every home visit —
     // the banner only needs the count, and the snapshot is rewritten on every
     // publish so it stays fresh within ~60s.
-    const res = await fetch(CURRENT_CANVAS_URL);
+    const res = await fetch(CURRENT_MURAL_URL);
     if (!res.ok) {
       fallback();
       return;
     }
     const j = (await res.json()) as {
-      canvas_id: string;
+      mural_id: string;
       name: string;
       tiles_published: number;
       tiles_total: number;
     };
     // Between weekly rollover and the first publish, the snapshot may still
-    // point at last week's canvas. Show the new canvas with a zero count
+    // point at last week's mural. Show the new mural with a zero count
     // rather than a stale name.
-    if (j.canvas_id !== expectedCanvasId) {
+    if (j.mural_id !== expectedMuralId) {
       fallback();
       return;
     }
-    bannerHandle = mountCanvasBanner(container, {
+    bannerHandle = mountMuralBanner(container, {
       mode: "home",
-      canvas_id: j.canvas_id,
+      mural_id: j.mural_id,
       name: j.name,
       tiles_published: j.tiles_published,
       tiles_total: j.tiles_total,
@@ -831,28 +959,28 @@ async function initHomeBanner(): Promise<void> {
 
 async function initTileClaimBanner(tc: TileClaimRef): Promise<void> {
   const container = ensureBannerContainer();
-  bannerHandle = mountCanvasBanner(container, {
+  bannerHandle = mountMuralBanner(container, {
     mode: "tile-claim",
-    canvas_id: tc.canvasId,
-    name: canvasName(tc.canvasId),
+    mural_id: tc.muralId,
+    name: muralName(tc.muralId),
     x: tc.x,
     y: tc.y,
     phase: "claiming",
   });
   try {
     const claim = await claimTile({
-      canvasId: tc.canvasId,
+      muralId: tc.muralId,
       x: tc.x,
       y: tc.y,
-      stateUrl: canvasStateUrl(tc.canvasId),
-      claimUrl: CANVAS_CLAIM_URL,
+      stateUrl: muralStateUrl(tc.muralId),
+      claimUrl: MURAL_CLAIM_URL,
       onPhase: (phase, detail) =>
-        showFlash({ kind: "info", message: `Canvas ${phase}: ${detail}` }),
+        showFlash({ kind: "info", message: `Mural ${phase}: ${detail}` }),
       onProgress: (p) => {
         const rate = (p.hashes / Math.max(1, p.elapsedMs / 1000)).toFixed(0);
         showFlash({
           kind: "info",
-          message: `Canvas solving… ${p.hashes.toLocaleString()} hashes (${rate}/s)`,
+          message: `Mural solving… ${p.hashes.toLocaleString()} hashes (${rate}/s)`,
         });
       },
     });
@@ -860,8 +988,8 @@ async function initTileClaimBanner(tc: TileClaimRef): Promise<void> {
     hideFlash();
     bannerHandle?.setState({
       mode: "tile-claim",
-      canvas_id: tc.canvasId,
-      name: canvasName(tc.canvasId),
+      mural_id: tc.muralId,
+      name: muralName(tc.muralId),
       x: tc.x,
       y: tc.y,
       phase: "claimed",
@@ -871,8 +999,8 @@ async function initTileClaimBanner(tc: TileClaimRef): Promise<void> {
     hideFlash();
     bannerHandle?.setState({
       mode: "tile-claim",
-      canvas_id: tc.canvasId,
-      name: canvasName(tc.canvasId),
+      mural_id: tc.muralId,
+      name: muralName(tc.muralId),
       x: tc.x,
       y: tc.y,
       phase: "failed",
@@ -977,12 +1105,13 @@ async function boot(): Promise<void> {
     // ignore — applyPalette default state is already in place
   }
 
-  // Canvas-aware banner: tile-claim mode if ?c=&x=&y= is present, else home.
+  // Mural-aware banner: tile-claim mode if ?m=&x=&y= is present, else home.
   const params = new URL(location.href).searchParams;
-  const cParam = params.get("c");
+  const cParam = params.get("m");
   const xParam = params.get("x");
   const yParam = params.get("y");
   const tileClaimRequest = parseTileClaimParams(cParam, xParam, yParam);
+  muralMode = tileClaimRequest !== null;
   if (tileClaimRequest) {
     void initTileClaimBanner(tileClaimRequest);
   } else {
@@ -1024,6 +1153,7 @@ async function boot(): Promise<void> {
   }
 
   render();
+  renderGridNav();
 }
 
 void boot();

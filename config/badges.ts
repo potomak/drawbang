@@ -7,10 +7,10 @@
 //   - daily: threshold compares against UserStatsRow.daily_total (total
 //     distinct drawings published, gated by content-addressed gif novelty
 //     upstream so re-publishes don't double-count).
-//   - canvas: threshold compares against UserStatsRow.canvas_total (number
-//     of distinct weekly canvases the user has placed at least one tile in).
+//   - mural: threshold compares against UserStatsRow.mural_total (number
+//     of distinct weekly murals the user has placed at least one tile in).
 
-export type BadgeDimension = "daily" | "canvas";
+export type BadgeDimension = "daily" | "mural";
 
 export interface BadgeDef {
   id: string;
@@ -27,28 +27,28 @@ export const DAILY_DRAWING_BADGES: readonly BadgeDef[] = [
   { id: "daily-365", dimension: "daily", threshold: 365, label: "1 year of drawings" },
 ];
 
-export const CANVAS_BADGES: readonly BadgeDef[] = [
-  { id: "canvas-10", dimension: "canvas", threshold: 10, label: "10 canvases" },
-  { id: "canvas-26", dimension: "canvas", threshold: 26, label: "Half a year of canvases" },
-  { id: "canvas-52", dimension: "canvas", threshold: 52, label: "1 year of canvases" },
+export const MURAL_BADGES: readonly BadgeDef[] = [
+  { id: "mural-10", dimension: "mural", threshold: 10, label: "10 murals" },
+  { id: "mural-26", dimension: "mural", threshold: 26, label: "Half a year of murals" },
+  { id: "mural-52", dimension: "mural", threshold: 52, label: "1 year of murals" },
 ];
 
 export const ALL_BADGES: readonly BadgeDef[] = [
   ...DAILY_DRAWING_BADGES,
-  ...CANVAS_BADGES,
+  ...MURAL_BADGES,
 ];
 
 export interface BadgeCounts {
   daily_total: number;
-  canvas_total: number;
+  mural_total: number;
 }
 
 export function earnedBadges(stats: BadgeCounts): {
   daily: BadgeDef[];
-  canvas: BadgeDef[];
+  mural: BadgeDef[];
 } {
   return {
     daily: DAILY_DRAWING_BADGES.filter((b) => stats.daily_total >= b.threshold),
-    canvas: CANVAS_BADGES.filter((b) => stats.canvas_total >= b.threshold),
+    mural: MURAL_BADGES.filter((b) => stats.mural_total >= b.threshold),
   };
 }

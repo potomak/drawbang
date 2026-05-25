@@ -5,27 +5,27 @@ import {
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import {
-  canvasClosesAt,
-  canvasOpensAt,
-  isCanvasIdValid,
-} from "../config/canvases.js";
+  muralClosesAt,
+  muralOpensAt,
+  isMuralIdValid,
+} from "../config/murals.js";
 
 // Per-user_id aggregated stats for streaks + badges (#115, #116).
 //
 // One row per user_id. Two dimensions: daily drawings (any publish that lands
-// a new gif under inbox/) and weekly canvas participation (any publish that
-// places a tile via canvas_claim). Each dimension carries a running total
+// a new gif under inbox/) and weekly mural participation (any publish that
+// places a tile via mural_claim). Each dimension carries a running total
 // (drives badges) and a streak (drives the "consecutive days/weeks" UX).
 //
 // Streak math is read-modify-write — the "yesterday vs other" branch can't
 // be expressed as a single UpdateExpression. The Dynamo impl uses an
 // optimistic-concurrency loop conditioned on the prior daily_last_date /
-// canvas_last_id so concurrent publishes converge correctly.
+// mural_last_id so concurrent publishes converge correctly.
 //
 // Idempotency lives at the call site: handleIngest only hooks the daily
 // counter when !alreadyHere (so re-publishes of an existing gif don't
-// double-count), and the canvas counter sees same-canvas re-publishes as
-// no-ops here in the store (canvas_last_id === canvas_id short-circuit).
+// double-count), and the mural counter sees same-mural re-publishes as
+// no-ops here in the store (mural_last_id === mural_id short-circuit).
 
 export interface UserStatsRow {
   user_id: string;
@@ -33,10 +33,10 @@ export interface UserStatsRow {
   daily_streak_current: number;
   daily_streak_longest: number;
   daily_last_date: string | null;
-  canvas_total: number;
-  canvas_streak_current: number;
-  canvas_streak_longest: number;
-  canvas_last_id: string | null;
+  mural_total: number;
+  mural_streak_current: number;
+  mural_streak_longest: number;
+  mural_last_id: string | null;
   updated_at: string;
 }
 
@@ -47,9 +47,9 @@ export interface RecordDailyDrawingArgs {
   now_iso: string;
 }
 
-export interface RecordCanvasParticipationArgs {
+export interface RecordMuralParticipationArgs {
   user_id: string;
-  canvas_id: string;
+  mural_id: string;
   now_iso: string;
 }
 
@@ -59,10 +59,10 @@ export interface UserStatsStore {
   // logic doesn't re-fire). Caller MUST gate by gif-novelty (!alreadyHere)
   // so re-publishes of an existing gif don't reach this method.
   recordDailyDrawing(args: RecordDailyDrawingArgs): Promise<UserStatsRow>;
-  // Bumps canvas_total + advances streak the first time user_id publishes
-  // into canvas_id. Additional tiles into the same canvas are no-ops at
+  // Bumps mural_total + advances streak the first time user_id publishes
+  // into mural_id. Additional tiles into the same mural are no-ops at
   // this layer.
-  recordCanvasParticipation(args: RecordCanvasParticipationArgs): Promise<UserStatsRow>;
+  recordMuralParticipation(args: RecordMuralParticipationArgs): Promise<UserStatsRow>;
   get(user_id: string): Promise<UserStatsRow | null>;
 }
 
@@ -76,11 +76,11 @@ function previousDayUtc(dateUtc: string): string {
   return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
 }
 
-// True when `prev` is the canvas that ended exactly when `next` opens. ISO
-// week math lives in config/canvases — we just compare boundary timestamps.
-function isImmediatelyConsecutiveCanvas(prev: string, next: string): boolean {
-  if (!isCanvasIdValid(prev) || !isCanvasIdValid(next)) return false;
-  return canvasClosesAt(prev).getTime() === canvasOpensAt(next).getTime();
+// True when `prev` is the mural that ended exactly when `next` opens. ISO
+// week math lives in config/murals — we just compare boundary timestamps.
+function isImmediatelyConsecutiveMural(prev: string, next: string): boolean {
+  if (!isMuralIdValid(prev) || !isMuralIdValid(next)) return false;
+  return muralClosesAt(prev).getTime() === muralOpensAt(next).getTime();
 }
 
 function zeroRow(user_id: string, nowIso: string): UserStatsRow {
@@ -90,10 +90,10 @@ function zeroRow(user_id: string, nowIso: string): UserStatsRow {
     daily_streak_current: 0,
     daily_streak_longest: 0,
     daily_last_date: null,
-    canvas_total: 0,
-    canvas_streak_current: 0,
-    canvas_streak_longest: 0,
-    canvas_last_id: null,
+    mural_total: 0,
+    mural_streak_current: 0,
+    mural_streak_longest: 0,
+    mural_last_id: null,
     updated_at: nowIso,
   };
 }
@@ -129,34 +129,34 @@ function nextDailyState(prior: UserStatsRow | null, dateUtc: string): NextDailyS
   };
 }
 
-interface NextCanvasState {
-  canvas_total: number;
-  canvas_streak_current: number;
-  canvas_streak_longest: number;
-  canvas_last_id: string;
-  noOp: boolean; // true when canvas_id matches canvas_last_id
+interface NextMuralState {
+  mural_total: number;
+  mural_streak_current: number;
+  mural_streak_longest: number;
+  mural_last_id: string;
+  noOp: boolean; // true when mural_id matches mural_last_id
 }
 
-function nextCanvasState(prior: UserStatsRow | null, canvasId: string): NextCanvasState {
+function nextMuralState(prior: UserStatsRow | null, muralId: string): NextMuralState {
   const base = prior ?? zeroRow("", "");
-  if (base.canvas_last_id === canvasId) {
+  if (base.mural_last_id === muralId) {
     return {
-      canvas_total: base.canvas_total,
-      canvas_streak_current: base.canvas_streak_current,
-      canvas_streak_longest: base.canvas_streak_longest,
-      canvas_last_id: canvasId,
+      mural_total: base.mural_total,
+      mural_streak_current: base.mural_streak_current,
+      mural_streak_longest: base.mural_streak_longest,
+      mural_last_id: muralId,
       noOp: true,
     };
   }
   const consecutive =
-    base.canvas_last_id !== null &&
-    isImmediatelyConsecutiveCanvas(base.canvas_last_id, canvasId);
-  const newStreak = consecutive ? base.canvas_streak_current + 1 : 1;
+    base.mural_last_id !== null &&
+    isImmediatelyConsecutiveMural(base.mural_last_id, muralId);
+  const newStreak = consecutive ? base.mural_streak_current + 1 : 1;
   return {
-    canvas_total: base.canvas_total + 1,
-    canvas_streak_current: newStreak,
-    canvas_streak_longest: Math.max(base.canvas_streak_longest, newStreak),
-    canvas_last_id: canvasId,
+    mural_total: base.mural_total + 1,
+    mural_streak_current: newStreak,
+    mural_streak_longest: Math.max(base.mural_streak_longest, newStreak),
+    mural_last_id: muralId,
     noOp: false,
   };
 }
@@ -168,7 +168,7 @@ export interface DynamoUserStatsStoreOptions {
   client?: DynamoDBDocumentClient;
   // Max retries on optimistic-concurrency conflict before throwing. Defaults
   // to 5 — concurrent publishes by the same user_id are rare in practice (the
-  // canvas branch is already cooldown-gated), so 5 is generous.
+  // mural branch is already cooldown-gated), so 5 is generous.
   maxRetries?: number;
 }
 
@@ -208,22 +208,22 @@ export class DynamoUserStatsStore implements UserStatsStore {
     );
   }
 
-  async recordCanvasParticipation(
-    args: RecordCanvasParticipationArgs,
+  async recordMuralParticipation(
+    args: RecordMuralParticipationArgs,
   ): Promise<UserStatsRow> {
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       const prior = await this.get(args.user_id);
-      const next = nextCanvasState(prior, args.canvas_id);
+      const next = nextMuralState(prior, args.mural_id);
       if (next.noOp) return prior ?? zeroRow(args.user_id, args.now_iso);
       try {
-        const r = await this.doc.send(this.canvasUpdate(args, prior, next));
+        const r = await this.doc.send(this.muralUpdate(args, prior, next));
         return this.normalize(r.Attributes ?? {}, args.user_id);
       } catch (e) {
         if (!isConditionalCheckFailed(e)) throw e;
       }
     }
     throw new Error(
-      `recordCanvasParticipation: optimistic-concurrency retries exhausted for ${args.user_id}`,
+      `recordMuralParticipation: optimistic-concurrency retries exhausted for ${args.user_id}`,
     );
   }
 
@@ -271,18 +271,18 @@ export class DynamoUserStatsStore implements UserStatsStore {
     });
   }
 
-  private canvasUpdate(
-    args: RecordCanvasParticipationArgs,
+  private muralUpdate(
+    args: RecordMuralParticipationArgs,
     prior: UserStatsRow | null,
-    next: NextCanvasState,
+    next: NextMuralState,
   ): UpdateCommand {
     const expr =
-      "SET canvas_total = :ct, canvas_streak_current = :csc, canvas_streak_longest = :csl, canvas_last_id = :cli, updated_at = :now";
+      "SET mural_total = :ct, mural_streak_current = :csc, mural_streak_longest = :csl, mural_last_id = :cli, updated_at = :now";
     const values: Record<string, unknown> = {
-      ":ct": next.canvas_total,
-      ":csc": next.canvas_streak_current,
-      ":csl": next.canvas_streak_longest,
-      ":cli": next.canvas_last_id,
+      ":ct": next.mural_total,
+      ":csc": next.mural_streak_current,
+      ":csl": next.mural_streak_longest,
+      ":cli": next.mural_last_id,
       ":now": args.now_iso,
     };
     if (!prior) {
@@ -295,23 +295,23 @@ export class DynamoUserStatsStore implements UserStatsStore {
         ReturnValues: "ALL_NEW",
       });
     }
-    values[":prior_ct"] = prior.canvas_total;
-    if (prior.canvas_last_id === null) {
+    values[":prior_ct"] = prior.mural_total;
+    if (prior.mural_last_id === null) {
       return new UpdateCommand({
         TableName: this.table,
         Key: { user_id: args.user_id },
         UpdateExpression: expr,
-        ConditionExpression: "canvas_total = :prior_ct AND attribute_not_exists(canvas_last_id)",
+        ConditionExpression: "mural_total = :prior_ct AND attribute_not_exists(mural_last_id)",
         ExpressionAttributeValues: values,
         ReturnValues: "ALL_NEW",
       });
     }
-    values[":prior_cli"] = prior.canvas_last_id;
+    values[":prior_cli"] = prior.mural_last_id;
     return new UpdateCommand({
       TableName: this.table,
       Key: { user_id: args.user_id },
       UpdateExpression: expr,
-      ConditionExpression: "canvas_total = :prior_ct AND canvas_last_id = :prior_cli",
+      ConditionExpression: "mural_total = :prior_ct AND mural_last_id = :prior_cli",
       ExpressionAttributeValues: values,
       ReturnValues: "ALL_NEW",
     });
@@ -324,10 +324,10 @@ export class DynamoUserStatsStore implements UserStatsStore {
       daily_streak_current: (item.daily_streak_current as number) ?? 0,
       daily_streak_longest: (item.daily_streak_longest as number) ?? 0,
       daily_last_date: (item.daily_last_date as string) ?? null,
-      canvas_total: (item.canvas_total as number) ?? 0,
-      canvas_streak_current: (item.canvas_streak_current as number) ?? 0,
-      canvas_streak_longest: (item.canvas_streak_longest as number) ?? 0,
-      canvas_last_id: (item.canvas_last_id as string) ?? null,
+      mural_total: (item.mural_total as number) ?? 0,
+      mural_streak_current: (item.mural_streak_current as number) ?? 0,
+      mural_streak_longest: (item.mural_streak_longest as number) ?? 0,
+      mural_last_id: (item.mural_last_id as string) ?? null,
       updated_at: (item.updated_at as string) ?? "",
     };
   }
@@ -364,19 +364,19 @@ export class MemoryUserStatsStore implements UserStatsStore {
     return merged;
   }
 
-  async recordCanvasParticipation(
-    args: RecordCanvasParticipationArgs,
+  async recordMuralParticipation(
+    args: RecordMuralParticipationArgs,
   ): Promise<UserStatsRow> {
     const prior = this.rows.get(args.user_id) ?? null;
-    const next = nextCanvasState(prior, args.canvas_id);
+    const next = nextMuralState(prior, args.mural_id);
     if (next.noOp && prior) return prior;
     const merged: UserStatsRow = {
       ...(prior ?? zeroRow(args.user_id, args.now_iso)),
       user_id: args.user_id,
-      canvas_total: next.canvas_total,
-      canvas_streak_current: next.canvas_streak_current,
-      canvas_streak_longest: next.canvas_streak_longest,
-      canvas_last_id: next.canvas_last_id,
+      mural_total: next.mural_total,
+      mural_streak_current: next.mural_streak_current,
+      mural_streak_longest: next.mural_streak_longest,
+      mural_last_id: next.mural_last_id,
       updated_at: args.now_iso,
     };
     this.rows.set(args.user_id, merged);
@@ -384,4 +384,4 @@ export class MemoryUserStatsStore implements UserStatsStore {
   }
 }
 
-export { previousDayUtc, isImmediatelyConsecutiveCanvas, nextDailyState, nextCanvasState };
+export { previousDayUtc, isImmediatelyConsecutiveMural, nextDailyState, nextMuralState };

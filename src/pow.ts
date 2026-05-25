@@ -104,11 +104,11 @@ export function ageSecondsBetween(nowISO: string, baselineISO: string): number {
 }
 
 // Claim PoW — same SHA-256 leading-zero-bits scheme as publish PoW, but the
-// preimage is the claim identity (canvas + tile + user_id) so claiming a tile
+// preimage is the claim identity (mural + tile + user_id) so claiming a tile
 // costs the same compute as publishing. Without this, churning accounts makes
-// canvas takeover free.
+// mural takeover free.
 export interface ClaimPowInput {
-  canvasId: string;
+  muralId: string;
   x: number;
   y: number;
   userId: string; // 64-hex account id
@@ -120,7 +120,7 @@ function claimPreimage(
   nonce: string,
 ): Uint8Array {
   return enc.encode(
-    `claim:${input.canvasId}:${input.x}:${input.y}:${input.userId}:${baseline}:${nonce}`,
+    `claim:${input.muralId}:${input.x}:${input.y}:${input.userId}:${baseline}:${nonce}`,
   );
 }
 

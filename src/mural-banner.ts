@@ -1,12 +1,12 @@
-// Canvas-aware editor banner. Two display modes:
-//   - home: "This week's canvas: N/256 tiles · [Claim a tile →]"
+// Mural-aware editor banner. Two display modes:
+//   - home: "This week's mural: N/256 tiles · [Claim a tile →]"
 //   - tile-claim: "Drawing tile (x, y) — claim expires in MM:SS"
 // The module is purely presentational beyond an internal countdown timer; the
 // caller (main.ts) drives state and decides when to claim a tile.
 
 export interface HomeBannerData {
   mode: "home";
-  canvas_id: string;
+  mural_id: string;
   name: string;
   tiles_published: number;
   tiles_total: number;
@@ -14,7 +14,7 @@ export interface HomeBannerData {
 
 export interface TileClaimBannerData {
   mode: "tile-claim";
-  canvas_id: string;
+  mural_id: string;
   name: string;
   x: number;
   y: number;
@@ -27,16 +27,16 @@ export interface TileClaimBannerData {
 
 export type BannerState = HomeBannerData | TileClaimBannerData;
 
-export interface CanvasBannerHandle {
+export interface MuralBannerHandle {
   setState(state: BannerState): void;
   destroy(): void;
 }
 
-export function mountCanvasBanner(
+export function mountMuralBanner(
   container: HTMLElement,
   initial: BannerState,
-): CanvasBannerHandle {
-  container.classList.add("canvas-banner");
+): MuralBannerHandle {
+  container.classList.add("mural-banner");
   let state: BannerState = initial;
   let countdownTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -83,16 +83,16 @@ export function mountCanvasBanner(
     destroy() {
       clearCountdown();
       container.innerHTML = "";
-      container.classList.remove("canvas-banner");
+      container.classList.remove("mural-banner");
     },
   };
 }
 
 function renderHome(s: HomeBannerData): string {
-  const ctaHref = `/canvases/${encodeURIComponent(s.canvas_id)}`;
+  const ctaHref = `/murals/${encodeURIComponent(s.mural_id)}`;
   return `
     <div class="cv-banner-row">
-      <span class="cv-banner-text"><span class="cv-banner-emoji" aria-hidden="true">▦</span><strong>This week's canvas:</strong>
+      <span class="cv-banner-text"><span class="cv-banner-emoji" aria-hidden="true">▦</span><strong>This week's mural:</strong>
         ${escapeHtml(String(s.tiles_published))} / ${escapeHtml(String(s.tiles_total))} tiles</span>
       <a class="cv-banner-cta" href="${escapeAttr(ctaHref)}">Claim a tile →</a>
     </div>
@@ -100,8 +100,8 @@ function renderHome(s: HomeBannerData): string {
 }
 
 function renderTileClaim(s: TileClaimBannerData): string {
-  const canvasHref = `/canvases/${encodeURIComponent(s.canvas_id)}`;
-  const nameLink = `<a class="cv-banner-canvas" href="${escapeAttr(canvasHref)}" target="_blank" rel="noopener"><strong>${escapeHtml(s.name)}</strong></a>`;
+  const muralHref = `/murals/${encodeURIComponent(s.mural_id)}`;
+  const nameLink = `<a class="cv-banner-mural" href="${escapeAttr(muralHref)}" target="_blank" rel="noopener"><strong>${escapeHtml(s.name)}</strong></a>`;
   if (s.phase === "claiming") {
     return `
       <div class="cv-banner-row">
@@ -113,7 +113,7 @@ function renderTileClaim(s: TileClaimBannerData): string {
     return `
       <div class="cv-banner-row cv-banner--error">
         <span class="cv-banner-text"><span class="cv-banner-emoji" aria-hidden="true">⚠</span>Couldn't claim tile (${s.x}, ${s.y}) — ${escapeHtml(s.error ?? "unknown error")}</span>
-        <a class="cv-banner-cta" href="${escapeAttr(canvasHref)}">Pick another tile →</a>
+        <a class="cv-banner-cta" href="${escapeAttr(muralHref)}">Pick another tile →</a>
       </div>
     `;
   }

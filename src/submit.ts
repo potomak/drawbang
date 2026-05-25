@@ -4,19 +4,22 @@ import {
   INITIAL_STATE,
   POW_CONFIG,
   ageSecondsBetween,
+  contentHash,
+  hashHex,
   requiredBits,
 } from "./pow.js";
+import { canonicalCanvasString, type CanvasManifest } from "../config/canvas.js";
 
 export interface IngestResponse {
   id: string;
   share_url: string;
   required_bits: number;
   solve_ms: number;
-  canvas?: { canvas_id: string; x: number; y: number };
+  mural?: { mural_id: string; x: number; y: number };
 }
 
 export interface TileClaimRef {
-  canvasId: string;
+  muralId: string;
   x: number;
   y: number;
 }
@@ -26,8 +29,8 @@ export interface SubmitOptions {
   stateUrl: string;
   gif: Uint8Array;
   parent?: string;
-  // If present, the submission is treated as a canvas-tile publish. The user
-  // must already hold a valid claim on (canvasId, x, y) — typically via a
+  // If present, the submission is treated as a mural-tile publish. The user
+  // must already hold a valid claim on (muralId, x, y) — typically via a
   // prior claimTile() call from the same browser tab.
   tileClaim?: TileClaimRef;
   onPhase?: (phase: "bench" | "solve", detail: string) => void;
@@ -49,17 +52,17 @@ export class TileTakenError extends Error {
   }
 }
 
-export class CanvasClaimRejectedError extends Error {
+export class MuralClaimRejectedError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "CanvasClaimRejectedError";
+    this.name = "MuralClaimRejectedError";
   }
 }
 
-export class CanvasCooldownError extends Error {
+export class MuralCooldownError extends Error {
   constructor(public readonly retryAfterS: number) {
     super(`cooldown active, retry in ${retryAfterS}s`);
-    this.name = "CanvasCooldownError";
+    this.name = "MuralCooldownError";
   }
 }
 
@@ -108,8 +111,8 @@ export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
         parent: opts.parent,
         ...(opts.tileClaim
           ? {
-              canvas_claim: {
-                canvas_id: opts.tileClaim.canvasId,
+              mural_claim: {
+                mural_id: opts.tileClaim.muralId,
                 x: opts.tileClaim.x,
                 y: opts.tileClaim.y,
               },
@@ -129,9 +132,9 @@ export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
       const msg = parsed.error ?? bodyText;
       if (res.status === 401) throw new MissingSessionError();
       if (res.status === 409) throw new TileTakenError(msg);
-      if (res.status === 403) throw new CanvasClaimRejectedError(msg);
+      if (res.status === 403) throw new MuralClaimRejectedError(msg);
       if (res.status === 429) {
-        throw new CanvasCooldownError(parsed.retry_after_s ?? 0);
+        throw new MuralCooldownError(parsed.retry_after_s ?? 0);
       }
       throw new Error(`ingest rejected: ${res.status} ${msg}`);
     }
@@ -141,15 +144,115 @@ export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
   }
 }
 
-// -- Canvas tile claim --------------------------------------------------------
+// -- Canvas publish (personal multi-tile drawing) ----------------------------
 
-export interface ClaimTileOptions {
-  canvasId: string;
+export interface CanvasCellInput {
   x: number;
   y: number;
-  // /canvas/<id>/state — fetched to obtain baseline + required_bits.
+  gif: Uint8Array;
+}
+
+export interface CanvasPublishResponse {
+  canvas_id: string;
+  tile_ids: string[];
+  share_url: string;
+}
+
+export interface PublishCanvasOptions {
+  canvasUrl: string; // POST /canvas
   stateUrl: string;
-  // POST endpoint, e.g. /canvas/claim.
+  cols: number;
+  rows: number;
+  cells: CanvasCellInput[]; // non-empty cells, each an encoded 16×16 gif
+  parent?: string;
+  onPhase?: (phase: "bench" | "solve", detail: string) => void;
+  onProgress?: (p: SolveProgress) => void;
+  signal?: AbortSignal;
+}
+
+export async function publishCanvas(
+  opts: PublishCanvasOptions,
+): Promise<CanvasPublishResponse> {
+  const session = getSession();
+  if (!session) throw new MissingSessionError();
+  if (opts.cells.length === 0) throw new Error("nothing to publish");
+
+  const state = await fetchState(opts.stateUrl);
+  const ageS = Math.max(
+    0,
+    ageSecondsBetween(new Date().toISOString(), state.last_publish_at),
+  );
+  const bits = requiredBits(ageS);
+
+  // Content-address each tile, then build the canonical manifest the PoW + the
+  // server's canvas_id are computed over.
+  const grid: (string | null)[] = Array(opts.cols * opts.rows).fill(null);
+  for (const c of opts.cells) {
+    grid[c.y * opts.cols + c.x] = hashHex(await contentHash(c.gif));
+  }
+  const manifest: CanvasManifest = { cols: opts.cols, rows: opts.rows, tiles: grid };
+  const canonical = new TextEncoder().encode(canonicalCanvasString(manifest));
+
+  opts.onPhase?.("bench", "measuring hash rate");
+  const worker = new Worker(new URL("./pow.worker.ts", import.meta.url), { type: "module" });
+  try {
+    const benchHps = await runWorker<number>(worker, { type: "bench", ms: 200 }, (msg) => {
+      if (msg.type === "benchResult") return msg.hps;
+    });
+    opts.onPhase?.("solve", `${bits} bits, est ${estimateSolveSeconds(bits, benchHps).toFixed(1)}s`);
+    const solved = await runWorker<{ nonce: string; solveMs: number }>(
+      worker,
+      { type: "solve", gif: canonical, baseline: state.last_publish_at, bits },
+      (msg) => {
+        if (msg.type === "progress" && opts.onProgress) opts.onProgress(msg);
+        if (msg.type === "done") return msg;
+        if (msg.type === "error") throw new Error(msg.message);
+      },
+      opts.signal,
+    );
+
+    const res = await fetch(opts.canvasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeader() },
+      body: JSON.stringify({
+        cols: opts.cols,
+        rows: opts.rows,
+        tiles: opts.cells.map((c) => ({ x: c.x, y: c.y, gif: base64(c.gif) })),
+        nonce: solved.nonce,
+        baseline: state.last_publish_at,
+        solve_ms: solved.solveMs,
+        bench_hps: benchHps,
+        parent: opts.parent,
+      }),
+      signal: opts.signal,
+    });
+    if (!res.ok) {
+      const bodyText = await res.text();
+      let parsed: { error?: string } = {};
+      try {
+        parsed = JSON.parse(bodyText);
+      } catch {
+        // Non-JSON body — keep raw text.
+      }
+      const msg = parsed.error ?? bodyText;
+      if (res.status === 401) throw new MissingSessionError();
+      throw new Error(`canvas publish rejected: ${res.status} ${msg}`);
+    }
+    return (await res.json()) as CanvasPublishResponse;
+  } finally {
+    worker.terminate();
+  }
+}
+
+// -- Mural tile claim --------------------------------------------------------
+
+export interface ClaimTileOptions {
+  muralId: string;
+  x: number;
+  y: number;
+  // /mural/<id>/state — fetched to obtain baseline + required_bits.
+  stateUrl: string;
+  // POST endpoint, e.g. /mural/claim.
   claimUrl: string;
   onPhase?: (phase: "bench" | "solve", detail: string) => void;
   onProgress?: (p: SolveProgress) => void;
@@ -162,7 +265,7 @@ export interface ClaimResponse {
   required_bits: number;
 }
 
-interface CanvasStateForClaim {
+interface MuralStateForClaim {
   required_bits: number;
   last_claim_at: string;
   locked: boolean;
@@ -172,8 +275,8 @@ export async function claimTile(opts: ClaimTileOptions): Promise<ClaimResponse> 
   const session = getSession();
   if (!session) throw new MissingSessionError();
 
-  const state = await fetchCanvasState(opts.stateUrl);
-  if (state.locked) throw new CanvasClaimRejectedError("canvas is locked");
+  const state = await fetchMuralState(opts.stateUrl);
+  if (state.locked) throw new MuralClaimRejectedError("mural is locked");
   const bits = state.required_bits;
   const baseline = state.last_claim_at;
 
@@ -200,7 +303,7 @@ export async function claimTile(opts: ClaimTileOptions): Promise<ClaimResponse> 
       {
         type: "solveClaim",
         input: {
-          canvasId: opts.canvasId,
+          muralId: opts.muralId,
           x: opts.x,
           y: opts.y,
           userId: session.user_id,
@@ -220,7 +323,7 @@ export async function claimTile(opts: ClaimTileOptions): Promise<ClaimResponse> 
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeader() },
       body: JSON.stringify({
-        canvas_id: opts.canvasId,
+        mural_id: opts.muralId,
         x: opts.x,
         y: opts.y,
         baseline,
@@ -239,7 +342,7 @@ export async function claimTile(opts: ClaimTileOptions): Promise<ClaimResponse> 
       const msg = parsed.error ?? bodyText;
       if (res.status === 401) throw new MissingSessionError();
       if (res.status === 409) throw new TileTakenError(msg);
-      if (res.status === 403) throw new CanvasClaimRejectedError(msg);
+      if (res.status === 403) throw new MuralClaimRejectedError(msg);
       throw new Error(`claim rejected: ${res.status} ${msg}`);
     }
     return (await res.json()) as ClaimResponse;
@@ -248,12 +351,12 @@ export async function claimTile(opts: ClaimTileOptions): Promise<ClaimResponse> 
   }
 }
 
-async function fetchCanvasState(url: string): Promise<CanvasStateForClaim> {
+async function fetchMuralState(url: string): Promise<MuralStateForClaim> {
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
-    throw new CanvasClaimRejectedError(`canvas state unavailable: ${res.status}`);
+    throw new MuralClaimRejectedError(`mural state unavailable: ${res.status}`);
   }
-  return (await res.json()) as CanvasStateForClaim;
+  return (await res.json()) as MuralStateForClaim;
 }
 
 async function fetchState(url: string): Promise<LastPublishState> {

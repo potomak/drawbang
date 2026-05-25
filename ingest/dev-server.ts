@@ -4,15 +4,16 @@ import { fileURLToPath } from "node:url";
 import { promises as fs } from "node:fs";
 import { handleIngest } from "./handler.js";
 import {
-  handleCanvasClaim,
-  handleCanvasState,
-} from "./canvas-handler.js";
+  handleMuralClaim,
+  handleMuralState,
+} from "./mural-handler.js";
 import { FsStorage } from "./storage.js";
-import { MemoryCanvasStore } from "./canvas-store.js";
+import { MemoryMuralStore } from "./mural-store.js";
 import { MemoryUserStore } from "./user-store.js";
 import { ConsoleEmailSender } from "./email.js";
 import { JwtError, verifyJwt } from "./jwt.js";
 import type { AuthedUser } from "./handler.js";
+import { handleCanvasPublish } from "./canvas-publish-handler.js";
 import {
   handleLogin,
   handleRegister,
@@ -29,8 +30,8 @@ const PUBLIC_BASE = process.env.PUBLIC_BASE ?? "http://localhost:5173";
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret";
 
 const storage = new FsStorage(ROOT);
-const canvasStore = new MemoryCanvasStore();
-const canvasBaselineHistory = new Map<string, string[]>();
+const muralStore = new MemoryMuralStore();
+const muralBaselineHistory = new Map<string, string[]>();
 const authConfig: AuthHandlerConfig = {
   userStore: new MemoryUserStore(),
   email: new ConsoleEmailSender(),
@@ -90,11 +91,37 @@ const server = http.createServer(async (req, res) => {
         storage,
         publicBaseUrl: PUBLIC_BASE,
         auth,
-        canvasStore,
+        muralStore,
       });
       json(res, result.status, result.body);
       // 202 = newly accepted, 200 = idempotent retry of an existing
       // drawing. Either way the inbox is in a coherent state, so rebuild.
+      if (result.status === 200 || result.status === 202) {
+        await rebuildAfterPublish();
+      }
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/canvas") {
+      const auth = extractAuth(req);
+      if (!auth) {
+        json(res, 401, { error: "authentication required" });
+        return;
+      }
+      const body = await readBody(req);
+      let parsed: any;
+      try {
+        parsed = JSON.parse(body);
+      } catch {
+        json(res, 400, { error: "bad json" });
+        return;
+      }
+      const result = await handleCanvasPublish(parsed, {
+        storage,
+        publicBaseUrl: PUBLIC_BASE,
+        auth,
+      });
+      json(res, result.status, result.body);
       if (result.status === 200 || result.status === 202) {
         await rebuildAfterPublish();
       }
@@ -112,12 +139,12 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (req.method === "GET" && req.url === "/state/current-canvas.json") {
-      const body = await fs.readFile(path.join(ROOT, "public/state/current-canvas.json")).catch(() => null);
+    if (req.method === "GET" && req.url === "/state/current-mural.json") {
+      const body = await fs.readFile(path.join(ROOT, "public/state/current-mural.json")).catch(() => null);
       if (!body) {
         // No state file yet — run the builder once so the banner has data.
         await rebuildAfterPublish();
-        const retry = await fs.readFile(path.join(ROOT, "public/state/current-canvas.json")).catch(() => null);
+        const retry = await fs.readFile(path.join(ROOT, "public/state/current-mural.json")).catch(() => null);
         if (retry) {
           res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
           res.end(retry);
@@ -132,7 +159,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (req.method === "POST" && req.url === "/canvas/claim") {
+    if (req.method === "POST" && req.url === "/mural/claim") {
       const auth = extractAuth(req);
       if (!auth) {
         json(res, 401, { error: "authentication required" });
@@ -146,12 +173,12 @@ const server = http.createServer(async (req, res) => {
         json(res, 400, { error: "bad json" });
         return;
       }
-      const result = await handleCanvasClaim(parsed, {
+      const result = await handleMuralClaim(parsed, {
         storage,
-        canvasStore,
+        muralStore,
         publicBaseUrl: PUBLIC_BASE,
         auth,
-        baselineHistory: canvasBaselineHistory,
+        baselineHistory: muralBaselineHistory,
       });
       jsonWithHeaders(res, result.status, result.body, result.headers);
       if (result.status === 201) {
@@ -193,11 +220,11 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && req.url) {
-      const m = req.url.match(/^\/canvas\/([^\/]+)\/state$/);
+      const m = req.url.match(/^\/mural\/([^\/]+)\/state$/);
       if (m) {
-        const result = await handleCanvasState(m[1], {
+        const result = await handleMuralState(m[1], {
           storage,
-          canvasStore,
+          muralStore,
           publicBaseUrl: PUBLIC_BASE,
         });
         jsonWithHeaders(res, result.status, result.body, result.headers);

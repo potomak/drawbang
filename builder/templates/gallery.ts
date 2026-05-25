@@ -2,9 +2,17 @@ import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
 
+export interface GalleryItem {
+  id: string;
+  id_short: string;
+  // Default to the legacy single-drawing convention; canvases pass /c/ + composite.
+  href?: string;
+  thumb?: string;
+}
+
 export interface GalleryView {
   today: string;
-  drawings: { id: string; id_short: string }[];
+  drawings: GalleryItem[];
   days: { date: string; count: number; pages: number }[];
   repo_url: string;
 }
@@ -13,8 +21,8 @@ export default function renderGallery(v: GalleryView): string {
   const items = v.drawings
     .map(
       (d) => `          <li>
-            <a href="/d/${esc(d.id)}" aria-label="drawing ${esc(d.id_short)}">
-              <img src="/drawings/${esc(d.id)}.gif" alt="" width="128" height="128" loading="lazy" />
+            <a href="${esc(d.href ?? `/d/${d.id}`)}" aria-label="${esc(d.id_short)}">
+              <img src="${esc(d.thumb ?? `/drawings/${d.id}.gif`)}" alt="" width="128" height="128" loading="lazy" />
             </a>
           </li>`,
     )

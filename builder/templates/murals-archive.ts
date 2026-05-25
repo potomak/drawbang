@@ -1,9 +1,9 @@
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
-import { TILES_PER_CANVAS } from "../../config/canvases.js";
+import { TILES_PER_MURAL } from "../../config/murals.js";
 import { esc } from "./_escape.js";
 
-export interface CanvasCard {
+export interface MuralCard {
   id: string;
   name: string;
   opens_at: string;
@@ -14,13 +14,13 @@ export interface CanvasCard {
   preview_thumbs: string[];
 }
 
-export interface CanvasesArchiveView {
-  current: CanvasCard | null;
-  past: CanvasCard[];
+export interface MuralsArchiveView {
+  current: MuralCard | null;
+  past: MuralCard[];
   repo_url: string;
 }
 
-export default function renderCanvasesArchive(v: CanvasesArchiveView): string {
+export default function renderMuralsArchive(v: MuralsArchiveView): string {
   const currentBlock = v.current
     ? `<h2 class="panel-h">This week</h2>
       <ul class="cv-list cv-list--current">
@@ -29,14 +29,14 @@ export default function renderCanvasesArchive(v: CanvasesArchiveView): string {
     : "";
 
   const pastBlock = v.past.length > 0
-    ? `<h2 class="panel-h">Past canvases</h2>
+    ? `<h2 class="panel-h">Past murals</h2>
       <ul class="cv-list">
         ${v.past.map(renderCard).join("\n        ")}
       </ul>`
     : "";
 
   const empty = !v.current && v.past.length === 0
-    ? `      <p class="muted">No canvases yet. The first one opens with the next builder run.</p>`
+    ? `      <p class="muted">No murals yet. The first one opens with the next builder run.</p>`
     : "";
 
   return `<!doctype html>
@@ -46,7 +46,7 @@ export default function renderCanvasesArchive(v: CanvasesArchiveView): string {
     ${renderMetaPixel()}
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Draw! · Canvases</title>
+    <title>Draw! · Murals</title>
     <link rel="stylesheet" href="/gallery-v2.css" />
     <style>
       .cv-list{list-style:none;padding:0;margin:0 0 2rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem;}
@@ -63,20 +63,20 @@ export default function renderCanvasesArchive(v: CanvasesArchiveView): string {
     </style>
   </head>
   <body>
-    ${renderHeader({ active: "canvases" })}
+    ${renderHeader({ active: "murals" })}
     <main>
-      <h1 class="page-title">Canvases</h1>
+      <h1 class="page-title">Murals</h1>
 ${empty}
       ${currentBlock}
       ${pastBlock}
     </main>
-    ${renderFooter({ active: "canvases", repoUrl: v.repo_url })}
+    ${renderFooter({ active: "murals", repoUrl: v.repo_url })}
   </body>
 </html>
 `;
 }
 
-function renderCard(c: CanvasCard): string {
+function renderCard(c: MuralCard): string {
   const thumbs: string[] = [];
   for (let i = 0; i < 9; i++) {
     const id = c.preview_thumbs[i];
@@ -89,10 +89,10 @@ function renderCard(c: CanvasCard): string {
     }
   }
   const status = c.locked
-    ? `<span class="locked">Locked</span> · ${esc(c.tiles_published)}/${TILES_PER_CANVAS} tiles · final`
-    : `<span class="active">Active</span> · ${esc(c.tiles_published)}/${TILES_PER_CANVAS} tiles`;
+    ? `<span class="locked">Locked</span> · ${esc(c.tiles_published)}/${TILES_PER_MURAL} tiles · final`
+    : `<span class="active">Active</span> · ${esc(c.tiles_published)}/${TILES_PER_MURAL} tiles`;
   return `<li>
-          <a class="cv-card" href="/canvases/${esc(c.id)}">
+          <a class="cv-card" href="/murals/${esc(c.id)}">
             <h3>${esc(c.name)}</h3>
             <p class="cv-dates"><time datetime="${esc(c.opens_at)}">${esc(c.opens_at.slice(0, 10))}</time> → <time datetime="${esc(c.closes_at)}">${esc(c.closes_at.slice(0, 10))}</time></p>
             <div class="cv-thumbs">${thumbs.join("")}</div>

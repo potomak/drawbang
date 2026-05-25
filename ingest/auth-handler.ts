@@ -13,7 +13,7 @@ import type { EmailSender } from "./email.js";
 //
 // Identity = email (private, unique) + password. Public handle = username
 // (unique, immutable v1) used in /u/<username> URLs. Sessions are stateless
-// HS256 JWTs ({ sub: user_id, un: username }); /ingest + /canvas/claim trust
+// HS256 JWTs ({ sub: user_id, un: username }); /ingest + /mural/claim trust
 // them without a DB read. Password reset is single-use via a token_version
 // claim checked against the user row at confirm time.
 
@@ -25,10 +25,10 @@ const MIN_PASSWORD = 8;
 const MAX_PASSWORD = 200;
 
 const RESERVED_USERNAMES = new Set([
-  "login", "signup", "reset", "account", "u", "d", "days", "keys", "gallery",
-  "merch", "products", "canvases", "canvas", "identity", "privacy", "share",
-  "feed", "404", "admin", "api", "ingest", "state", "drawings", "static",
-  "assets", "pow-test",
+  "login", "signup", "reset", "account", "u", "d", "t", "c", "days", "keys",
+  "gallery", "merch", "products", "murals", "mural", "canvas", "canvases",
+  "tile", "tiles", "identity", "privacy", "share", "feed", "404", "admin",
+  "api", "ingest", "state", "drawings", "static", "assets", "pow-test",
 ]);
 
 export interface AuthHandlerConfig {

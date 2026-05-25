@@ -2,13 +2,13 @@ import {
   CLAIM_TTL_S,
   PUBLISH_COOLDOWN_S,
   TILES_PER_SIDE,
-  canvasClosesAt,
-  canvasIdForDate,
-  canvasName,
-  canvasOpensAt,
-  isCanvasIdValid,
+  muralClosesAt,
+  muralIdForDate,
+  muralName,
+  muralOpensAt,
+  isMuralIdValid,
   tileKey,
-} from "../config/canvases.js";
+} from "../config/murals.js";
 import {
   INITIAL_STATE,
   ageSecondsBetween,
@@ -18,34 +18,34 @@ import {
 import {
   AlreadyPublishedError,
   TileLockedError,
-  type CanvasStore,
+  type MuralStore,
   type TileRow,
-} from "./canvas-store.js";
+} from "./mural-store.js";
 import type { AuthedUser } from "./handler.js";
 import type { Storage } from "./storage.js";
 
-export interface CanvasClaimRequest {
-  canvas_id: string;
+export interface MuralClaimRequest {
+  mural_id: string;
   x: number;
   y: number;
   baseline: string;
   nonce: string;
 }
 
-export interface CanvasClaimResponseBody {
+export interface MuralClaimResponseBody {
   claim_expires_at: number; // epoch seconds
   edit_url: string;
   required_bits: number;
 }
 
-export interface CanvasState {
-  // ISO timestamp of the most recent successful claim on this canvas, OR
+export interface MuralState {
+  // ISO timestamp of the most recent successful claim on this mural, OR
   // the sentinel from INITIAL_STATE if none yet.
   last_claim_at: string;
   last_difficulty_bits: number;
 }
 
-export interface CanvasManifest {
+export interface MuralManifest {
   id: string;
   name: string;
   opens_at: string;
@@ -55,19 +55,19 @@ export interface CanvasManifest {
   locked: boolean;
 }
 
-export interface CanvasHandlerConfig {
+export interface MuralHandlerConfig {
   storage: Storage;
-  canvasStore: CanvasStore;
+  muralStore: MuralStore;
   publicBaseUrl: string;
   // Authenticated claimer (from the verified session JWT). Required for
-  // handleCanvasClaim; unused by handleCanvasState.
+  // handleMuralClaim; unused by handleMuralState.
   auth?: AuthedUser;
   now?: () => Date;
-  // Optional per-canvas baseline history (rolling grace window).
+  // Optional per-mural baseline history (rolling grace window).
   baselineHistory?: Map<string, string[]>;
 }
 
-export interface CanvasHandlerResult {
+export interface MuralHandlerResult {
   status: number;
   body: unknown;
   headers?: Record<string, string>;
@@ -75,23 +75,23 @@ export interface CanvasHandlerResult {
 
 const defaultBaselineHistory = new Map<string, string[]>();
 
-function err(status: number, message: string): CanvasHandlerResult {
+function err(status: number, message: string): MuralHandlerResult {
   return { status, body: { error: message } };
 }
 
-function canvasStateKey(canvasId: string): string {
-  return `public/state/canvas/${canvasId}.json`;
+function muralStateKey(muralId: string): string {
+  return `public/state/mural/${muralId}.json`;
 }
 
-function canvasManifestKey(canvasId: string): string {
-  return `public/canvases/${canvasId}/manifest.json`;
+function muralManifestKey(muralId: string): string {
+  return `public/murals/${muralId}/manifest.json`;
 }
 
 async function loadOrInitState(
   storage: Storage,
-  canvasId: string,
-): Promise<{ state: CanvasState; firstEver: boolean }> {
-  const stored = await storage.getJSON<CanvasState>(canvasStateKey(canvasId));
+  muralId: string,
+): Promise<{ state: MuralState; firstEver: boolean }> {
+  const stored = await storage.getJSON<MuralState>(muralStateKey(muralId));
   if (stored) return { state: stored, firstEver: false };
   return {
     state: {
@@ -104,23 +104,23 @@ async function loadOrInitState(
 
 async function ensureManifest(
   storage: Storage,
-  canvasId: string,
-): Promise<CanvasManifest> {
-  const existing = await storage.getJSON<CanvasManifest>(
-    canvasManifestKey(canvasId),
+  muralId: string,
+): Promise<MuralManifest> {
+  const existing = await storage.getJSON<MuralManifest>(
+    muralManifestKey(muralId),
   );
   if (existing) return existing;
-  const manifest: CanvasManifest = {
-    id: canvasId,
-    name: canvasName(canvasId),
-    opens_at: canvasOpensAt(canvasId).toISOString(),
-    closes_at: canvasClosesAt(canvasId).toISOString(),
+  const manifest: MuralManifest = {
+    id: muralId,
+    name: muralName(muralId),
+    opens_at: muralOpensAt(muralId).toISOString(),
+    closes_at: muralClosesAt(muralId).toISOString(),
     rows: TILES_PER_SIDE,
     cols: TILES_PER_SIDE,
     locked: false,
   };
   await storage.put(
-    canvasManifestKey(canvasId),
+    muralManifestKey(muralId),
     new TextEncoder().encode(JSON.stringify(manifest)),
     "application/json",
     "public, max-age=31536000, immutable",
@@ -128,10 +128,10 @@ async function ensureManifest(
   return manifest;
 }
 
-export async function handleCanvasClaim(
-  req: CanvasClaimRequest,
-  cfg: CanvasHandlerConfig,
-): Promise<CanvasHandlerResult> {
+export async function handleMuralClaim(
+  req: MuralClaimRequest,
+  cfg: MuralHandlerConfig,
+): Promise<MuralHandlerResult> {
   const now = cfg.now ? cfg.now() : new Date();
   const nowISO = now.toISOString();
   const nowEpoch = Math.floor(now.getTime() / 1000);
@@ -139,8 +139,8 @@ export async function handleCanvasClaim(
   if (!cfg.auth) return err(401, "not authenticated");
   const userId = cfg.auth.user_id;
 
-  if (typeof req.canvas_id !== "string" || !isCanvasIdValid(req.canvas_id)) {
-    return err(400, "invalid canvas_id");
+  if (typeof req.mural_id !== "string" || !isMuralIdValid(req.mural_id)) {
+    return err(400, "invalid mural_id");
   }
   if (
     !Number.isInteger(req.x) ||
@@ -156,29 +156,29 @@ export async function handleCanvasClaim(
     return err(400, "missing baseline or nonce");
   }
 
-  // -- Canvas lock check -----------------------------------------------------
-  const closesAt = canvasClosesAt(req.canvas_id);
+  // -- Mural lock check -----------------------------------------------------
+  const closesAt = muralClosesAt(req.mural_id);
   if (now.getTime() >= closesAt.getTime()) {
-    return err(403, "canvas is locked");
+    return err(403, "mural is locked");
   }
-  // Reject claims on canvases that haven't opened yet (defensive).
-  const opensAt = canvasOpensAt(req.canvas_id);
+  // Reject claims on murals that haven't opened yet (defensive).
+  const opensAt = muralOpensAt(req.mural_id);
   if (now.getTime() < opensAt.getTime()) {
-    return err(403, "canvas has not opened yet");
+    return err(403, "mural has not opened yet");
   }
 
   // -- Baseline + PoW --------------------------------------------------------
-  const { state, firstEver } = await loadOrInitState(cfg.storage, req.canvas_id);
+  const { state, firstEver } = await loadOrInitState(cfg.storage, req.mural_id);
   const history =
     cfg.baselineHistory ?? defaultBaselineHistory;
-  const canvasHistory = history.get(req.canvas_id) ?? [];
+  const muralHistory = history.get(req.mural_id) ?? [];
 
   if (ageSecondsBetween(nowISO, req.baseline) < -5) {
     return err(400, `baseline in the future: ${req.baseline}`);
   }
   const baselineOk =
     req.baseline === state.last_claim_at ||
-    canvasHistory.includes(req.baseline) ||
+    muralHistory.includes(req.baseline) ||
     (firstEver && req.baseline === INITIAL_STATE.last_publish_at);
   if (!baselineOk) {
     return err(400, `baseline stale (${req.baseline})`);
@@ -191,7 +191,7 @@ export async function handleCanvasClaim(
 
   const powOk = await verifyClaimPow(
     {
-      canvasId: req.canvas_id,
+      muralId: req.mural_id,
       x: req.x,
       y: req.y,
       userId,
@@ -205,13 +205,13 @@ export async function handleCanvasClaim(
   }
 
   // -- Manifest self-heal (lazy creation) ------------------------------------
-  await ensureManifest(cfg.storage, req.canvas_id);
+  await ensureManifest(cfg.storage, req.mural_id);
 
   // -- Tile claim (DDB conditional write) ------------------------------------
   let claim_expires_at: number;
   try {
-    const r = await cfg.canvasStore.claimTile({
-      canvas_id: req.canvas_id,
+    const r = await cfg.muralStore.claimTile({
+      mural_id: req.mural_id,
       tile_key: tileKey(req.x, req.y),
       user_id: userId,
       now_epoch: nowEpoch,
@@ -228,36 +228,36 @@ export async function handleCanvasClaim(
     throw e;
   }
 
-  // -- Update canvas state ---------------------------------------------------
-  const newState: CanvasState = {
+  // -- Update mural state ---------------------------------------------------
+  const newState: MuralState = {
     last_claim_at: nowISO,
     last_difficulty_bits: bits,
   };
   await cfg.storage.put(
-    canvasStateKey(req.canvas_id),
+    muralStateKey(req.mural_id),
     new TextEncoder().encode(JSON.stringify(newState)),
     "application/json",
     "no-store",
   );
-  // Roll the baseline history per canvas.
-  canvasHistory.push(state.last_claim_at);
-  while (canvasHistory.length > 8) canvasHistory.shift();
-  history.set(req.canvas_id, canvasHistory);
+  // Roll the baseline history per mural.
+  muralHistory.push(state.last_claim_at);
+  while (muralHistory.length > 8) muralHistory.shift();
+  history.set(req.mural_id, muralHistory);
 
   return {
     status: 201,
     body: {
       claim_expires_at,
-      edit_url: `/?c=${req.canvas_id}&x=${req.x}&y=${req.y}`,
+      edit_url: `/?c=${req.mural_id}&x=${req.x}&y=${req.y}`,
       required_bits: bits,
-    } satisfies CanvasClaimResponseBody,
+    } satisfies MuralClaimResponseBody,
   };
 }
 
-// -- GET /canvas/{id}/state ---------------------------------------------------
+// -- GET /mural/{id}/state ---------------------------------------------------
 
-export interface CanvasStateResponseBody {
-  canvas_id: string;
+export interface MuralStateResponseBody {
+  mural_id: string;
   name: string;
   opens_at: string;
   closes_at: string;
@@ -274,24 +274,24 @@ export interface CanvasStateResponseBody {
   }>;
 }
 
-export async function handleCanvasState(
-  canvasId: string,
-  cfg: CanvasHandlerConfig,
-): Promise<CanvasHandlerResult> {
-  if (!isCanvasIdValid(canvasId)) {
-    return err(404, "unknown canvas");
+export async function handleMuralState(
+  muralId: string,
+  cfg: MuralHandlerConfig,
+): Promise<MuralHandlerResult> {
+  if (!isMuralIdValid(muralId)) {
+    return err(404, "unknown mural");
   }
   const now = cfg.now ? cfg.now() : new Date();
-  const closesAt = canvasClosesAt(canvasId);
-  const opensAt = canvasOpensAt(canvasId);
+  const closesAt = muralClosesAt(muralId);
+  const opensAt = muralOpensAt(muralId);
 
-  // Active canvases get short cache; locked canvases cache effectively
+  // Active murals get short cache; locked murals cache effectively
   // forever — once locked, state is frozen.
   const locked = now.getTime() >= closesAt.getTime();
 
-  const rows: TileRow[] = await cfg.canvasStore.getTiles(canvasId);
+  const rows: TileRow[] = await cfg.muralStore.getTiles(muralId);
   const tiles = rows.map((r) => {
-    const t: CanvasStateResponseBody["tiles"][number] = { x: r.x, y: r.y };
+    const t: MuralStateResponseBody["tiles"][number] = { x: r.x, y: r.y };
     if (r.drawing_id) {
       t.drawing_id = r.drawing_id;
       if (r.published_at) t.published_at = r.published_at;
@@ -308,7 +308,7 @@ export async function handleCanvasState(
     return t;
   });
 
-  const { state, firstEver } = await loadOrInitState(cfg.storage, canvasId);
+  const { state, firstEver } = await loadOrInitState(cfg.storage, muralId);
 
   // Report the bits the *next* claim would need given the current age of
   // last_claim_at — not the bits that satisfied the previous claim. Echoing
@@ -319,9 +319,9 @@ export async function handleCanvasState(
     ? Number.POSITIVE_INFINITY
     : Math.max(0, ageSecondsBetween(now.toISOString(), state.last_claim_at));
 
-  const body: CanvasStateResponseBody = {
-    canvas_id: canvasId,
-    name: canvasName(canvasId),
+  const body: MuralStateResponseBody = {
+    mural_id: muralId,
+    name: muralName(muralId),
     opens_at: opensAt.toISOString(),
     closes_at: closesAt.toISOString(),
     locked,
@@ -340,9 +340,9 @@ export async function handleCanvasState(
   return { status: 200, body, headers };
 }
 
-// Convenience: derive the current canvas id at this moment.
-export function currentCanvasId(now: Date = new Date()): string {
-  return canvasIdForDate(now);
+// Convenience: derive the current mural id at this moment.
+export function currentMuralId(now: Date = new Date()): string {
+  return muralIdForDate(now);
 }
 
 export { CLAIM_TTL_S, PUBLISH_COOLDOWN_S };

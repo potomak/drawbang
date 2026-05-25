@@ -264,10 +264,10 @@ test("builder renders streaks + badges on profile page when userStatsSource is w
         daily_streak_current: 3,
         daily_streak_longest: 5,
         daily_last_date: "2026-04-19",
-        canvas_total: 2,
-        canvas_streak_current: 1,
-        canvas_streak_longest: 2,
-        canvas_last_id: "canvas-2026-W16",
+        mural_total: 2,
+        mural_streak_current: 1,
+        mural_streak_longest: 2,
+        mural_last_id: "mural-2026-W16",
         updated_at: "2026-04-19T10:00:00Z",
       };
     },
@@ -286,15 +286,15 @@ test("builder renders streaks + badges on profile page when userStatsSource is w
   assert.match(profileHtml, /best 5/);
   assert.match(profileHtml, /7 drawings total/);
   assert.match(profileHtml, /1-week streak/);
-  assert.match(profileHtml, /2 canvases total/);
+  assert.match(profileHtml, /2 murals total/);
   assert.match(profileHtml, /data-badge-id="daily-7"/);
   assert.ok(
     !/data-badge-id="daily-30"/.test(profileHtml),
     "daily-30 should not appear at daily_total=7",
   );
   assert.ok(
-    !/data-badge-id="canvas-10"/.test(profileHtml),
-    "canvas-10 should not appear at canvas_total=2",
+    !/data-badge-id="mural-10"/.test(profileHtml),
+    "mural-10 should not appear at mural_total=2",
   );
 });
 
@@ -321,8 +321,8 @@ test("builder emits the profile-page hydration script only when apiBaseUrl is se
         user_id,
         daily_total: 1, daily_streak_current: 1, daily_streak_longest: 1,
         daily_last_date: "2026-04-19",
-        canvas_total: 0, canvas_streak_current: 0, canvas_streak_longest: 0,
-        canvas_last_id: null,
+        mural_total: 0, mural_streak_current: 0, mural_streak_longest: 0,
+        mural_last_id: null,
         updated_at: "2026-04-19T10:00:00Z",
       };
     },
@@ -362,23 +362,23 @@ test("builder emits the profile-page hydration script only when apiBaseUrl is se
   );
 });
 
-test("builder preserves canvas membership when re-rendering an existing drawing page", async () => {
+test("builder preserves mural membership when re-rendering an existing drawing page", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
   const storage = new FsStorage(root);
 
   const id = await seedDrawing(root, "2026-04-19", 14, { user_id: "a".repeat(64), username: "alice" });
 
-  // Seed the canvases sidecar at the same key ingest writes.
+  // Seed the murals sidecar at the same key ingest writes.
   const claimedBy = "c".repeat(64);
-  const sidecarPath = path.join(root, `public/drawings/${id}.canvases.json`);
+  const sidecarPath = path.join(root, `public/drawings/${id}.murals.json`);
   await fs.mkdir(path.dirname(sidecarPath), { recursive: true });
   await fs.writeFile(
     sidecarPath,
     JSON.stringify({
       drawing_id: id,
-      canvases: [
+      murals: [
         {
-          id: "canvas-2026-W16",
+          id: "mural-2026-W16",
           name: "Week 16, 2026",
           x: 3,
           y: 4,
@@ -398,13 +398,13 @@ test("builder preserves canvas membership when re-rendering an existing drawing 
   });
 
   const drawingHtml = await fs.readFile(path.join(root, `public/d/${id}.html`), "utf8");
-  assert.match(drawingHtml, /<dt>Canvases<\/dt>/);
+  assert.match(drawingHtml, /<dt>Murals<\/dt>/);
   assert.match(
     drawingHtml,
-    /href="\/canvases\/canvas-2026-W16#tile-3-4"/,
+    /href="\/murals\/mural-2026-W16#tile-3-4"/,
   );
   assert.ok(
     drawingHtml.includes(`/u/carol`),
-    "expected claimed_by_username attribution in the canvas membership link",
+    "expected claimed_by_username attribution in the mural membership link",
   );
 });

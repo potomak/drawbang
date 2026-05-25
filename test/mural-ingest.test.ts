@@ -11,10 +11,10 @@ import {
 } from "../src/pow.js";
 import type { Storage } from "../ingest/storage.js";
 import { handleIngest, type AuthedUser, type IngestRequest } from "../ingest/handler.js";
-import { handleCanvasClaim } from "../ingest/canvas-handler.js";
-import { MemoryCanvasStore } from "../ingest/canvas-store.js";
+import { handleMuralClaim } from "../ingest/mural-handler.js";
+import { MemoryMuralStore } from "../ingest/mural-store.js";
 import { MemoryUserStatsStore } from "../ingest/user-stats-store.js";
-import { canvasIdForDate, tileKey } from "../config/canvases.js";
+import { muralIdForDate, tileKey } from "../config/murals.js";
 
 class MemoryStorage implements Storage {
   private store = new Map<string, { bytes: Uint8Array; contentType: string }>();
@@ -80,9 +80,9 @@ async function publishBody(
 }
 
 async function claim(opts: {
-  canvasStore: MemoryCanvasStore;
+  muralStore: MemoryMuralStore;
   storage: MemoryStorage;
-  canvasId: string;
+  muralId: string;
   x: number;
   y: number;
   auth: AuthedUser;
@@ -91,13 +91,13 @@ async function claim(opts: {
   const baseline = INITIAL_STATE.last_publish_at;
   const bits = requiredBits(Number.POSITIVE_INFINITY);
   const solved = await solveClaim(
-    { canvasId: opts.canvasId, x: opts.x, y: opts.y, userId: opts.auth.user_id },
+    { muralId: opts.muralId, x: opts.x, y: opts.y, userId: opts.auth.user_id },
     baseline,
     bits,
   );
-  const r = await handleCanvasClaim(
+  const r = await handleMuralClaim(
     {
-      canvas_id: opts.canvasId,
+      mural_id: opts.muralId,
       x: opts.x,
       y: opts.y,
       baseline,
@@ -105,7 +105,7 @@ async function claim(opts: {
     },
     {
       storage: opts.storage,
-      canvasStore: opts.canvasStore,
+      muralStore: opts.muralStore,
       publicBaseUrl: "https://example.test",
       auth: opts.auth,
       now: () => opts.now,
@@ -114,204 +114,204 @@ async function claim(opts: {
   assert.equal(r.status, 201, `claim failed: ${JSON.stringify(r.body)}`);
 }
 
-describe("ingest + canvas_claim", () => {
-  test("publish refreshes current-canvas snapshot with live tile count", async () => {
+describe("ingest + mural_claim", () => {
+  test("publish refreshes current-mural snapshot with live tile count", async () => {
     const storage = new MemoryStorage();
-    const canvasStore = new MemoryCanvasStore();
+    const muralStore = new MemoryMuralStore();
     const auth = mkAuth("a");
     const now = new Date("2026-05-13T12:00:00Z");
-    const canvasId = canvasIdForDate(now);
+    const muralId = muralIdForDate(now);
 
-    await claim({ canvasStore, storage, canvasId, x: 3, y: 7, auth, now });
+    await claim({ muralStore, storage, muralId, x: 3, y: 7, auth, now });
     const body = await publishBody(makeGif(), INITIAL_STATE.last_publish_at, {
-      canvas_claim: { canvas_id: canvasId, x: 3, y: 7 },
+      mural_claim: { mural_id: muralId, x: 3, y: 7 },
     });
     const r = await handleIngest(body, {
       storage,
       publicBaseUrl: "https://example.test",
       auth,
-      canvasStore,
+      muralStore,
       now: () => now,
     });
     assert.equal(r.status, 202);
 
     const snapshot = await storage.getJSON<{
-      canvas_id: string;
+      mural_id: string;
       name: string;
       tiles_published: number;
       tiles_claimed: number;
       tiles_total: number;
-    }>("public/state/current-canvas.json");
+    }>("public/state/current-mural.json");
     assert.ok(snapshot, "snapshot should be written");
-    assert.equal(snapshot.canvas_id, canvasId);
+    assert.equal(snapshot.mural_id, muralId);
     assert.equal(snapshot.tiles_published, 1);
     assert.equal(snapshot.tiles_claimed, 0);
     assert.equal(snapshot.tiles_total, 256);
   });
 
-  test("publish with valid canvas_claim → 202 + tile published + membership recorded", async () => {
+  test("publish with valid mural_claim → 202 + tile published + membership recorded", async () => {
     const storage = new MemoryStorage();
-    const canvasStore = new MemoryCanvasStore();
+    const muralStore = new MemoryMuralStore();
     const auth = mkAuth("a");
     const now = new Date("2026-05-13T12:00:00Z");
-    const canvasId = canvasIdForDate(now);
+    const muralId = muralIdForDate(now);
 
-    await claim({ canvasStore, storage, canvasId, x: 5, y: 12, auth, now });
+    await claim({ muralStore, storage, muralId, x: 5, y: 12, auth, now });
 
     const gif = makeGif();
     const body = await publishBody(gif, INITIAL_STATE.last_publish_at, {
-      canvas_claim: { canvas_id: canvasId, x: 5, y: 12 },
+      mural_claim: { mural_id: muralId, x: 5, y: 12 },
     });
     const r = await handleIngest(body, {
       storage,
       publicBaseUrl: "https://example.test",
       auth,
-      canvasStore,
+      muralStore,
       now: () => now,
     });
     assert.equal(r.status, 202);
     if (r.status !== 202) return;
-    assert.equal(r.body.canvas?.canvas_id, canvasId);
-    assert.equal(r.body.canvas?.x, 5);
+    assert.equal(r.body.mural?.mural_id, muralId);
+    assert.equal(r.body.mural?.x, 5);
 
     // Tile in store has drawing_id set.
-    const tiles = await canvasStore.getTiles(canvasId);
+    const tiles = await muralStore.getTiles(muralId);
     const tile = tiles.find((t) => t.x === 5 && t.y === 12);
     assert.equal(tile?.drawing_id, r.body.id);
 
-    // Canvases file written.
+    // Murals file written.
     const memberFile = await storage.getJSON<{
       drawing_id: string;
-      canvases: Array<{ id: string; x: number; y: number; claimed_by: string; claimed_by_username: string }>;
-    }>(`public/drawings/${r.body.id}.canvases.json`);
-    assert.equal(memberFile?.canvases.length, 1);
-    assert.equal(memberFile?.canvases[0].id, canvasId);
-    assert.equal(memberFile?.canvases[0].x, 5);
-    assert.equal(memberFile?.canvases[0].claimed_by_username, auth.username);
+      murals: Array<{ id: string; x: number; y: number; claimed_by: string; claimed_by_username: string }>;
+    }>(`public/drawings/${r.body.id}.murals.json`);
+    assert.equal(memberFile?.murals.length, 1);
+    assert.equal(memberFile?.murals[0].id, muralId);
+    assert.equal(memberFile?.murals[0].x, 5);
+    assert.equal(memberFile?.murals[0].claimed_by_username, auth.username);
 
-    // Drawing page contains the canvas section.
+    // Drawing page contains the mural section.
     const html = await storage.getBytes(`public/d/${r.body.id}.html`);
     assert.ok(html);
     const htmlStr = new TextDecoder().decode(html);
-    assert.match(htmlStr, /Canvases/);
-    assert.match(htmlStr, new RegExp(`/canvases/${canvasId}`));
+    assert.match(htmlStr, /Murals/);
+    assert.match(htmlStr, new RegExp(`/murals/${muralId}`));
   });
 
-  test("publish with canvas_claim but no prior claim → 403", async () => {
+  test("publish with mural_claim but no prior claim → 403", async () => {
     const storage = new MemoryStorage();
-    const canvasStore = new MemoryCanvasStore();
+    const muralStore = new MemoryMuralStore();
     const auth = mkAuth("a");
     const now = new Date("2026-05-13T12:00:00Z");
-    const canvasId = canvasIdForDate(now);
+    const muralId = muralIdForDate(now);
 
     const gif = makeGif();
     const body = await publishBody(gif, INITIAL_STATE.last_publish_at, {
-      canvas_claim: { canvas_id: canvasId, x: 5, y: 12 },
+      mural_claim: { mural_id: muralId, x: 5, y: 12 },
     });
     const r = await handleIngest(body, {
       storage,
       publicBaseUrl: "https://example.test",
       auth,
-      canvasStore,
+      muralStore,
       now: () => now,
     });
     assert.equal(r.status, 403);
   });
 
-  test("publish with canvas_claim on a locked canvas → 403", async () => {
+  test("publish with mural_claim on a locked mural → 403", async () => {
     const storage = new MemoryStorage();
-    const canvasStore = new MemoryCanvasStore();
+    const muralStore = new MemoryMuralStore();
     const auth = mkAuth("a");
     const now = new Date("2026-05-13T12:00:00Z");
-    const lockedCanvas = "canvas-2026-W01";
+    const lockedMural = "mural-2026-W01";
 
     const gif = makeGif();
     const body = await publishBody(gif, INITIAL_STATE.last_publish_at, {
-      canvas_claim: { canvas_id: lockedCanvas, x: 5, y: 12 },
+      mural_claim: { mural_id: lockedMural, x: 5, y: 12 },
     });
     const r = await handleIngest(body, {
       storage,
       publicBaseUrl: "https://example.test",
       auth,
-      canvasStore,
+      muralStore,
       now: () => now,
     });
     assert.equal(r.status, 403);
   });
 
-  test("same gif into two different canvases → both succeed, sidecar has 2 entries", async () => {
+  test("same gif into two different murals → both succeed, sidecar has 2 entries", async () => {
     const storage = new MemoryStorage();
-    const canvasStore = new MemoryCanvasStore();
+    const muralStore = new MemoryMuralStore();
     const auth = mkAuth("a");
     const gif = makeGif();
 
-    // First canvas: current week
+    // First mural: current week
     const now1 = new Date("2026-05-13T12:00:00Z");
-    const canvasA = canvasIdForDate(now1);
-    await claim({ canvasStore, storage, canvasId: canvasA, x: 0, y: 0, auth, now: now1 });
+    const muralA = muralIdForDate(now1);
+    await claim({ muralStore, storage, muralId: muralA, x: 0, y: 0, auth, now: now1 });
     const body1 = await publishBody(gif, INITIAL_STATE.last_publish_at, {
-      canvas_claim: { canvas_id: canvasA, x: 0, y: 0 },
+      mural_claim: { mural_id: muralA, x: 0, y: 0 },
     });
     const r1 = await handleIngest(body1, {
       storage,
       publicBaseUrl: "https://example.test",
       auth,
-      canvasStore,
+      muralStore,
       now: () => now1,
     });
     assert.equal(r1.status, 202);
     if (r1.status !== 202) return;
     const drawingId = r1.body.id;
 
-    // Second canvas: a week later, after cooldown elapses
+    // Second mural: a week later, after cooldown elapses
     const now2 = new Date(now1.getTime() + 8 * 86_400_000);
-    const canvasB = canvasIdForDate(now2);
-    assert.notEqual(canvasA, canvasB);
-    await claim({ canvasStore, storage, canvasId: canvasB, x: 1, y: 2, auth, now: now2 });
+    const muralB = muralIdForDate(now2);
+    assert.notEqual(muralA, muralB);
+    await claim({ muralStore, storage, muralId: muralB, x: 1, y: 2, auth, now: now2 });
     const stateForBaseline = (await storage.getJSON<{ last_publish_at: string }>(
       "public/state/last-publish.json",
     ))!;
     const body2 = await publishBody(gif, stateForBaseline.last_publish_at, {
-      canvas_claim: { canvas_id: canvasB, x: 1, y: 2 },
+      mural_claim: { mural_id: muralB, x: 1, y: 2 },
     });
     const r2 = await handleIngest(body2, {
       storage,
       publicBaseUrl: "https://example.test",
       auth,
-      canvasStore,
+      muralStore,
       now: () => now2,
     });
     assert.equal(r2.status, 202);
     if (r2.status !== 202) return;
     assert.equal(r2.body.id, drawingId, "same gif yields same content-addressed id");
 
-    // Sidecar shows membership in BOTH canvases.
+    // Sidecar shows membership in BOTH murals.
     const memberFile = await storage.getJSON<{
-      canvases: Array<{ id: string; x: number; y: number }>;
-    }>(`public/drawings/${drawingId}.canvases.json`);
-    assert.equal(memberFile?.canvases.length, 2);
-    const ids = memberFile?.canvases.map((c) => c.id).sort();
-    assert.deepEqual(ids, [canvasA, canvasB].sort());
+      murals: Array<{ id: string; x: number; y: number }>;
+    }>(`public/drawings/${drawingId}.murals.json`);
+    assert.equal(memberFile?.murals.length, 2);
+    const ids = memberFile?.murals.map((c) => c.id).sort();
+    assert.deepEqual(ids, [muralA, muralB].sort());
   });
 
-  test("publishTile on already-published tile rejects (covered by canvas-store unit)", async () => {
+  test("publishTile on already-published tile rejects (covered by mural-store unit)", async () => {
     const storage = new MemoryStorage();
-    const canvasStore = new MemoryCanvasStore();
+    const muralStore = new MemoryMuralStore();
     const authA = mkAuth("a");
     const authB = mkAuth("b");
     const now = new Date("2026-05-13T12:00:00Z");
-    const canvasId = canvasIdForDate(now);
+    const muralId = muralIdForDate(now);
 
-    await claim({ canvasStore, storage, canvasId, x: 0, y: 0, auth: authA, now });
+    await claim({ muralStore, storage, muralId, x: 0, y: 0, auth: authA, now });
     const gifA = makeGif(0);
     const bodyA = await publishBody(gifA, INITIAL_STATE.last_publish_at, {
-      canvas_claim: { canvas_id: canvasId, x: 0, y: 0 },
+      mural_claim: { mural_id: muralId, x: 0, y: 0 },
     });
     const rA = await handleIngest(bodyA, {
       storage,
       publicBaseUrl: "https://example.test",
       auth: authA,
-      canvasStore,
+      muralStore,
       now: () => now,
     });
     assert.equal(rA.status, 202);
@@ -324,13 +324,13 @@ describe("ingest + canvas_claim", () => {
     ))!.last_publish_at;
     const gifB = makeGif(5);
     const bodyB = await publishBody(gifB, baselineB, {
-      canvas_claim: { canvas_id: canvasId, x: 0, y: 0 },
+      mural_claim: { mural_id: muralId, x: 0, y: 0 },
     });
     const rB = await handleIngest(bodyB, {
       storage,
       publicBaseUrl: "https://example.test",
       auth: authB,
-      canvasStore,
+      muralStore,
       now: () => nowB,
     });
     assert.ok(
@@ -341,22 +341,22 @@ describe("ingest + canvas_claim", () => {
 
   test("publish during cooldown → 429", async () => {
     const storage = new MemoryStorage();
-    const canvasStore = new MemoryCanvasStore();
+    const muralStore = new MemoryMuralStore();
     const auth = mkAuth("a");
     const now = new Date("2026-05-13T12:00:00Z");
-    const canvasId = canvasIdForDate(now);
+    const muralId = muralIdForDate(now);
 
     // First publish.
-    await claim({ canvasStore, storage, canvasId, x: 0, y: 0, auth, now });
+    await claim({ muralStore, storage, muralId, x: 0, y: 0, auth, now });
     const gif1 = makeGif(0);
     const body1 = await publishBody(gif1, INITIAL_STATE.last_publish_at, {
-      canvas_claim: { canvas_id: canvasId, x: 0, y: 0 },
+      mural_claim: { mural_id: muralId, x: 0, y: 0 },
     });
     const r1 = await handleIngest(body1, {
       storage,
       publicBaseUrl: "https://example.test",
       auth,
-      canvasStore,
+      muralStore,
       now: () => now,
     });
     assert.equal(r1.status, 202);
@@ -365,19 +365,19 @@ describe("ingest + canvas_claim", () => {
     const now2 = new Date(now.getTime() + 60_000);
     // Bump now3 past 600s so global publish-PoW drops to 14 bits.
     const now3 = new Date(now.getTime() + 700_000);
-    await claim({ canvasStore, storage, canvasId, x: 1, y: 0, auth, now: now3 });
+    await claim({ muralStore, storage, muralId, x: 1, y: 0, auth, now: now3 });
     const baseline = (await storage.getJSON<{ last_publish_at: string }>(
       "public/state/last-publish.json",
     ))!.last_publish_at;
     const gif2 = makeGif(3);
     const body2 = await publishBody(gif2, baseline, {
-      canvas_claim: { canvas_id: canvasId, x: 1, y: 0 },
+      mural_claim: { mural_id: muralId, x: 1, y: 0 },
     });
     const r2 = await handleIngest(body2, {
       storage,
       publicBaseUrl: "https://example.test",
       auth,
-      canvasStore,
+      muralStore,
       now: () => now3,
     });
     assert.equal(r2.status, 429);
@@ -388,23 +388,23 @@ describe("ingest + canvas_claim", () => {
     void tileKey;
   });
 
-  test("publish bumps both daily + canvas counters via userStatsStore", async () => {
+  test("publish bumps both daily + mural counters via userStatsStore", async () => {
     const storage = new MemoryStorage();
-    const canvasStore = new MemoryCanvasStore();
+    const muralStore = new MemoryMuralStore();
     const userStatsStore = new MemoryUserStatsStore();
     const auth = mkAuth("a");
     const now = new Date("2026-05-13T12:00:00Z");
-    const canvasId = canvasIdForDate(now);
+    const muralId = muralIdForDate(now);
 
-    await claim({ canvasStore, storage, canvasId, x: 5, y: 5, auth, now });
+    await claim({ muralStore, storage, muralId, x: 5, y: 5, auth, now });
     const body = await publishBody(makeGif(2), INITIAL_STATE.last_publish_at, {
-      canvas_claim: { canvas_id: canvasId, x: 5, y: 5 },
+      mural_claim: { mural_id: muralId, x: 5, y: 5 },
     });
     const r = await handleIngest(body, {
       storage,
       publicBaseUrl: "https://example.test",
       auth,
-      canvasStore,
+      muralStore,
       userStatsStore,
       now: () => now,
     });
@@ -415,48 +415,48 @@ describe("ingest + canvas_claim", () => {
     assert.equal(stats.daily_total, 1);
     assert.equal(stats.daily_streak_current, 1);
     assert.equal(stats.daily_last_date, "2026-05-13");
-    assert.equal(stats.canvas_total, 1);
-    assert.equal(stats.canvas_streak_current, 1);
-    assert.equal(stats.canvas_last_id, canvasId);
+    assert.equal(stats.mural_total, 1);
+    assert.equal(stats.mural_streak_current, 1);
+    assert.equal(stats.mural_last_id, muralId);
   });
 
-  test("re-publishing same gif into a NEW canvas tile bumps canvas_total but NOT daily_total", async () => {
+  test("re-publishing same gif into a NEW mural tile bumps mural_total but NOT daily_total", async () => {
     const storage = new MemoryStorage();
-    const canvasStore = new MemoryCanvasStore();
+    const muralStore = new MemoryMuralStore();
     const userStatsStore = new MemoryUserStatsStore();
     const auth = mkAuth("a");
     const now = new Date("2026-05-13T12:00:00Z");
-    const canvasId = canvasIdForDate(now);
+    const muralId = muralIdForDate(now);
 
     // First publish — into (5,5). Both counters bump.
-    await claim({ canvasStore, storage, canvasId, x: 5, y: 5, auth, now });
+    await claim({ muralStore, storage, muralId, x: 5, y: 5, auth, now });
     const gif = makeGif(3);
     const body1 = await publishBody(gif, INITIAL_STATE.last_publish_at, {
-      canvas_claim: { canvas_id: canvasId, x: 5, y: 5 },
+      mural_claim: { mural_id: muralId, x: 5, y: 5 },
     });
     const r1 = await handleIngest(body1, {
       storage,
       publicBaseUrl: "https://example.test",
       auth,
-      canvasStore,
+      muralStore,
       userStatsStore,
       now: () => now,
     });
     assert.equal(r1.status, 202);
 
-    // Distinct canvas a week later to legitimately bump canvas_total again.
+    // Distinct mural a week later to legitimately bump mural_total again.
     const nowNext = new Date("2026-05-20T12:00:00Z");
-    const canvasIdNext = canvasIdForDate(nowNext);
-    assert.notEqual(canvasId, canvasIdNext);
-    await claim({ canvasStore, storage, canvasId: canvasIdNext, x: 1, y: 1, auth, now: nowNext });
+    const muralIdNext = muralIdForDate(nowNext);
+    assert.notEqual(muralId, muralIdNext);
+    await claim({ muralStore, storage, muralId: muralIdNext, x: 1, y: 1, auth, now: nowNext });
     const body2 = await publishBody(gif, INITIAL_STATE.last_publish_at, {
-      canvas_claim: { canvas_id: canvasIdNext, x: 1, y: 1 },
+      mural_claim: { mural_id: muralIdNext, x: 1, y: 1 },
     });
     const r2 = await handleIngest(body2, {
       storage,
       publicBaseUrl: "https://example.test",
       auth,
-      canvasStore,
+      muralStore,
       userStatsStore,
       now: () => nowNext,
     });
@@ -465,9 +465,9 @@ describe("ingest + canvas_claim", () => {
     const stats = await userStatsStore.get(auth.user_id);
     assert.ok(stats);
     assert.equal(stats.daily_total, 1, "daily_total must not bump on re-publish of an existing gif");
-    assert.equal(stats.canvas_total, 2);
-    assert.equal(stats.canvas_streak_current, 2);
-    assert.equal(stats.canvas_last_id, canvasIdNext);
+    assert.equal(stats.mural_total, 2);
+    assert.equal(stats.mural_streak_current, 2);
+    assert.equal(stats.mural_last_id, muralIdNext);
   });
 
   test("publish writes the 960x960 -large.gif alongside the 16x16 original", async () => {

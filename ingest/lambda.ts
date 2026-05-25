@@ -4,12 +4,16 @@ import type {
   Context,
 } from "aws-lambda";
 import { handleIngest, type AuthedUser, type IngestRequest } from "./handler.js";
+import {
+  handleCanvasPublish,
+  type CanvasPublishRequest,
+} from "./canvas-publish-handler.js";
 import { JwtError, verifyJwt } from "./jwt.js";
 import {
-  handleCanvasClaim,
-  handleCanvasState,
-  type CanvasClaimRequest,
-} from "./canvas-handler.js";
+  handleMuralClaim,
+  handleMuralState,
+  type MuralClaimRequest,
+} from "./mural-handler.js";
 import { handleUserStats } from "./user-stats-handler.js";
 import {
   handleLogin,
@@ -19,7 +23,7 @@ import {
   type AuthHandlerConfig,
 } from "./auth-handler.js";
 import { S3Storage } from "./s3-storage.js";
-import { DynamoCanvasStore } from "./canvas-store.js";
+import { DynamoMuralStore } from "./mural-store.js";
 import { DynamoUserStatsStore } from "./user-stats-store.js";
 import { DynamoUserStore } from "./user-store.js";
 import { SesEmailSender } from "./email.js";
@@ -27,8 +31,8 @@ import { SesEmailSender } from "./email.js";
 const bucket = required("DRAWBANG_BUCKET");
 const publicBaseUrl = required("PUBLIC_BASE_URL");
 const repoUrl = required("REPO_URL");
-const canvasTilesTable = required("DRAWBANG_CANVAS_TILES_TABLE");
-const canvasCooldownsTable = required("DRAWBANG_CANVAS_COOLDOWNS_TABLE");
+const muralTilesTable = required("DRAWBANG_MURAL_TILES_TABLE");
+const muralCooldownsTable = required("DRAWBANG_MURAL_COOLDOWNS_TABLE");
 const userStatsTable = required("DRAWBANG_USER_STATS_TABLE");
 const usersTable = required("DRAWBANG_USERS_TABLE");
 const usernamesTable = required("DRAWBANG_USERNAMES_TABLE");
@@ -40,9 +44,9 @@ const sesFromAddress = process.env.SES_FROM_ADDRESS ?? "";
 // Reused across invocations in a warm Lambda container. Cold start pays the
 // SDK init cost once; subsequent requests reuse the connection pool.
 const storage = new S3Storage({ bucket });
-const canvasStore = new DynamoCanvasStore({
-  tilesTable: canvasTilesTable,
-  cooldownsTable: canvasCooldownsTable,
+const muralStore = new DynamoMuralStore({
+  tilesTable: muralTilesTable,
+  cooldownsTable: muralCooldownsTable,
 });
 const userStatsStore = new DynamoUserStatsStore({
   tableName: userStatsTable,
@@ -55,11 +59,11 @@ const authConfig: AuthHandlerConfig = {
   publicBaseUrl,
 };
 
-// Module-scope rolling baseline windows (publish + per-canvas claim). Both
+// Module-scope rolling baseline windows (publish + per-mural claim). Both
 // survive warm containers but not across containers — the handlers already
 // treat these as best-effort.
 const baselineHistory: string[] = [];
-const canvasBaselineHistory = new Map<string, string[]>();
+const muralBaselineHistory = new Map<string, string[]>();
 
 export async function handler(
   event: APIGatewayProxyEventV2,
@@ -71,11 +75,14 @@ export async function handler(
   if (method === "POST" && path === "/ingest") {
     return handleIngestRoute(event);
   }
-  if (method === "POST" && path === "/canvas/claim") {
+  if (method === "POST" && path === "/canvas") {
+    return handleCanvasPublishRoute(event);
+  }
+  if (method === "POST" && path === "/mural/claim") {
     return handleClaimRoute(event);
   }
-  // /canvas/{id}/state — match both raw and templated paths.
-  if (method === "GET" && /^\/canvas\/[^\/]+\/state$/.test(path)) {
+  // /mural/{id}/state — match both raw and templated paths.
+  if (method === "GET" && /^\/mural\/[^\/]+\/state$/.test(path)) {
     return handleStateRoute(event, path);
   }
   // /users/{user_id}/stats — per-account streak / total counters (#115/#116).
@@ -135,8 +142,29 @@ async function handleIngestRoute(
     auth,
     repoUrl,
     baselineHistory,
-    canvasStore,
+    muralStore,
     userStatsStore,
+  });
+  return json(result.status, result.body);
+}
+
+async function handleCanvasPublishRoute(
+  event: APIGatewayProxyEventV2,
+): Promise<APIGatewayProxyResultV2> {
+  const auth = extractAuth(event);
+  if (!auth) return json(401, { error: "authentication required" });
+  let body: CanvasPublishRequest;
+  try {
+    body = parseJson(event) as CanvasPublishRequest;
+  } catch {
+    return json(400, { error: "bad json body" });
+  }
+  const result = await handleCanvasPublish(body, {
+    storage,
+    publicBaseUrl,
+    auth,
+    repoUrl,
+    baselineHistory,
   });
   return json(result.status, result.body);
 }
@@ -146,18 +174,18 @@ async function handleClaimRoute(
 ): Promise<APIGatewayProxyResultV2> {
   const auth = extractAuth(event);
   if (!auth) return json(401, { error: "authentication required" });
-  let body: CanvasClaimRequest;
+  let body: MuralClaimRequest;
   try {
-    body = parseJson(event) as CanvasClaimRequest;
+    body = parseJson(event) as MuralClaimRequest;
   } catch {
     return json(400, { error: "bad json body" });
   }
-  const result = await handleCanvasClaim(body, {
+  const result = await handleMuralClaim(body, {
     storage,
-    canvasStore,
+    muralStore,
     publicBaseUrl,
     auth,
-    baselineHistory: canvasBaselineHistory,
+    baselineHistory: muralBaselineHistory,
   });
   return jsonWithHeaders(result.status, result.body, result.headers);
 }
@@ -188,11 +216,11 @@ async function handleStateRoute(
   // Prefer the path parameter when API Gateway populates it; fall back to a
   // manual split for safety against template mismatch.
   const fromParam = event.pathParameters?.id;
-  const fromPath = path.match(/^\/canvas\/([^\/]+)\/state$/)?.[1];
-  const canvasId = fromParam ?? fromPath ?? "";
-  const result = await handleCanvasState(canvasId, {
+  const fromPath = path.match(/^\/mural\/([^\/]+)\/state$/)?.[1];
+  const muralId = fromParam ?? fromPath ?? "";
+  const result = await handleMuralState(muralId, {
     storage,
-    canvasStore,
+    muralStore,
     publicBaseUrl,
   });
   return jsonWithHeaders(result.status, result.body, result.headers);

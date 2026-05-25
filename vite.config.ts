@@ -46,13 +46,16 @@ export default defineConfig({
     // setup where everything appears under one hostname.
     proxy: {
       "/ingest": "http://localhost:8787",
+      // POST /canvas (personal multi-tile publish). Exact match so it doesn't
+      // shadow the /c/<id> static pages served by the dev-bucket plugin.
+      "^/canvas$": "http://localhost:8787",
       "/auth": "http://localhost:8787",
       "/state/last-publish.json": "http://localhost:8787",
-      "/state/current-canvas.json": "http://localhost:8787",
-      // Singular `/canvas/*` is the API path (claim + state). The plural
-      // `/canvases/...` static pages are handled by the dev-bucket plugin
+      "/state/current-mural.json": "http://localhost:8787",
+      // Singular `/mural/*` is the API path (claim + state). The plural
+      // `/murals/...` static pages are handled by the dev-bucket plugin
       // — this regex avoids matching them.
-      "^/canvas/.+": "http://localhost:8787",
+      "^/mural/.+": "http://localhost:8787",
     },
   },
 });

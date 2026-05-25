@@ -1,22 +1,22 @@
 import { INITIAL_STATE, ageSecondsBetween, contentHash, hashHex, leadingZeroBits, powHash, requiredBits } from "../src/pow.js";
 import type { LastPublishState } from "../src/pow.js";
 import renderDrawing, {
-  type DrawingCanvasMembership,
+  type DrawingMuralMembership,
 } from "../builder/templates/drawing.js";
 import {
   PUBLISH_COOLDOWN_S,
   TILES_PER_SIDE,
-  canvasClosesAt,
-  canvasIdForDate,
-  canvasName,
-  canvasOpensAt,
-  isCanvasIdValid,
+  muralClosesAt,
+  muralIdForDate,
+  muralName,
+  muralOpensAt,
+  isMuralIdValid,
   tileKey,
-} from "../config/canvases.js";
+} from "../config/murals.js";
 import {
   CURRENT_STATE_KEY,
-  type CurrentCanvasState,
-} from "../builder/canvas-pass.js";
+  type CurrentMuralState,
+} from "../builder/mural-pass.js";
 import { decodeGif } from "../src/editor/gif.js";
 import { encodeShareGif } from "../src/editor/share-gif.js";
 import { validateGif } from "./gif-validate.js";
@@ -27,16 +27,16 @@ import {
   CooldownError,
   NotClaimerError,
   TileLockedError,
-  type CanvasStore,
-} from "./canvas-store.js";
+  type MuralStore,
+} from "./mural-store.js";
 import {
-  appendCanvasMembership,
-  loadCanvases,
-} from "./canvases-sidecar.js";
+  appendMuralMembership,
+  loadMurals,
+} from "./murals-sidecar.js";
 import type { UserStatsStore } from "./user-stats-store.js";
 
-export interface CanvasClaimRef {
-  canvas_id: string;
+export interface MuralClaimRef {
+  mural_id: string;
   x: number;
   y: number;
 }
@@ -55,9 +55,9 @@ export interface IngestRequest {
   solve_ms?: number;
   bench_hps?: number;
   parent?: string;
-  // Present only when publishing into a weekly canvas tile. The tile must
-  // have been previously claimed by the same account via POST /canvas/claim.
-  canvas_claim?: CanvasClaimRef;
+  // Present only when publishing into a weekly mural tile. The tile must
+  // have been previously claimed by the same account via POST /mural/claim.
+  mural_claim?: MuralClaimRef;
 }
 
 export interface IngestSuccess {
@@ -67,7 +67,7 @@ export interface IngestSuccess {
     share_url: string;
     required_bits: number;
     solve_ms: number;
-    canvas?: { canvas_id: string; x: number; y: number };
+    mural?: { mural_id: string; x: number; y: number };
   };
 }
 export interface IngestError {
@@ -86,8 +86,8 @@ export interface HandlerConfig {
   repoUrl?: string;
   now?: () => Date;
   baselineHistory?: string[]; // optional: last N baselines to accept
-  // Required only for canvas-aware ingest. Non-canvas publishes never touch it.
-  canvasStore?: CanvasStore;
+  // Required only for mural-aware ingest. Non-mural publishes never touch it.
+  muralStore?: MuralStore;
   // Per-pubkey streak / total counters (#115, #116). Optional so dev/tests
   // can omit it; when absent the publish proceeds without bumping counters.
   userStatsStore?: UserStatsStore;
@@ -212,17 +212,17 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   const id = hashHex(await contentHash(gif));
   const author = cfg.auth;
 
-  // -- 5. Canvas-claim pre-checks --------------------------------------------
+  // -- 5. Mural-claim pre-checks --------------------------------------------
   // Run *before* the idempotency check: content-addressed ids mean the same
-  // gif can legitimately appear in multiple canvases, so we can't early-return
-  // on existing-gif when canvas_claim is present.
-  if (req.canvas_claim) {
-    if (!cfg.canvasStore) {
-      return err500("canvas store not configured");
+  // gif can legitimately appear in multiple murals, so we can't early-return
+  // on existing-gif when mural_claim is present.
+  if (req.mural_claim) {
+    if (!cfg.muralStore) {
+      return err500("mural store not configured");
     }
-    const cc = req.canvas_claim;
-    if (typeof cc.canvas_id !== "string" || !isCanvasIdValid(cc.canvas_id)) {
-      return err400("invalid canvas_claim.canvas_id");
+    const cc = req.mural_claim;
+    if (typeof cc.mural_id !== "string" || !isMuralIdValid(cc.mural_id)) {
+      return err400("invalid mural_claim.mural_id");
     }
     if (
       !Number.isInteger(cc.x) ||
@@ -232,15 +232,15 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
       cc.y < 0 ||
       cc.y >= TILES_PER_SIDE
     ) {
-      return err400("invalid canvas_claim coordinates");
+      return err400("invalid mural_claim coordinates");
     }
-    const opensAt = canvasOpensAt(cc.canvas_id).getTime();
-    const closesAt = canvasClosesAt(cc.canvas_id).getTime();
-    if (now.getTime() < opensAt) return err403("canvas not opened yet");
-    if (now.getTime() >= closesAt) return err403("canvas is locked");
+    const opensAt = muralOpensAt(cc.mural_id).getTime();
+    const closesAt = muralClosesAt(cc.mural_id).getTime();
+    if (now.getTime() < opensAt) return err403("mural not opened yet");
+    if (now.getTime() >= closesAt) return err403("mural is locked");
   }
 
-  // -- 6. Idempotency check (non-canvas only) --------------------------------
+  // -- 6. Idempotency check (non-mural only) --------------------------------
   const powHex = hashHex(pow);
   const day = nowISO.slice(0, 10);
   const gifKey = `inbox/${day}/${id}.gif`;
@@ -251,7 +251,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     (await cfg.storage.exists(publishedKey)) ||
     (await cfg.storage.exists(gifKey));
 
-  if (alreadyHere && !req.canvas_claim) {
+  if (alreadyHere && !req.mural_claim) {
     return {
       status: 200,
       body: {
@@ -326,8 +326,8 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
 
     // Streak / total counters (#115). Bump only when this branch fires —
     // i.e. a brand-new gif. The early-return at section 6 already filters
-    // out re-publishes of an existing gif without canvas_claim; the canvas
-    // branch below handles same-gif-into-new-canvas separately. Wrapped in
+    // out re-publishes of an existing gif without mural_claim; the mural
+    // branch below handles same-gif-into-new-mural separately. Wrapped in
     // try/catch because the gif has already been persisted and a stats
     // failure must not surface as a publish failure.
     if (cfg.userStatsStore) {
@@ -361,14 +361,14 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     });
   }
 
-  // -- 8. Canvas publish (atomic tile + cooldown) ----------------------------
-  let appendedMembership: DrawingCanvasMembership | null = null;
-  if (req.canvas_claim) {
-    const cc = req.canvas_claim;
+  // -- 8. Mural publish (atomic tile + cooldown) ----------------------------
+  let appendedMembership: DrawingMuralMembership | null = null;
+  if (req.mural_claim) {
+    const cc = req.mural_claim;
     const tk = tileKey(cc.x, cc.y);
     try {
-      await cfg.canvasStore!.publishTile({
-        canvas_id: cc.canvas_id,
+      await cfg.muralStore!.publishTile({
+        mural_id: cc.mural_id,
         tile_key: tk,
         user_id: author.user_id,
         drawing_id: id,
@@ -387,43 +387,43 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
       throw e;
     }
     appendedMembership = {
-      id: cc.canvas_id,
-      name: canvasName(cc.canvas_id),
+      id: cc.mural_id,
+      name: muralName(cc.mural_id),
       x: cc.x,
       y: cc.y,
       claimed_by: author.user_id,
       claimed_by_username: author.username,
     };
-    await appendCanvasMembership(cfg.storage, id, appendedMembership);
+    await appendMuralMembership(cfg.storage, id, appendedMembership);
 
-    // Canvas-participation streak (#115). First publish into canvas_id by
-    // this pubkey bumps canvas_total + advances the consecutive-weeks
-    // streak; same-canvas re-publishes are no-ops at the store layer. Same
+    // Mural-participation streak (#115). First publish into mural_id by
+    // this pubkey bumps mural_total + advances the consecutive-weeks
+    // streak; same-mural re-publishes are no-ops at the store layer. Same
     // try/catch policy as the daily hook above and the snapshot refresh
     // below — stats failures must not surface as publish failures.
     if (cfg.userStatsStore) {
       try {
-        await cfg.userStatsStore.recordCanvasParticipation({
+        await cfg.userStatsStore.recordMuralParticipation({
           user_id: author.user_id,
-          canvas_id: cc.canvas_id,
+          mural_id: cc.mural_id,
           now_iso: nowISO,
         });
       } catch (e) {
-        console.error("[ingest] failed to record canvas participation stats", e);
+        console.error("[ingest] failed to record mural participation stats", e);
       }
     }
 
-    // Refresh the home-banner snapshot so /state/current-canvas.json picks up
+    // Refresh the home-banner snapshot so /state/current-mural.json picks up
     // the new tile within ~60s of edge cache, without making every home-page
-    // visit pay for a Lambda+DDB hit on /canvas/<id>/state. Gated on the
-    // canvas being the *current* one (canvasIdForDate(now)) — publishing into
-    // a not-yet-rolled-over canvas during builder lag must not overwrite the
-    // "current" pointer with a stale canvas. Wrapped in try/catch because the
+    // visit pay for a Lambda+DDB hit on /mural/<id>/state. Gated on the
+    // mural being the *current* one (muralIdForDate(now)) — publishing into
+    // a not-yet-rolled-over mural during builder lag must not overwrite the
+    // "current" pointer with a stale mural. Wrapped in try/catch because the
     // publish has already committed and a snapshot write failure must not
     // bubble out as a publish failure.
-    if (cc.canvas_id === canvasIdForDate(now)) {
+    if (cc.mural_id === muralIdForDate(now)) {
       try {
-        const tiles = await cfg.canvasStore!.getTiles(cc.canvas_id);
+        const tiles = await cfg.muralStore!.getTiles(cc.mural_id);
         const nowEpoch = Math.floor(now.getTime() / 1000);
         let tiles_claimed = 0;
         let tiles_published = 0;
@@ -431,11 +431,11 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
           if (t.drawing_id) tiles_published++;
           else if (t.claim_expires_at && t.claim_expires_at > nowEpoch) tiles_claimed++;
         }
-        const current: CurrentCanvasState = {
-          canvas_id: cc.canvas_id,
-          name: canvasName(cc.canvas_id),
-          opens_at: canvasOpensAt(cc.canvas_id).toISOString(),
-          closes_at: canvasClosesAt(cc.canvas_id).toISOString(),
+        const current: CurrentMuralState = {
+          mural_id: cc.mural_id,
+          name: muralName(cc.mural_id),
+          opens_at: muralOpensAt(cc.mural_id).toISOString(),
+          closes_at: muralClosesAt(cc.mural_id).toISOString(),
           tiles_total: TILES_PER_SIDE * TILES_PER_SIDE,
           tiles_claimed,
           tiles_published,
@@ -447,16 +447,16 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
           "public, max-age=60",
         );
       } catch (e) {
-        console.error("[ingest] failed to refresh current-canvas snapshot", e);
+        console.error("[ingest] failed to refresh current-mural snapshot", e);
       }
     }
   }
 
-  // -- 9. (Re-)render drawing page with the canvases[] in scope --------------
-  const canvases = appendedMembership
-    ? await loadCanvases(cfg.storage, id)
+  // -- 9. (Re-)render drawing page with the murals[] in scope --------------
+  const murals = appendedMembership
+    ? await loadMurals(cfg.storage, id)
     : alreadyHere
-      ? await loadCanvases(cfg.storage, id)
+      ? await loadMurals(cfg.storage, id)
       : [];
   const drawingHtml = renderDrawing({
     id,
@@ -466,7 +466,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
       ? { parent: req.parent, parent_short: req.parent.slice(0, 8) }
       : null,
     author: { user_id: author.user_id, username: author.username },
-    canvases,
+    murals,
     public_base_url: cfg.publicBaseUrl,
     repo_url: cfg.repoUrl ?? "https://github.com/potomak/drawbang",
   });
@@ -500,8 +500,8 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
       solve_ms: req.solve_ms ?? 0,
       ...(appendedMembership
         ? {
-            canvas: {
-              canvas_id: appendedMembership.id,
+            mural: {
+              mural_id: appendedMembership.id,
               x: appendedMembership.x,
               y: appendedMembership.y,
             },

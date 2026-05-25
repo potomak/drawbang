@@ -1,12 +1,13 @@
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
+import type { GalleryItem } from "./gallery.js";
 
 export interface DayGalleryView {
   date: string;
   page: number;
   total_pages: number;
-  drawings: { id: string; id_short: string }[];
+  drawings: GalleryItem[];
   prev_page: { prev_page: number; date: string } | null;
   next_page: { next_page: number; date: string } | null;
   // Adjacent days that have drawings. null at the edges of the archive.
@@ -19,8 +20,8 @@ export default function renderDayGallery(v: DayGalleryView): string {
   const items = v.drawings
     .map(
       (d) => `          <li>
-            <a href="/d/${esc(d.id)}" aria-label="drawing ${esc(d.id_short)}">
-              <img src="/drawings/${esc(d.id)}.gif" alt="" width="128" height="128" loading="lazy" />
+            <a href="${esc(d.href ?? `/d/${d.id}`)}" aria-label="${esc(d.id_short)}">
+              <img src="${esc(d.thumb ?? `/drawings/${d.id}.gif`)}" alt="" width="128" height="128" loading="lazy" />
             </a>
           </li>`,
     )

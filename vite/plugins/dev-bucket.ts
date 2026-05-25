@@ -31,7 +31,7 @@ interface BuilderRoute {
   contentType: string;
 }
 
-const CANVAS_ID = /^canvas-\d{4}-W\d{2}$/;
+const MURAL_ID = /^mural-\d{4}-W\d{2}$/;
 
 const BUILDER_ROUTES: BuilderRoute[] = [
   {
@@ -39,13 +39,13 @@ const BUILDER_ROUTES: BuilderRoute[] = [
     contentType: "text/html; charset=utf-8",
   },
   {
-    test: (uri) => (uri === "/canvases" ? "canvases.html" : null),
+    test: (uri) => (uri === "/murals" ? "murals.html" : null),
     contentType: "text/html; charset=utf-8",
   },
   {
     test: (uri) => {
-      const m = uri.match(/^\/canvases\/([^/]+)$/);
-      return m && CANVAS_ID.test(m[1]) ? `canvases/${m[1]}.html` : null;
+      const m = uri.match(/^\/murals\/([^/]+)$/);
+      return m && MURAL_ID.test(m[1]) ? `murals/${m[1]}.html` : null;
     },
     contentType: "text/html; charset=utf-8",
   },
@@ -91,6 +91,36 @@ const BUILDER_ROUTES: BuilderRoute[] = [
     test: (uri) => {
       const m = uri.match(/^\/drawings\/([^/]+\.gif)$/);
       return m ? `drawings/${m[1]}` : null;
+    },
+    contentType: "image/gif",
+  },
+  // Canvas pages /c/<64hex> + their composite preview /c/<64hex>.png.
+  {
+    test: (uri) => {
+      const m = uri.match(/^\/c\/([^/]+)$/);
+      return m && SIXTY_FOUR_HEX.test(m[1]) ? `c/${m[1]}.html` : null;
+    },
+    contentType: "text/html; charset=utf-8",
+  },
+  {
+    test: (uri) => {
+      const m = uri.match(/^\/c\/([0-9a-f]{64}(?:-large)?\.png)$/);
+      return m ? `c/${m[1]}` : null;
+    },
+    contentType: "image/png",
+  },
+  // Tile pages /t/<64hex> + tile assets /tiles/<64hex>.gif.
+  {
+    test: (uri) => {
+      const m = uri.match(/^\/t\/([^/]+)$/);
+      return m && SIXTY_FOUR_HEX.test(m[1]) ? `t/${m[1]}.html` : null;
+    },
+    contentType: "text/html; charset=utf-8",
+  },
+  {
+    test: (uri) => {
+      const m = uri.match(/^\/tiles\/([0-9a-f]{64}\.gif)$/);
+      return m ? `tiles/${m[1]}` : null;
     },
     contentType: "image/gif",
   },
@@ -166,7 +196,7 @@ export function devBucketPlugin(opts: DevBucketPluginOptions = {}): Plugin {
           }
         }
 
-        // 3. Unmatched clean URLs (e.g. /canvase typo, /404 itself) → /404.html.
+        // 3. Unmatched clean URLs (e.g. /murale typo, /404 itself) → /404.html.
         if (pathOnly === "/404" || looksLikeCleanUrl(pathOnly)) {
           return serveNotFound(publicRoot, res, next, pathOnly);
         }

@@ -2,7 +2,7 @@ import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
 
-export interface DrawingCanvasMembership {
+export interface DrawingMuralMembership {
   id: string;
   name: string;
   x: number;
@@ -20,7 +20,7 @@ export interface DrawingView {
   // null on legacy drawings (published by an anonymous keypair before the
   // account system). They render as "anonymous" with no profile link.
   author: { user_id: string; username: string } | null;
-  canvases?: DrawingCanvasMembership[];
+  murals?: DrawingMuralMembership[];
   // Absolute base URL (e.g. https://pixel.drawbang.com) — needed for the
   // OG / canonical tags. Both ingest (cfg.publicBaseUrl) and the builder
   // (opts.publicBaseUrl) thread this in.
@@ -56,12 +56,12 @@ export default function renderDrawing(v: DrawingView): string {
   const authorBlock = v.author
     ? `<dt>Author</dt><dd><a href="/u/${esc(v.author.username)}">${esc(v.author.username)}</a></dd>`
     : `<dt>Author</dt><dd>anonymous</dd>`;
-  const canvases = v.canvases ?? [];
-  const canvasesBlock = canvases.length > 0
-    ? `<dt>Canvases</dt><dd><ul class="dr-canvases">${canvases
+  const murals = v.murals ?? [];
+  const muralsBlock = murals.length > 0
+    ? `<dt>Murals</dt><dd><ul class="dr-murals">${murals
         .map(
           (c) =>
-            `<li><a href="/canvases/${esc(c.id)}#tile-${c.x}-${c.y}">${esc(c.name)}</a> tile (${c.x}, ${c.y}) — by <a href="/u/${esc(c.claimed_by_username)}">${esc(c.claimed_by_username)}</a></li>`,
+            `<li><a href="/murals/${esc(c.id)}#tile-${c.x}-${c.y}">${esc(c.name)}</a> tile (${c.x}, ${c.y}) — by <a href="/u/${esc(c.claimed_by_username)}">${esc(c.claimed_by_username)}</a></li>`,
         )
         .join("")}</ul></dd>`
     : "";
@@ -101,7 +101,7 @@ export default function renderDrawing(v: DrawingView): string {
             <dd><time datetime="${esc(v.created_at)}">${esc(created)}</time></dd>
             ${authorBlock}
             ${parentBlock}
-            ${canvasesBlock}
+            ${muralsBlock}
             <dt id="dr-children-dt" hidden>Children</dt>
             <dd id="dr-children-dd" hidden></dd>
             <dt>ID</dt>

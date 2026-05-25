@@ -1,9 +1,9 @@
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
-import { TILES_PER_SIDE } from "../../config/canvases.js";
+import { TILES_PER_SIDE } from "../../config/murals.js";
 import { esc } from "./_escape.js";
 
-export interface CanvasTileView {
+export interface MuralTileView {
   x: number;
   y: number;
   drawing_id?: string;
@@ -11,22 +11,22 @@ export interface CanvasTileView {
   claim_expires_at?: number;
 }
 
-export interface CanvasView {
+export interface MuralView {
   id: string;
   name: string;
   opens_at: string;
   closes_at: string;
   locked: boolean;
-  // Baked tile state — empty array on a fresh canvas. For active canvases we
+  // Baked tile state — empty array on a fresh mural. For active murals we
   // additionally include a small client script that hydrates from
-  // /canvas/{id}/state so the page stays live without rebuilding.
-  tiles: CanvasTileView[];
+  // /mural/{id}/state so the page stays live without rebuilding.
+  tiles: MuralTileView[];
   state_url: string;
   repo_url: string;
 }
 
-export default function renderCanvas(v: CanvasView): string {
-  const byKey = new Map<string, CanvasTileView>();
+export default function renderMural(v: MuralView): string {
+  const byKey = new Map<string, MuralTileView>();
   for (const t of v.tiles) byKey.set(`${t.x},${t.y}`, t);
 
   const cells: string[] = [];
@@ -40,7 +40,7 @@ export default function renderCanvas(v: CanvasView): string {
     ? `<span class="badge locked">Locked</span>`
     : `<span class="badge active">Active</span>`;
 
-  // The hydration script only ships on active canvases. Locked canvases
+  // The hydration script only ships on active murals. Locked murals
   // render purely server-side and never change.
   const hydrate = v.locked
     ? ""
@@ -50,7 +50,7 @@ export default function renderCanvas(v: CanvasView): string {
     const res = await fetch(${JSON.stringify(v.state_url)});
     if (!res.ok) return;
     const state = await res.json();
-    const grid = document.getElementById("canvas-grid");
+    const grid = document.getElementById("mural-grid");
     if (!grid) return;
     const tiles = state.tiles || [];
     for (const t of tiles) {
@@ -64,7 +64,7 @@ export default function renderCanvas(v: CanvasView): string {
         cell.dataset.state = "claimed";
       }
     }
-    const status = document.querySelector('[data-canvas-progress]');
+    const status = document.querySelector('[data-mural-progress]');
     if (status) {
       const published = tiles.filter(function (t) { return t.drawing_id; }).length;
       status.textContent = published + ' / ${TILES_PER_SIDE * TILES_PER_SIDE} tiles';
@@ -105,31 +105,31 @@ export default function renderCanvas(v: CanvasView): string {
     </style>
   </head>
   <body>
-    ${renderHeader({ active: "canvases" })}
+    ${renderHeader({ active: "murals" })}
     <main>
       <h1 class="page-title">${esc(v.name)} ${status}</h1>
-      <p class="cv-meta"><time datetime="${esc(v.opens_at)}">${esc(v.opens_at.slice(0, 10))}</time> → <time datetime="${esc(v.closes_at)}">${esc(v.closes_at.slice(0, 10))}</time> · <span data-canvas-progress>${esc(progress)}</span></p>
-      <div id="canvas-grid" class="cv-grid" data-canvas-id="${esc(v.id)}">
+      <p class="cv-meta"><time datetime="${esc(v.opens_at)}">${esc(v.opens_at.slice(0, 10))}</time> → <time datetime="${esc(v.closes_at)}">${esc(v.closes_at.slice(0, 10))}</time> · <span data-mural-progress>${esc(progress)}</span></p>
+      <div id="mural-grid" class="cv-grid" data-mural-id="${esc(v.id)}">
 ${cells.join("\n")}
       </div>
     </main>
-    ${renderFooter({ active: "canvases", repoUrl: v.repo_url })}
+    ${renderFooter({ active: "murals", repoUrl: v.repo_url })}
     ${hydrate}
   </body>
 </html>
 `;
 }
 
-function countPublished(tiles: CanvasTileView[]): number {
+function countPublished(tiles: MuralTileView[]): number {
   return tiles.filter((t) => t.drawing_id).length;
 }
 
 function renderTile(
-  canvasId: string,
+  muralId: string,
   locked: boolean,
   x: number,
   y: number,
-  tile: CanvasTileView | undefined,
+  tile: MuralTileView | undefined,
 ): string {
   const anchor = `tile-${x}-${y}`;
   const dataAttr = `data-tile="${x},${y}"`;
@@ -147,5 +147,5 @@ function renderTile(
     return `        <div id="${anchor}" class="cv-cell" ${dataAttr} data-state="claimed"><span class="cv-claimed" title="claimed">claimed</span></div>`;
   }
 
-  return `        <div id="${anchor}" class="cv-cell" ${dataAttr} data-state="open"><a href="/?c=${esc(canvasId)}&amp;x=${x}&amp;y=${y}" aria-label="Claim tile (${x}, ${y})">+</a></div>`;
+  return `        <div id="${anchor}" class="cv-cell" ${dataAttr} data-state="open"><a href="/?c=${esc(muralId)}&amp;x=${x}&amp;y=${y}" aria-label="Claim tile (${x}, ${y})">+</a></div>`;
 }

@@ -28,18 +28,18 @@ describe("handleUserStats GET /users/{user_id}/stats", () => {
     assert.equal(b.daily_total, 0);
     assert.equal(b.daily_streak_current, 0);
     assert.equal(b.daily_streak_longest, 0);
-    assert.equal(b.canvas_total, 0);
+    assert.equal(b.mural_total, 0);
     assert.equal(b.daily_last_date, null);
-    assert.equal(b.canvas_last_id, null);
+    assert.equal(b.mural_last_id, null);
     assert.deepEqual(b.daily_badges, []);
-    assert.deepEqual(b.canvas_badges, []);
+    assert.deepEqual(b.mural_badges, []);
   });
 
   test("returns 200 + counters + earned badges for a populated row", async () => {
     const userStatsStore = new MemoryUserStatsStore();
     const user_id = "a".repeat(64);
     // Synthesize a state with daily_total=7 (unlocks daily-7) and
-    // canvas_total=10 (unlocks canvas-10) by recording the right number
+    // mural_total=10 (unlocks mural-10) by recording the right number
     // of events. Use distinct dates so daily-streak math doesn't reset
     // mid-loop. We want 7 consecutive days of activity.
     for (let i = 0; i < 7; i++) {
@@ -50,17 +50,17 @@ describe("handleUserStats GET /users/{user_id}/stats", () => {
         now_iso: `${day}T12:00:00Z`,
       });
     }
-    // Synthesize canvas_total=10 by participating in 10 distinct (not
-    // necessarily consecutive) canvas IDs. Use a small spread of ISO weeks.
-    const canvasIds = [
-      "canvas-2026-W10", "canvas-2026-W11", "canvas-2026-W12", "canvas-2026-W13",
-      "canvas-2026-W14", "canvas-2026-W15", "canvas-2026-W16", "canvas-2026-W17",
-      "canvas-2026-W18", "canvas-2026-W19",
+    // Synthesize mural_total=10 by participating in 10 distinct (not
+    // necessarily consecutive) mural IDs. Use a small spread of ISO weeks.
+    const muralIds = [
+      "mural-2026-W10", "mural-2026-W11", "mural-2026-W12", "mural-2026-W13",
+      "mural-2026-W14", "mural-2026-W15", "mural-2026-W16", "mural-2026-W17",
+      "mural-2026-W18", "mural-2026-W19",
     ];
-    for (const cid of canvasIds) {
-      await userStatsStore.recordCanvasParticipation({
+    for (const cid of muralIds) {
+      await userStatsStore.recordMuralParticipation({
         user_id,
-        canvas_id: cid,
+        mural_id: cid,
         now_iso: "2026-05-18T12:00:00Z",
       });
     }
@@ -71,10 +71,10 @@ describe("handleUserStats GET /users/{user_id}/stats", () => {
     const b = r.body as Extract<typeof r.body, { user_id: string }>;
     assert.equal(b.daily_total, 7);
     assert.equal(b.daily_streak_current, 7);
-    assert.equal(b.canvas_total, 10);
-    assert.equal(b.canvas_streak_current, 10);
+    assert.equal(b.mural_total, 10);
+    assert.equal(b.mural_streak_current, 10);
     assert.deepEqual(b.daily_badges.map((bg) => bg.id), ["daily-7"]);
-    assert.deepEqual(b.canvas_badges.map((bg) => bg.id), ["canvas-10"]);
+    assert.deepEqual(b.mural_badges.map((bg) => bg.id), ["mural-10"]);
   });
 
   test("sets a short cache-control on success and json content-type", async () => {

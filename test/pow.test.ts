@@ -50,7 +50,7 @@ test("ageSecondsBetween is positive for now vs earlier baseline", () => {
 });
 
 const CLAIM_INPUT = {
-  canvasId: "canvas-2026-W20",
+  muralId: "mural-2026-W20",
   x: 5,
   y: 12,
   userId: "a".repeat(64),
@@ -67,10 +67,10 @@ test("claimPowHash differs when any field changes", async () => {
   const base = await claimPowHash(CLAIM_INPUT, "2025-01-01T00:00:00.000Z", "42");
   const diffX = await claimPowHash({ ...CLAIM_INPUT, x: 6 }, "2025-01-01T00:00:00.000Z", "42");
   const diffNonce = await claimPowHash(CLAIM_INPUT, "2025-01-01T00:00:00.000Z", "43");
-  const diffCanvas = await claimPowHash({ ...CLAIM_INPUT, canvasId: "canvas-2026-W21" }, "2025-01-01T00:00:00.000Z", "42");
+  const diffMural = await claimPowHash({ ...CLAIM_INPUT, muralId: "mural-2026-W21" }, "2025-01-01T00:00:00.000Z", "42");
   assert.notDeepEqual(Array.from(base), Array.from(diffX));
   assert.notDeepEqual(Array.from(base), Array.from(diffNonce));
-  assert.notDeepEqual(Array.from(base), Array.from(diffCanvas));
+  assert.notDeepEqual(Array.from(base), Array.from(diffMural));
 });
 
 test("solveClaim finds a nonce at low difficulty and verifyClaimPow accepts it", async () => {

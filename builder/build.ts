@@ -1,9 +1,9 @@
 import { PER_PAGE } from "../config/constants.js";
 import type { Storage } from "../ingest/storage.js";
-import type { CanvasStore } from "../ingest/canvas-store.js";
-import { loadCanvases } from "../ingest/canvases-sidecar.js";
+import type { MuralStore } from "../ingest/mural-store.js";
+import { loadMurals } from "../ingest/murals-sidecar.js";
 import type { UserStatsRow } from "../ingest/user-stats-store.js";
-import { canvasPass } from "./canvas-pass.js";
+import { muralPass } from "./mural-pass.js";
 import { validateGif } from "../ingest/gif-validate.js";
 import { earnedBadges } from "../config/badges.js";
 import type { MerchCatalog } from "../merch/lambda.js";
@@ -16,6 +16,9 @@ import renderFeed from "./templates/feed.js";
 import renderNotFound from "./templates/not-found.js";
 import renderOwner from "./templates/owner.js";
 import renderProducts from "./templates/products.js";
+import renderCanvasPage, { type CanvasPageView } from "./templates/canvas-page.js";
+import renderTilePage, { type TilePageView } from "./templates/tile-page.js";
+import { ogScale, stitchCompositePng } from "../ingest/stitch.js";
 import type { DayGalleryView } from "./templates/day-gallery.js";
 import type { DrawingView } from "./templates/drawing.js";
 import type { GalleryView } from "./templates/gallery.js";
@@ -54,14 +57,14 @@ export interface BuildOptions {
   // For relative-time labels on product cards ("3 days ago"). Defaults to
   // wall-clock now; tests inject for determinism.
   now?: () => Date;
-  // Optional: enables the canvas pass to read live tile state. Without it,
-  // /state/current-canvas.json still gets a fresh manifest + zero counts.
-  canvasStore?: CanvasStore;
+  // Optional: enables the mural pass to read live tile state. Without it,
+  // /state/current-mural.json still gets a fresh manifest + zero counts.
+  muralStore?: MuralStore;
   // Optional: per-account streak/total counters for /u/<username>.html
   // (#115/#116). Without it, profile pages render without the stats block.
   userStatsSource?: UserStatsSource;
-  // Optional: API Gateway base URL for the canvas page's state hydration.
-  // See CanvasPassOptions.apiBaseUrl for the why.
+  // Optional: API Gateway base URL for the mural page's state hydration.
+  // See MuralPassOptions.apiBaseUrl for the why.
   apiBaseUrl?: string;
 }
 
@@ -73,6 +76,8 @@ export const DEFAULT_TEMPLATES: Templates = {
   notFound: renderNotFound,
   owner: renderOwner,
   products: renderProducts,
+  canvasPage: renderCanvasPage,
+  tilePage: renderTilePage,
 };
 
 interface DrawingMetadata {
@@ -217,16 +222,16 @@ export async function build(opts: BuildOptions): Promise<{
 
     // Render per-drawing pages. Normally only fresh drawings; on forceRerender,
     // every known drawing for the day so template changes propagate. Each
-    // render reads the per-drawing .canvases.json sidecar so the "Canvases"
+    // render reads the per-drawing .murals.json sidecar so the "Murals"
     // section that ingest wrote on publish survives a forced re-render.
-    // Without this, every builder pass wipes canvas membership off old
+    // Without this, every builder pass wipes mural membership off old
     // drawings.
     const drawingsToRender = opts.forceRerender ? allForDay : drawings;
     for (const d of drawingsToRender) {
-      const canvases = await loadCanvases(opts.storage, d.id);
+      const murals = await loadMurals(opts.storage, d.id);
       const html = templates.drawing({
         ...drawingViewModel(d),
-        canvases,
+        murals,
         public_base_url: opts.publicBaseUrl,
         repo_url: repoUrl,
       });
@@ -243,10 +248,14 @@ export async function build(opts: BuildOptions): Promise<{
   // frozen with next_day=null from whenever it was last rendered.
   await rebuildDayGalleries(opts, templates, repoUrl, touchedDays);
 
+  // Sweep canvas (multi-tile drawing) inbox records → /c/<id>.html pages +
+  // rolling canvas index. Runs before profiles/rolling so they can list them.
+  const canvasUsernames = await rebuildCanvases(opts, templates, repoUrl);
+
   // Rebuild per-account profile galleries (mutable like /gallery.html, not
   // immutable like the day pages). New entries land via newByUsername; on
   // forceRerender every existing profile page is also re-rendered.
-  await rebuildProfiles(opts, templates, repoUrl, newByUsername);
+  await rebuildProfiles(opts, templates, repoUrl, newByUsername, canvasUsernames);
 
   // Rebuild rolling surfaces: landing page and RSS feed.
   await rebuildRolling(opts, templates, today, repoUrl);
@@ -254,10 +263,10 @@ export async function build(opts: BuildOptions): Promise<{
   // Rebuild /products gallery if a counter source is wired up.
   await rebuildProducts(opts, templates, repoUrl);
 
-  // Canvas pass: rollover + lock + state pointer + canvas/archive pages.
-  await canvasPass({
+  // Mural pass: rollover + lock + state pointer + mural/archive pages.
+  await muralPass({
     storage: opts.storage,
-    canvasStore: opts.canvasStore,
+    muralStore: opts.muralStore,
     now: opts.now ? opts.now() : new Date(),
     repoUrl,
     apiBaseUrl: opts.apiBaseUrl,
@@ -274,6 +283,8 @@ export interface Templates {
   notFound: (v: NotFoundView) => string;
   owner: (v: OwnerView) => string;
   products: (v: ProductsView) => string;
+  canvasPage: (v: CanvasPageView) => string;
+  tilePage: (v: TilePageView) => string;
 }
 
 export function drawingViewModel(
@@ -297,6 +308,63 @@ function parseJsonl(text: string): DrawingMetadata[] {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => JSON.parse(line) as DrawingMetadata);
+}
+
+// Rolling index of published canvases (not day-partitioned like drawings).
+// Drives canvas listings on the gallery, feed, and per-account profiles.
+const CANVAS_INDEX_KEY = "public/canvases-index.jsonl";
+
+interface CanvasIndexEntry {
+  canvas_id: string;
+  created_at: string;
+  thumb: string;
+  username: string | null;
+  user_id: string | null;
+}
+
+interface GalleryItemFull {
+  id: string;
+  id_short: string;
+  href: string;
+  thumb: string;
+  created_at: string;
+}
+
+function parseCanvasIndex(text: string): CanvasIndexEntry[] {
+  return text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => JSON.parse(l) as CanvasIndexEntry);
+}
+
+async function loadCanvasIndex(opts: BuildOptions): Promise<CanvasIndexEntry[]> {
+  const b = await opts.storage.getBytes(CANVAS_INDEX_KEY);
+  return b ? parseCanvasIndex(dec.decode(b)) : [];
+}
+
+function drawingItem(d: DrawingMetadata): GalleryItemFull {
+  return {
+    id: d.id,
+    id_short: d.id.slice(0, 8),
+    href: `/d/${d.id}`,
+    thumb: `/drawings/${d.id}.gif`,
+    created_at: d.created_at,
+  };
+}
+
+function canvasItem(e: CanvasIndexEntry): GalleryItemFull {
+  return {
+    id: e.canvas_id,
+    id_short: e.canvas_id.slice(0, 8),
+    href: `/c/${e.canvas_id}`,
+    thumb: e.thumb,
+    created_at: e.created_at,
+  };
+}
+
+function byCreatedDesc(a: GalleryItemFull, b: GalleryItemFull): number {
+  return b.created_at.localeCompare(a.created_at);
 }
 
 async function rebuildDayGalleries(
@@ -371,8 +439,9 @@ async function rebuildProfiles(
   templates: Templates,
   repoUrl: string,
   newByUsername: Map<string, DrawingMetadata[]>,
+  canvasUsernames: Set<string>,
 ): Promise<void> {
-  // Append fresh entries to each account's append-only index.
+  // Append fresh entries to each account's append-only drawing index.
   for (const [username, fresh] of newByUsername) {
     const existing = (await opts.storage.getBytes(`public/u/${username}/index.jsonl`)) ?? new Uint8Array();
     let merged = dec.decode(existing);
@@ -385,23 +454,43 @@ async function rebuildProfiles(
     );
   }
 
-  // Profiles to (re-)render: anyone who got new entries this run; on
-  // forceRerender, every account whose index already exists.
-  const profilesToRender = new Set<string>(newByUsername.keys());
+  // Canvases this account authored come from the rolling canvas index.
+  const canvasIndex = await loadCanvasIndex(opts);
+  const canvasByUser = new Map<string, CanvasIndexEntry[]>();
+  for (const e of canvasIndex) {
+    if (!e.username) continue;
+    const list = canvasByUser.get(e.username) ?? [];
+    list.push(e);
+    canvasByUser.set(e.username, list);
+  }
+
+  // Profiles to (re-)render: anyone who got new drawings or canvases this run;
+  // on forceRerender, every account with an existing index or canvases.
+  const profilesToRender = new Set<string>([...newByUsername.keys(), ...canvasUsernames]);
   if (opts.forceRerender) {
     const keys = await opts.storage.listPrefix("public/u");
     for (const k of keys) {
       const m = k.match(/^public\/u\/([a-z0-9_-]{3,20})\/index\.jsonl$/);
       if (m) profilesToRender.add(m[1]);
     }
+    for (const u of canvasByUser.keys()) profilesToRender.add(u);
   }
 
   for (const username of profilesToRender) {
     const indexBytes = await opts.storage.getBytes(`public/u/${username}/index.jsonl`);
-    if (!indexBytes) continue;
-    const all = parseJsonl(dec.decode(indexBytes));
-    all.sort((a, b) => b.created_at.localeCompare(a.created_at));
-    const userId = all.find((d) => d.user_id)?.user_id ?? "";
+    const drawings = indexBytes ? parseJsonl(dec.decode(indexBytes)) : [];
+    const canvases = canvasByUser.get(username) ?? [];
+    if (drawings.length === 0 && canvases.length === 0) continue;
+
+    const items: GalleryItemFull[] = [
+      ...drawings.map(drawingItem),
+      ...canvases.map(canvasItem),
+    ].sort(byCreatedDesc);
+
+    const userId =
+      drawings.find((d) => d.user_id)?.user_id ??
+      canvases.find((c) => c.user_id)?.user_id ??
+      "";
     const stats = opts.userStatsSource && userId
       ? await ownerStatsViewModel(opts.userStatsSource, userId)
       : undefined;
@@ -415,7 +504,7 @@ async function rebuildProfiles(
     const html = templates.owner({
       username,
       user_id: userId,
-      drawings: all.map((d) => ({ id: d.id, id_short: d.id.slice(0, 8) })),
+      drawings: items,
       stats,
       stats_url,
       repo_url: repoUrl,
@@ -431,19 +520,162 @@ async function ownerStatsViewModel(
   const row = await source.get(user_id);
   const totals = {
     daily_total: row?.daily_total ?? 0,
-    canvas_total: row?.canvas_total ?? 0,
+    mural_total: row?.mural_total ?? 0,
   };
   const badges = earnedBadges(totals);
   return {
     daily_total: totals.daily_total,
     daily_streak_current: row?.daily_streak_current ?? 0,
     daily_streak_longest: row?.daily_streak_longest ?? 0,
-    canvas_total: totals.canvas_total,
-    canvas_streak_current: row?.canvas_streak_current ?? 0,
-    canvas_streak_longest: row?.canvas_streak_longest ?? 0,
+    mural_total: totals.mural_total,
+    mural_streak_current: row?.mural_streak_current ?? 0,
+    mural_streak_longest: row?.mural_streak_longest ?? 0,
     daily_badges: badges.daily,
-    canvas_badges: badges.canvas,
+    mural_badges: badges.mural,
   };
+}
+
+interface CanvasRecord {
+  canvas_id: string;
+  cols: number;
+  rows: number;
+  tiles: (string | null)[];
+  user_id: string | null;
+  username: string | null;
+  parent: string | null;
+  created_at: string;
+}
+
+async function rebuildCanvases(
+  opts: BuildOptions,
+  templates: Templates,
+  repoUrl: string,
+): Promise<Set<string>> {
+  const fresh: CanvasRecord[] = [];
+  const rerender: CanvasRecord[] = [];
+
+  // Freshly published canvases land as inbox/<day>/<id>.canvas.json.
+  const inboxDirs = await opts.storage.listPrefix("inbox");
+  for (const dir of inboxDirs) {
+    const day = dir.split("/").pop()!;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
+    const files = await opts.storage.listPrefix(`inbox/${day}`);
+    for (const f of files) {
+      if (!f.endsWith(".canvas.json")) continue;
+      const rec = await opts.storage.getJSON<CanvasRecord>(f);
+      if (rec?.canvas_id) fresh.push(rec);
+      await opts.storage.remove(f);
+    }
+  }
+
+  // forceRerender re-renders every already-published canvas from its manifest
+  // (HTML/composite only — the rolling index is not re-appended).
+  if (opts.forceRerender) {
+    const cKeys = await opts.storage.listPrefix("public/c");
+    for (const k of cKeys) {
+      if (!k.endsWith(".json")) continue;
+      const rec = await opts.storage.getJSON<CanvasRecord>(k);
+      if (rec?.canvas_id) rerender.push(rec);
+    }
+  }
+
+  const usernames = new Set<string>();
+  const newEntries: CanvasIndexEntry[] = [];
+  for (const rec of fresh) {
+    const thumb = await renderCanvasOne(opts, templates, repoUrl, rec);
+    if (rec.username) usernames.add(rec.username);
+    newEntries.push({
+      canvas_id: rec.canvas_id,
+      created_at: rec.created_at,
+      thumb,
+      username: rec.username,
+      user_id: rec.user_id,
+    });
+  }
+  for (const rec of rerender) {
+    await renderCanvasOne(opts, templates, repoUrl, rec);
+  }
+
+  if (newEntries.length > 0) {
+    const existing = (await opts.storage.getBytes(CANVAS_INDEX_KEY)) ?? new Uint8Array();
+    let merged = dec.decode(existing);
+    for (const e of newEntries) merged += JSON.stringify(e) + "\n";
+    await opts.storage.put(CANVAS_INDEX_KEY, enc.encode(merged), "application/jsonl", CC_INTERNAL);
+  }
+
+  return usernames;
+}
+
+// Renders /c/<id>.html, ensures the small composite (multi-tile gallery thumb)
+// + the ~960px -large.png (OG), and returns the gallery thumb URL.
+async function renderCanvasOne(
+  opts: BuildOptions,
+  templates: Templates,
+  repoUrl: string,
+  rec: CanvasRecord,
+): Promise<string> {
+  const multi = rec.cols * rec.rows > 1;
+  const smallKey = `public/c/${rec.canvas_id}.png`;
+  const largeKey = `public/c/${rec.canvas_id}-large.png`;
+  const needSmall = multi && !(await opts.storage.exists(smallKey));
+  const needLarge = !(await opts.storage.exists(largeKey));
+
+  if (needSmall || needLarge) {
+    const tiles: { x: number; y: number; gif: Uint8Array }[] = [];
+    for (let y = 0; y < rec.rows; y++) {
+      for (let x = 0; x < rec.cols; x++) {
+        const tid = rec.tiles[y * rec.cols + x];
+        if (!tid) continue;
+        const gif = await opts.storage.getBytes(`public/tiles/${tid}.gif`);
+        if (gif) tiles.push({ x, y, gif });
+      }
+    }
+    try {
+      if (needSmall) {
+        const png = await stitchCompositePng(tiles, rec.cols, rec.rows);
+        await opts.storage.put(smallKey, png, "image/png", CC_GIF_IMMUTABLE);
+      }
+      if (needLarge) {
+        const large = await stitchCompositePng(tiles, rec.cols, rec.rows, ogScale(rec.cols, rec.rows));
+        await opts.storage.put(largeKey, large, "image/png", CC_GIF_IMMUTABLE);
+      }
+    } catch (e) {
+      opts.logger?.(`  canvas ${rec.canvas_id}: composite stitch failed: ${(e as Error).message}`);
+    }
+  }
+
+  // Gallery/feed thumbnail: small composite for multi-tile, the animated tile
+  // gif for a 1×1. OG always uses the upscaled -large.png.
+  const thumb = multi
+    ? `/c/${rec.canvas_id}.png`
+    : `/tiles/${rec.tiles.find((t): t is string => t !== null) ?? ""}.gif`;
+
+  const html = templates.canvasPage({
+    canvas_id: rec.canvas_id,
+    id_short: rec.canvas_id.slice(0, 8),
+    cols: rec.cols,
+    rows: rec.rows,
+    tiles: rec.tiles,
+    author: rec.username ? { username: rec.username } : null,
+    created_at: rec.created_at,
+    preview_url: `/c/${rec.canvas_id}-large.png`,
+    public_base_url: opts.publicBaseUrl,
+    repo_url: repoUrl,
+  });
+  await opts.storage.put(`public/c/${rec.canvas_id}.html`, enc.encode(html), "text/html", CC_HTML);
+
+  // Tile pages (the atom is addressable at /t/<id>).
+  for (const tid of new Set(rec.tiles.filter((t): t is string => t !== null))) {
+    const tileHtml = templates.tilePage({
+      tile_id: tid,
+      id_short: tid.slice(0, 8),
+      public_base_url: opts.publicBaseUrl,
+      repo_url: repoUrl,
+    });
+    await opts.storage.put(`public/t/${tid}.html`, enc.encode(tileHtml), "text/html", CC_HTML);
+  }
+
+  return thumb;
 }
 
 async function rebuildRolling(
@@ -471,12 +703,20 @@ async function rebuildRolling(
   const latestLine =
     (await opts.storage.getBytes(`public/days/${latestDay}/index.jsonl`)) ?? new Uint8Array();
   const latestDrawings = parseJsonl(dec.decode(latestLine));
-  latestDrawings.sort((a, b) => b.created_at.localeCompare(a.created_at));
-  const latest = latestDrawings.slice(0, PER_PAGE);
+
+  // Canvases are rolling (not day-partitioned); merge the recent ones into the
+  // landing "Latest" strip and the feed.
+  const canvasIdx = await loadCanvasIndex(opts);
+  const latest = [
+    ...latestDrawings.map(drawingItem),
+    ...canvasIdx.map(canvasItem),
+  ]
+    .sort(byCreatedDesc)
+    .slice(0, PER_PAGE);
 
   const galleryHtml = templates.gallery({
     today: latestDay,
-    drawings: latest.map((d) => ({ id: d.id, id_short: d.id.slice(0, 8) })),
+    drawings: latest,
     days: days.filter((d) => d.date !== latestDay),
     repo_url: repoUrl,
   });
@@ -492,14 +732,21 @@ async function rebuildRolling(
     allRecent.push(...parseJsonl(dec.decode(body)));
     if (allRecent.length >= 200) break;
   }
-  allRecent.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const recentFeed = [
+    ...allRecent.map(drawingItem),
+    ...canvasIdx.map(canvasItem),
+  ]
+    .sort(byCreatedDesc)
+    .slice(0, 100);
   const feed = templates.feed({
     base_url: opts.publicBaseUrl,
     build_date: new Date().toUTCString(),
-    drawings: allRecent.slice(0, 100).map((d) => ({
-      id: d.id,
-      id_short: d.id.slice(0, 8),
-      pub_date: new Date(d.created_at).toUTCString(),
+    drawings: recentFeed.map((it) => ({
+      id: it.id,
+      id_short: it.id_short,
+      pub_date: new Date(it.created_at).toUTCString(),
+      href: it.href,
+      thumb: it.thumb,
     })),
   });
   await opts.storage.put("public/feed.rss", enc.encode(feed), "application/rss+xml", CC_RSS);
@@ -607,8 +854,8 @@ async function cli(): Promise<void> {
   const today = process.env.DRAWBANG_TODAY;
   const forceRerender = process.env.DRAWBANG_FORCE_RERENDER === "1";
   const countersTable = process.env.DRAWBANG_PRODUCT_COUNTERS_TABLE ?? "drawbang-product-counters";
-  // Strip /ingest suffix if present so the canvas page hydration script can
-  // hit https://<api>/canvas/<id>/state directly (CloudFront blocks POSTs to
+  // Strip /ingest suffix if present so the mural page hydration script can
+  // hit https://<api>/mural/<id>/state directly (CloudFront blocks POSTs to
   // un-routed paths). Empty string in dev → relative URLs.
   const ingestUrl = process.env.DRAWBANG_INGEST_URL ?? "";
   const apiBaseUrl = ingestUrl.replace(/\/ingest$/, "");
@@ -628,7 +875,7 @@ async function cli(): Promise<void> {
   // no-op so `npm run builder` against ./dev-bucket stays self-contained.
   let productCountersSource: ProductCountersSource | undefined;
   let merchCatalog: MerchCatalog | undefined;
-  let canvasStore: CanvasStore | undefined;
+  let muralStore: MuralStore | undefined;
   let userStatsSource: UserStatsSource | undefined;
   if (s3Bucket) {
     const { ProductCountersStore } = await import("../merch/product-counters.js");
@@ -636,13 +883,13 @@ async function cli(): Promise<void> {
     productCountersSource = { listAll: () => store.listAll() };
     const catalogModule = await import("../config/merch.json", { with: { type: "json" } });
     merchCatalog = catalogModule.default as MerchCatalog;
-    // Canvas tile state lives in DDB; without this, canvasPass renders the
-    // current canvas + every locked canvas with empty tile arrays, and the
-    // immutable cache-control on locked-canvas HTML pins the wiped state.
-    const { DynamoCanvasStore } = await import("../ingest/canvas-store.js");
-    canvasStore = new DynamoCanvasStore({
-      tilesTable: process.env.DRAWBANG_CANVAS_TILES_TABLE ?? "drawbang-canvas-tiles",
-      cooldownsTable: process.env.DRAWBANG_CANVAS_COOLDOWNS_TABLE ?? "drawbang-canvas-cooldowns",
+    // Mural tile state lives in DDB; without this, muralPass renders the
+    // current mural + every locked mural with empty tile arrays, and the
+    // immutable cache-control on locked-mural HTML pins the wiped state.
+    const { DynamoMuralStore } = await import("../ingest/mural-store.js");
+    muralStore = new DynamoMuralStore({
+      tilesTable: process.env.DRAWBANG_MURAL_TILES_TABLE ?? "drawbang-mural-tiles",
+      cooldownsTable: process.env.DRAWBANG_MURAL_COOLDOWNS_TABLE ?? "drawbang-mural-cooldowns",
     });
     // Per-account streak + total counters drive the stats block on
     // /u/<username>.html. Builder reads only; ingest is the writer.
@@ -660,7 +907,7 @@ async function cli(): Promise<void> {
     forceRerender,
     productCountersSource,
     merchCatalog,
-    canvasStore,
+    muralStore,
     userStatsSource,
     apiBaseUrl,
     logger: (m) => console.log(m),

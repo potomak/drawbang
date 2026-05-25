@@ -2,8 +2,8 @@ import { strict as assert } from "node:assert";
 import { describe, test } from "node:test";
 import {
   MemoryUserStatsStore,
-  isImmediatelyConsecutiveCanvas,
-  nextCanvasState,
+  isImmediatelyConsecutiveMural,
+  nextMuralState,
   nextDailyState,
   previousDayUtc,
 } from "../ingest/user-stats-store.js";
@@ -26,30 +26,30 @@ describe("previousDayUtc", () => {
   });
 });
 
-describe("isImmediatelyConsecutiveCanvas", () => {
+describe("isImmediatelyConsecutiveMural", () => {
   test("week N closes exactly when week N+1 opens", () => {
-    assert.equal(isImmediatelyConsecutiveCanvas("canvas-2026-W20", "canvas-2026-W21"), true);
+    assert.equal(isImmediatelyConsecutiveMural("mural-2026-W20", "mural-2026-W21"), true);
   });
 
   test("skipped week is not consecutive", () => {
-    assert.equal(isImmediatelyConsecutiveCanvas("canvas-2026-W20", "canvas-2026-W22"), false);
+    assert.equal(isImmediatelyConsecutiveMural("mural-2026-W20", "mural-2026-W22"), false);
   });
 
-  test("same canvas is not consecutive", () => {
-    assert.equal(isImmediatelyConsecutiveCanvas("canvas-2026-W20", "canvas-2026-W20"), false);
+  test("same mural is not consecutive", () => {
+    assert.equal(isImmediatelyConsecutiveMural("mural-2026-W20", "mural-2026-W20"), false);
   });
 
-  test("invalid canvas id is not consecutive", () => {
-    assert.equal(isImmediatelyConsecutiveCanvas("garbage", "canvas-2026-W21"), false);
+  test("invalid mural id is not consecutive", () => {
+    assert.equal(isImmediatelyConsecutiveMural("garbage", "mural-2026-W21"), false);
   });
 
   test("spans the ISO-year boundary (W52 → W01 of next year)", () => {
     // ISO 2025 has 52 weeks; week 52 closes 2025-12-29 + 7 days = 2026-01-05,
-    // and canvas-2026-W01 opens on the Monday of ISO week 1 = 2025-12-29.
-    // The two canvases are NOT consecutive on the calendar — they overlap.
+    // and mural-2026-W01 opens on the Monday of ISO week 1 = 2025-12-29.
+    // The two murals are NOT consecutive on the calendar — they overlap.
     // Use a clean year-boundary case: 2024 has 52 weeks ending exactly when
     // 2025-W01 opens (2024-12-30).
-    const ok = isImmediatelyConsecutiveCanvas("canvas-2024-W52", "canvas-2025-W01");
+    const ok = isImmediatelyConsecutiveMural("mural-2024-W52", "mural-2025-W01");
     assert.equal(ok, true);
   });
 });
@@ -72,10 +72,10 @@ describe("nextDailyState", () => {
       daily_streak_current: 2,
       daily_streak_longest: 5,
       daily_last_date: "2026-05-18",
-      canvas_total: 0,
-      canvas_streak_current: 0,
-      canvas_streak_longest: 0,
-      canvas_last_id: null,
+      mural_total: 0,
+      mural_streak_current: 0,
+      mural_streak_longest: 0,
+      mural_last_id: null,
       updated_at: "",
     };
     const r = nextDailyState(prior, "2026-05-18");
@@ -91,10 +91,10 @@ describe("nextDailyState", () => {
       daily_streak_current: 1,
       daily_streak_longest: 1,
       daily_last_date: "2026-05-17",
-      canvas_total: 0,
-      canvas_streak_current: 0,
-      canvas_streak_longest: 0,
-      canvas_last_id: null,
+      mural_total: 0,
+      mural_streak_current: 0,
+      mural_streak_longest: 0,
+      mural_last_id: null,
       updated_at: "",
     };
     const r = nextDailyState(prior, "2026-05-18");
@@ -110,10 +110,10 @@ describe("nextDailyState", () => {
       daily_streak_current: 7,
       daily_streak_longest: 9,
       daily_last_date: "2026-05-10",
-      canvas_total: 0,
-      canvas_streak_current: 0,
-      canvas_streak_longest: 0,
-      canvas_last_id: null,
+      mural_total: 0,
+      mural_streak_current: 0,
+      mural_streak_longest: 0,
+      mural_last_id: null,
       updated_at: "",
     };
     const r = nextDailyState(prior, "2026-05-18");
@@ -129,10 +129,10 @@ describe("nextDailyState", () => {
       daily_streak_current: 5,
       daily_streak_longest: 5,
       daily_last_date: "2026-05-17",
-      canvas_total: 0,
-      canvas_streak_current: 0,
-      canvas_streak_longest: 0,
-      canvas_last_id: null,
+      mural_total: 0,
+      mural_streak_current: 0,
+      mural_streak_longest: 0,
+      mural_last_id: null,
       updated_at: "",
     };
     const r = nextDailyState(prior, "2026-05-18");
@@ -141,44 +141,44 @@ describe("nextDailyState", () => {
   });
 });
 
-describe("nextCanvasState", () => {
-  test("first publish into any canvas: total=1, streak=1", () => {
-    const r = nextCanvasState(null, "canvas-2026-W21");
-    assert.equal(r.canvas_total, 1);
-    assert.equal(r.canvas_streak_current, 1);
-    assert.equal(r.canvas_streak_longest, 1);
+describe("nextMuralState", () => {
+  test("first publish into any mural: total=1, streak=1", () => {
+    const r = nextMuralState(null, "mural-2026-W21");
+    assert.equal(r.mural_total, 1);
+    assert.equal(r.mural_streak_current, 1);
+    assert.equal(r.mural_streak_longest, 1);
     assert.equal(r.noOp, false);
   });
 
-  test("same canvas re-publish is a no-op (multiple tiles in one canvas)", () => {
+  test("same mural re-publish is a no-op (multiple tiles in one mural)", () => {
     const prior = {
       user_id: "p",
       daily_total: 0, daily_streak_current: 0, daily_streak_longest: 0, daily_last_date: null,
-      canvas_total: 1,
-      canvas_streak_current: 1,
-      canvas_streak_longest: 1,
-      canvas_last_id: "canvas-2026-W21",
+      mural_total: 1,
+      mural_streak_current: 1,
+      mural_streak_longest: 1,
+      mural_last_id: "mural-2026-W21",
       updated_at: "",
     };
-    const r = nextCanvasState(prior, "canvas-2026-W21");
+    const r = nextMuralState(prior, "mural-2026-W21");
     assert.equal(r.noOp, true);
-    assert.equal(r.canvas_total, 1);
+    assert.equal(r.mural_total, 1);
   });
 
   test("consecutive week extends the streak", () => {
     const prior = {
       user_id: "p",
       daily_total: 0, daily_streak_current: 0, daily_streak_longest: 0, daily_last_date: null,
-      canvas_total: 1,
-      canvas_streak_current: 1,
-      canvas_streak_longest: 1,
-      canvas_last_id: "canvas-2026-W20",
+      mural_total: 1,
+      mural_streak_current: 1,
+      mural_streak_longest: 1,
+      mural_last_id: "mural-2026-W20",
       updated_at: "",
     };
-    const r = nextCanvasState(prior, "canvas-2026-W21");
-    assert.equal(r.canvas_total, 2);
-    assert.equal(r.canvas_streak_current, 2);
-    assert.equal(r.canvas_streak_longest, 2);
+    const r = nextMuralState(prior, "mural-2026-W21");
+    assert.equal(r.mural_total, 2);
+    assert.equal(r.mural_streak_current, 2);
+    assert.equal(r.mural_streak_longest, 2);
     assert.equal(r.noOp, false);
   });
 
@@ -186,16 +186,16 @@ describe("nextCanvasState", () => {
     const prior = {
       user_id: "p",
       daily_total: 0, daily_streak_current: 0, daily_streak_longest: 0, daily_last_date: null,
-      canvas_total: 3,
-      canvas_streak_current: 3,
-      canvas_streak_longest: 4,
-      canvas_last_id: "canvas-2026-W18",
+      mural_total: 3,
+      mural_streak_current: 3,
+      mural_streak_longest: 4,
+      mural_last_id: "mural-2026-W18",
       updated_at: "",
     };
-    const r = nextCanvasState(prior, "canvas-2026-W21");
-    assert.equal(r.canvas_total, 4);
-    assert.equal(r.canvas_streak_current, 1);
-    assert.equal(r.canvas_streak_longest, 4);
+    const r = nextMuralState(prior, "mural-2026-W21");
+    assert.equal(r.mural_total, 4);
+    assert.equal(r.mural_streak_current, 1);
+    assert.equal(r.mural_streak_longest, 4);
   });
 });
 
@@ -210,53 +210,53 @@ describe("MemoryUserStatsStore", () => {
     assert.equal(r.daily_total, 2);
   });
 
-  test("canvas no-op leaves prior state untouched", async () => {
+  test("mural no-op leaves prior state untouched", async () => {
     const store = new MemoryUserStatsStore();
     const user_id = "a".repeat(64);
-    await store.recordCanvasParticipation({
-      user_id, canvas_id: "canvas-2026-W21", now_iso: "2026-05-18T12:00:00Z",
+    await store.recordMuralParticipation({
+      user_id, mural_id: "mural-2026-W21", now_iso: "2026-05-18T12:00:00Z",
     });
-    const r = await store.recordCanvasParticipation({
-      user_id, canvas_id: "canvas-2026-W21", now_iso: "2026-05-18T13:00:00Z",
+    const r = await store.recordMuralParticipation({
+      user_id, mural_id: "mural-2026-W21", now_iso: "2026-05-18T13:00:00Z",
     });
-    assert.equal(r.canvas_total, 1);
-    assert.equal(r.canvas_streak_current, 1);
+    assert.equal(r.mural_total, 1);
+    assert.equal(r.mural_streak_current, 1);
   });
 
-  test("daily and canvas counters are independent", async () => {
+  test("daily and mural counters are independent", async () => {
     const store = new MemoryUserStatsStore();
     const user_id = "a".repeat(64);
     await store.recordDailyDrawing({ user_id, date_utc: "2026-05-18", now_iso: "2026-05-18T12:00:00Z" });
-    const r = await store.recordCanvasParticipation({
-      user_id, canvas_id: "canvas-2026-W21", now_iso: "2026-05-18T12:00:01Z",
+    const r = await store.recordMuralParticipation({
+      user_id, mural_id: "mural-2026-W21", now_iso: "2026-05-18T12:00:01Z",
     });
     assert.equal(r.daily_total, 1);
     assert.equal(r.daily_streak_current, 1);
-    assert.equal(r.canvas_total, 1);
-    assert.equal(r.canvas_streak_current, 1);
+    assert.equal(r.mural_total, 1);
+    assert.equal(r.mural_streak_current, 1);
   });
 });
 
 describe("earnedBadges integration via UserStatsRow shape", () => {
   test("daily_total 7 unlocks daily-7 only", async () => {
     const { earnedBadges } = await import("../config/badges.js");
-    const e = earnedBadges({ daily_total: 7, canvas_total: 0 });
+    const e = earnedBadges({ daily_total: 7, mural_total: 0 });
     assert.deepEqual(e.daily.map((b) => b.id), ["daily-7"]);
-    assert.deepEqual(e.canvas, []);
+    assert.deepEqual(e.mural, []);
   });
 
   test("daily_total 365 unlocks every daily tier", async () => {
     const { earnedBadges } = await import("../config/badges.js");
-    const e = earnedBadges({ daily_total: 365, canvas_total: 0 });
+    const e = earnedBadges({ daily_total: 365, mural_total: 0 });
     assert.deepEqual(
       e.daily.map((b) => b.id),
       ["daily-7", "daily-30", "daily-90", "daily-180", "daily-365"],
     );
   });
 
-  test("canvas_total 26 unlocks canvas-10 + canvas-26", async () => {
+  test("mural_total 26 unlocks mural-10 + mural-26", async () => {
     const { earnedBadges } = await import("../config/badges.js");
-    const e = earnedBadges({ daily_total: 0, canvas_total: 26 });
-    assert.deepEqual(e.canvas.map((b) => b.id), ["canvas-10", "canvas-26"]);
+    const e = earnedBadges({ daily_total: 0, mural_total: 26 });
+    assert.deepEqual(e.mural.map((b) => b.id), ["mural-10", "mural-26"]);
   });
 });
