@@ -1123,15 +1123,25 @@ async function boot(): Promise<void> {
 
   if (forkId) {
     try {
-      const res = await fetch(`${DRAWING_BASE_URL}/${forkId}.gif`);
-      if (!res.ok) throw new Error(`fork fetch failed: ${res.status}`);
-      const buf = new Uint8Array(await res.arrayBuffer());
-      const decoded = decodeGif(buf);
-      state.frames = decoded.frames;
-      if (decoded.activePalette) activePalette = decoded.activePalette;
-      state.current = 0;
-      parentId = forkId;
-      setLastPublishedId(forkId);
+      // A fork id is either a tile (single gif) or a canvas (manifest of
+      // tiles). Probe the canvas manifest first; fall back to the single-tile
+      // path. Both the tile page and the canvas page link /?fork=<id>.
+      const manifest = /^[0-9a-f]{64}$/.test(forkId)
+        ? await fetchCanvasManifest(forkId)
+        : null;
+      if (manifest) {
+        await loadCanvasFork(forkId, manifest);
+      } else {
+        const res = await fetch(`${DRAWING_BASE_URL}/${forkId}.gif`);
+        if (!res.ok) throw new Error(`fork fetch failed: ${res.status}`);
+        const buf = new Uint8Array(await res.arrayBuffer());
+        const decoded = decodeGif(buf);
+        state.frames = decoded.frames;
+        if (decoded.activePalette) activePalette = decoded.activePalette;
+        state.current = 0;
+        parentId = forkId;
+        setLastPublishedId(forkId);
+      }
     } catch (err) {
       showFlash({
         kind: "error",
@@ -1154,6 +1164,53 @@ async function boot(): Promise<void> {
 
   render();
   renderGridNav();
+}
+
+interface CanvasManifestDoc {
+  cols: number;
+  rows: number;
+  tiles: (string | null)[]; // row-major, length cols*rows; null = empty cell
+}
+
+// Returns the canvas manifest if <id> is a canvas, or null if it's a plain
+// tile (404). Same-origin: /c/<id>.json sits next to the editor on CloudFront.
+async function fetchCanvasManifest(id: string): Promise<CanvasManifestDoc | null> {
+  const res = await fetch(`/c/${id}.json`, { cache: "no-store" });
+  if (!res.ok) return null;
+  return (await res.json()) as CanvasManifestDoc;
+}
+
+// Loads a canvas (its tiles) into the multi-tile editor doc so the user can
+// edit every cell and re-publish. Mirrors the publish set: each non-empty cell
+// becomes a CanvasDoc cell. The editor shares one palette across cells, so we
+// adopt the first tile's palette.
+async function loadCanvasFork(forkId: string, manifest: CanvasManifestDoc): Promise<void> {
+  const doc = createCanvasDoc();
+  doc.cols = manifest.cols;
+  doc.rows = manifest.rows;
+  let palette: Uint8Array | null = null;
+  let firstFilled: { x: number; y: number } | null = null;
+  for (let y = 0; y < manifest.rows; y++) {
+    for (let x = 0; x < manifest.cols; x++) {
+      const tileId = manifest.tiles[y * manifest.cols + x];
+      if (!tileId) continue;
+      const res = await fetch(`${DRAWING_BASE_URL}/${tileId}.gif`);
+      if (!res.ok) throw new Error(`fork tile fetch failed: ${res.status}`);
+      const decoded = decodeGif(new Uint8Array(await res.arrayBuffer()));
+      setCell(doc, x, y, decoded.frames);
+      if (!palette && decoded.activePalette) palette = decoded.activePalette;
+      if (!firstFilled) firstFilled = { x, y };
+    }
+  }
+  if (firstFilled) {
+    doc.activeX = firstFilled.x;
+    doc.activeY = firstFilled.y;
+  }
+  canvasDoc = doc;
+  if (palette) activePalette = palette;
+  state.frames = getCell(doc, doc.activeX, doc.activeY) ?? [new Bitmap()];
+  state.current = 0;
+  parentId = forkId;
 }
 
 void boot();
