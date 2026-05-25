@@ -2,6 +2,7 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
   DynamoDBDocumentClient,
   GetCommand,
+  ScanCommand,
   TransactWriteCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
@@ -124,6 +125,31 @@ export class DynamoUserStore implements UserStore {
       new GetCommand({ TableName: this.usersTable, Key: { email } }),
     );
     return r.Item ? (r.Item as UserRecord) : null;
+  }
+
+  // Full scan of the accounts table, projecting just the public handle + id.
+  // Used by the builder to render a profile page for every account, even one
+  // with no published drawings yet. Accounts are low-cardinality, so a scan is
+  // fine; revisit (GSI/paginated listing) only if that stops being true.
+  async listAccounts(): Promise<Array<{ username: string; user_id: string }>> {
+    const out: Array<{ username: string; user_id: string }> = [];
+    let lastKey: Record<string, unknown> | undefined;
+    do {
+      const r = await this.doc.send(
+        new ScanCommand({
+          TableName: this.usersTable,
+          ProjectionExpression: "username, user_id",
+          ExclusiveStartKey: lastKey,
+        }),
+      );
+      for (const item of r.Items ?? []) {
+        const username = (item as { username?: string }).username;
+        const user_id = (item as { user_id?: string }).user_id;
+        if (username && user_id) out.push({ username, user_id });
+      }
+      lastKey = r.LastEvaluatedKey as Record<string, unknown> | undefined;
+    } while (lastKey);
+    return out;
   }
 
   async updatePassword(

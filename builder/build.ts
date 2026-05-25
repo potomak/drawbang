@@ -61,6 +61,11 @@ export interface BuildOptions {
   // Optional: per-account streak/total counters for /u/<username>.html
   // (#115/#116). Without it, profile pages render without the stats block.
   userStatsSource?: UserStatsSource;
+  // Optional: every registered account (username + user_id). When provided,
+  // each gets a profile page even with zero published drawings — otherwise a
+  // brand-new account's /u/<username> 404s. Without it, only accounts with
+  // content get pages (legacy/dev behaviour).
+  registeredUsers?: Array<{ username: string; user_id: string }>;
   // Optional: API Gateway base URL for the mural page's state hydration.
   // See MuralPassOptions.apiBaseUrl for the why.
   apiBaseUrl?: string;
@@ -476,9 +481,21 @@ async function rebuildProfiles(
     canvasByUser.set(e.username, list);
   }
 
-  // Profiles to (re-)render: anyone who got new drawings or canvases this run;
-  // on forceRerender, every account with an existing index or canvases.
-  const profilesToRender = new Set<string>([...newByUsername.keys(), ...canvasUsernames]);
+  // Registered accounts always get a profile page, even with no content — a
+  // brand-new account's /u/<username> must not 404. Map gives us the user_id
+  // for the stats block when the account has no drawings to source it from.
+  const userIdByName = new Map(
+    (opts.registeredUsers ?? []).map((u) => [u.username, u.user_id]),
+  );
+
+  // Profiles to (re-)render: anyone who got new drawings or canvases this run,
+  // plus every registered account; on forceRerender, every account with an
+  // existing index or canvases too.
+  const profilesToRender = new Set<string>([
+    ...newByUsername.keys(),
+    ...canvasUsernames,
+    ...userIdByName.keys(),
+  ]);
   if (opts.forceRerender) {
     const keys = await opts.storage.listPrefix("public/u");
     for (const k of keys) {
@@ -492,7 +509,11 @@ async function rebuildProfiles(
     const indexBytes = await opts.storage.getBytes(`public/u/${username}/index.jsonl`);
     const drawings = indexBytes ? parseJsonl(dec.decode(indexBytes)) : [];
     const canvases = canvasByUser.get(username) ?? [];
-    if (drawings.length === 0 && canvases.length === 0) continue;
+    // Skip only content-less usernames that aren't registered accounts (e.g. a
+    // stale index dir). Registered accounts render even when empty.
+    if (drawings.length === 0 && canvases.length === 0 && !userIdByName.has(username)) {
+      continue;
+    }
 
     const items: GalleryItemFull[] = [
       ...drawings.map(drawingItem),
@@ -502,6 +523,7 @@ async function rebuildProfiles(
     const userId =
       drawings.find((d) => d.user_id)?.user_id ??
       canvases.find((c) => c.user_id)?.user_id ??
+      userIdByName.get(username) ??
       "";
     const stats = opts.userStatsSource && userId
       ? await ownerStatsViewModel(opts.userStatsSource, userId)
@@ -893,6 +915,7 @@ async function cli(): Promise<void> {
   let merchCatalog: MerchCatalog | undefined;
   let muralStore: MuralStore | undefined;
   let userStatsSource: UserStatsSource | undefined;
+  let registeredUsers: Array<{ username: string; user_id: string }> | undefined;
   if (s3Bucket) {
     const { ProductCountersStore } = await import("../merch/product-counters.js");
     const store = new ProductCountersStore({ tableName: countersTable });
@@ -913,6 +936,13 @@ async function cli(): Promise<void> {
     userStatsSource = new DynamoUserStatsStore({
       tableName: process.env.DRAWBANG_USER_STATS_TABLE ?? "drawbang-account-stats",
     });
+    // Every registered account gets a profile page, even with no drawings.
+    const { DynamoUserStore } = await import("../ingest/user-store.js");
+    const userStore = new DynamoUserStore({
+      usersTable: process.env.DRAWBANG_USERS_TABLE ?? "drawbang-users",
+      usernamesTable: process.env.DRAWBANG_USERNAMES_TABLE ?? "drawbang-usernames",
+    });
+    registeredUsers = await userStore.listAccounts();
   }
 
   const result = await build({
@@ -925,6 +955,7 @@ async function cli(): Promise<void> {
     merchCatalog,
     muralStore,
     userStatsSource,
+    registeredUsers,
     apiBaseUrl,
     logger: (m) => console.log(m),
   });

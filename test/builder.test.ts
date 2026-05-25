@@ -408,3 +408,20 @@ test("builder preserves mural membership when re-rendering an existing drawing p
     "expected claimed_by_username attribution in the mural membership link",
   );
 });
+
+test("registered accounts get a profile page even with no published drawings", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
+  const storage = new FsStorage(root);
+
+  // No inbox content at all — just a registered account with nothing published.
+  await build({
+    storage,
+    publicBaseUrl: "https://example.test",
+    today: "2026-04-20",
+    registeredUsers: [{ username: "potomak", user_id: "p".repeat(64) }],
+  });
+
+  const profile = await fs.readFile(path.join(root, "public/u/potomak.html"), "utf8");
+  assert.match(profile, /Drawings by potomak/);
+  assert.match(profile, /No drawings published by this account yet/);
+});
