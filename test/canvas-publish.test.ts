@@ -94,7 +94,7 @@ function pngSize(bytes: Uint8Array): { w: number; h: number } {
 }
 
 describe("POST /canvas", () => {
-  test("publishes a 2×2 canvas: stores 4 tiles + manifest + 32×32 composite", async () => {
+  test("publishes a 2×2 canvas: stores 4 tiles + manifest + page + OG", async () => {
     const storage = new MemoryStorage();
     const cells = [
       { x: 0, y: 0, gif: makeTile(1) },
@@ -119,10 +119,10 @@ describe("POST /canvas", () => {
     assert.equal(doc?.username, "alice");
     assert.deepEqual(doc?.tiles, manifest.tiles);
 
-    const png = await storage.getBytes(`public/c/${body.canvas_id}.png`);
-    assert.ok(png, "composite png written");
-    assert.equal(png[0], 0x89); // PNG magic
-    assert.deepEqual(pngSize(png), { w: 32, h: 32 });
+    // The gallery thumbnail (animated /c/<id>.gif) is builder-only; the handler
+    // sync-renders only the page + OG so a fresh canvas is shareable immediately.
+    assert.equal(await storage.exists(`public/c/${body.canvas_id}.gif`), false);
+    assert.equal(await storage.exists(`public/c/${body.canvas_id}.png`), false);
 
     // The page + OG image are sync-rendered at publish (live immediately, like /d/).
     const page = await storage.getBytes(`public/c/${body.canvas_id}.html`);

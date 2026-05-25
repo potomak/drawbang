@@ -94,13 +94,21 @@ const BUILDER_ROUTES: BuilderRoute[] = [
     },
     contentType: "image/gif",
   },
-  // Canvas pages /c/<64hex> + their composite preview /c/<64hex>.png.
+  // Canvas pages /c/<64hex> + composites: animated thumb /c/<64hex>.gif,
+  // static thumb fallback + OG /c/<64hex>(-large).png.
   {
     test: (uri) => {
       const m = uri.match(/^\/c\/([^/]+)$/);
       return m && SIXTY_FOUR_HEX.test(m[1]) ? `c/${m[1]}.html` : null;
     },
     contentType: "text/html; charset=utf-8",
+  },
+  {
+    test: (uri) => {
+      const m = uri.match(/^\/c\/([0-9a-f]{64}\.gif)$/);
+      return m ? `c/${m[1]}` : null;
+    },
+    contentType: "image/gif",
   },
   {
     test: (uri) => {

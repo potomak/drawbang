@@ -153,17 +153,11 @@ export async function handleCanvasPublish(
     await cfg.storage.put(`public/tiles/${tileId}.gif`, gif, "image/gif", GIF_CC);
   }
 
-  // -- 5. Composites + sync-rendered page (parity with /d/ — live immediately) --
+  // -- 5. OG image + sync-rendered page (parity with /d/ — live immediately) --
+  // The gallery thumbnail (animated /c/<id>.gif, or static .png fallback) is
+  // written by the builder; here we only need the OG/share image + the page so
+  // a freshly-published canvas is shareable immediately.
   const enc = new TextEncoder();
-  const multi = req.cols * req.rows > 1;
-  if (multi) {
-    try {
-      const png = await stitchCompositePng(stitchTiles, req.cols, req.rows);
-      await cfg.storage.put(`public/c/${canvasId}.png`, png, "image/png", GIF_CC);
-    } catch (e) {
-      console.error("[canvas] composite stitch failed", e);
-    }
-  }
   // ~960px OG/share image (also covers 1×1).
   try {
     const large = await stitchCompositePng(

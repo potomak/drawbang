@@ -21,6 +21,15 @@ function pngSize(bytes: Uint8Array): { w: number; h: number } {
   return { w: dv.getUint32(16), h: dv.getUint32(20) };
 }
 
+function gifSize(bytes: Uint8Array): { w: number; h: number } {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return { w: dv.getUint16(6, true), h: dv.getUint16(8, true) };
+}
+
+function isGif(bytes: Uint8Array): boolean {
+  return bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46; // "GIF"
+}
+
 test("builder sweeps a canvas inbox record → /c/<id>.html + composite, removes the record", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-cb-"));
   const storage = new FsStorage(root);
@@ -58,10 +67,13 @@ test("builder sweeps a canvas inbox record → /c/<id>.html + composite, removes
   assert.match(html, /<a href="\/u\/alice">alice<\/a>/);
   assert.match(html, /2×1 tiles/);
 
-  // Composite preview (multi-tile) is 32×16; OG -large.png is upscaled ~960.
-  const png = await storage.getBytes(`public/c/${canvasId}.png`);
-  assert.ok(png, "composite png written by builder");
-  assert.deepEqual(pngSize(png), { w: 32, h: 16 });
+  // Multi-tile gallery thumb is an animated 32×16 composite GIF; no static .png.
+  const gif = await storage.getBytes(`public/c/${canvasId}.gif`);
+  assert.ok(gif, "composite gif written by builder");
+  assert.ok(isGif(gif), "thumb is a GIF");
+  assert.deepEqual(gifSize(gif), { w: 32, h: 16 });
+  assert.equal(await storage.exists(`public/c/${canvasId}.png`), false);
+  // OG -large.png is upscaled ~960.
   const large = await storage.getBytes(`public/c/${canvasId}-large.png`);
   assert.ok(large, "OG -large.png written");
   assert.ok(pngSize(large).w >= 480, `OG width upscaled, got ${pngSize(large).w}`);
@@ -83,7 +95,7 @@ test("builder sweeps a canvas inbox record → /c/<id>.html + composite, removes
   // landing gallery, and the RSS feed (linking /c/<id>).
   const profile = await fs.readFile(path.join(root, "public/u/alice.html"), "utf8");
   assert.match(profile, new RegExp(`href="/c/${canvasId}"`));
-  assert.match(profile, new RegExp(`/c/${canvasId}.png`)); // composite thumb
+  assert.match(profile, new RegExp(`/c/${canvasId}.gif`)); // animated composite thumb
   const gallery = await fs.readFile(path.join(root, "public/gallery.html"), "utf8");
   assert.match(gallery, new RegExp(`href="/c/${canvasId}"`));
   const feed = await fs.readFile(path.join(root, "public/feed.rss"), "utf8");

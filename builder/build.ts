@@ -18,7 +18,7 @@ import renderOwner from "./templates/owner.js";
 import renderProducts from "./templates/products.js";
 import renderCanvasPage, { type CanvasPageView } from "./templates/canvas-page.js";
 import renderTilePage, { type TilePageView } from "./templates/tile-page.js";
-import { ogScale, stitchCompositePng } from "../ingest/stitch.js";
+import { ogScale, stitchCompositeGif, stitchCompositePng } from "../ingest/stitch.js";
 import type { DayGalleryView } from "./templates/day-gallery.js";
 import type { DrawingView } from "./templates/drawing.js";
 import type { GalleryView } from "./templates/gallery.js";
@@ -634,40 +634,37 @@ async function renderCanvasOne(
   rec: CanvasRecord,
 ): Promise<string> {
   const multi = rec.cols * rec.rows > 1;
-  const smallKey = `public/c/${rec.canvas_id}.png`;
-  const largeKey = `public/c/${rec.canvas_id}-large.png`;
-  const needSmall = multi && !(await opts.storage.exists(smallKey));
-  const needLarge = !(await opts.storage.exists(largeKey));
+  // Gallery/feed thumbnail: animated composite GIF for multi-tile (static PNG
+  // fallback if a canvas ever exceeds 255 colours), the tile gif for a 1×1.
+  // OG always uses the upscaled static -large.png.
+  let thumb = `/tiles/${rec.tiles.find((t): t is string => t !== null) ?? ""}.gif`;
 
-  if (needSmall || needLarge) {
-    const tiles: { x: number; y: number; gif: Uint8Array }[] = [];
-    for (let y = 0; y < rec.rows; y++) {
-      for (let x = 0; x < rec.cols; x++) {
-        const tid = rec.tiles[y * rec.cols + x];
-        if (!tid) continue;
-        const gif = await opts.storage.getBytes(`public/tiles/${tid}.gif`);
-        if (gif) tiles.push({ x, y, gif });
-      }
-    }
-    try {
-      if (needSmall) {
-        const png = await stitchCompositePng(tiles, rec.cols, rec.rows);
-        await opts.storage.put(smallKey, png, "image/png", CC_GIF_IMMUTABLE);
-      }
-      if (needLarge) {
-        const large = await stitchCompositePng(tiles, rec.cols, rec.rows, ogScale(rec.cols, rec.rows));
-        await opts.storage.put(largeKey, large, "image/png", CC_GIF_IMMUTABLE);
-      }
-    } catch (e) {
-      opts.logger?.(`  canvas ${rec.canvas_id}: composite stitch failed: ${(e as Error).message}`);
+  const tiles: { x: number; y: number; gif: Uint8Array }[] = [];
+  for (let y = 0; y < rec.rows; y++) {
+    for (let x = 0; x < rec.cols; x++) {
+      const tid = rec.tiles[y * rec.cols + x];
+      if (!tid) continue;
+      const gif = await opts.storage.getBytes(`public/tiles/${tid}.gif`);
+      if (gif) tiles.push({ x, y, gif });
     }
   }
-
-  // Gallery/feed thumbnail: small composite for multi-tile, the animated tile
-  // gif for a 1×1. OG always uses the upscaled -large.png.
-  const thumb = multi
-    ? `/c/${rec.canvas_id}.png`
-    : `/tiles/${rec.tiles.find((t): t is string => t !== null) ?? ""}.gif`;
+  try {
+    if (multi) {
+      const animated = await stitchCompositeGif(tiles, rec.cols, rec.rows);
+      if (animated) {
+        await opts.storage.put(`public/c/${rec.canvas_id}.gif`, animated, "image/gif", CC_GIF_IMMUTABLE);
+        thumb = `/c/${rec.canvas_id}.gif`;
+      } else {
+        const png = await stitchCompositePng(tiles, rec.cols, rec.rows);
+        await opts.storage.put(`public/c/${rec.canvas_id}.png`, png, "image/png", CC_GIF_IMMUTABLE);
+        thumb = `/c/${rec.canvas_id}.png`;
+      }
+    }
+    const large = await stitchCompositePng(tiles, rec.cols, rec.rows, ogScale(rec.cols, rec.rows));
+    await opts.storage.put(`public/c/${rec.canvas_id}-large.png`, large, "image/png", CC_GIF_IMMUTABLE);
+  } catch (e) {
+    opts.logger?.(`  canvas ${rec.canvas_id}: composite stitch failed: ${(e as Error).message}`);
+  }
 
   const html = templates.canvasPage({
     canvas_id: rec.canvas_id,
