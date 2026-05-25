@@ -25,7 +25,10 @@
 }
 .img-grid li { display: block; aspect-ratio: 1; background: var(--canvas-bg); overflow: hidden; position: relative; }
 .img-grid a { display: block; height: 100%; }
-.img-grid img { display: block; width: 100%; height: 100%; background: var(--canvas-bg); image-rendering: pixelated; }
+/* object-fit: contain keeps non-square canvas thumbnails (e.g. a 2×1
+   composite) from stretching to fill the square cell — they letterbox against
+   the canvas-bg instead. Square thumbnails fill the cell exactly, unchanged. */
+.img-grid img { display: block; width: 100%; height: 100%; object-fit: contain; background: var(--canvas-bg); image-rendering: pixelated; }
 @media (max-width: 900px) { .img-grid { grid-template-columns: repeat(4, 1fr); } }
 @media (max-width: 520px) { .img-grid { grid-template-columns: repeat(3, 1fr); } }
 
