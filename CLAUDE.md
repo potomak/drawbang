@@ -361,7 +361,7 @@ Lambda (runtime, set via SAM):
 - `DRAWBANG_MURAL_COOLDOWNS_TABLE` — DynamoDB table for per-account-
   per-mural publish cooldowns (default `drawbang-mural-cooldowns`).
 - `DRAWBANG_USER_STATS_TABLE` — DynamoDB table for per-account streak +
-  total counters (#115/#116, default `drawbang-user-stats`).
+  total counters (#115/#116, default `drawbang-account-stats`).
 - `DRAWBANG_USERS_TABLE` — accounts table (default `drawbang-users`).
 - `DRAWBANG_USERNAMES_TABLE` — username reservations (default `drawbang-usernames`).
 - `JWT_SECRET` — HS256 secret for session + reset JWTs. **Required**: the
@@ -379,7 +379,7 @@ Builder CLI:
   (default `drawbang-product-counters`). Only read when `DRAWBANG_S3_BUCKET` is
   set; local dev with FsStorage skips the /products surface.
 - `DRAWBANG_USER_STATS_TABLE` — DynamoDB table read for the streaks/badges
-  block on `/u/<username>.html` (default `drawbang-user-stats`). Only read
+  block on `/u/<username>.html` (default `drawbang-account-stats`). Only read
   when `DRAWBANG_S3_BUCKET` is set; local dev with FsStorage omits the block.
 
 ## AWS deployment

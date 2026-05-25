@@ -392,10 +392,15 @@ Resources:
   # Per-account aggregated streak + total counters for #115/#116. One row
   # per author with daily-drawings + weekly-mural dimensions, updated
   # under optimistic concurrency from the ingest handler.
+  # Account-keyed (user_id) streak/total counters. Named -account-stats, not
+  # -user-stats: the original table was keyed on the keypair `pubkey`, and
+  # changing a DynamoDB partition key forces a replacement that CloudFormation
+  # refuses for a fixed-name table. The rename lets CFN create the new table +
+  # drop the stale one in one update. (Old data was keypair-era, discardable.)
   UserStatsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: drawbang-user-stats
+      TableName: drawbang-account-stats
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - { AttributeName: user_id, AttributeType: S }

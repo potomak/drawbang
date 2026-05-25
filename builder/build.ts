@@ -911,7 +911,7 @@ async function cli(): Promise<void> {
     // /u/<username>.html. Builder reads only; ingest is the writer.
     const { DynamoUserStatsStore } = await import("../ingest/user-stats-store.js");
     userStatsSource = new DynamoUserStatsStore({
-      tableName: process.env.DRAWBANG_USER_STATS_TABLE ?? "drawbang-user-stats",
+      tableName: process.env.DRAWBANG_USER_STATS_TABLE ?? "drawbang-account-stats",
     });
   }
 

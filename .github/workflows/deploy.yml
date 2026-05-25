@@ -162,7 +162,7 @@ jobs:
           DRAWBANG_INGEST_URL: ${{ steps.stack.outputs.ingest_endpoint }}
           DRAWBANG_CANVAS_TILES_TABLE: drawbang-canvas-tiles
           DRAWBANG_CANVAS_COOLDOWNS_TABLE: drawbang-canvas-cooldowns
-          DRAWBANG_USER_STATS_TABLE: drawbang-user-stats
+          DRAWBANG_USER_STATS_TABLE: drawbang-account-stats
           DRAWBANG_FORCE_RERENDER: "1"
         run: npm run builder
 
