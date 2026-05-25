@@ -4,18 +4,45 @@ Orientation for future Claude sessions on this repo.
 
 ## What this is
 
-Drawbang is a 16×16 pixel art editor + public gallery. The stack is
-static-first: a browser editor, a tiny proof-of-work-gated ingest endpoint, and
-a daily batch job that regenerates the gallery as static HTML.
+Drawbang is a pixel art editor + public gallery built from a 16×16 tile atom.
+The stack is static-first: a browser editor, a tiny proof-of-work-gated ingest
+endpoint, and a daily batch job that regenerates the gallery as static HTML.
 
 Identity is an **email/password account** (replaced the original anonymous
 Ed25519 keypair scheme). The gallery is publicly viewable and you can draw
-locally without an account, but **publishing and canvas tile claims require a
+locally without an account, but **publishing and mural tile claims require a
 logged-in account**. Sessions are stateless HS256 JWTs; the public handle is a
 chosen **username** (profiles live at `/u/<username>`). See "Identity model".
 
 The original Ruby/Sinatra/Redis/RMagick app is archived under `legacy/` and is
 not imported by any current code.
+
+## Tile / canvas / mural model
+
+Three nouns, one shared atom. **Get these straight before touching anything.**
+
+- **Tile** — the 16×16 atom: a standard DRAWBANG GIF, content-addressed
+  (`tile_id = sha256(gif_bytes)`). Canonical page `/t/<tile_id>`
+  (`builder/templates/tile-page.ts`), asset `public/tiles/<id>.gif`. This is the
+  single-gif page that **replaced the old `/d/<id>` drawing page**; `/d/<id>`
+  now 301-redirects to `/t/<id>` and `/drawings/<id>.gif` rewrites to
+  `/tiles/<id>.gif` at the edge.
+- **Canvas** — a personal drawing = an ordered `cols×rows` grid (1×1 up to 4×4)
+  of tiles. `canvas_id = sha256(canonical_manifest)`. Page `/c/<canvas_id>`
+  (`builder/templates/canvas-page.ts`), manifest `public/c/<id>.json`. **Every
+  editor publish is a canvas** (a plain 16×16 is a 1-tile canvas) — the editor
+  POSTs `/canvas`, never `/ingest`. `config/canvas.ts` holds the caps + manifest
+  helpers; `src/editor/canvas-doc.ts` is the in-editor model; `src/submit.ts`
+  `publishCanvas()` encodes + one PoW over the canonical manifest.
+- **Mural** — the *collaborative* weekly grid (renamed from the original
+  "canvas" concept), 16×16 tiles at `/murals` + `/murals/<mural-id>`. A mural
+  cell references a tile; placing a tile into a cell goes through `/ingest` with
+  a `mural_claim`. Tile-claim state lives in DynamoDB (`drawbang-mural-*`).
+
+`src/canvas-composite.ts` flattens a canvas's tiles into a square, letterboxed
+`Bitmap` stack — shared by the merch preview (client) and print asset (server)
+so they stay in lock-step. `ingest/stitch.ts` builds the raster composites
+(animated GIF + static PNG) for canvas thumbnails / OG.
 
 ## Deployment shape
 
@@ -28,9 +55,11 @@ not imported by any current code.
 
 Single origin: everything serves from the CloudFront distribution (e.g.
 `d3te69flws96uk.cloudfront.net`). The S3 bucket is locked down to the
-distribution via Origin Access Control. CloudFront Function rewrites clean
-URLs (`/gallery`, `/d/<id>`, `/days/<d>/p/<n>`) to the underlying `.html`
-files. No GH Pages, no Cloudflare, no persistent webserver.
+distribution via Origin Access Control. A CloudFront Function rewrites clean
+URLs (`/gallery`, `/t/<id>`, `/c/<id>`, `/days/<d>/p/<n>`, `/murals/...`) to the
+underlying `.html` files, 301s legacy `/d/<id>` → `/t/<id>`, and rewrites legacy
+`/drawings/<id>.gif` → `/tiles/<id>.gif`. No GH Pages, no Cloudflare, no
+persistent webserver.
 
 ## Pages of the app
 
@@ -42,10 +71,11 @@ asset, new tracking script) must consider every entry below.
 | `/`                            | `index.html` + `src/main.ts`                      | Editor (Vite) |
 | `/gallery`                     | `builder/templates/gallery.ts` → `gallery.html`   | Builder |
 | `/days/<YYYY-MM-DD>/p/<N>`     | `builder/templates/day-gallery.ts`                | Builder |
-| `/d/<64hex>`                   | `builder/templates/drawing.ts`                    | Builder + sync-rendered by ingest Lambda on publish |
-| `/u/<username>`                | `builder/templates/owner.ts`                      | Builder (per-account profile gallery) |
+| `/t/<64hex>`                   | `builder/templates/tile-page.ts`                  | Builder + sync-rendered by ingest on publish (the single-gif page; `/d/<id>` 301s here) |
+| `/c/<64hex>`                   | `builder/templates/canvas-page.ts`                | Builder + sync-rendered by the `/canvas` publish handler |
+| `/u/<username>`                | `builder/templates/owner.ts`                      | Builder (per-account profile gallery: drawings + canvases) |
 | `/products`, `/products/p/<N>` | `builder/templates/products.ts`                   | Builder |
-| `/merch?d=<id>`                | `merch.html` + `src/merch.ts`                     | Picker (Vite) |
+| `/merch?d=<tile>` / `?c=<canvas>` | `merch.html` + `src/merch.ts`                  | Picker (Vite); `?d=` single tile, `?c=` canvas composite |
 | `/merch/order/<uuid>`          | `order.html` + `src/order.ts`                     | Order status (Vite) |
 | `/pow-test`                    | `pow-test.html` + `src/pow-test.ts`               | Dev test bed (Vite) |
 | `/login`                       | `login.html` + `src/login.ts`                     | Auth (Vite) |
@@ -53,8 +83,8 @@ asset, new tracking script) must consider every entry below.
 | `/reset`                       | `reset.html` + `src/reset.ts`                     | Password reset request + confirm (Vite) |
 | `/account`                     | `account.html` + `src/account.ts`                 | Logged-in account / sign-out (Vite) |
 | `/feed.rss`                    | `builder/templates/feed.ts`                       | Builder (RSS, no chrome) |
-| `/canvases`                    | `builder/templates/canvases-archive.ts`           | Builder (archive: current canvas + past) |
-| `/canvases/<canvas-id>`        | `builder/templates/canvas.ts`                     | Builder (16×16 tile grid; live for active, frozen for locked) |
+| `/murals`                      | `builder/templates/murals-archive.ts`             | Builder (archive: current mural + past) |
+| `/murals/<mural-id>`           | `builder/templates/mural.ts`                      | Builder (16×16 tile grid; live for active, frozen for locked) |
 
 The shared chrome (`src/layout/chrome.ts`, #102) renders the header + footer
 for everything except `/feed.rss` (XML). Vite-served pages get the chrome via
@@ -85,9 +115,10 @@ is present.
   enumeration).
 - **Auth surface**: `src/auth.ts` (client), `ingest/auth-handler.ts` (server),
   routes `POST /auth/{register,login,reset/request,reset/confirm}`.
-- Drawing metadata stores `user_id` + `username`; the drawing page and canvas
-  memberships link authors to `/u/<username>`. Legacy keypair-published drawings
-  (fresh start) keep no `username` and render as "anonymous" with no profile.
+- Tile/canvas metadata stores `user_id` + `username`; the tile page, canvas
+  page, and mural memberships link authors to `/u/<username>`. Legacy
+  keypair-published gifs (fresh start) keep no `username` and render as
+  "anonymous" with no profile.
 
 ## Shared CSS (single source of truth)
 
@@ -117,27 +148,42 @@ catch yourself editing `.hdr`/`.ftr`/`.btn` in `src/style.css` or
 config/               Shared constants + POW difficulty table
   constants.ts        WIDTH=16, HEIGHT=16, MAX_FRAMES=16, PER_PAGE=36, etc.
   pow.json            Difficulty brackets, baseline_grace_s
-  canvases.ts         TILES_PER_SIDE=16, CLAIM_TTL_S=1800, PUBLISH_COOLDOWN_S=900,
-                      ISO-week canvas-id helpers (canvasIdForDate, opens/closes, tileKey).
+  canvas.ts           Personal-canvas caps (CANVAS_MAX_COLS/ROWS=4) + manifest
+                      helpers: canonicalCanvasString, canvasIdFor (sha256).
+  murals.ts           Collaborative weekly grid: TILES_PER_SIDE=16, CLAIM_TTL_S,
+                      PUBLISH_COOLDOWN_S, ISO-week mural-id helpers (muralIdForDate,
+                      opens/closes, tileKey).
 
 src/                  Vite + TypeScript editor
-  editor/             bitmap, canvas, tools, history, palette, gif
+  editor/             bitmap, canvas (PixelCanvas), canvas-doc (multi-tile model),
+                      tools, history, palette, gif, frames, share-gif
+  canvas-composite.ts Flatten a canvas's tiles → square letterboxed Bitmap stack
+                      (shared by merch preview + print asset).
   pow.ts              sha256 PoW + contentHash (Node sync fast path + Web Crypto fallback)
-  pow.worker.ts       WebWorker: bench + solve
+  pow.worker.ts       WebWorker: bench + solve (publish + mural claim)
   share.ts            URL-hash share codec (5 bpp, 17 pixel states)
   local.ts            IndexedDB "My drawings" store
   auth.ts             Client session: register/login/reset, JWT in localStorage,
                       authHeader() for publish/claim, getSession/logout.
   login.ts/signup.ts/reset.ts/account.ts  Auth page controllers (Vite entries)
-  submit.ts           Bench, solve, POST to /ingest with Bearer auth
+  submit.ts           publishCanvas() → POST /canvas; submit() → POST /ingest
+                      (mural tile claim). Both bench/solve with Bearer auth.
+  mural-banner.ts     Home-page mural status banner.
+  merch.ts/merch-preview.ts/order.ts  Merch picker (?d= tile / ?c= canvas) + order status
   main.ts             Editor UI (publish gated on a logged-in session)
 
 ingest/               Shared ingest logic
-  handler.ts          Core logic: validate → content-id → PoW check → write.
-                      Identity from cfg.auth ({user_id, username}) set by the
-                      route after JWT verification. Canvas-aware: canvas_claim
-                      branch runs BEFORE the idempotency short-circuit so the
-                      same gif can join multiple canvases.
+  handler.ts          POST /ingest (mural tile claim path): validate → content-id
+                      → PoW → write tile (public/tiles/) + render /t page. Identity
+                      from cfg.auth ({user_id, username}) set by the route after
+                      JWT verification. mural_claim branch runs BEFORE the
+                      idempotency short-circuit so the same gif can join multiple
+                      murals.
+  canvas-publish-handler.ts  POST /canvas: validate shape + each tile gif, dedup
+                      tiles to public/tiles/, ONE PoW over the canonical manifest,
+                      write public/c/<id>.json + sync-render /c + /t pages + OG.
+  stitch.ts           Raster composites for canvas thumbs/OG: stitchCompositeGif
+                      (animated, merged palette, ≤255 colours) + stitchCompositePng.
   jwt.ts              HS256 sign/verify (Node crypto, no dep) for sessions + reset.
   password.ts         scrypt hash/verify.
   user-store.ts       DDB wrapper for accounts (register via TransactWriteItems,
@@ -148,32 +194,35 @@ ingest/               Shared ingest logic
   gif-validate.ts     GIF89a header check, 16×16, ≤16 frames, DRAWBANG ext
   storage.ts          Storage interface + FsStorage (dev/tests)
   s3-storage.ts       S3Storage (Lambda + daily builder)
-  canvas-store.ts     DDB wrapper (claimTile, publishTile, getTiles,
-                      cooldownRemaining) + MemoryCanvasStore for dev/tests.
+  mural-store.ts      DDB wrapper (claimTile, publishTile, getTiles,
+                      cooldownRemaining) + MemoryMuralStore for dev/tests.
                       All multi-row writes via TransactWriteItems. Keyed on user_id.
-  canvas-handler.ts   POST /canvas/claim (auth via cfg.auth) + GET /canvas/{id}/state.
+  mural-handler.ts    POST /mural/claim (auth via cfg.auth) + GET /mural/{id}/state.
+  murals-sidecar.ts   public/tiles/<id>.murals.json — a tile's mural memberships.
   user-stats-store.ts DDB wrapper for per-account streak + total counters
                       (#115/#116) + MemoryUserStatsStore for dev/tests.
   user-stats-handler.ts GET /users/{user_id}/stats — fresh counters + badges.
-  lambda.ts           API Gateway v2 entry point — routes /ingest,
-                      /canvas/claim, /canvas/{id}/state, /users/{user_id}/stats,
-                      /auth/*. Verifies the Bearer JWT for /ingest + /canvas/claim.
-  dev-server.ts       Node HTTP shim for `npm run ingest:dev` — MemoryCanvasStore
+  lambda.ts           API Gateway v2 entry point — routes /ingest, /canvas,
+                      /mural/claim, /mural/{id}/state, /users/{user_id}/stats,
+                      /auth/*. Verifies the Bearer JWT for /ingest + /canvas + /mural/claim.
+  dev-server.ts       Node HTTP shim for `npm run ingest:dev` — MemoryMuralStore
                       + MemoryUserStore + ConsoleEmailSender (reset link logged).
 
 builder/              Daily batch job (incremental, day-partitioned)
-  build.ts            Sweeps inbox/, publishes to public/, renders HTML.
-                      Invokes canvas-pass.ts on every run.
-  canvas-pass.ts      Weekly canvas rollover + lock + registry +
-                      current-canvas.json state pointer + canvas/archive page
+  build.ts            Sweeps inbox/ (tiles → public/tiles/ + /t pages; canvas
+                      records → /c pages + composites + rolling canvas index),
+                      renders galleries/feed/profiles. Invokes mural-pass.ts on
+                      every run.
+  mural-pass.ts       Weekly mural rollover + lock + registry +
+                      current-mural.json state pointer + mural/archive page
                       rendering. Idempotent; self-heals via ingest's lazy
                       manifest creation if a Monday builder run fails.
   templates/*.ts      Compiled render functions (tagged-literal HTML).
-                      Includes products.ts which renders /products.html
-                      from DynamoDB counters joined with config/merch.json,
-                      canvas.ts (single-canvas page; active hydrates from
-                      /canvas/{id}/state, locked is frozen), and
-                      canvases-archive.ts.
+                      tile-page.ts (canonical single-gif page), canvas-page.ts
+                      (multi-tile grid), products.ts (/products from DynamoDB
+                      counters joined with config/merch.json), mural.ts
+                      (single-mural page; active hydrates from /mural/{id}/state,
+                      locked is frozen), and murals-archive.ts.
 
 infra/aws/
   template.yaml       SAM: Lambda + HTTP API + S3 bucket + IAM
@@ -198,13 +247,21 @@ legacy/               Archived Ruby app; read-only reference, never imported
 
 ## Critical invariants — don't break these
 
-- **Drawing id is content-addressed on gif bytes alone.**
-  `id = hex(sha256(gif_bytes))`. Same drawing → same id, regardless of PoW.
+- **Tile id is content-addressed on gif bytes alone.**
+  `tile_id = hex(sha256(gif_bytes))`. Same gif → same id, regardless of PoW.
   PoW stays required but lives in metadata as `pow = hex(sha256(gif ‖ baseline ‖ nonce))`.
+  A **canvas id** is content-addressed on its manifest: `canvas_id =
+  sha256(canonicalCanvasString({cols, rows, tiles}))` (`config/canvas.ts`).
+- **Single-gif page is `/t/<id>`, not `/d/<id>`.** The drawing page was retired
+  in the tile unification; `/d/<id>` 301s to `/t/<id>` and gifs live at
+  `public/tiles/<id>.gif` (legacy `/drawings/<id>.gif` rewrites to it). Clean
+  cutover — old `/d` HTML + `/drawings/` assets were left as orphans, not
+  backfilled.
 - **Identity comes from the verified session JWT, never the request body.**
   The route (`ingest/lambda.ts` / `ingest/dev-server.ts`) verifies the Bearer
-  JWT and passes `{ user_id, username }` into `handleIngest` / `handleCanvasClaim`
-  via `cfg.auth`. A missing/invalid token is a 401 before the handler runs.
+  JWT and passes `{ user_id, username }` into `handleIngest` /
+  `handleCanvasPublish` / `handleMuralClaim` via `cfg.auth`. A missing/invalid
+  token is a 401 before the handler runs.
 - **GIF format is fixed.** 16×16, ≤16 frames, 5 FPS (200 ms delay), GCT has 32
   entries: slots 0..15 = active palette RGB, slot 16 = transparent, 17..31 = 0.
 - **DRAWBANG Application Extension** (in `src/editor/gif.ts`): app identifier
@@ -218,30 +275,34 @@ legacy/               Archived Ruby app; read-only reference, never imported
   solvers racing on the same baseline must both succeed. `baselineHistory`
   lives at module scope in `ingest/lambda.ts` — best-effort, per-container.
 - **`public/state/last-publish.json`** is written only by the ingest handler.
-- **Canvas tile state lives in DynamoDB**, never in S3. S3 has no CAS, so
+- **Mural tile state lives in DynamoDB**, never in S3. S3 has no CAS, so
   two concurrent publishes that read-modify-write a `state.json` will
-  clobber. `drawbang-canvas-tiles` (claims/publishes) and
-  `drawbang-canvas-cooldowns` (per-user_id-per-canvas) are the sole source
-  of truth; the canvas page hydrates from `GET /canvas/{id}/state`.
+  clobber. `drawbang-mural-tiles` (claims/publishes) and
+  `drawbang-mural-cooldowns` (per-user_id-per-mural) are the sole source
+  of truth; the mural page hydrates from `GET /mural/{id}/state`.
 - **Soft-claim TTL is enforced by the conditional write**, not a background
   job. The tile row stores `claim_expires_at` (epoch); every claim/publish
   conditional compares it inline against `:now`. DDB TTL (`ttl_epoch`) is
-  for housekeeping after canvases close, not for correctness.
+  for housekeeping after murals close, not for correctness.
 - **Claim PoW exists**. Per-action PoW (not identity) is what bounds tile
   takeover, since account creation is cheap (no signup verification).
-  `POST /canvas/claim` requires a PoW over
-  `claim:<canvas_id>:<x>:<y>:<user_id>:<baseline>:<nonce>` at the same
-  difficulty curve as publish PoW, per-canvas baseline.
-- **`handleIngest` runs canvas_claim BEFORE the idempotency short-circuit.**
-  Drawing ids are content-addressed (`sha256(gif_bytes)`), so the same gif
-  can legitimately appear in multiple canvases. The early-return on
-  `exists(publishedKey)` is gated on `!canvas_claim` — the canvas branch
-  always proceeds to update DDB + the canvases sidecar + drawing page.
-- **Drawing's canvas memberships live in `public/drawings/<id>.canvases.json`**,
+  `POST /mural/claim` requires a PoW over
+  `claim:<mural_id>:<x>:<y>:<user_id>:<baseline>:<nonce>` at the same
+  difficulty curve as publish PoW, per-mural baseline.
+- **`handleIngest` runs mural_claim BEFORE the idempotency short-circuit.**
+  Tile ids are content-addressed (`sha256(gif_bytes)`), so the same gif
+  can legitimately appear in multiple murals. The early-return on
+  `exists(publishedKey)` is gated on `!mural_claim` — the mural branch
+  always proceeds to update DDB + the murals sidecar + tile page.
+- **A tile's mural memberships live in `public/tiles/<id>.murals.json`**,
   not in the immutable inbox/day metadata. Each entry stores `claimed_by`
-  (`user_id`) + `claimed_by_username`; the drawing page links the claimer to
+  (`user_id`) + `claimed_by_username`; the tile page links the claimer to
   `/u/<username>`. (With one identity per request the claimer equals the
   publishing author.)
+- **Canvas publish runs ONE PoW over the whole manifest**, not per tile, and
+  is idempotent on `canvas_id` (re-publishing the same manifest → 200). Tiles
+  are deduped to `public/tiles/<tile_id>.gif`; the same tile can appear in many
+  canvases / murals.
 
 ## Commands
 
@@ -268,10 +329,10 @@ the filesystem:
 2. Draw, then **Publish** (requires a session; otherwise you're sent to
    `/login`). The ingest server writes to `./dev-bucket/`, runs `build()`
    inline, and logs `[builder] rebuilt in <Xms>`.
-3. Visit `/gallery`, `/d/<id>`, or `/u/<username>` — the dev-bucket Vite
-   plugin (`vite/plugins/dev-bucket.ts`) serves them from
-   `./dev-bucket/public/` using the same clean-URL rewrites as the prod
-   CloudFront Function.
+3. Visit `/gallery`, `/c/<id>`, `/t/<id>`, or `/u/<username>` — the dev-bucket
+   Vite plugin (`vite/plugins/dev-bucket.ts`) serves them from
+   `./dev-bucket/public/` using the same clean-URL rewrites (and `/d`→`/t`
+   redirect) as the prod CloudFront Function.
 4. **Forgot password**: `/reset` → the ingest dev server logs the reset link to
    its console (`[email] password reset for …`). Open it to set a new password.
 
@@ -288,17 +349,17 @@ finish in <2s — iterate with: `node --test --import tsx 'test/gif.test.ts' 'te
 Editor (build-time):
 - `VITE_INGEST_URL` — API Gateway URL for the ingest Lambda.
 - `VITE_STATE_URL` — `${cloudfront-domain}/state/last-publish.json`.
-- `VITE_DRAWING_BASE_URL` — `${cloudfront-domain}/drawings`.
+- `VITE_DRAWING_BASE_URL` — `${cloudfront-domain}/tiles` (tile/fork/merch gif source).
 
 Lambda (runtime, set via SAM):
 - `DRAWBANG_BUCKET` — S3 bucket name.
 - `PUBLIC_BASE_URL` — `https://${cloudfront-domain}`. Goes into `share_url`
   and the password-reset link.
-- `REPO_URL` — for the footer link on the synchronously-rendered drawing page.
-- `DRAWBANG_CANVAS_TILES_TABLE` — DynamoDB table for tile claims (default
-  `drawbang-canvas-tiles`).
-- `DRAWBANG_CANVAS_COOLDOWNS_TABLE` — DynamoDB table for per-account-
-  per-canvas publish cooldowns (default `drawbang-canvas-cooldowns`).
+- `REPO_URL` — for the footer link on the synchronously-rendered tile/canvas pages.
+- `DRAWBANG_MURAL_TILES_TABLE` — DynamoDB table for mural tile claims (default
+  `drawbang-mural-tiles`).
+- `DRAWBANG_MURAL_COOLDOWNS_TABLE` — DynamoDB table for per-account-
+  per-mural publish cooldowns (default `drawbang-mural-cooldowns`).
 - `DRAWBANG_USER_STATS_TABLE` — DynamoDB table for per-account streak +
   total counters (#115/#116, default `drawbang-user-stats`).
 - `DRAWBANG_USERS_TABLE` — accounts table (default `drawbang-users`).
@@ -334,8 +395,8 @@ One-time setup:
    `STRIPE_WEBHOOK_SECRET`, `JWT_SECRET` (required for accounts), and
    `SES_FROM_ADDRESS` (optional, for reset emails).
 3. First deploy happens automatically on push to `master`. SAM creates the S3
-   bucket, Lambda, HTTP API, DynamoDB tables (orders, canvas, user-stats,
-   users, usernames), and IAM role.
+   bucket, Lambda, HTTP API, DynamoDB tables (orders, mural tiles + cooldowns,
+   user-stats, users, usernames), and IAM role.
 4. **SES setup** (for password reset): verify a sender identity (domain or
    address) in SES, set `SES_FROM_ADDRESS` to it, and — if the account is in
    the SES sandbox — request production access so resets reach arbitrary
@@ -366,7 +427,7 @@ variant, status strip, banner, picker, page title style, link hover, etc. —
 Specifically:
 - Cross-surface notifications: `src/layout/flash.ts` (Vite consumers) +
   `static/flash.js` (`window.drawbangFlash`, loaded as a plain script by
-  builder-rendered pages, e.g. `/d/<id>`). Styles live in `chrome.css` so
+  builder-rendered pages, e.g. `/t/<id>`). Styles live in `chrome.css` so
   every surface picks them up via the existing import chain.
 - Cross-surface chrome (header, footer, nav, identity link, hamburger
   toggle): `src/layout/chrome.ts` + the `<!--CHROME:HEADER-->` /
