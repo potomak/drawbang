@@ -64,15 +64,20 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           SES_FROM_ADDRESS: ${{ secrets.SES_FROM_ADDRESS }}
         run: |
-          sam deploy --no-fail-on-empty-changeset \
-            --parameter-overrides \
-              "DomainName=pixel.drawbang.com" \
-              "PrintifyApiToken=${PRINTIFY_API_TOKEN}" \
-              "PrintifyShopId=${PRINTIFY_SHOP_ID}" \
-              "StripeSecretKey=${STRIPE_SECRET_KEY}" \
-              "StripeWebhookSecret=${STRIPE_WEBHOOK_SECRET}" \
-              "JwtSecret=${JWT_SECRET}" \
-              "SesFromAddress=${SES_FROM_ADDRESS}"
+          # sam rejects an empty `Key=` override, so only pass params whose
+          # value is non-empty. Optional secrets (SES, Printify, Stripe) that
+          # aren't configured yet fall back to the template's "" default.
+          PARAMS=("DomainName=pixel.drawbang.com")
+          for kv in \
+            "PrintifyApiToken=${PRINTIFY_API_TOKEN}" \
+            "PrintifyShopId=${PRINTIFY_SHOP_ID}" \
+            "StripeSecretKey=${STRIPE_SECRET_KEY}" \
+            "StripeWebhookSecret=${STRIPE_WEBHOOK_SECRET}" \
+            "JwtSecret=${JWT_SECRET}" \
+            "SesFromAddress=${SES_FROM_ADDRESS}"; do
+            [ -n "${kv#*=}" ] && PARAMS+=("$kv")
+          done
+          sam deploy --no-fail-on-empty-changeset --parameter-overrides "${PARAMS[@]}"
       - id: outputs
         name: Export stack outputs
         run: |
