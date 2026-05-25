@@ -40,8 +40,18 @@ export class PixelCanvas {
   }
 
   draw(bitmap: Bitmap, palette: readonly RGB[], onion?: Bitmap | null): void {
-    this.clear();
     const ps = this.settings.pixelSize;
+    // Size the backing canvas to the bitmap. The editor always draws a 16×16
+    // cell (no-op resize), but the merch preview reuses this to render a
+    // larger canvas composite (cols*16 × rows*16) — without resizing, anything
+    // past the fixed 16×16 buffer was clipped, showing only the first tile.
+    const w = bitmap.width * ps;
+    const h = bitmap.height * ps;
+    if (this.el.width !== w || this.el.height !== h) {
+      this.el.width = w;
+      this.el.height = h;
+    }
+    this.clear();
     const showMarkers = this.settings.showGrid;
     const dot = Math.max(1, Math.floor(ps / 6));
     const dotOffset = Math.floor((ps - dot) / 2);

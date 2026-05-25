@@ -423,6 +423,9 @@ dialog form menu button:hover { border-color: var(--border-strong); }
   display: block;
   width: 100%;
   height: 100%;
+  /* contain so a non-square canvas composite letterboxes in the square wrap
+     instead of stretching. */
+  object-fit: contain;
   image-rendering: pixelated;
   background: var(--canvas-bg);
 }
@@ -441,7 +444,7 @@ dialog form menu button:hover { border-color: var(--border-strong); }
   border-color: var(--accent);
   box-shadow: inset 0 0 0 2px var(--accent);
 }
-.mc-frame-thumb canvas { width: 100% !important; height: 100% !important; image-rendering: pixelated; display: block; }
+.mc-frame-thumb canvas { width: 100% !important; height: 100% !important; object-fit: contain; image-rendering: pixelated; display: block; }
 .mc-frame-thumb span {
   position: absolute;
   left: 2px; bottom: 0;
