@@ -2,6 +2,7 @@ import { Bitmap } from "./editor/bitmap.js";
 import { PixelCanvas } from "./editor/canvas.js";
 import { decodeGif } from "./editor/gif.js";
 import { activePaletteToRgb, DEFAULT_ACTIVE_PALETTE } from "./editor/palette.js";
+import { buildCanvasComposite } from "./canvas-composite.js";
 import {
   trackBeginCheckout,
   trackMerchColorClick,
@@ -99,6 +100,10 @@ const cardPreviews: CardPreview[] = [];
 let frames: Bitmap[] = [];
 let activePalette: Uint8Array = new Uint8Array(DEFAULT_ACTIVE_PALETTE);
 let drawingId: string | null = null;
+// Set when the picker is launched with ?c=<canvas_id>; null for a single tile
+// (?d=). Drives the checkout body field (canvas_id vs drawing_id) and the URL
+// param used when syncing the selected frame.
+let canvasId: string | null = null;
 let currentFrame = 0;
 let selectedProduct: MerchProduct | null = null;
 // Size and color are independent axes; the picked variant is whichever row
@@ -190,7 +195,8 @@ function selectFrame(idx: number): void {
   repaintCardPreviews();
   if (drawingId) {
     const url = new URL(location.href);
-    url.searchParams.set("d", drawingId);
+    if (canvasId) url.searchParams.set("c", canvasId);
+    else url.searchParams.set("d", drawingId);
     url.searchParams.set("frame", String(currentFrame));
     history.replaceState(null, "", url.toString());
   }
@@ -510,6 +516,34 @@ async function fetchDrawing(id: string): Promise<Uint8Array> {
   return new Uint8Array(buf);
 }
 
+interface CanvasManifestDoc {
+  cols: number;
+  rows: number;
+  tiles: (string | null)[];
+}
+
+// Fetches a canvas manifest + its tile gifs and flattens them into the same
+// square Bitmap stack the server uses for the print asset (buildCanvasComposite
+// is shared) — so the on-screen preview matches what Printify produces.
+async function fetchCanvasComposite(
+  id: string,
+): Promise<{ frames: Bitmap[]; activePalette: Uint8Array }> {
+  const res = await fetch(`/c/${id}.json`, { cache: "no-store" });
+  if (res.status === 404) throw new DrawingNotFoundError();
+  if (!res.ok) throw new Error(`canvas fetch failed: ${res.status}`);
+  const manifest = (await res.json()) as CanvasManifestDoc;
+  const tiles: { x: number; y: number; gif: Uint8Array }[] = [];
+  for (let y = 0; y < manifest.rows; y++) {
+    for (let x = 0; x < manifest.cols; x++) {
+      const tileId = manifest.tiles[y * manifest.cols + x];
+      if (!tileId) continue;
+      tiles.push({ x, y, gif: await fetchDrawing(tileId) });
+    }
+  }
+  const composite = buildCanvasComposite(tiles, manifest.cols, manifest.rows);
+  return { frames: composite.frames, activePalette: composite.activePalette };
+}
+
 async function handleCheckout(): Promise<void> {
   const variant = currentVariant();
   if (!drawingId || !selectedProduct || !variant || checkoutInFlight) return;
@@ -545,12 +579,13 @@ async function handleCheckout(): Promise<void> {
   try {
     // {ORDER_ID} is substituted server-side before redirect to Stripe.
     const successUrl = `${location.origin}/merch/order/{ORDER_ID}`;
-    const cancelUrl = `${location.origin}/merch?d=${encodeURIComponent(drawingId)}&frame=${currentFrame}`;
+    const srcParam = canvasId ? `c=${encodeURIComponent(canvasId)}` : `d=${encodeURIComponent(drawingId)}`;
+    const cancelUrl = `${location.origin}/merch?${srcParam}&frame=${currentFrame}`;
     const res = await fetch(`${API_BASE}/merch/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        drawing_id: drawingId,
+        ...(canvasId ? { canvas_id: canvasId } : { drawing_id: drawingId }),
         frame: currentFrame,
         product_id: selectedProduct.id,
         variant_id: variant.id,
@@ -576,12 +611,14 @@ async function handleCheckout(): Promise<void> {
 
 async function boot(): Promise<void> {
   const params = new URL(location.href).searchParams;
-  const id = params.get("d");
+  const tileParam = params.get("d");
+  const canvasParam = params.get("c");
   const frameParam = params.get("frame");
   const productParam = params.get("product");
-  // No drawing param at all → /merch has no useful state to render; send the
-  // user to the catalog. Malformed-shape id → treat as a 404 (someone typing
-  // a junk URL).
+  // The print source is EITHER a single tile (?d=) or a multi-tile canvas
+  // (?c=). Neither → /merch has no useful state; send the user to the catalog.
+  // Malformed-shape id → 404 (someone typing a junk URL).
+  const id = canvasParam ?? tileParam;
   if (!id) {
     location.replace("/products");
     return;
@@ -591,15 +628,26 @@ async function boot(): Promise<void> {
     return;
   }
   drawingId = id;
-  backToDrawingEl.href = `/t/${drawingId}`;
+  if (canvasParam) {
+    canvasId = id;
+    backToDrawingEl.href = `/c/${id}`;
+  } else {
+    backToDrawingEl.href = `/t/${id}`;
+  }
   backToDrawingEl.hidden = false;
 
   setStatus("loading drawing…");
   try {
-    const bytes = await fetchDrawing(id);
-    const decoded = decodeGif(bytes);
-    frames = decoded.frames;
-    if (decoded.activePalette) activePalette = decoded.activePalette;
+    if (canvasParam) {
+      const composite = await fetchCanvasComposite(id);
+      frames = composite.frames;
+      activePalette = composite.activePalette;
+    } else {
+      const bytes = await fetchDrawing(id);
+      const decoded = decodeGif(bytes);
+      frames = decoded.frames;
+      if (decoded.activePalette) activePalette = decoded.activePalette;
+    }
   } catch (err) {
     if (err instanceof DrawingNotFoundError) {
       location.replace("/404");

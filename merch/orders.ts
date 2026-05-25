@@ -21,7 +21,13 @@ export type OrderStatus =
 
 export interface Order {
   order_id: string;
+  // The 64-hex content id of the print source. For a single tile this is the
+  // tile_id; for a multi-tile canvas it equals canvas_id (set below) so the
+  // existing code paths keyed on drawing_id keep working.
   drawing_id: string;
+  // Present only for canvas orders — signals dispatch to rebuild the square
+  // composite from the canvas manifest instead of decoding a single tile gif.
+  canvas_id?: string;
   frame: number;
   product_id: string;
   variant_id: number;

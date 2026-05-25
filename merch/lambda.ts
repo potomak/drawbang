@@ -119,6 +119,7 @@ export async function handle(
 
 interface CheckoutBody {
   drawing_id?: unknown;
+  canvas_id?: unknown;
   frame?: unknown;
   product_id?: unknown;
   variant_id?: unknown;
@@ -139,9 +140,18 @@ async function checkout(
     return json(400, { error: "bad json body" });
   }
 
-  if (typeof body.drawing_id !== "string" || !/^[0-9a-f]{64}$/.test(body.drawing_id)) {
-    return json(400, { error: "bad drawing_id" });
+  // The print source is EITHER a single tile (drawing_id) or a multi-tile
+  // canvas (canvas_id) — exactly one. A canvas order carries canvas_id and
+  // mirrors it into drawing_id so the order/counter/title code paths keyed on
+  // drawing_id keep working; dispatch keys off canvas_id to rebuild the
+  // composite.
+  const hasDrawing = typeof body.drawing_id === "string" && /^[0-9a-f]{64}$/.test(body.drawing_id);
+  const hasCanvas = typeof body.canvas_id === "string" && /^[0-9a-f]{64}$/.test(body.canvas_id);
+  if (hasDrawing === hasCanvas) {
+    return json(400, { error: "provide exactly one of drawing_id or canvas_id" });
   }
+  const canvasId = hasCanvas ? (body.canvas_id as string) : undefined;
+  const sourceId = canvasId ?? (body.drawing_id as string);
   if (typeof body.frame !== "number" || !Number.isInteger(body.frame) || body.frame < 0) {
     return json(400, { error: "bad frame" });
   }
@@ -179,7 +189,7 @@ async function checkout(
   const now = deps.now();
   const order: Order = {
     order_id: orderId,
-    drawing_id: body.drawing_id,
+    drawing_id: sourceId,
     frame: body.frame,
     product_id: product.id,
     variant_id: variant.id,
@@ -188,6 +198,7 @@ async function checkout(
     status: "pending" as OrderStatus,
     created_at: now,
     updated_at: now,
+    ...(canvasId ? { canvas_id: canvasId } : {}),
     ...(placement ? { placement } : {}),
     ...(customerEmail ? { customer_email: customerEmail } : {}),
   };
@@ -404,6 +415,10 @@ function bootDeps(): MerchHandlerDeps {
       fetchDrawing: async (drawingId) =>
         (await s3.getBytes(`public/tiles/${drawingId}.gif`)) ??
         (await s3.getBytes(`public/drawings/${drawingId}.gif`)),
+      fetchCanvasManifest: (canvasId) =>
+        s3.getJSON<{ cols: number; rows: number; tiles: (string | null)[] }>(
+          `public/c/${canvasId}.json`,
+        ),
       brandLogo,
       productCounters,
     });

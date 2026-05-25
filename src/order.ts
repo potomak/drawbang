@@ -3,6 +3,7 @@ import { trackOrderStatusView, trackPurchase } from "./analytics.js";
 interface OrderView {
   order_id?: string;
   drawing_id?: string;
+  canvas_id?: string;
   frame?: number;
   product_id?: string;
   variant_id?: number;
@@ -90,8 +91,15 @@ function renderRetry(msg: string, onRetry: () => void): void {
 function renderOrder(order: OrderView): void {
   const status = order.status ?? "unknown";
   const copy = STATUS_COPY[status] ?? `Status: ${status}.`;
-  const drawingImg = order.drawing_id
-    ? `<img class="order-thumb" src="${DRAWING_BASE_URL}/${escapeHtml(order.drawing_id)}.gif" alt="drawing ${escapeHtml(order.drawing_id.slice(0, 8))}" width="128" height="128" />`
+  // Canvas orders preview the composite gif (/c/<id>.gif); single tiles use
+  // the tile gif (/tiles/<id>.gif).
+  const thumbSrc = order.canvas_id
+    ? `/c/${escapeHtml(order.canvas_id)}.gif`
+    : order.drawing_id
+      ? `${DRAWING_BASE_URL}/${escapeHtml(order.drawing_id)}.gif`
+      : "";
+  const drawingImg = thumbSrc
+    ? `<img class="order-thumb" src="${thumbSrc}" alt="${escapeHtml((order.canvas_id ?? order.drawing_id ?? "").slice(0, 8))}" width="128" height="128" />`
     : "";
   const lines: string[] = [];
   if (order.order_id) lines.push(`<dt>order</dt><dd><code>${escapeHtml(order.order_id)}</code></dd>`);

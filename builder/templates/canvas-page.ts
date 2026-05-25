@@ -81,6 +81,7 @@ ${cells.join("\n")}
       </dl>
       <div class="dr-actions">
         <div class="dr-action-row">
+          <a class="btn primary" id="cn-make-merch" href="/merch?c=${esc(v.canvas_id)}&amp;frame=0" rel="nofollow noreferrer">Make merch</a>
           <a class="btn" id="cn-fork" href="/?fork=${esc(v.canvas_id)}">Fork &amp; edit</a>
           <button class="btn" id="cn-copy-link" type="button">Copy link</button>
         </div>

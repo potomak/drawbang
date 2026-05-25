@@ -107,6 +107,13 @@ const BUILDER_ROUTES: BuilderRoute[] = [
   },
   {
     test: (uri) => {
+      const m = uri.match(/^\/c\/([0-9a-f]{64}\.json)$/);
+      return m ? `c/${m[1]}` : null;
+    },
+    contentType: "application/json; charset=utf-8",
+  },
+  {
+    test: (uri) => {
       const m = uri.match(/^\/c\/([0-9a-f]{64}(?:-large)?\.png)$/);
       return m ? `c/${m[1]}` : null;
     },

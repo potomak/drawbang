@@ -80,6 +80,7 @@ interface StubBehavior {
   findOrderByExternalId?: PrintifyClient["findOrderByExternalId"];
   transition?: OrdersStore["transition"];
   fetchDrawing?: PlacePrintifyOrderDeps["fetchDrawing"];
+  fetchCanvasManifest?: PlacePrintifyOrderDeps["fetchCanvasManifest"];
   // When set, dispatch is built with a ProductCountersStore stub that
   // delegates to this fn. Otherwise deps.productCounters is left
   // undefined, mirroring tests/non-prod environments where the table
@@ -153,6 +154,7 @@ function buildDeps(stub: StubBehavior = {}): {
     catalog: FIXTURE_CATALOG,
     publicBaseUrl: "https://drawbang.example",
     fetchDrawing: stub.fetchDrawing ?? (async () => makeGif()),
+    fetchCanvasManifest: stub.fetchCanvasManifest ?? (async () => null),
     now: () => "2026-05-11T09:00:00.000Z",
   };
 
@@ -243,6 +245,45 @@ test("happy path: upload -> create product -> create order -> submitted", async 
     assert.equal(t.id, "ord_42");
     assert.equal(t.expectedStatus, "paid");
   }
+});
+
+test("canvas order: builds composite from manifest, /c/ source url, skips counter", async () => {
+  const canvasId = "a".repeat(64);
+  const tileA = "1".repeat(64);
+  const tileB = "2".repeat(64);
+  const fetchedTiles: string[] = [];
+  const { deps, printifyCalls, counterCalls } = buildDeps({
+    order: makeOrder({ canvas_id: canvasId, drawing_id: canvasId }),
+    transition: transitionReturnsOrder(),
+    incrementOnSubmit: async () => {},
+    fetchCanvasManifest: async (id) => {
+      assert.equal(id, canvasId);
+      return { cols: 2, rows: 1, tiles: [tileA, tileB] };
+    },
+    fetchDrawing: async (id) => {
+      fetchedTiles.push(id);
+      return makeGif();
+    },
+  });
+
+  await placePrintifyOrder("ord_42", deps);
+
+  // Each filled tile is fetched and stitched.
+  assert.deepEqual(fetchedTiles.sort(), [tileA, tileB].sort());
+
+  // Image filename + product copy mark this as a canvas; a 2×1 canvas
+  // letterboxes into a 2×2 (32×32) square composite.
+  assert.equal(printifyCalls.uploadImage.length, 1);
+  assert.match(printifyCalls.uploadImage[0].filename, /^drawbang-canvas-a{64}-f0\.svg$/);
+  assert.equal(printifyCalls.createProduct.length, 1);
+  assert.match(printifyCalls.createProduct[0].description, /32x32 pixel art/);
+  assert.match(
+    printifyCalls.createProduct[0].description,
+    new RegExp(`https://drawbang\\.example/c/${canvasId}`),
+  );
+
+  // v1: canvas orders are not counted in the /products gallery.
+  assert.equal(counterCalls.incrementOnSubmit.length, 0);
 });
 
 test("idempotent: prior printify_product_id skips upload + createProduct", async () => {

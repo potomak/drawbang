@@ -300,6 +300,56 @@ test("POST /merch/checkout: happy path persists, calls Stripe, transitions, retu
   assert.deepEqual(t.patch, { stripe_session_id: "cs_test_happy" });
 });
 
+test("POST /merch/checkout: 400 when both drawing_id and canvas_id are provided", async () => {
+  const { deps } = buildDeps();
+  const res = await handle(
+    event("POST /merch/checkout", {
+      body: {
+        drawing_id: "a".repeat(64),
+        canvas_id: "b".repeat(64),
+        frame: 0,
+        product_id: "tee",
+        variant_id: 18396,
+        success_url: "https://drawbang.example/m/success",
+        cancel_url: "https://drawbang.example/m/cancel",
+      },
+    }),
+    deps,
+  );
+  assert.equal(statusOf(res), 400);
+  assert.match(JSON.stringify(parseJson(res)), /exactly one/);
+});
+
+test("POST /merch/checkout: canvas_id order mirrors into drawing_id + persists canvas_id", async () => {
+  const { deps, ordersCalls } = buildDeps({
+    stripeStub: {
+      createCheckoutSession: async () => ({
+        id: "cs_test_canvas",
+        url: "https://checkout.stripe.example/cs_test_canvas",
+      }),
+    },
+  });
+  const canvasId = "c".repeat(64);
+  const res = await handle(
+    event("POST /merch/checkout", {
+      body: {
+        canvas_id: canvasId,
+        frame: 0,
+        product_id: "tee",
+        variant_id: 18396,
+        success_url: "https://drawbang.example/m/success",
+        cancel_url: "https://drawbang.example/m/cancel",
+      },
+    }),
+    deps,
+  );
+  assert.equal(statusOf(res), 200);
+  assert.equal(ordersCalls.createOrder.length, 1);
+  const created = ordersCalls.createOrder[0];
+  assert.equal(created.canvas_id, canvasId);
+  assert.equal(created.drawing_id, canvasId); // mirrored so downstream code paths work
+});
+
 test("POST /merch/checkout: substitutes {ORDER_ID} in success_url", async () => {
   const { deps, stripeCalls } = buildDeps();
   const res = await handle(

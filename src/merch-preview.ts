@@ -1,12 +1,11 @@
-import { WIDTH, HEIGHT } from "../config/constants.js";
 import { DEFAULT_PLACEMENT, expandPlacement, type Placement } from "../merch/placement.js";
 import { Bitmap, TRANSPARENT } from "./editor/bitmap.js";
 import type { RGB } from "./editor/palette.js";
 
-// Composites the user's 16×16 drawing into a base product mockup PNG. Used
-// on /merch?d=<id> to give each product card a live preview of how the
-// selected frame will look on that product. One-shot — caller is expected
-// to repaint when the active frame changes.
+// Composites the user's drawing (a 16×16 tile or an N×N canvas composite)
+// into a base product mockup PNG. Used on /merch?d=<id> and /merch?c=<id> to
+// give each product card a live preview of how the selected frame will look on
+// that product. One-shot — caller repaints when the active frame changes.
 
 export interface PlaceholderRect {
   x: number;
@@ -82,9 +81,10 @@ export function paintMockupPreview(input: PaintMockupInput): void {
   }
 }
 
-// Pixel-perfect raster of one Bitmap into a canvas of arbitrary dims.
-// Each source pixel becomes a rect of size (outW/16, outH/16) — caller is
-// expected to size the offscreen so the math comes out clean.
+// Pixel-perfect raster of one Bitmap into a canvas of arbitrary dims. Keys off
+// the bitmap's own width/height, so it handles a 16×16 tile and an N×N canvas
+// composite alike — each source pixel becomes a rect of size
+// (outW/frame.width, outH/frame.height); caller sizes the offscreen square.
 function drawBitmapInto(
   ctx: CanvasRenderingContext2D,
   frame: Bitmap,
@@ -94,10 +94,10 @@ function drawBitmapInto(
 ): void {
   ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, outW, outH);
-  const cellW = outW / WIDTH;
-  const cellH = outH / HEIGHT;
-  for (let y = 0; y < HEIGHT; y++) {
-    for (let x = 0; x < WIDTH; x++) {
+  const cellW = outW / frame.width;
+  const cellH = outH / frame.height;
+  for (let y = 0; y < frame.height; y++) {
+    for (let x = 0; x < frame.width; x++) {
       const v = frame.get(x, y);
       if (v === TRANSPARENT) continue;
       const [r, g, b] = palette[v];
