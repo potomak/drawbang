@@ -59,13 +59,6 @@ const BUILDER_ROUTES: BuilderRoute[] = [
   },
   {
     test: (uri) => {
-      const m = uri.match(/^\/d\/([^/]+)$/);
-      return m && SIXTY_FOUR_HEX.test(m[1]) ? `d/${m[1]}.html` : null;
-    },
-    contentType: "text/html; charset=utf-8",
-  },
-  {
-    test: (uri) => {
       const m = uri.match(/^\/u\/([a-z0-9_-]{3,20})$/);
       return m ? `u/${m[1]}.html` : null;
     },
@@ -87,10 +80,12 @@ const BUILDER_ROUTES: BuilderRoute[] = [
     },
     contentType: "text/html; charset=utf-8",
   },
+  // Legacy /drawings/<id>.gif assets now live under /tiles/ (the cutover to
+  // the unified tile model). Mirror the CloudFront rewrite.
   {
     test: (uri) => {
-      const m = uri.match(/^\/drawings\/([^/]+\.gif)$/);
-      return m ? `drawings/${m[1]}` : null;
+      const m = uri.match(/^\/drawings\/([0-9a-f]{64}(?:-large)?\.gif)$/);
+      return m ? `tiles/${m[1]}` : null;
     },
     contentType: "image/gif",
   },
@@ -170,6 +165,16 @@ export function devBucketPlugin(opts: DevBucketPluginOptions = {}): Plugin {
       server.middlewares.use(async (req, res, next) => {
         const url = req.url ?? "";
         const [pathOnly, query = ""] = url.split("?", 2);
+
+        // 0. Legacy /d/<id> drawing pages are retired — 301 to the unified
+        // tile page /t/<id> (mirrors the prod CloudFront function).
+        const dMatch = pathOnly.match(/^\/d\/([0-9a-f]{64})$/);
+        if (dMatch) {
+          res.statusCode = 301;
+          res.setHeader("Location", `/t/${dMatch[1]}`);
+          res.end();
+          return;
+        }
 
         // 1. Vite-entry clean URLs: rewrite + fall through to Vite.
         const entryRewrite = viteEntryRewrite(pathOnly);

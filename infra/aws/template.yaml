@@ -135,21 +135,36 @@ Resources:
         function handler(event) {
           var req = event.request;
           var uri = req.uri;
-          // /d/<64hex>                 -> /d/<64hex>.html
+          // /t/<64hex>                 -> /t/<64hex>.html  (canonical tile page)
+          // /c/<64hex>                 -> /c/<64hex>.html  (canvas page)
           // /days/YYYY-MM-DD/p/N       -> /days/YYYY-MM-DD/p/N.html
           // /gallery                   -> /gallery.html
           // /merch                     -> /merch.html  (catalog picker SPA)
           // /merch/order/<uuid>        -> /order.html  (order status SPA)
           // /u/<username>              -> /u/<username>.html  (per-account profile)
-          // /share                      -> /share.html  (Reddit share SPA)
           // /products                   -> /products.html  (popular merch gallery)
           // /products/p/N               -> /products/p/N.html
           // /login /signup /reset /account -> *.html  (auth SPAs)
-          if (/^\/d\/[0-9a-f]{64}$/.test(uri)) {
+          //
+          // Legacy /d/<id> drawing pages are retired: 301 to the unified tile
+          // page /t/<id> (drawing id == tile id == sha256(gif)). Legacy
+          // /drawings/<id>.gif assets are rewritten to /tiles/<id>.gif.
+          var dMatch = uri.match(/^\/d\/([0-9a-f]{64})$/);
+          if (dMatch) {
+            return {
+              statusCode: 301,
+              statusDescription: "Moved Permanently",
+              headers: { location: { value: "/t/" + dMatch[1] } },
+            };
+          }
+          var aMatch = uri.match(/^\/drawings\/([0-9a-f]{64}(?:-large)?\.gif)$/);
+          if (aMatch) {
+            req.uri = "/tiles/" + aMatch[1];
+            return req;
+          }
+          if (/^\/t\/[0-9a-f]{64}$/.test(uri)) {
             req.uri = uri + ".html";
           } else if (/^\/c\/[0-9a-f]{64}$/.test(uri)) {
-            req.uri = uri + ".html";
-          } else if (/^\/t\/[0-9a-f]{64}$/.test(uri)) {
             req.uri = uri + ".html";
           } else if (/^\/days\/\d{4}-\d{2}-\d{2}\/p\/\d+$/.test(uri)) {
             req.uri = uri + ".html";

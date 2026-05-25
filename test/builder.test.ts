@@ -72,10 +72,10 @@ test("builder sweeps inbox, renders per-day pages, is incremental", async () => 
 
   for (const id of ids) {
     assert.ok(
-      await fs.stat(path.join(root, `public/drawings/${id}.gif`)),
+      await fs.stat(path.join(root, `public/tiles/${id}.gif`)),
       `published gif for ${id}`,
     );
-    assert.ok(await fs.stat(path.join(root, `public/d/${id}.html`)));
+    assert.ok(await fs.stat(path.join(root, `public/t/${id}.html`)));
   }
   const dayPage = await fs.readFile(path.join(root, "public/days/2026-04-17/p/1.html"), "utf8");
   assert.ok(dayPage.includes("Draw!"));
@@ -137,7 +137,7 @@ test("builder propagates user_id + username from inbox to per-day index.jsonl, d
   assert.equal(entry.username, username);
 
   // Per-drawing HTML carries an author link to /u/<username>.
-  const drawingHtml = await fs.readFile(path.join(root, `public/d/${id}.html`), "utf8");
+  const drawingHtml = await fs.readFile(path.join(root, `public/t/${id}.html`), "utf8");
   assert.match(drawingHtml, new RegExp(`<dt>Author</dt><dd><a href="/u/${username}">`));
   // No "anonymous" fallback when the author is set.
   assert.equal(drawingHtml.includes("anonymous"), false);
@@ -167,8 +167,8 @@ test("builder per-account sweep: maintains u/<name>/index.jsonl and renders u/<n
   const profileHtml = await fs.readFile(path.join(root, `public/u/${username}.html`), "utf8");
   assert.match(profileHtml, /carol/);
   // Both drawings linked by their share URL.
-  assert.match(profileHtml, new RegExp(`/d/${id1}`));
-  assert.match(profileHtml, new RegExp(`/d/${id2}`));
+  assert.match(profileHtml, new RegExp(`/t/${id1}`));
+  assert.match(profileHtml, new RegExp(`/t/${id2}`));
   // Title + count badge surface the handle + drawing tally.
   assert.match(profileHtml, /Drawings by/);
   assert.match(profileHtml, /2 drawings/);
@@ -197,9 +197,9 @@ test("builder per-account sweep: separates two distinct accounts on the same day
   const aliceHtml = await fs.readFile(path.join(root, `public/u/alice.html`), "utf8");
   const bobHtml = await fs.readFile(path.join(root, `public/u/bob.html`), "utf8");
   // Each profile page links its own drawing only.
-  assert.match(aliceHtml, new RegExp(`/d/${aliceId}`));
+  assert.match(aliceHtml, new RegExp(`/t/${aliceId}`));
   assert.equal(aliceHtml.includes(bobId), false);
-  assert.match(bobHtml, new RegExp(`/d/${bobId}`));
+  assert.match(bobHtml, new RegExp(`/t/${bobId}`));
   assert.equal(bobHtml.includes(aliceId), false);
 });
 
@@ -238,7 +238,7 @@ test("builder writes null user_id + username for legacy inbox sidecars, drawing 
   assert.equal(entry.username, null);
 
   // Legacy drawing renders the 'anonymous' fallback (no /u/ link).
-  const drawingHtml = await fs.readFile(path.join(root, `public/d/${id}.html`), "utf8");
+  const drawingHtml = await fs.readFile(path.join(root, `public/t/${id}.html`), "utf8");
   assert.match(drawingHtml, /<dt>Author<\/dt><dd>anonymous<\/dd>/);
   // Strip <script> blocks first — the children-hydration script contains
   // the literal string href="/u/..." as part of its DOM-building template,
@@ -370,7 +370,7 @@ test("builder preserves mural membership when re-rendering an existing drawing p
 
   // Seed the murals sidecar at the same key ingest writes.
   const claimedBy = "c".repeat(64);
-  const sidecarPath = path.join(root, `public/drawings/${id}.murals.json`);
+  const sidecarPath = path.join(root, `public/tiles/${id}.murals.json`);
   await fs.mkdir(path.dirname(sidecarPath), { recursive: true });
   await fs.writeFile(
     sidecarPath,
@@ -397,7 +397,7 @@ test("builder preserves mural membership when re-rendering an existing drawing p
     forceRerender: true,
   });
 
-  const drawingHtml = await fs.readFile(path.join(root, `public/d/${id}.html`), "utf8");
+  const drawingHtml = await fs.readFile(path.join(root, `public/t/${id}.html`), "utf8");
   assert.match(drawingHtml, /<dt>Murals<\/dt>/);
   assert.match(
     drawingHtml,

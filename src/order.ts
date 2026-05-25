@@ -14,7 +14,7 @@ interface OrderView {
 }
 
 const INGEST_URL = import.meta.env.VITE_INGEST_URL ?? "/ingest";
-const DRAWING_BASE_URL = import.meta.env.VITE_DRAWING_BASE_URL ?? "/drawings";
+const DRAWING_BASE_URL = import.meta.env.VITE_DRAWING_BASE_URL ?? "/tiles";
 const API_BASE = INGEST_URL.replace(/\/ingest\/?$/, "");
 
 const ORDER_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;

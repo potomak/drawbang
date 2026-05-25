@@ -81,7 +81,7 @@ function renderCard(c: ProductCard): string {
           <a class="pr-card" href="/merch?d=${esc(c.drawing_id)}&amp;product=${esc(c.product_id)}">
             <div class="pr-art ${esc(mock.cls)}">
               <img class="pr-mockup" src="${esc(mock.src)}" alt="" loading="lazy" />
-              <img class="pr-drawing" src="/drawings/${esc(c.drawing_id)}.gif" alt="${esc(c.product_name)} featuring drawing ${esc(c.drawing_id_short)}" loading="lazy" />
+              <img class="pr-drawing" src="/tiles/${esc(c.drawing_id)}.gif" alt="${esc(c.product_name)} featuring drawing ${esc(c.drawing_id_short)}" loading="lazy" />
             </div>
             <div class="pr-info">
               <span class="pr-name">${esc(c.product_name)}</span>

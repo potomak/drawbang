@@ -323,7 +323,7 @@ test("ingest records a child entry on the parent's children.json", async () => {
   assert.equal(status, 202);
 
   const file = await storage.getJSON<ChildrenFile>(
-    `public/drawings/${parentId}.children.json`,
+    `public/tiles/${parentId}.children.json`,
   );
   assert.ok(file, "children.json should exist on the parent");
   assert.equal(file.drawing_id, parentId);
@@ -367,7 +367,7 @@ test("ingest collects multiple children of the same parent in publish order", as
   assert.equal(childB.status, 202);
 
   const file = await storage.getJSON<ChildrenFile>(
-    `public/drawings/${parentId}.children.json`,
+    `public/tiles/${parentId}.children.json`,
   );
   assert.equal(file?.children.length, 2);
   assert.equal(file?.children[0].id, childA.id);
@@ -411,7 +411,7 @@ test("ingest de-dupes a re-published child against the same parent", async () =>
   assert.equal(second.status, 200);
 
   const file = await storage.getJSON<ChildrenFile>(
-    `public/drawings/${parentId}.children.json`,
+    `public/tiles/${parentId}.children.json`,
   );
   assert.equal(file?.children.length, 1);
 });
@@ -428,7 +428,7 @@ test("ingest skips children write when parent === id (self-fork guard)", async (
     { parent: id },
   );
   const file = await storage.getJSON<ChildrenFile>(
-    `public/drawings/${id}.children.json`,
+    `public/tiles/${id}.children.json`,
   );
   assert.equal(file, null);
 });
@@ -442,7 +442,7 @@ test("ingest silently ignores a malformed parent field", async () => {
     "2026-04-18T12:00:00.000Z",
     { parent: "not-64-hex" },
   );
-  const keys = await storage.listPrefix("public/drawings");
+  const keys = await storage.listPrefix("public/tiles");
   const childrenFiles = keys.filter((k) => k.endsWith(".children.json"));
   assert.equal(childrenFiles.length, 0);
 });

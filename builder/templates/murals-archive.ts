@@ -82,7 +82,7 @@ function renderCard(c: MuralCard): string {
     const id = c.preview_thumbs[i];
     if (id) {
       thumbs.push(
-        `<img src="/drawings/${esc(id)}.gif" alt="" loading="lazy" />`,
+        `<img src="/tiles/${esc(id)}.gif" alt="" loading="lazy" />`,
       );
     } else {
       thumbs.push(`<div class="cv-empty"></div>`);

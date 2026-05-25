@@ -56,7 +56,7 @@ interface CheckoutResponse {
 }
 
 const INGEST_URL = import.meta.env.VITE_INGEST_URL ?? "/ingest";
-const DRAWING_BASE_URL = import.meta.env.VITE_DRAWING_BASE_URL ?? "/drawings";
+const DRAWING_BASE_URL = import.meta.env.VITE_DRAWING_BASE_URL ?? "/tiles";
 const API_BASE = INGEST_URL.replace(/\/ingest\/?$/, "");
 
 const PREVIEW_PIXEL_SIZE = 16;
@@ -591,7 +591,7 @@ async function boot(): Promise<void> {
     return;
   }
   drawingId = id;
-  backToDrawingEl.href = `/d/${drawingId}`;
+  backToDrawingEl.href = `/t/${drawingId}`;
   backToDrawingEl.hidden = false;
 
   setStatus("loading drawing…");

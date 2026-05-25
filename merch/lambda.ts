@@ -401,7 +401,9 @@ function bootDeps(): MerchHandlerDeps {
       printify,
       catalog: merchCatalog,
       publicBaseUrl,
-      fetchDrawing: (drawingId) => s3.getBytes(`public/drawings/${drawingId}.gif`),
+      fetchDrawing: async (drawingId) =>
+        (await s3.getBytes(`public/tiles/${drawingId}.gif`)) ??
+        (await s3.getBytes(`public/drawings/${drawingId}.gif`)),
       brandLogo,
       productCounters,
     });

@@ -188,7 +188,7 @@ describe("mural pass", () => {
     assert.ok(broken, "expected locked mural HTML to exist");
     const brokenHtml = new TextDecoder().decode(broken);
     assert.ok(
-      !brokenHtml.includes(`/drawings/${drawingId}.gif`),
+      !brokenHtml.includes(`/tiles/${drawingId}.gif`),
       "precondition: the without-muralStore pass should have wiped the tile",
     );
 
@@ -199,7 +199,7 @@ describe("mural pass", () => {
     assert.ok(fixed, "expected locked mural HTML to still exist");
     const fixedHtml = new TextDecoder().decode(fixed);
     assert.ok(
-      fixedHtml.includes(`/drawings/${drawingId}.gif`),
+      fixedHtml.includes(`/tiles/${drawingId}.gif`),
       "expected the published tile to be re-rendered from DDB",
     );
   });

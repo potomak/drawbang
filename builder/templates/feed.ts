@@ -18,8 +18,8 @@ export interface FeedView {
 export default function renderFeed(v: FeedView): string {
   const items = v.drawings
     .map((d) => {
-      const link = `${v.base_url}${d.href ?? `/d/${d.id}`}`;
-      const thumb = `${v.base_url}${d.thumb ?? `/drawings/${d.id}.gif`}`;
+      const link = `${v.base_url}${d.href ?? `/t/${d.id}`}`;
+      const thumb = `${v.base_url}${d.thumb ?? `/tiles/${d.id}.gif`}`;
       return `    <item>
       <title>${esc(d.id_short)}</title>
       <link>${esc(link)}</link>

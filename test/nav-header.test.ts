@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import renderDayGallery from "../builder/templates/day-gallery.js";
-import renderDrawing from "../builder/templates/drawing.js";
+import renderTilePage from "../builder/templates/tile-page.js";
 import renderGallery from "../builder/templates/gallery.js";
 import renderOwner from "../builder/templates/owner.js";
 import renderProducts from "../builder/templates/products.js";
@@ -16,7 +16,7 @@ import renderProducts from "../builder/templates/products.js";
 const REPO = "https://github.com/potomak/drawbang";
 
 const SAMPLE_DRAWING = {
-  id: "a".repeat(64),
+  tile_id: "a".repeat(64),
   id_short: "aaaaaaaa",
   created_at: "2026-04-01T00:00:00.000Z",
   required_bits: 12,
@@ -61,8 +61,8 @@ test("day-gallery.ts emits chrome and marks gallery active", () => {
   assert.equal(activeFor(html), "gallery");
 });
 
-test("drawing.ts emits chrome and marks gallery active", () => {
-  const html = renderDrawing(SAMPLE_DRAWING);
+test("tile-page.ts emits chrome and marks gallery active", () => {
+  const html = renderTilePage(SAMPLE_DRAWING);
   assert.match(html, /<header class="hdr">/);
   assert.match(html, /<footer class="ftr">/);
   assert.equal(activeFor(html), "gallery");
@@ -100,7 +100,7 @@ test("every builder template threads repo_url into the chrome footer", () => {
   const surfaces = [
     renderGallery({ today: "x", drawings: [], days: [], repo_url: sentinel }),
     renderDayGallery({ date: "x", page: 1, total_pages: 1, drawings: [], prev_page: null, next_page: null, prev_day: null, next_day: null, repo_url: sentinel }),
-    renderDrawing({ ...SAMPLE_DRAWING, repo_url: sentinel }),
+    renderTilePage({ ...SAMPLE_DRAWING, repo_url: sentinel }),
     renderOwner({ username: "bob", user_id: "b".repeat(64), drawings: [], repo_url: sentinel }),
     renderProducts({ page: 1, total_pages: 1, cards: [], prev_page: null, next_page: null, repo_url: sentinel }),
   ];

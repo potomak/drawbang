@@ -122,7 +122,7 @@ jobs:
         env:
           VITE_INGEST_URL: ${{ steps.stack.outputs.ingest_endpoint }}
           VITE_STATE_URL: ${{ steps.stack.outputs.public_base_url }}/state/last-publish.json
-          VITE_DRAWING_BASE_URL: ${{ steps.stack.outputs.public_base_url }}/drawings
+          VITE_DRAWING_BASE_URL: ${{ steps.stack.outputs.public_base_url }}/tiles
         run: npm run build
 
       - name: Upload editor to S3 (public/)

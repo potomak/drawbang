@@ -10,7 +10,6 @@ import type { MerchCatalog } from "../merch/lambda.js";
 import type { ProductCounter } from "../merch/product-counters.js";
 import { contentHash, hashHex, leadingZeroBits, powHash } from "../src/pow.js";
 import renderDayGallery from "./templates/day-gallery.js";
-import renderDrawing from "./templates/drawing.js";
 import renderGallery from "./templates/gallery.js";
 import renderFeed from "./templates/feed.js";
 import renderNotFound from "./templates/not-found.js";
@@ -20,7 +19,6 @@ import renderCanvasPage, { type CanvasPageView } from "./templates/canvas-page.j
 import renderTilePage, { type TilePageView } from "./templates/tile-page.js";
 import { ogScale, stitchCompositeGif, stitchCompositePng } from "../ingest/stitch.js";
 import type { DayGalleryView } from "./templates/day-gallery.js";
-import type { DrawingView } from "./templates/drawing.js";
 import type { GalleryView } from "./templates/gallery.js";
 import type { FeedView } from "./templates/feed.js";
 import type { NotFoundView } from "./templates/not-found.js";
@@ -70,7 +68,6 @@ export interface BuildOptions {
 
 export const DEFAULT_TEMPLATES: Templates = {
   dayGallery: renderDayGallery,
-  drawing: renderDrawing,
   gallery: renderGallery,
   feed: renderFeed,
   notFound: renderNotFound,
@@ -179,7 +176,7 @@ export async function build(opts: BuildOptions): Promise<{
         continue;
       }
 
-      await opts.storage.put(`public/drawings/${id}.gif`, gifBytes, "image/gif", CC_GIF_IMMUTABLE);
+      await opts.storage.put(`public/tiles/${id}.gif`, gifBytes, "image/gif", CC_GIF_IMMUTABLE);
       drawings.push({
         id,
         pow: meta.pow,
@@ -220,22 +217,21 @@ export async function build(opts: BuildOptions): Promise<{
     const allForDay = parseJsonl(merged);
     if (allForDay.length === 0) continue;
 
-    // Render per-drawing pages. Normally only fresh drawings; on forceRerender,
-    // every known drawing for the day so template changes propagate. Each
-    // render reads the per-drawing .murals.json sidecar so the "Murals"
+    // Render per-tile pages. Normally only fresh tiles; on forceRerender,
+    // every known tile for the day so template changes propagate. Each
+    // render reads the per-tile .murals.json sidecar so the "Murals"
     // section that ingest wrote on publish survives a forced re-render.
-    // Without this, every builder pass wipes mural membership off old
-    // drawings.
+    // Without this, every builder pass wipes mural membership off old tiles.
     const drawingsToRender = opts.forceRerender ? allForDay : drawings;
     for (const d of drawingsToRender) {
       const murals = await loadMurals(opts.storage, d.id);
-      const html = templates.drawing({
-        ...drawingViewModel(d),
+      const html = templates.tilePage({
+        ...tileViewModel(d),
         murals,
         public_base_url: opts.publicBaseUrl,
         repo_url: repoUrl,
       });
-      await opts.storage.put(`public/d/${d.id}.html`, enc.encode(html), "text/html", CC_HTML);
+      await opts.storage.put(`public/t/${d.id}.html`, enc.encode(html), "text/html", CC_HTML);
     }
 
     touchedDays.push(day);
@@ -284,7 +280,6 @@ export async function build(opts: BuildOptions): Promise<{
 
 export interface Templates {
   dayGallery: (v: DayGalleryView) => string;
-  drawing: (v: DrawingView) => string;
   gallery: (v: GalleryView) => string;
   feed: (v: FeedView) => string;
   notFound: (v: NotFoundView) => string;
@@ -294,11 +289,11 @@ export interface Templates {
   tilePage: (v: TilePageView) => string;
 }
 
-export function drawingViewModel(
+export function tileViewModel(
   d: DrawingMetadata,
-): Omit<DrawingView, "repo_url" | "public_base_url"> {
+): Omit<TilePageView, "repo_url" | "public_base_url"> {
   return {
-    id: d.id,
+    tile_id: d.id,
     id_short: d.id.slice(0, 8),
     created_at: d.created_at,
     parent: d.parent ? { parent: d.parent, parent_short: d.parent.slice(0, 8) } : null,
@@ -354,8 +349,8 @@ function drawingItem(d: DrawingMetadata): GalleryItemFull {
   return {
     id: d.id,
     id_short: d.id.slice(0, 8),
-    href: `/d/${d.id}`,
-    thumb: `/drawings/${d.id}.gif`,
+    href: `/t/${d.id}`,
+    thumb: `/tiles/${d.id}.gif`,
     created_at: d.created_at,
   };
 }
@@ -680,11 +675,16 @@ async function renderCanvasOne(
   });
   await opts.storage.put(`public/c/${rec.canvas_id}.html`, enc.encode(html), "text/html", CC_HTML);
 
-  // Tile pages (the atom is addressable at /t/<id>).
+  // Tile pages (the atom is addressable at /t/<id>). Mural memberships are
+  // loaded from the sidecar so a tile that's also a mural cell keeps its links.
   for (const tid of new Set(rec.tiles.filter((t): t is string => t !== null))) {
     const tileHtml = templates.tilePage({
       tile_id: tid,
       id_short: tid.slice(0, 8),
+      created_at: rec.created_at,
+      parent: null,
+      author: rec.username && rec.user_id ? { user_id: rec.user_id, username: rec.username } : null,
+      murals: await loadMurals(opts.storage, tid),
       public_base_url: opts.publicBaseUrl,
       repo_url: repoUrl,
     });

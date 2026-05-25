@@ -18,6 +18,7 @@ import {
 } from "../config/canvas.js";
 import { validateGif } from "./gif-validate.js";
 import { ogScale, stitchCompositePng } from "./stitch.js";
+import { loadMurals } from "./murals-sidecar.js";
 import renderCanvasPage from "../builder/templates/canvas-page.js";
 import renderTilePage from "../builder/templates/tile-page.js";
 import type { AuthedUser } from "./handler.js";
@@ -188,12 +189,17 @@ export async function handleCanvasPublish(
     console.error("[canvas] page render failed", e);
   }
   // Tile pages (the atom is addressable at /t/<id>) — sync-rendered so they're
-  // live immediately, matching the canvas page.
+  // live immediately, matching the canvas page. Mural memberships are loaded
+  // from the sidecar so a tile that's also a mural cell keeps its links.
   for (const tileId of tileIds) {
     try {
       const tileHtml = renderTilePage({
         tile_id: tileId,
         id_short: tileId.slice(0, 8),
+        created_at: nowISO,
+        parent: null,
+        author: { user_id: author.user_id, username: author.username },
+        murals: await loadMurals(cfg.storage, tileId),
         public_base_url: cfg.publicBaseUrl,
         repo_url: cfg.repoUrl ?? "https://github.com/potomak/drawbang",
       });

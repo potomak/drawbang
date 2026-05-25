@@ -87,7 +87,7 @@ export async function placePrintifyOrder(
         svgBytes,
       );
 
-      const drawingUrl = `${deps.publicBaseUrl}/d/${order.drawing_id}`;
+      const drawingUrl = `${deps.publicBaseUrl}/t/${order.drawing_id}`;
       const positions = product.placeholder_positions ?? ["front"];
       // expandPlacement returns the array of image entries for one
       // placeholder — a single centred entry for the named presets, or

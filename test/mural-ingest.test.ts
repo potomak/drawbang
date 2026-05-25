@@ -183,14 +183,14 @@ describe("ingest + mural_claim", () => {
     const memberFile = await storage.getJSON<{
       drawing_id: string;
       murals: Array<{ id: string; x: number; y: number; claimed_by: string; claimed_by_username: string }>;
-    }>(`public/drawings/${r.body.id}.murals.json`);
+    }>(`public/tiles/${r.body.id}.murals.json`);
     assert.equal(memberFile?.murals.length, 1);
     assert.equal(memberFile?.murals[0].id, muralId);
     assert.equal(memberFile?.murals[0].x, 5);
     assert.equal(memberFile?.murals[0].claimed_by_username, auth.username);
 
     // Drawing page contains the mural section.
-    const html = await storage.getBytes(`public/d/${r.body.id}.html`);
+    const html = await storage.getBytes(`public/t/${r.body.id}.html`);
     assert.ok(html);
     const htmlStr = new TextDecoder().decode(html);
     assert.match(htmlStr, /Murals/);
@@ -288,7 +288,7 @@ describe("ingest + mural_claim", () => {
     // Sidecar shows membership in BOTH murals.
     const memberFile = await storage.getJSON<{
       murals: Array<{ id: string; x: number; y: number }>;
-    }>(`public/drawings/${drawingId}.murals.json`);
+    }>(`public/tiles/${drawingId}.murals.json`);
     assert.equal(memberFile?.murals.length, 2);
     const ids = memberFile?.murals.map((c) => c.id).sort();
     assert.deepEqual(ids, [muralA, muralB].sort());
@@ -486,7 +486,7 @@ describe("ingest + mural_claim", () => {
     if (r.status !== 202) return;
     const id = r.body.id;
 
-    const large = await storage.getBytes(`public/drawings/${id}-large.gif`);
+    const large = await storage.getBytes(`public/tiles/${id}-large.gif`);
     assert.ok(large, "expected -large.gif to be written");
     // GIF89a magic header. Crawlers sniff the magic before content-type.
     assert.equal(large[0], 0x47); // G

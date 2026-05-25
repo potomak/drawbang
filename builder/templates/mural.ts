@@ -57,7 +57,7 @@ export default function renderMural(v: MuralView): string {
       const cell = grid.querySelector('[data-tile="' + t.x + ',' + t.y + '"]');
       if (!cell) continue;
       if (t.drawing_id) {
-        cell.innerHTML = '<a href="/d/' + t.drawing_id + '"><img src="/drawings/' + t.drawing_id + '.gif" alt="tile (' + t.x + ',' + t.y + ')" loading="lazy" /></a>';
+        cell.innerHTML = '<a href="/t/' + t.drawing_id + '"><img src="/tiles/' + t.drawing_id + '.gif" alt="tile (' + t.x + ',' + t.y + ')" loading="lazy" /></a>';
         cell.dataset.state = "published";
       } else if (t.claimed_by) {
         cell.innerHTML = '<span class="cv-claimed" title="claimed by ' + t.claimed_by.slice(0, 8) + '">claimed</span>';
@@ -135,7 +135,7 @@ function renderTile(
   const dataAttr = `data-tile="${x},${y}"`;
 
   if (tile?.drawing_id) {
-    return `        <div id="${anchor}" class="cv-cell" ${dataAttr} data-state="published"><a href="/d/${esc(tile.drawing_id)}"><img src="/drawings/${esc(tile.drawing_id)}.gif" alt="tile (${x},${y})" loading="lazy" /></a></div>`;
+    return `        <div id="${anchor}" class="cv-cell" ${dataAttr} data-state="published"><a href="/t/${esc(tile.drawing_id)}"><img src="/tiles/${esc(tile.drawing_id)}.gif" alt="tile (${x},${y})" loading="lazy" /></a></div>`;
   }
 
   if (locked) {

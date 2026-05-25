@@ -202,7 +202,7 @@ test("happy path: upload -> create product -> create order -> submitted", async 
   assert.equal(printifyCalls.createProduct.length, 1);
   const product = printifyCalls.createProduct[0];
   assert.equal(product.title, `Drawbang #${"f".repeat(8)}`);
-  assert.match(product.description, /https:\/\/drawbang\.example\/d\/ffffff/);
+  assert.match(product.description, /https:\/\/drawbang\.example\/t\/ffffff/);
   assert.equal(product.blueprint_id, 6);
   assert.equal(product.print_provider_id, 99);
   assert.deepEqual(product.variants, [{ id: 18395, price: 2400, is_enabled: true }]);

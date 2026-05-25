@@ -1,8 +1,8 @@
 import { INITIAL_STATE, ageSecondsBetween, contentHash, hashHex, leadingZeroBits, powHash, requiredBits } from "../src/pow.js";
 import type { LastPublishState } from "../src/pow.js";
-import renderDrawing, {
-  type DrawingMuralMembership,
-} from "../builder/templates/drawing.js";
+import renderTilePage, {
+  type TileMuralMembership,
+} from "../builder/templates/tile-page.js";
 import {
   PUBLISH_COOLDOWN_S,
   TILES_PER_SIDE,
@@ -107,7 +107,7 @@ interface ChildrenFile {
 }
 
 function childrenFileKey(id: string): string {
-  return `public/drawings/${id}.children.json`;
+  return `public/tiles/${id}.children.json`;
 }
 
 async function loadChildren(
@@ -146,7 +146,7 @@ const defaultBaselineHistory: string[] = [];
 export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Promise<IngestHandlerResult> {
   const now = cfg.now ? cfg.now() : new Date();
   const nowISO = now.toISOString();
-  const shareUrlFor = (id: string): string => `${cfg.publicBaseUrl}/d/${id}`;
+  const shareUrlFor = (id: string): string => `${cfg.publicBaseUrl}/t/${id}`;
 
   // -- 1. Parse gif from base64 and validate structure -----------------------
   let gif: Uint8Array;
@@ -245,7 +245,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   const day = nowISO.slice(0, 10);
   const gifKey = `inbox/${day}/${id}.gif`;
   const jsonKey = `inbox/${day}/${id}.json`;
-  const publishedKey = `public/drawings/${id}.gif`;
+  const publishedKey = `public/tiles/${id}.gif`;
 
   const alreadyHere =
     (await cfg.storage.exists(publishedKey)) ||
@@ -295,7 +295,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     ]);
 
     // 320×320 annotated share image written next to the original at
-    // public/drawings/<id>-large.gif. Used as og:image on the drawing page;
+    // public/tiles/<id>-large.gif. Used as og:image on the tile page;
     // crawlers (Reddit, X, Slack, Discord, …) hit this URL when they
     // resolve the OG tags. Adds a used-colors swatch and the Drawbang
     // wordmark (#195). Wrapped in try/catch — the original gif is already
@@ -315,7 +315,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
         delayMs: decoded.delayMs,
       });
       await cfg.storage.put(
-        `public/drawings/${id}-large.gif`,
+        `public/tiles/${id}-large.gif`,
         large,
         "image/gif",
         "public, max-age=31536000, immutable",
@@ -362,7 +362,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   }
 
   // -- 8. Mural publish (atomic tile + cooldown) ----------------------------
-  let appendedMembership: DrawingMuralMembership | null = null;
+  let appendedMembership: TileMuralMembership | null = null;
   if (req.mural_claim) {
     const cc = req.mural_claim;
     const tk = tileKey(cc.x, cc.y);
@@ -452,14 +452,14 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     }
   }
 
-  // -- 9. (Re-)render drawing page with the murals[] in scope --------------
+  // -- 9. (Re-)render tile page with the murals[] in scope ----------------
   const murals = appendedMembership
     ? await loadMurals(cfg.storage, id)
     : alreadyHere
       ? await loadMurals(cfg.storage, id)
       : [];
-  const drawingHtml = renderDrawing({
-    id,
+  const tileHtml = renderTilePage({
+    tile_id: id,
     id_short: id.slice(0, 8),
     created_at: nowISO,
     parent: req.parent
@@ -471,8 +471,8 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     repo_url: cfg.repoUrl ?? "https://github.com/potomak/drawbang",
   });
   await cfg.storage.put(
-    `public/d/${id}.html`,
-    enc.encode(drawingHtml),
+    `public/t/${id}.html`,
+    enc.encode(tileHtml),
     "text/html",
     "public, max-age=60",
   );

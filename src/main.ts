@@ -69,7 +69,7 @@ const FRAME_THUMB_PIXEL_SIZE = 5;
 
 const INGEST_URL = import.meta.env.VITE_INGEST_URL ?? "/ingest";
 const STATE_URL = import.meta.env.VITE_STATE_URL ?? "/state/last-publish.json";
-const DRAWING_BASE_URL = import.meta.env.VITE_DRAWING_BASE_URL ?? "";
+const DRAWING_BASE_URL = import.meta.env.VITE_DRAWING_BASE_URL ?? "/tiles";
 // Mural claim + state live on the same API Gateway as /ingest, which is a
 // different origin than CloudFront in prod (CloudFront's default behaviour
 // blocks POST). Derive the API base by stripping the /ingest suffix; in dev

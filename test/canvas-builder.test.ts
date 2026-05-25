@@ -82,7 +82,7 @@ test("builder sweeps a canvas inbox record → /c/<id>.html + composite, removes
   // Tiles are addressable at /t/<id> and the canvas links them.
   assert.match(html, new RegExp(`<a href="/t/${t0}">`));
   const tilePage = await fs.readFile(path.join(root, `public/t/${t0}.html`), "utf8");
-  assert.match(tilePage, /Tile [0-9a-f]{8}/);
+  assert.match(tilePage, /Tile ID [0-9a-f]{8}/);
   assert.match(tilePage, new RegExp(`/tiles/${t0}.gif`));
 
   // Inbox record consumed.

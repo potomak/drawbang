@@ -116,15 +116,15 @@ describe("mural E2E", () => {
     if (publishResult.status === 202) {
       assert.match(
         muralPage,
-        new RegExp(`/drawings/${publishResult.body.id}.gif`),
+        new RegExp(`/tiles/${publishResult.body.id}.gif`),
         "mural page should contain the published tile's gif",
       );
     }
 
-    // 6. Drawing page lists mural membership with attribution.
+    // 6. Tile page lists mural membership with attribution.
     if (publishResult.status === 202) {
       const drawingPage = await storage.getBytes(
-        `public/d/${publishResult.body.id}.html`,
+        `public/t/${publishResult.body.id}.html`,
       );
       assert.ok(drawingPage);
       const html = new TextDecoder().decode(drawingPage);

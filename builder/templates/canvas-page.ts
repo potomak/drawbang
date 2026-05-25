@@ -1,7 +1,7 @@
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
-import { formatCreatedAt } from "./drawing.js";
+import { formatCreatedAt } from "./tile-page.js";
 
 // /c/<canvas_id> — a personal multi-tile drawing rendered as a CSS grid of the
 // live per-tile gifs (so each cell animates). A 1×1 canvas renders a single
