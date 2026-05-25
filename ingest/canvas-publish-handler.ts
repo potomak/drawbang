@@ -19,6 +19,7 @@ import {
 import { validateGif } from "./gif-validate.js";
 import { ogScale, stitchCompositePng } from "./stitch.js";
 import renderCanvasPage from "../builder/templates/canvas-page.js";
+import renderTilePage from "../builder/templates/tile-page.js";
 import type { AuthedUser } from "./handler.js";
 import type { Storage } from "./storage.js";
 
@@ -191,6 +192,21 @@ export async function handleCanvasPublish(
     await cfg.storage.put(`public/c/${canvasId}.html`, enc.encode(html), "text/html", "public, max-age=60");
   } catch (e) {
     console.error("[canvas] page render failed", e);
+  }
+  // Tile pages (the atom is addressable at /t/<id>) — sync-rendered so they're
+  // live immediately, matching the canvas page.
+  for (const tileId of tileIds) {
+    try {
+      const tileHtml = renderTilePage({
+        tile_id: tileId,
+        id_short: tileId.slice(0, 8),
+        public_base_url: cfg.publicBaseUrl,
+        repo_url: cfg.repoUrl ?? "https://github.com/potomak/drawbang",
+      });
+      await cfg.storage.put(`public/t/${tileId}.html`, enc.encode(tileHtml), "text/html", "public, max-age=60");
+    } catch (e) {
+      console.error("[canvas] tile page render failed", e);
+    }
   }
 
   // -- 6. Manifest + inbox record (builder finalizes galleries/index) --------

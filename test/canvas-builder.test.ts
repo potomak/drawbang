@@ -88,6 +88,9 @@ test("builder sweeps a canvas inbox record → /c/<id>.html + composite, removes
   assert.match(gallery, new RegExp(`href="/c/${canvasId}"`));
   const feed = await fs.readFile(path.join(root, "public/feed.rss"), "utf8");
   assert.match(feed, new RegExp(`/c/${canvasId}`));
+  // Day archive (created_at = 2026-05-24) lists the canvas too.
+  const dayPage = await fs.readFile(path.join(root, "public/days/2026-05-24/p/1.html"), "utf8");
+  assert.match(dayPage, new RegExp(`href="/c/${canvasId}"`));
 });
 
 test("a 1×1 canvas uses the tile gif as its preview (no composite png)", async () => {

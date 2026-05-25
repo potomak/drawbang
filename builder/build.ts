@@ -246,11 +246,18 @@ export async function build(opts: BuildOptions): Promise<{
   // also re-render the predecessor of each touched day so its next_day
   // link picks up the newcomer — without this the previous day would stay
   // frozen with next_day=null from whenever it was last rendered.
-  await rebuildDayGalleries(opts, templates, repoUrl, touchedDays);
-
   // Sweep canvas (multi-tile drawing) inbox records → /c/<id>.html pages +
-  // rolling canvas index. Runs before profiles/rolling so they can list them.
-  const canvasUsernames = await rebuildCanvases(opts, templates, repoUrl);
+  // rolling canvas index. Runs before galleries/profiles so they can list them.
+  const { usernames: canvasUsernames, days: canvasDays } = await rebuildCanvases(
+    opts,
+    templates,
+    repoUrl,
+  );
+
+  // Day-archive pages — merge drawing days + canvas days.
+  await rebuildDayGalleries(opts, templates, repoUrl, [
+    ...new Set([...touchedDays, ...canvasDays]),
+  ]);
 
   // Rebuild per-account profile galleries (mutable like /gallery.html, not
   // immutable like the day pages). New entries land via newByUsername; on
@@ -375,13 +382,23 @@ async function rebuildDayGalleries(
 ): Promise<void> {
   if (touchedDays.length === 0) return;
 
-  // Full sorted day list (ascending) — used to look up neighbors.
+  // Canvases (rolling) grouped by their created-at date, so a day page can show
+  // both drawings and canvases.
+  const canvasByDate = new Map<string, CanvasIndexEntry[]>();
+  for (const e of await loadCanvasIndex(opts)) {
+    const date = e.created_at.slice(0, 10);
+    const list = canvasByDate.get(date) ?? [];
+    list.push(e);
+    canvasByDate.set(date, list);
+  }
+
+  // Full sorted day list (ascending) — drawing day dirs ∪ canvas dates — used
+  // for neighbor links.
   const dayDirs = await opts.storage.listPrefix("public/days");
-  const allDays = [...new Set(
-    dayDirs
-      .map((k) => k.split("/").pop()!)
-      .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)),
-  )].sort();
+  const allDays = [...new Set([
+    ...dayDirs.map((k) => k.split("/").pop()!).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)),
+    ...canvasByDate.keys(),
+  ])].sort();
 
   const touchedSet = new Set(touchedDays);
   // Re-render predecessors so their next_day link picks up the newcomer.
@@ -396,22 +413,22 @@ async function rebuildDayGalleries(
     const prevDay = idx > 0 ? allDays[idx - 1] : null;
     const nextDay = idx >= 0 && idx < allDays.length - 1 ? allDays[idx + 1] : null;
 
-    // Touched days have their drawings already in index.jsonl from the main
-    // loop; predecessor re-renders need to re-load and re-sort.
     const indexBytes = await opts.storage.getBytes(`public/days/${day}/index.jsonl`);
-    if (!indexBytes) continue;
-    const allForDay = parseJsonl(dec.decode(indexBytes));
-    if (allForDay.length === 0) continue;
-    allForDay.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    const drawings = indexBytes ? parseJsonl(dec.decode(indexBytes)) : [];
+    const items: GalleryItemFull[] = [
+      ...drawings.map(drawingItem),
+      ...(canvasByDate.get(day) ?? []).map(canvasItem),
+    ].sort(byCreatedDesc);
+    if (items.length === 0) continue;
 
-    const totalPages = Math.max(1, Math.ceil(allForDay.length / PER_PAGE));
+    const totalPages = Math.max(1, Math.ceil(items.length / PER_PAGE));
     for (let page = 1; page <= totalPages; page++) {
-      const slice = allForDay.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+      const slice = items.slice((page - 1) * PER_PAGE, page * PER_PAGE);
       const html = templates.dayGallery({
         date: day,
         page,
         total_pages: totalPages,
-        drawings: slice.map((d) => ({ id: d.id, id_short: d.id.slice(0, 8) })),
+        drawings: slice,
         prev_page: page > 1 ? { prev_page: page - 1, date: day } : null,
         next_page: page < totalPages ? { next_page: page + 1, date: day } : null,
         prev_day: prevDay,
@@ -421,12 +438,12 @@ async function rebuildDayGalleries(
       await opts.storage.put(`public/days/${day}/p/${page}.html`, enc.encode(html), "text/html", CC_HTML);
     }
 
-    // Only touched days rewrite the manifest — predecessor re-renders only
-    // update the HTML; their count/pages haven't changed.
+    // Touched days rewrite the manifest (drives the gallery archive list);
+    // predecessor re-renders only refresh HTML/neighbor links.
     if (touchedSet.has(day)) {
       await opts.storage.put(
         `public/days/${day}/manifest.json`,
-        enc.encode(JSON.stringify({ count: allForDay.length, pages: totalPages })),
+        enc.encode(JSON.stringify({ count: items.length, pages: totalPages })),
         "application/json",
         CC_INTERNAL,
       );
@@ -550,7 +567,7 @@ async function rebuildCanvases(
   opts: BuildOptions,
   templates: Templates,
   repoUrl: string,
-): Promise<Set<string>> {
+): Promise<{ usernames: Set<string>; days: Set<string> }> {
   const fresh: CanvasRecord[] = [];
   const rerender: CanvasRecord[] = [];
 
@@ -580,10 +597,12 @@ async function rebuildCanvases(
   }
 
   const usernames = new Set<string>();
+  const days = new Set<string>();
   const newEntries: CanvasIndexEntry[] = [];
   for (const rec of fresh) {
     const thumb = await renderCanvasOne(opts, templates, repoUrl, rec);
     if (rec.username) usernames.add(rec.username);
+    days.add(rec.created_at.slice(0, 10));
     newEntries.push({
       canvas_id: rec.canvas_id,
       created_at: rec.created_at,
@@ -603,7 +622,7 @@ async function rebuildCanvases(
     await opts.storage.put(CANVAS_INDEX_KEY, enc.encode(merged), "application/jsonl", CC_INTERNAL);
   }
 
-  return usernames;
+  return { usernames, days };
 }
 
 // Renders /c/<id>.html, ensures the small composite (multi-tile gallery thumb)
