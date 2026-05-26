@@ -47,8 +47,16 @@ function identityLink(opts: ChromeOptions): NavLink {
   return { href, label: loggedIn ? "Profile" : "Sign in", id: "identity" };
 }
 
+/**
+ * Account sign-out. Rendered `hidden` on every surface (build-time chrome is
+ * always logged-out) and revealed by the client patcher (/chrome-identity.js)
+ * when a session is present, mirroring how the identity link is rewritten.
+ * The patcher also wires the click → clear localStorage → redirect.
+ */
+const LOGOUT_LINK: NavLink = { href: "/", label: "Sign out", id: "logout" };
+
 function allLinks(opts: ChromeOptions): readonly NavLink[] {
-  return [...NAV_LINKS, identityLink(opts)];
+  return [...NAV_LINKS, identityLink(opts), LOGOUT_LINK];
 }
 
 function renderLink(link: NavLink, active: NavLink["id"] | undefined): string {
@@ -58,7 +66,8 @@ function renderLink(link: NavLink, active: NavLink["id"] | undefined): string {
   // attribute lets the patcher find it without depending on label or
   // href shape.
   const identityFlag = link.id === "identity" ? ' data-identity-link="1"' : "";
-  return `<a class="navlink" href="${esc(link.href)}" data-nav="${esc(link.id)}"${ariaCurrent}${identityFlag}>${esc(link.label)}</a>`;
+  const logoutFlag = link.id === "logout" ? ' data-logout-link="1" hidden' : "";
+  return `<a class="navlink" href="${esc(link.href)}" data-nav="${esc(link.id)}"${ariaCurrent}${identityFlag}${logoutFlag}>${esc(link.label)}</a>`;
 }
 
 export function renderHeader(opts: ChromeOptions = {}): string {
@@ -109,6 +118,8 @@ const SOCIAL_LINKS: ReadonlyArray<{ label: string; href: string }> = [
   { label: "X", href: "https://x.com/drawbang" },
   { label: "Discord", href: "https://discord.gg/mXA4NQjcxg" },
   { label: "Facebook", href: "https://facebook.com/drawbang" },
+  { label: "Instagram", href: "https://instagram.com/drawbang256" },
+  { label: "Threads", href: "https://www.threads.net/@drawbang256" },
 ];
 
 const FEEDBACK_URL =
@@ -122,7 +133,8 @@ const FEEDBACK_ICON_SVG = `<svg viewBox="0 0 16 16" width="16" height="16" shape
 function renderFooterLink(link: NavLink, active: NavLink["id"] | undefined): string {
   const ariaCurrent = link.id === active ? ' aria-current="page"' : "";
   const identityFlag = link.id === "identity" ? ' data-identity-link="1"' : "";
-  return `<a href="${esc(link.href)}" data-nav="${esc(link.id)}"${ariaCurrent}${identityFlag}>${esc(link.label)}</a>`;
+  const logoutFlag = link.id === "logout" ? ' data-logout-link="1" hidden' : "";
+  return `<a href="${esc(link.href)}" data-nav="${esc(link.id)}"${ariaCurrent}${identityFlag}${logoutFlag}>${esc(link.label)}</a>`;
 }
 
 const ESC: Record<string, string> = {

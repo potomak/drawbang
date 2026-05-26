@@ -19,11 +19,12 @@ test("renderHeader contains the logo link to /", () => {
   assert.match(html, /<a class="hdr-logo" href="\/"/);
 });
 
-test("renderHeader nav order matches NAV_LINKS, with identity appended last", () => {
+test("renderHeader nav order matches NAV_LINKS, then identity, then logout", () => {
   const html = renderHeader();
   const fixedIds = NAV_LINKS.map((l) => l.id);
-  // identity is computed at render time; not in NAV_LINKS but must follow.
-  const expectedIds = [...fixedIds, "identity"];
+  // identity + logout are computed at render time; not in NAV_LINKS but must
+  // follow, in that order.
+  const expectedIds = [...fixedIds, "identity", "logout"];
   const datas = [...html.matchAll(/data-nav="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(datas, expectedIds);
 });
@@ -40,12 +41,14 @@ test("renderHeader: active='gallery' marks only the gallery link with aria-curre
   assert.doesNotMatch(html, /data-nav="identity"[^>]*aria-current/);
 });
 
-test("renderFooter exposes X, Discord, and Facebook social links in a nav", () => {
+test("renderFooter exposes X, Discord, Facebook, Instagram, and Threads social links in a nav", () => {
   const footer = renderFooter({ repoUrl: REPO });
   assert.match(footer, /<nav class="ftr-social" aria-label="Social">/);
   assert.match(footer, /href="https:\/\/x\.com\/drawbang"[^>]*>X</);
   assert.match(footer, /href="https:\/\/discord\.gg\/mXA4NQjcxg"[^>]*>Discord</);
   assert.match(footer, /href="https:\/\/facebook\.com\/drawbang"[^>]*>Facebook</);
+  assert.match(footer, /href="https:\/\/instagram\.com\/drawbang256"[^>]*>Instagram</);
+  assert.match(footer, /href="https:\/\/www\.threads\.net\/@drawbang256"[^>]*>Threads</);
 });
 
 test("renderFooter groups nav + social on the left, repo + feedback on the right", () => {
@@ -80,7 +83,7 @@ test("renderFooter contains the repo link and the same nav as the header", () =>
   // Footer mirrors the header's nav now that the editor lives at /
   // (reachable via the logo).
   const fixedIds = NAV_LINKS.map((l) => l.id);
-  const expectedIds = [...fixedIds, "identity"];
+  const expectedIds = [...fixedIds, "identity", "logout"];
   const datas = [...footer.matchAll(/data-nav="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(datas, expectedIds);
 });
@@ -145,6 +148,21 @@ test("non-identity links do NOT carry data-identity-link", () => {
   assert.equal(matches.length, 1);
   assert.doesNotMatch(header, /data-nav="gallery"[^>]*data-identity-link/);
   assert.doesNotMatch(header, /data-nav="products"[^>]*data-identity-link/);
+});
+
+test("logout link: rendered hidden with data-logout-link='1' so the patcher reveals it when logged in", () => {
+  // Build-time chrome is always logged-out, so the sign-out link ships
+  // hidden; /chrome-identity.js unhides it + wires the click when a session
+  // is present. It lives in both the header and footer nav.
+  for (const html of [renderHeader(), renderFooter({ repoUrl: REPO })]) {
+    assert.match(html, /data-nav="logout"[^>]*data-logout-link="1"[^>]*hidden/);
+    assert.match(html, /href="\/"[^>]*data-nav="logout"[^>]*>Sign out</);
+  }
+});
+
+test("logout link does NOT carry the identity-link marker (patcher must not rewrite it to a profile href)", () => {
+  const header = renderHeader();
+  assert.doesNotMatch(header, /data-nav="logout"[^>]*data-identity-link/);
 });
 
 test("renderHeader exposes the menu toggle button + nav id linkage for #170's responsive JS", () => {

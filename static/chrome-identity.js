@@ -8,6 +8,7 @@
   window.__drawbangChromeIdentityInit = true;
 
   const USERNAME_KEY = "drawbang:username";
+  const JWT_KEY = "drawbang:jwt";
 
   let username = null;
   try {
@@ -18,6 +19,18 @@
   }
   if (!username || !/^[a-z0-9_-]{3,20}$/.test(username)) return;
 
+  const logout = (e) => {
+    e.preventDefault();
+    try {
+      localStorage.removeItem(JWT_KEY);
+      localStorage.removeItem(USERNAME_KEY);
+    } catch {
+      // ignore storage errors — worst case the next page load still sees a
+      // session, but the JWT removal above almost always succeeds.
+    }
+    location.assign("/");
+  };
+
   const apply = () => {
     const links = document.querySelectorAll('[data-identity-link="1"]');
     for (const link of links) {
@@ -27,6 +40,14 @@
       if (link.textContent === "Sign in" || link.textContent === "Identity") {
         link.textContent = "Profile";
       }
+    }
+    // The logout link ships hidden (build-time chrome is logged-out); reveal
+    // it now that a session is present and wire the sign-out action.
+    const logoutLinks = document.querySelectorAll('[data-logout-link="1"]');
+    for (const link of logoutLinks) {
+      if (!(link instanceof HTMLAnchorElement)) continue;
+      link.hidden = false;
+      link.addEventListener("click", logout);
     }
   };
 

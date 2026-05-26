@@ -173,7 +173,9 @@ test("build paginates /products at PER_PAGE=36, page 1 to /products.html, pages 
   const lastDid = (39).toString(16).padStart(64, "0");
   assert.ok(p2.includes(`data-drawing-id="${lastDid}"`));
   // No PII surfaces (defensive — emails/addresses are never on counter rows).
-  assert.ok(!p1.includes("@"));
+  // Match an email-shaped token specifically rather than a bare "@", since the
+  // footer's social links legitimately carry an @handle (Threads /@drawbang256).
+  assert.doesNotMatch(p1, /[\w.+-]+@[\w-]+\.[\w.-]+/);
 });
 
 test("build skips /products surface when no data source is wired up (local dev)", async () => {
