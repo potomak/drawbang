@@ -24,7 +24,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
-        "pow-test": resolve(__dirname, "pow-test.html"),
+        "proof-of-work-test": resolve(__dirname, "proof-of-work-test.html"),
         merch: resolve(__dirname, "merch.html"),
         order: resolve(__dirname, "order.html"),
         login: resolve(__dirname, "login.html"),

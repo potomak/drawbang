@@ -28,7 +28,7 @@ const RESERVED_USERNAMES = new Set([
   "login", "signup", "password", "account", "u", "d", "t", "c", "days", "keys",
   "gallery", "merch", "products", "murals", "mural", "canvas", "canvases",
   "tile", "tiles", "identity", "privacy", "share", "feed", "404", "admin",
-  "api", "ingest", "state", "drawings", "static", "assets", "pow-test",
+  "api", "ingest", "state", "drawings", "static", "assets", "proof-of-work-test",
 ]);
 
 export interface AuthHandlerConfig {
