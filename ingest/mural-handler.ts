@@ -14,7 +14,7 @@ import {
   ageSecondsBetween,
   requiredBits,
   verifyClaimPow,
-} from "../src/pow.js";
+} from "../src/proof-of-work.js";
 import {
   AlreadyPublishedError,
   TileLockedError,

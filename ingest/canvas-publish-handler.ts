@@ -6,8 +6,8 @@ import {
   leadingZeroBits,
   powHash,
   requiredBits,
-} from "../src/pow.js";
-import type { LastPublishState } from "../src/pow.js";
+} from "../src/proof-of-work.js";
+import type { LastPublishState } from "../src/proof-of-work.js";
 import {
   canonicalCanvasString,
   canvasIdFor,

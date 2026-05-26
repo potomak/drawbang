@@ -22,7 +22,7 @@
 
 import { PER_PAGE } from "../config/constants.js";
 import { S3Storage } from "../ingest/s3-storage.js";
-import { contentHash, hashHex } from "../src/pow.js";
+import { contentHash, hashHex } from "../src/proof-of-work.js";
 import { validateGif } from "../ingest/gif-validate.js";
 
 interface IndexRowIn {

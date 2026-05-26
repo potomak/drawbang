@@ -1,4 +1,4 @@
-import { contentHash, hashHex } from "../src/pow.js";
+import { contentHash, hashHex } from "../src/proof-of-work.js";
 
 // A "canvas" is a personal drawing: an ordered cols×rows grid of 16×16 tiles.
 // Every drawing is a canvas (a plain 16×16 is a 1×1 canvas). The canvas id is
