@@ -133,6 +133,17 @@ test("renderFooter references the chrome-identity.js patcher (#171)", () => {
   assert.match(html, /<script src="\/chrome-identity\.js"><\/script>/);
 });
 
+test("renderFooter references /flash.js so window.drawbang{Show,Hide}Flash + pending-flash auto-consume are wired on every surface", () => {
+  const html = renderFooter({ repoUrl: REPO });
+  assert.match(html, /<script src="\/flash\.js"><\/script>/);
+  // flash.js must load before chrome-identity.js — the latter's logout path
+  // queues a pending flash, and we want the consumer wired by the time any
+  // page interaction can trigger it.
+  const flashIdx = html.indexOf('src="/flash.js"');
+  const identityIdx = html.indexOf('src="/chrome-identity.js"');
+  assert.ok(flashIdx >= 0 && identityIdx >= 0 && flashIdx < identityIdx);
+});
+
 test("identity link carries data-identity-link='1' so the patcher can find it", () => {
   const header = renderHeader();
   assert.match(header, /data-nav="identity"[^>]*data-identity-link="1"/);

@@ -28,7 +28,7 @@ export type AuthOutcome =
   | { ok: true; session: Session }
   | { ok: false; status: number; error: string };
 
-export type ResetRequestOutcome =
+export type ForgotPasswordOutcome =
   | { ok: true }
   | { ok: false; status: number; error: string };
 
@@ -83,16 +83,16 @@ export async function login(
   return sessionPost("/auth/login", { email, password });
 }
 
-export async function confirmReset(
+export async function resetPassword(
   token: string,
   password: string,
 ): Promise<AuthOutcome> {
-  return sessionPost("/auth/reset/confirm", { token, password });
+  return sessionPost("/auth/password/reset", { token, password });
 }
 
-export async function requestReset(email: string): Promise<ResetRequestOutcome> {
+export async function forgotPassword(email: string): Promise<ForgotPasswordOutcome> {
   try {
-    const res = await fetch(`${AUTH_BASE}/auth/reset/request`, {
+    const res = await fetch(`${AUTH_BASE}/auth/password/forgot`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),

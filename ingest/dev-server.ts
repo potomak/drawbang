@@ -17,8 +17,8 @@ import { handleCanvasPublish } from "./canvas-publish-handler.js";
 import {
   handleLogin,
   handleRegister,
-  handleResetConfirm,
-  handleResetRequest,
+  handleForgotPassword,
+  handleResetPassword,
   type AuthHandlerConfig,
 } from "./auth-handler.js";
 import { build } from "../builder/build.js";
@@ -204,11 +204,11 @@ const server = http.createServer(async (req, res) => {
         case "/auth/login":
           result = await handleLogin(parsed, authConfig);
           break;
-        case "/auth/reset/request":
-          result = await handleResetRequest(parsed, authConfig);
+        case "/auth/password/forgot":
+          result = await handleForgotPassword(parsed, authConfig);
           break;
-        case "/auth/reset/confirm":
-          result = await handleResetConfirm(parsed, authConfig);
+        case "/auth/password/reset":
+          result = await handleResetPassword(parsed, authConfig);
           break;
         default:
           res.writeHead(404);

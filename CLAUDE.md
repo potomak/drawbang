@@ -80,7 +80,8 @@ asset, new tracking script) must consider every entry below.
 | `/pow-test`                    | `pow-test.html` + `src/pow-test.ts`               | Dev test bed (Vite) |
 | `/login`                       | `login.html` + `src/login.ts`                     | Auth (Vite) |
 | `/signup`                      | `signup.html` + `src/signup.ts`                   | Auth (Vite) |
-| `/reset`                       | `reset.html` + `src/reset.ts`                     | Password reset request + confirm (Vite) |
+| `/password/forgot`             | `password-forgot.html` + `src/password-forgot.ts` | Forgot password (request a reset link) (Vite) |
+| `/password/reset`              | `password-reset.html` + `src/password-reset.ts`   | Reset password (set a new one with the reset link's token) (Vite) |
 | `/account`                     | `account.html` + `src/account.ts`                 | Logged-in account / sign-out (Vite) |
 | `/feed.rss`                    | `builder/templates/feed.ts`                       | Builder (RSS, no chrome) |
 | `/murals`                      | `builder/templates/murals-archive.ts`             | Builder (archive: current mural + past) |
@@ -109,12 +110,12 @@ is present.
   Bearer <jwt>`; the route verifies signature + exp (no DB read) and passes
   `{ user_id, username }` into the handlers.
 - **Password reset**: `ingest/email.ts` sends a link via SES carrying a 1h
-  reset-JWT (`{ email, tv: token_version, purpose: "reset" }`). Confirm checks
-  `tv === token_version` then bumps `token_version`, making the link single-use.
-  No signup email verification. Reset requests always return 200 (no email
-  enumeration).
+  reset-JWT (`{ email, tv: token_version, purpose: "password-reset" }`). The
+  `/auth/password/reset` handler checks `tv === token_version` then bumps
+  `token_version`, making the link single-use. No signup email verification.
+  Forgot-password requests always return 200 (no email enumeration).
 - **Auth surface**: `src/auth.ts` (client), `ingest/auth-handler.ts` (server),
-  routes `POST /auth/{register,login,reset/request,reset/confirm}`.
+  routes `POST /auth/{register,login,password/forgot,password/reset}`.
 - Tile/canvas metadata stores `user_id` + `username`; the tile page, canvas
   page, and mural memberships link authors to `/u/<username>`. Legacy
   keypair-published gifs (fresh start) keep no `username` and render as
@@ -163,9 +164,11 @@ src/                  Vite + TypeScript editor
   pow.worker.ts       WebWorker: bench + solve (publish + mural claim)
   share.ts            URL-hash share codec (5 bpp, 17 pixel states)
   local.ts            IndexedDB "My drawings" store
-  auth.ts             Client session: register/login/reset, JWT in localStorage,
-                      authHeader() for publish/claim, getSession/logout.
-  login.ts/signup.ts/reset.ts/account.ts  Auth page controllers (Vite entries)
+  auth.ts             Client session: register/login + forgotPassword/resetPassword,
+                      JWT in localStorage, authHeader() for publish/claim,
+                      getSession/logout.
+  login.ts/signup.ts/password-forgot.ts/password-reset.ts/account.ts
+                      Auth page controllers (Vite entries)
   submit.ts           publishCanvas() → POST /canvas; submit() → POST /ingest
                       (mural tile claim). Both bench/solve with Bearer auth.
   mural-banner.ts     Home-page mural status banner.
@@ -190,7 +193,7 @@ ingest/               Shared ingest logic
                       getByEmail, updatePassword) + MemoryUserStore. Tables:
                       drawbang-users (PK email), drawbang-usernames (PK username).
   email.ts            SES password-reset sender + ConsoleEmailSender (dev stub).
-  auth-handler.ts     POST /auth/{register,login,reset/request,reset/confirm}.
+  auth-handler.ts     POST /auth/{register,login,password/forgot,password/reset}.
   gif-validate.ts     GIF89a header check, 16×16, ≤16 frames, DRAWBANG ext
   storage.ts          Storage interface + FsStorage (dev/tests)
   s3-storage.ts       S3Storage (Lambda + daily builder)
@@ -333,8 +336,9 @@ the filesystem:
    Vite plugin (`vite/plugins/dev-bucket.ts`) serves them from
    `./dev-bucket/public/` using the same clean-URL rewrites (and `/d`→`/t`
    redirect) as the prod CloudFront Function.
-4. **Forgot password**: `/reset` → the ingest dev server logs the reset link to
-   its console (`[email] password reset for …`). Open it to set a new password.
+4. **Forgot password**: `/password/forgot` → the ingest dev server logs the
+   reset link (which lands you on `/password/reset?token=…`) to its console
+   (`[email] password reset for …`). Open it to set a new password.
 
 The Vite config proxies `/ingest`, `/auth`, and `/state/last-publish.json` to
 `:8787`, so the editor's default relative URLs (`VITE_INGEST_URL=/ingest`,
@@ -387,13 +391,16 @@ Builder CLI:
 One-time setup:
 1. Create IAM user with `AWSLambda_FullAccess`, `AmazonS3FullAccess`,
    `AmazonAPIGatewayAdministrator`, `AWSCloudFormationFullAccess`,
-   `IAMFullAccess`, `AmazonDynamoDBFullAccess`, and `CloudFrontFullAccess`.
+   `IAMFullAccess`, `AmazonDynamoDBFullAccess`, `CloudFrontFullAccess`,
+   and `AmazonSESFullAccess`.
    (DynamoDB is needed once the merch stack adds `OrdersTable`; CloudFront is
-   needed for distribution + function updates.)
+   needed for distribution + function updates; SES is needed to verify the
+   password-reset sender + inspect sandbox state — see `docs/auth-setup.md`.)
 2. GitHub secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
    `PRINTIFY_API_TOKEN`, `PRINTIFY_SHOP_ID`, `STRIPE_SECRET_KEY`,
-   `STRIPE_WEBHOOK_SECRET`, `JWT_SECRET` (required for accounts), and
-   `SES_FROM_ADDRESS` (optional, for reset emails).
+   `STRIPE_WEBHOOK_SECRET`, and `JWT_SECRET` (required for accounts).
+   Prod environment **variable** (non-secret): `SES_FROM_ADDRESS` (optional —
+   public From address for reset emails; `deploy.yml` reads it from `vars`).
 3. First deploy happens automatically on push to `master`. SAM creates the S3
    bucket, Lambda, HTTP API, DynamoDB tables (orders, mural tiles + cooldowns,
    user-stats, users, usernames), and IAM role.

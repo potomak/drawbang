@@ -164,4 +164,26 @@
 
   window.drawbangShowFlash = showFlash;
   window.drawbangHideFlash = hideFlash;
+
+  // Pending-flash consumer: pages that queue a flash with sessionStorage
+  // ["drawbang:pending-flash"] (set via src/layout/flash.ts setPendingFlash)
+  // get it surfaced on the next page load. One-shot — read+remove, race-safe
+  // because removeItem is atomic. JSON-only, so messages are strings here.
+  try {
+    var raw = sessionStorage.getItem("drawbang:pending-flash");
+    if (raw) {
+      sessionStorage.removeItem("drawbang:pending-flash");
+      var pending = JSON.parse(raw);
+      if (pending && typeof pending.kind === "string" && typeof pending.message === "string") {
+        var fire = function () { showFlash(pending); };
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", fire, { once: true });
+        } else {
+          fire();
+        }
+      }
+    }
+  } catch (_e) {
+    // private mode / malformed JSON — ignore.
+  }
 })();

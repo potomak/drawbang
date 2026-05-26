@@ -28,6 +28,17 @@
       // ignore storage errors — worst case the next page load still sees a
       // session, but the JWT removal above almost always succeeds.
     }
+    // Queue a flash so the destination page can surface it after the redirect.
+    // /flash.js (loaded by the chrome footer) consumes drawbang:pending-flash
+    // on init.
+    try {
+      sessionStorage.setItem(
+        "drawbang:pending-flash",
+        JSON.stringify({ kind: "info", message: "Signed out.", autoDismissMs: 5500 }),
+      );
+    } catch {
+      // private mode — the redirect still happens; just no flash.
+    }
     location.assign("/");
   };
 

@@ -13,9 +13,9 @@ import path from "node:path";
 //      hook in ingest/dev-server.ts) has written them.
 //
 //   2. Rewrite clean URLs for Vite-built entries (/merch, /merch/order/<id>,
-//      /login, /signup, /reset, /account) to their backing *.html files so
-//      Vite serves them. Doesn't read from disk — sets req.url and falls
-//      through to Vite.
+//      /login, /signup, /password/forgot, /password/reset, /account) to their
+//      backing *.html files so Vite serves them. Doesn't read from disk — sets
+//      req.url and falls through to Vite.
 
 export interface DevBucketPluginOptions {
   bucketRoot?: string;
@@ -142,7 +142,8 @@ function viteEntryRewrite(uri: string): string | null {
   if (uri === "/merch") return "/merch.html";
   if (uri === "/login") return "/login.html";
   if (uri === "/signup") return "/signup.html";
-  if (uri === "/reset") return "/reset.html";
+  if (uri === "/password/forgot") return "/password-forgot.html";
+  if (uri === "/password/reset") return "/password-reset.html";
   if (uri === "/account") return "/account.html";
   if (uri === "/privacy") return "/privacy.html";
   if (UUID_36.test(uri.slice("/merch/order/".length)) && uri.startsWith("/merch/order/")) {

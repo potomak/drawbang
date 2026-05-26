@@ -6,6 +6,14 @@
 // for trivial nudges by passing `autoDismissMs`. Each showFlash replaces
 // the previous one in place, which means PoW progress that updates every
 // few hundred ms just works without any extra API.
+//
+// The chrome footer (src/layout/chrome.ts) loads /flash.js on every surface,
+// which installs window.drawbang{Show,Hide}Flash + the pending-flash
+// auto-consumer. showFlash/hideFlash below delegate to those globals when
+// present so the DOM is single-owner; the local impl is the fallback for
+// environments where the chrome script hasn't loaded yet (or at all).
+
+const PENDING_FLASH_KEY = "drawbang:pending-flash";
 
 export type FlashKind = "info" | "success" | "error";
 
@@ -115,7 +123,47 @@ function resumeTimer(): void {
   };
 }
 
+interface FlashWindow extends Window {
+  drawbangShowFlash?: (opts: FlashOptions) => void;
+  drawbangHideFlash?: () => void;
+}
+
+function chromeFlash(): FlashWindow | null {
+  return typeof window === "undefined" ? null : (window as FlashWindow);
+}
+
 export function showFlash(opts: FlashOptions): void {
+  const w = chromeFlash();
+  if (w && typeof w.drawbangShowFlash === "function") {
+    w.drawbangShowFlash(opts);
+    return;
+  }
+  showFlashLocal(opts);
+}
+
+/**
+ * Queue a flash to render on the next page load. Used across navigations
+ * (sign-in/up/out, password reset) where the page that triggers the action
+ * isn't the page the user sees afterward. The receiving page's flash.js
+ * auto-consumes this on init. JSON-serialized, so `message` must be a string
+ * — no Node messages survive the trip.
+ */
+export interface PendingFlashOptions {
+  kind: FlashKind;
+  message: string;
+  action?: FlashAction;
+  autoDismissMs?: number;
+}
+
+export function setPendingFlash(opts: PendingFlashOptions): void {
+  try {
+    sessionStorage.setItem(PENDING_FLASH_KEY, JSON.stringify(opts));
+  } catch {
+    // private mode / storage unavailable — best effort.
+  }
+}
+
+function showFlashLocal(opts: FlashOptions): void {
   const el = ensureHost();
   const msg = msgSlot!;
   const action = actionSlot!;
@@ -167,6 +215,15 @@ export function showFlash(opts: FlashOptions): void {
 }
 
 export function hideFlash(): void {
+  const w = chromeFlash();
+  if (w && typeof w.drawbangHideFlash === "function") {
+    w.drawbangHideFlash();
+    return;
+  }
+  hideFlashLocal();
+}
+
+function hideFlashLocal(): void {
   clearTimer();
   if (!host) return;
   host.hidden = true;

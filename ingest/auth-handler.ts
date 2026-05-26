@@ -9,23 +9,23 @@ import {
 } from "./user-store.js";
 import type { EmailSender } from "./email.js";
 
-// POST /auth/register | /auth/login | /auth/reset/request | /auth/reset/confirm.
+// POST /auth/register | /auth/login | /auth/password/forgot | /auth/password/reset.
 //
 // Identity = email (private, unique) + password. Public handle = username
 // (unique, immutable v1) used in /u/<username> URLs. Sessions are stateless
 // HS256 JWTs ({ sub: user_id, un: username }); /ingest + /mural/claim trust
 // them without a DB read. Password reset is single-use via a token_version
-// claim checked against the user row at confirm time.
+// claim checked against the user row at /auth/password/reset time.
 
 const SESSION_TTL_S = 60 * 60 * 24 * 30; // 30 days
-const RESET_TTL_S = 60 * 60; // 1 hour
+const PASSWORD_RESET_TTL_S = 60 * 60; // 1 hour
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME_RE = /^[a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_]$/;
 const MIN_PASSWORD = 8;
 const MAX_PASSWORD = 200;
 
 const RESERVED_USERNAMES = new Set([
-  "login", "signup", "reset", "account", "u", "d", "t", "c", "days", "keys",
+  "login", "signup", "password", "account", "u", "d", "t", "c", "days", "keys",
   "gallery", "merch", "products", "murals", "mural", "canvas", "canvases",
   "tile", "tiles", "identity", "privacy", "share", "feed", "404", "admin",
   "api", "ingest", "state", "drawings", "static", "assets", "pow-test",
@@ -54,18 +54,18 @@ interface LoginRequest {
   email?: unknown;
   password?: unknown;
 }
-interface ResetRequestRequest {
+interface ForgotPasswordRequest {
   email?: unknown;
 }
-interface ResetConfirmRequest {
+interface ResetPasswordRequest {
   token?: unknown;
   password?: unknown;
 }
 
-interface ResetClaims extends JwtClaims {
+interface PasswordResetClaims extends JwtClaims {
   email: string;
   tv: number;
-  purpose: "reset";
+  purpose: "password-reset";
 }
 
 function issueSession(
@@ -158,8 +158,8 @@ export async function handleLogin(
   };
 }
 
-export async function handleResetRequest(
-  req: ResetRequestRequest,
+export async function handleForgotPassword(
+  req: ForgotPasswordRequest,
   cfg: AuthHandlerConfig,
 ): Promise<AuthResult> {
   const email = normalizeEmail(req.email);
@@ -171,12 +171,12 @@ export async function handleResetRequest(
 
   const nowSec = Math.floor((cfg.now ?? (() => new Date()))().getTime() / 1000);
   const token = signJwt(
-    { email: user.email, tv: user.token_version, purpose: "reset" },
+    { email: user.email, tv: user.token_version, purpose: "password-reset" },
     cfg.jwtSecret,
-    RESET_TTL_S,
+    PASSWORD_RESET_TTL_S,
     nowSec,
   );
-  const link = `${cfg.publicBaseUrl}/reset?token=${encodeURIComponent(token)}`;
+  const link = `${cfg.publicBaseUrl}/password/reset?token=${encodeURIComponent(token)}`;
   try {
     await cfg.email.sendPasswordReset(user.email, link);
   } catch (e) {
@@ -186,8 +186,8 @@ export async function handleResetRequest(
   return ok;
 }
 
-export async function handleResetConfirm(
-  req: ResetConfirmRequest,
+export async function handleResetPassword(
+  req: ResetPasswordRequest,
   cfg: AuthHandlerConfig,
 ): Promise<AuthResult> {
   if (typeof req.token !== "string") return err(400, "missing reset token");
@@ -200,14 +200,14 @@ export async function handleResetConfirm(
   }
 
   const nowSec = Math.floor((cfg.now ?? (() => new Date()))().getTime() / 1000);
-  let claims: ResetClaims;
+  let claims: PasswordResetClaims;
   try {
-    claims = verifyJwt<ResetClaims>(req.token, cfg.jwtSecret, nowSec);
+    claims = verifyJwt<PasswordResetClaims>(req.token, cfg.jwtSecret, nowSec);
   } catch (e) {
     if (e instanceof JwtError) return err(400, "reset link is invalid or expired");
     throw e;
   }
-  if (claims.purpose !== "reset" || typeof claims.email !== "string") {
+  if (claims.purpose !== "password-reset" || typeof claims.email !== "string") {
     return err(400, "reset link is invalid or expired");
   }
 
@@ -249,4 +249,4 @@ function normalizeUsername(value: unknown): string | null {
   return username;
 }
 
-export { SESSION_TTL_S, RESET_TTL_S };
+export { SESSION_TTL_S, PASSWORD_RESET_TTL_S };

@@ -23,13 +23,13 @@ export class SesEmailSender implements EmailSender {
   }
 
   async sendPasswordReset(to: string, resetLink: string): Promise<void> {
-    const text = `Reset your Drawbang password by opening this link (valid for 1 hour):\n\n${resetLink}\n\nIf you didn't request this, you can ignore this email.`;
+    const text = `Reset your Draw! password by opening this link (valid for 1 hour):\n\n${resetLink}\n\nIf you didn't request this, you can ignore this email.`;
     await this.ses.send(
       new SendEmailCommand({
         Source: this.from,
         Destination: { ToAddresses: [to] },
         Message: {
-          Subject: { Data: "Reset your Drawbang password" },
+          Subject: { Data: "Reset your Draw! password" },
           Body: { Text: { Data: text } },
         },
       }),

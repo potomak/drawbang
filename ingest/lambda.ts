@@ -16,10 +16,10 @@ import {
 } from "./mural-handler.js";
 import { handleUserStats } from "./user-stats-handler.js";
 import {
+  handleForgotPassword,
   handleLogin,
   handleRegister,
-  handleResetConfirm,
-  handleResetRequest,
+  handleResetPassword,
   type AuthHandlerConfig,
 } from "./auth-handler.js";
 import { S3Storage } from "./s3-storage.js";
@@ -113,11 +113,11 @@ async function handleAuthRoute(
     case "/auth/login":
       result = await handleLogin(body, authConfig);
       break;
-    case "/auth/reset/request":
-      result = await handleResetRequest(body, authConfig);
+    case "/auth/password/forgot":
+      result = await handleForgotPassword(body, authConfig);
       break;
-    case "/auth/reset/confirm":
-      result = await handleResetConfirm(body, authConfig);
+    case "/auth/password/reset":
+      result = await handleResetPassword(body, authConfig);
       break;
     default:
       return text(405, "method not allowed");

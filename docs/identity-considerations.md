@@ -26,13 +26,13 @@ trade-offs deliberately taken.
   rewrite the nav link before first paint). Publish/claim send `Authorization:
   Bearer <jwt>`; the route extracts `{ user_id, username }` and passes it into
   the handlers via `cfg.auth`.
-- **Password reset**: `POST /auth/reset/request` always returns 200 (no email
-  enumeration) and, if the account exists, emails a link carrying a 1-hour
-  reset-JWT `{ email, tv: token_version, purpose: "reset" }` via SES
-  (`ingest/email.ts`). `POST /auth/reset/confirm` verifies the JWT, requires
-  `tv === token_version`, writes the new hash, and **increments
-  `token_version`** — which makes the link single-use. There is no signup email
-  verification.
+- **Password reset**: `POST /auth/password/forgot` always returns 200 (no email
+  enumeration) and, if the account exists, emails a link to `/password/reset`
+  carrying a 1-hour reset-JWT `{ email, tv: token_version, purpose:
+  "password-reset" }` via SES (`ingest/email.ts`). `POST /auth/password/reset`
+  verifies the JWT, requires `tv === token_version`, writes the new hash, and
+  **increments `token_version`** — which makes the link single-use. There is
+  no signup email verification.
 
 ## Trade-offs taken (v1)
 

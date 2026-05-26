@@ -1,10 +1,10 @@
 import { strict as assert } from "node:assert";
 import { beforeEach, describe, test } from "node:test";
 import {
+  handleForgotPassword,
   handleLogin,
   handleRegister,
-  handleResetConfirm,
-  handleResetRequest,
+  handleResetPassword,
   type AuthHandlerConfig,
 } from "../ingest/auth-handler.js";
 import { MemoryUserStore } from "../ingest/user-store.js";
@@ -101,16 +101,16 @@ describe("auth: password reset", () => {
     await handleRegister({ email: "a@b.com", username: "alice", password: "password123" }, cfg);
 
     // Unknown email still 200, no email sent.
-    const ghost = await handleResetRequest({ email: "ghost@b.com" }, cfg);
+    const ghost = await handleForgotPassword({ email: "ghost@b.com" }, cfg);
     assert.equal(ghost.status, 200);
     assert.equal(email.links.length, 0);
 
-    const req = await handleResetRequest({ email: "a@b.com" }, cfg);
+    const req = await handleForgotPassword({ email: "a@b.com" }, cfg);
     assert.equal(req.status, 200);
     assert.equal(email.links.length, 1);
     const token = tokenFromLink(email.links[0].link);
 
-    const confirm = await handleResetConfirm({ token, password: "newpassword1" }, cfg);
+    const confirm = await handleResetPassword({ token, password: "newpassword1" }, cfg);
     assert.equal(confirm.status, 200);
 
     // Old password no longer works; new one does.
@@ -118,13 +118,13 @@ describe("auth: password reset", () => {
     assert.equal((await handleLogin({ email: "a@b.com", password: "newpassword1" }, cfg)).status, 200);
 
     // Reusing the same reset token fails (token_version bumped).
-    const replay = await handleResetConfirm({ token, password: "anotherpass1" }, cfg);
+    const replay = await handleResetPassword({ token, password: "anotherpass1" }, cfg);
     assert.equal(replay.status, 400);
   });
 
   test("rejects a garbage token", async () => {
     const cfg = makeCfg().cfg;
-    const r = await handleResetConfirm({ token: "not.a.jwt", password: "password123" }, cfg);
+    const r = await handleResetPassword({ token: "not.a.jwt", password: "password123" }, cfg);
     assert.equal(r.status, 400);
   });
 });

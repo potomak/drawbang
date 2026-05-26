@@ -91,10 +91,12 @@ export function renderFooter(opts: FooterOptions): string {
     (s) =>
       `<a href="${esc(s.href)}" target="_blank" rel="noopener">${esc(s.label)}</a>`,
   ).join("\n        ");
-  // The hamburger toggle (#170) and the identity-link patcher (#171)
-  // both ship as plain JS at stable URLs, so every surface — Vite-built
-  // or builder-rendered — loads them from the same place without bundle
-  // hash plumbing.
+  // The hamburger toggle, identity-link patcher, and flash component all
+  // ship as plain JS at stable URLs so every surface — Vite-built or
+  // builder-rendered — loads them from the same place without bundle hash
+  // plumbing. flash.js loads first so its window.drawbang{Show,Hide}Flash
+  // (and pending-flash auto-consume) are ready by the time anything else
+  // on the page wants to fire a notification.
   return `<footer class="ftr">
   <div class="ftr-left">
     <nav class="ftr-links" aria-label="Footer">
@@ -110,6 +112,7 @@ export function renderFooter(opts: FooterOptions): string {
     <a class="ftr-feedback" href="${esc(FEEDBACK_URL)}" target="_blank" rel="noopener">${FEEDBACK_ICON_SVG}<span>Feedback</span></a>
   </div>
 </footer>
+<script src="/flash.js"></script>
 <script src="/chrome-toggle.js"></script>
 <script src="/chrome-identity.js"></script>`;
 }

@@ -43,9 +43,46 @@ and kills any outstanding reset links. That's the intended kill-switch.
 
 ## 2. SES (optional — for password-reset emails)
 
-The IAM grant (`ses:SendEmail` / `ses:SendRawEmail`) is already in the template.
-You need to: (a) verify a sender, (b) set `SES_FROM_ADDRESS`, (c) leave the
-SES sandbox. Do all of it in **us-east-1**.
+The Lambda **runtime** already gets `ses:SendEmail` / `ses:SendRawEmail` via
+the SAM template. What's missing by default is **operator** access — the IAM
+user you (or the CI deploy job) drive SES from needs perms to verify a sender
+and inspect sandbox state. So the full setup is:
+
+0. Grant SES perms to the operator IAM user (once).
+1. Verify a sender identity.
+2. Set `SES_FROM_ADDRESS`.
+3. Leave the SES sandbox.
+
+All of it in **us-east-1**.
+
+### 0) Grant SES perms to the operator IAM user (one-time)
+
+Simplest path: attach the AWS-managed **`AmazonSESFullAccess`** policy. It
+covers `ses:Verify*`, `ses:Get*`, `ses:List*`, `ses:Describe*`, and `ses:Send*`
+— both the v1 (`ses`) and v2 (`sesv2`) APIs share the `ses:` action prefix,
+so one grant unblocks every command in this doc plus future read-only checks
+like `aws ses list-identities` and `aws ses get-account-sending-enabled`.
+
+```bash
+USER=Claude-Drawbang   # or your own deploy/operator IAM user
+aws iam attach-user-policy \
+  --user-name "$USER" \
+  --policy-arn arn:aws:iam::aws:policy/AmazonSESFullAccess
+
+# confirm it stuck:
+aws iam list-attached-user-policies --user-name "$USER" \
+  --query 'AttachedPolicies[?PolicyName==`AmazonSESFullAccess`]'
+```
+
+Whoever runs this needs `iam:AttachUserPolicy` — the deploy user already has
+`IAMFullAccess` per `CLAUDE.md`.
+
+> **Least-privilege alternative.** If you'd rather not hand out `ses:*`,
+> create an inline policy with only these actions on `Resource: "*"`:
+> `ses:VerifyDomainIdentity`, `ses:VerifyDomainDkim`, `ses:VerifyEmailIdentity`,
+> `ses:GetIdentityVerificationAttributes`, `ses:GetIdentityDkimAttributes`,
+> `ses:ListIdentities`, `ses:GetAccountSendingEnabled`, `ses:GetAccount`.
+> (SES identity ARNs aren't a useful scope; `*` is standard for these.)
 
 ### a) Verify a sender identity (pick one)
 
@@ -91,7 +128,7 @@ Until granted, reset links only deliver to addresses you've separately verified.
 
 ### Verify it works
 
-After deploy, `POST /auth/reset/request` for a real account → check the inbox.
+After deploy, `POST /auth/password/forgot` for a real account → check the inbox.
 Locally (`npm run dev:all`), SES is not used — the reset link is printed to the
 ingest dev-server console (`[email] password reset for …`).
 

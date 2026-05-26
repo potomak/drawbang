@@ -144,7 +144,7 @@ Resources:
           // /u/<username>              -> /u/<username>.html  (per-account profile)
           // /products                   -> /products.html  (popular merch gallery)
           // /products/p/N               -> /products/p/N.html
-          // /login /signup /reset /account -> *.html  (auth SPAs)
+          // /login /signup /password/forgot /password/reset /account -> *.html  (auth SPAs)
           //
           // Legacy /d/<id> drawing pages are retired: 301 to the unified tile
           // page /t/<id> (drawing id == tile id == sha256(gif)). Legacy
@@ -184,8 +184,10 @@ Resources:
             req.uri = "/login.html";
           } else if (uri === "/signup") {
             req.uri = "/signup.html";
-          } else if (uri === "/reset") {
-            req.uri = "/reset.html";
+          } else if (uri === "/password/forgot") {
+            req.uri = "/password-forgot.html";
+          } else if (uri === "/password/reset") {
+            req.uri = "/password-reset.html";
           } else if (uri === "/account") {
             req.uri = "/account.html";
           } else if (uri === "/privacy") {
@@ -514,18 +516,18 @@ Resources:
             ApiId: !Ref IngestApi
             Method: POST
             Path: /auth/login
-        AuthResetRequest:
+        AuthForgotPassword:
           Type: HttpApi
           Properties:
             ApiId: !Ref IngestApi
             Method: POST
-            Path: /auth/reset/request
-        AuthResetConfirm:
+            Path: /auth/password/forgot
+        AuthResetPassword:
           Type: HttpApi
           Properties:
             ApiId: !Ref IngestApi
             Method: POST
-            Path: /auth/reset/confirm
+            Path: /auth/password/reset
 
   IngestApi:
     Type: AWS::Serverless::HttpApi

@@ -597,8 +597,6 @@ dialog form menu button:hover { border-color: var(--border-strong); }
 }
 .auth-field input:focus { outline: none; border-color: var(--border-strong); }
 .auth-field small { font-size: var(--t-xs); }
-.auth-error { color: #ff6060; font-size: var(--t-sm); min-height: 1.2em; margin: 0; }
-.auth-note { font-size: var(--t-sm); color: var(--fg-dim); }
 
 /* =====================================================================
    POW TEST BED (/pow-test)
