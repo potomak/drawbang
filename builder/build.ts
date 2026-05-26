@@ -8,7 +8,7 @@ import { validateGif } from "../ingest/gif-validate.js";
 import { earnedBadges } from "../config/badges.js";
 import type { MerchCatalog } from "../merch/lambda.js";
 import type { ProductCounter } from "../merch/product-counters.js";
-import { contentHash, hashHex, leadingZeroBits, powHash } from "../src/proof-of-work.js";
+import { contentHash, hashHex, leadingZeroBits, powHash } from "../src/pow.js";
 import renderDayGallery from "./templates/day-gallery.js";
 import renderGallery from "./templates/gallery.js";
 import renderFeed from "./templates/feed.js";

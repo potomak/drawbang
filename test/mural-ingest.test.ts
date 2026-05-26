@@ -8,7 +8,7 @@ import {
   requiredBits,
   solve,
   solveClaim,
-} from "../src/proof-of-work.js";
+} from "../src/pow.js";
 import type { Storage } from "../ingest/storage.js";
 import { handleIngest, type AuthedUser, type IngestRequest } from "../ingest/handler.js";
 import { handleMuralClaim } from "../ingest/mural-handler.js";

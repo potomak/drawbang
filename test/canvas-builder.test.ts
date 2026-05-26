@@ -6,7 +6,7 @@ import os from "node:os";
 import { Bitmap } from "../src/editor/bitmap.js";
 import { encodeGif } from "../src/editor/gif.js";
 import { DEFAULT_ACTIVE_PALETTE } from "../src/editor/palette.js";
-import { contentHash, hashHex } from "../src/proof-of-work.js";
+import { contentHash, hashHex } from "../src/pow.js";
 import { FsStorage } from "../ingest/storage.js";
 import { build } from "../builder/build.js";
 

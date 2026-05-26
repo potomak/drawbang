@@ -3,7 +3,7 @@ import { describe, test } from "node:test";
 import { Bitmap } from "../src/editor/bitmap.js";
 import { encodeGif } from "../src/editor/gif.js";
 import { DEFAULT_ACTIVE_PALETTE } from "../src/editor/palette.js";
-import { INITIAL_STATE, contentHash, hashHex, requiredBits, solve } from "../src/proof-of-work.js";
+import { INITIAL_STATE, contentHash, hashHex, requiredBits, solve } from "../src/pow.js";
 import { canonicalCanvasString, canvasIdFor, type CanvasManifest } from "../config/canvas.js";
 import type { Storage } from "../ingest/storage.js";
 import {

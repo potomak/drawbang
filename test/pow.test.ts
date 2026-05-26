@@ -10,7 +10,7 @@ import {
   solve,
   solveClaim,
   verifyClaimPow,
-} from "../src/proof-of-work.js";
+} from "../src/pow.js";
 
 test("leadingZeroBits counts bits across bytes", () => {
   assert.equal(leadingZeroBits(new Uint8Array([0, 0, 0x01])), 23);

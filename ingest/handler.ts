@@ -1,5 +1,5 @@
-import { INITIAL_STATE, ageSecondsBetween, contentHash, hashHex, leadingZeroBits, powHash, requiredBits } from "../src/proof-of-work.js";
-import type { LastPublishState } from "../src/proof-of-work.js";
+import { INITIAL_STATE, ageSecondsBetween, contentHash, hashHex, leadingZeroBits, powHash, requiredBits } from "../src/pow.js";
+import type { LastPublishState } from "../src/pow.js";
 import renderTilePage, {
   type TileMuralMembership,
 } from "../builder/templates/tile-page.js";

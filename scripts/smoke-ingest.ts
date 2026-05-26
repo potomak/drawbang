@@ -1,7 +1,7 @@
 import { Bitmap } from "../src/editor/bitmap.js";
 import { encodeGif } from "../src/editor/gif.js";
 import { DEFAULT_ACTIVE_PALETTE } from "../src/editor/palette.js";
-import { INITIAL_STATE, solve } from "../src/proof-of-work.js";
+import { INITIAL_STATE, solve } from "../src/pow.js";
 
 const endpoint = process.argv[2];
 if (!endpoint) {

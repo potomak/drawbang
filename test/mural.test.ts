@@ -12,7 +12,7 @@ import { promises as fs } from "node:fs";
 import { Bitmap } from "../src/editor/bitmap.js";
 import { encodeGif } from "../src/editor/gif.js";
 import { DEFAULT_ACTIVE_PALETTE } from "../src/editor/palette.js";
-import { INITIAL_STATE, requiredBits, solve, solveClaim } from "../src/proof-of-work.js";
+import { INITIAL_STATE, requiredBits, solve, solveClaim } from "../src/pow.js";
 import { handleIngest, type IngestRequest } from "../ingest/handler.js";
 import { handleMuralClaim, handleMuralState } from "../ingest/mural-handler.js";
 import { MemoryMuralStore } from "../ingest/mural-store.js";

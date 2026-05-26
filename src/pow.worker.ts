@@ -1,4 +1,4 @@
-import { bench, solve, solveClaim, type ClaimPowInput } from "./proof-of-work.js";
+import { bench, solve, solveClaim, type ClaimPowInput } from "./pow.js";
 
 interface SolveRequest {
   type: "solve";

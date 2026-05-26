@@ -1,4 +1,4 @@
-import powConfig from "../config/proof-of-work.json" with { type: "json" };
+import powConfig from "../config/pow.json" with { type: "json" };
 
 export interface PowConfig {
   hash_algo: "sha-256";
@@ -90,7 +90,7 @@ export function hashHex(hash: Uint8Array): string {
 }
 
 // Picks the required difficulty bits for a given time delta (seconds since
-// the baseline publish). Brackets are defined in config/proof-of-work.json.
+// the baseline publish). Brackets are defined in config/pow.json.
 export function requiredBits(ageSeconds: number): number {
   for (const row of POW_CONFIG.difficulty_table) {
     if (row.max_age_s === null) return row.bits;

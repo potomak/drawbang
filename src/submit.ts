@@ -1,5 +1,5 @@
 import { authHeader, getSession } from "./auth.js";
-import type { LastPublishState, SolveProgress } from "./proof-of-work.js";
+import type { LastPublishState, SolveProgress } from "./pow.js";
 import {
   INITIAL_STATE,
   POW_CONFIG,
@@ -7,7 +7,7 @@ import {
   contentHash,
   hashHex,
   requiredBits,
-} from "./proof-of-work.js";
+} from "./pow.js";
 import { canonicalCanvasString, type CanvasManifest } from "../config/canvas.js";
 
 export interface IngestResponse {

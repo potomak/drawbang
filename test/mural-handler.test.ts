@@ -13,7 +13,7 @@ import {
 import { MemoryMuralStore } from "../ingest/mural-store.js";
 import { FsStorage } from "../ingest/storage.js";
 import type { AuthedUser } from "../ingest/handler.js";
-import { solveClaim } from "../src/proof-of-work.js";
+import { solveClaim } from "../src/pow.js";
 import {
   muralIdForDate,
   muralOpensAt,
