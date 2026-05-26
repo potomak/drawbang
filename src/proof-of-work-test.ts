@@ -1,5 +1,5 @@
 // Standalone PoW test bed. Spins up the same Web Worker the editor uses
-// (`pow.worker.ts`) so timings reflect what real publishers see.
+// (`proof-of-work.worker.ts`) so timings reflect what real publishers see.
 
 import { showFlash, hideFlash } from "./layout/flash.js";
 
@@ -20,7 +20,7 @@ let lastHps: number | null = null;
 let runCounter = 0;
 
 function spawnWorker(): Worker {
-  return new Worker(new URL("./pow.worker.ts", import.meta.url), { type: "module" });
+  return new Worker(new URL("./proof-of-work.worker.ts", import.meta.url), { type: "module" });
 }
 
 function killWorker(): void {

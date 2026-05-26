@@ -80,7 +80,7 @@ export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
   const bits = requiredBits(ageS);
 
   opts.onPhase?.("bench", "measuring hash rate");
-  const worker = new Worker(new URL("./pow.worker.ts", import.meta.url), { type: "module" });
+  const worker = new Worker(new URL("./proof-of-work.worker.ts", import.meta.url), { type: "module" });
   try {
     const benchHps = await runWorker<number>(worker, { type: "bench", ms: 200 }, (msg) => {
       if (msg.type === "benchResult") return msg.hps;
@@ -194,7 +194,7 @@ export async function publishCanvas(
   const canonical = new TextEncoder().encode(canonicalCanvasString(manifest));
 
   opts.onPhase?.("bench", "measuring hash rate");
-  const worker = new Worker(new URL("./pow.worker.ts", import.meta.url), { type: "module" });
+  const worker = new Worker(new URL("./proof-of-work.worker.ts", import.meta.url), { type: "module" });
   try {
     const benchHps = await runWorker<number>(worker, { type: "bench", ms: 200 }, (msg) => {
       if (msg.type === "benchResult") return msg.hps;
@@ -281,7 +281,7 @@ export async function claimTile(opts: ClaimTileOptions): Promise<ClaimResponse> 
   const baseline = state.last_claim_at;
 
   opts.onPhase?.("bench", "measuring hash rate");
-  const worker = new Worker(new URL("./pow.worker.ts", import.meta.url), {
+  const worker = new Worker(new URL("./proof-of-work.worker.ts", import.meta.url), {
     type: "module",
   });
   try {

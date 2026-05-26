@@ -459,3 +459,16 @@ If reuse genuinely isn't viable (e.g. the surface needs a different
 interaction model), say so explicitly in the commit message and ask before
 proceeding — divergent UX is harder to walk back than a slightly bigger
 refactor.
+
+## Naming conventions
+
+- **Files**: Use kebab-case for all source files (`proof-of-work.ts`, `canvas-doc.ts`). Avoid abbreviations; spell out domain terms (`proof-of-work` not `pow`).
+- **Modules**: File name matches the primary export. One concept per file.
+- **Types / Interfaces**: PascalCase (`FrameState`, `PowConfig`). Suffix with `Config`, `State`, `Options` when appropriate.
+- **Functions / Variables**: camelCase (`activePalette`, `publishCanvas`). Boolean variables start with `is/has/can/should`.
+- **Constants**: `UPPER_SNAKE_CASE` for true compile-time constants (`MAX_FRAMES`, `WIDTH`). Config objects exported from `config/` use `PascalCase` export names (`POW_CONFIG`).
+- **CSS classes**: kebab-case with namespace prefix (`ed-` for editor, `mc-` for merch, `hdr`/`ftr` for chrome). Shared chrome classes live in `chrome.css`.
+- **Worker files**: `*.worker.ts` suffix (`proof-of-work.worker.ts`).
+- **Test files**: `*.test.ts` mirrors source name (`proof-of-work.test.ts`).
+- **Avoid**: Hungarian notation, single-letter names except loop indices, and cryptic abbreviations (`pow` → `proof-of-work`, `cfg` → `config`).
+- **Renames**: When renaming a public module, update all imports, config references, and documentation in the same commit. Run `npm run typecheck` before pushing.
