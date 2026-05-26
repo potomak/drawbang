@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { Bitmap } from "../src/editor/bitmap.js";
 import { encodeGif } from "../src/editor/gif.js";
 import { DEFAULT_ACTIVE_PALETTE } from "../src/editor/palette.js";
-import { INITIAL_STATE, contentHash, hashHex, leadingZeroBits, powHash, requiredBits, solve } from "../src/pow.js";
+import { INITIAL_STATE, contentHash, hashHex, leadingZeroBits, powHash, requiredBits, solve } from "../src/proof-of-work.js";
 import type { Storage } from "../ingest/storage.js";
 import {
   handleIngest,
