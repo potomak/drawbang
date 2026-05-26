@@ -62,7 +62,9 @@ jobs:
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          SES_FROM_ADDRESS: ${{ secrets.SES_FROM_ADDRESS }}
+          # Not sensitive (a public From address) — a prod environment variable,
+          # not a secret. secrets.* would resolve empty and skip the param.
+          SES_FROM_ADDRESS: ${{ vars.SES_FROM_ADDRESS }}
         run: |
           # sam rejects an empty `Key=` override, so only pass params whose
           # value is non-empty. Optional secrets (SES, Printify, Stripe) that
