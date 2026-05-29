@@ -66,6 +66,17 @@ jobs:
           # not a secret. secrets.* would resolve empty and skip the param.
           SES_FROM_ADDRESS: ${{ vars.SES_FROM_ADDRESS }}
         run: |
+          # Read the prior deploy's CloudFront distribution id (if any) so
+          # the Lambda env var can reference it without a CloudFormation
+          # circular dependency. Empty on the first-ever deploy → Lambda
+          # skips invalidation that one time.
+          PRIOR_CF_ID=""
+          if aws cloudformation describe-stacks --stack-name "$STACK_NAME" >/dev/null 2>&1; then
+            PRIOR_CF_ID=$(aws cloudformation describe-stacks \
+              --stack-name "$STACK_NAME" \
+              --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
+              --output text 2>/dev/null || true)
+          fi
           # sam rejects an empty `Key=` override, so only pass params whose
           # value is non-empty. Optional secrets (SES, Printify, Stripe) that
           # aren't configured yet fall back to the template's "" default.
@@ -76,7 +87,8 @@ jobs:
             "StripeSecretKey=${STRIPE_SECRET_KEY}" \
             "StripeWebhookSecret=${STRIPE_WEBHOOK_SECRET}" \
             "JwtSecret=${JWT_SECRET}" \
-            "SesFromAddress=${SES_FROM_ADDRESS}"; do
+            "SesFromAddress=${SES_FROM_ADDRESS}" \
+            "CloudFrontDistributionIdOverride=${PRIOR_CF_ID}"; do
             [ -n "${kv#*=}" ] && PARAMS+=("$kv")
           done
           sam deploy --no-fail-on-empty-changeset --parameter-overrides "${PARAMS[@]}"

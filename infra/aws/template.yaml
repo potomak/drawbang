@@ -59,6 +59,16 @@ Parameters:
       Verified SES sender address for password-reset emails (e.g.
       no-reply@drawbang.com). Maps to SES_FROM_ADDRESS. Leave empty until SES
       is set up — reset requests still return 200 but no email is sent.
+  # CloudFront distribution id, passed in by the workflow from the prior
+  # deploy's stack outputs so the Lambda env var can reference it without
+  # creating a CloudFormation circular dependency (the Lambda's env can't
+  # !Ref AssetsDistribution because AssetsDistribution → IngestApi →
+  # IngestFunction). Empty on the very first deploy means the publish path
+  # skips CloudFront invalidation; subsequent deploys fill it in.
+  CloudFrontDistributionIdOverride:
+    Type: String
+    Default: ""
+    Description: CloudFront distribution id used by the Lambda to invalidate cached gallery/profile pages on publish.
 
 Conditions:
   HasCustomDomain: !Not [!Equals [!Ref DomainName, ""]]
@@ -484,7 +494,7 @@ Resources:
           DRAWBANG_USERS_TABLE: !Ref UsersTable
           DRAWBANG_USERNAMES_TABLE: !Ref UsernamesTable
           DRAWBANG_DRAWINGS_TABLE: !Ref DrawingsTable
-          CF_DISTRIBUTION_ID: !Ref AssetsDistribution
+          CF_DISTRIBUTION_ID: !Ref CloudFrontDistributionIdOverride
           JWT_SECRET: !Ref JwtSecret
           SES_FROM_ADDRESS: !Ref SesFromAddress
           NODE_OPTIONS: "--enable-source-maps"
@@ -504,11 +514,13 @@ Resources:
               Resource: "*"
         # Invalidate the CloudFront cache after a publish so the gallery +
         # author's profile + RSS pick up the new drawing within seconds
-        # instead of waiting for the s-maxage TTL.
+        # instead of waiting for the s-maxage TTL. Scoped by account but
+        # not by specific distribution because !Ref-ing AssetsDistribution
+        # here would cycle through IngestApi back to IngestFunction.
         - Statement:
             - Effect: Allow
               Action: cloudfront:CreateInvalidation
-              Resource: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${AssetsDistribution}"
+              Resource: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/*"
       Events:
         Ingest:
           Type: HttpApi
