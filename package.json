@@ -34,6 +34,7 @@
     "vite": "^5.4.0"
   },
   "dependencies": {
+    "@aws-sdk/client-cloudfront": "^3.1056.0",
     "@aws-sdk/client-dynamodb": "^3.1037.0",
     "@aws-sdk/client-lambda": "^3.1042.0",
     "@aws-sdk/client-s3": "^3.1036.0",

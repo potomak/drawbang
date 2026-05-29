@@ -17,6 +17,7 @@ import { S3Storage } from "./s3-storage.js";
 import { DynamoUserStatsStore } from "./user-stats-store.js";
 import { DynamoUserStore } from "./user-store.js";
 import { DynamoDrawingStore } from "./drawing-store.js";
+import { CloudFrontInvalidator } from "./cache-invalidation.js";
 import { SesEmailSender } from "./email.js";
 import {
   renderDrawingPageHandler,
@@ -36,6 +37,9 @@ const userStatsTable = required("DRAWBANG_USER_STATS_TABLE");
 const usersTable = required("DRAWBANG_USERS_TABLE");
 const usernamesTable = required("DRAWBANG_USERNAMES_TABLE");
 const drawingsTable = required("DRAWBANG_DRAWINGS_TABLE");
+// Optional: when unset (e.g. local dev), publish skips CF invalidation —
+// cached pages refresh at s-maxage instead.
+const cfDistributionId = process.env.CF_DISTRIBUTION_ID ?? "";
 const jwtSecret = required("JWT_SECRET");
 // Optional: until SES is wired, password-reset emails fail at send time
 // (caught + logged in the handler) but the rest of ingest stays up.
@@ -49,6 +53,9 @@ const userStatsStore = new DynamoUserStatsStore({
 });
 const userStore = new DynamoUserStore({ usersTable, usernamesTable });
 const drawingStore = new DynamoDrawingStore({ tableName: drawingsTable });
+const cacheInvalidator = cfDistributionId
+  ? new CloudFrontInvalidator({ distributionId: cfDistributionId })
+  : undefined;
 const renderConfig: RenderHandlersConfig = {
   drawingStore,
   publicBaseUrl,
@@ -175,6 +182,7 @@ async function handleIngestRoute(
     repoUrl,
     userStatsStore,
     drawingStore,
+    cacheInvalidator,
   });
   return json(result.status, result.body);
 }

@@ -6,6 +6,10 @@ import { validateGif } from "./gif-validate.js";
 import type { Storage } from "./storage.js";
 import type { UserStatsStore } from "./user-stats-store.js";
 import type { DrawingStore } from "./drawing-store.js";
+import {
+  pathsToInvalidateOnPublish,
+  type CacheInvalidator,
+} from "./cache-invalidation.js";
 
 // The authenticated publisher, derived from the verified session JWT by the
 // route (lambda.ts / dev-server.ts). The request body never carries identity.
@@ -48,6 +52,10 @@ export interface HandlerConfig {
   // row alongside the inbox/S3 sidecar so the new gallery/profile/drawing
   // routes can serve from DDB without waiting for the builder.
   drawingStore?: DrawingStore;
+  // CloudFront cache invalidator. Optional: when absent the publish path
+  // still works, but the gallery + profile take up to s-maxage seconds
+  // to show the new drawing.
+  cacheInvalidator?: CacheInvalidator;
 }
 
 export interface ChildEntry {
@@ -256,6 +264,13 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     "text/html",
     "public, max-age=60",
   );
+
+  // Fire-and-forget CloudFront invalidation. Failures are logged inside
+  // the invalidator; the publish has already committed so we return 202
+  // regardless of whether the cache flush succeeded.
+  if (cfg.cacheInvalidator) {
+    void cfg.cacheInvalidator.invalidate(pathsToInvalidateOnPublish(author.username));
+  }
 
   return {
     status: 202,

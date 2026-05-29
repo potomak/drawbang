@@ -206,6 +206,28 @@ Resources:
       DomainName: !Ref DomainName
       ValidationMethod: DNS
 
+  # Cache policy for the dynamic /gallery + /d/<id> + /u/<un> + /feed.rss
+  # routes that go through Lambda. Honours the origin's Cache-Control
+  # header (the render handlers set s-maxage=86400 + stale-while-revalidate
+  # for gallery + profile, max-age=31536000 for drawing pages), varies the
+  # cache key on the cursor query string, and ignores client headers /
+  # cookies so identical URLs share a single edge entry.
+  DynamicCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: drawbang-dynamic
+        Comment: Dynamic HTML routes — caches per-URL based on origin Cache-Control.
+        MinTTL: 0
+        DefaultTTL: 60
+        MaxTTL: 31536000
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          QueryStringsConfig: { QueryStringBehavior: all }
+          HeadersConfig: { HeaderBehavior: none }
+          CookiesConfig: { CookieBehavior: none }
+
   AssetsDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -225,6 +247,14 @@ Resources:
             S3OriginConfig:
               OriginAccessIdentity: ""
             OriginAccessControlId: !GetAtt AssetsOAC.Id
+          # API Gateway in front of the ingest Lambda. The dynamic-HTML
+          # behaviours below route /gallery + /d/<id> + /u/<un> + /feed.rss
+          # to this origin so the Lambda render handlers serve them.
+          - Id: api
+            DomainName: !Sub "${IngestApi}.execute-api.${AWS::Region}.amazonaws.com"
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
         DefaultCacheBehavior:
           TargetOriginId: assets
           ViewerProtocolPolicy: redirect-to-https
@@ -236,6 +266,38 @@ Resources:
           FunctionAssociations:
             - EventType: viewer-request
               FunctionARN: !GetAtt RewriteCleanUrls.FunctionMetadata.FunctionARN
+        CacheBehaviors:
+          # /gallery + /gallery/items?cursor=... — full page and HTML fragments.
+          - PathPattern: /gallery*
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref DynamicCachePolicy
+          # /d/<64hex> single-drawing pages.
+          - PathPattern: /d/*
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref DynamicCachePolicy
+          # /u/<username> profile + /u/<username>/items fragments.
+          - PathPattern: /u/*
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref DynamicCachePolicy
+          - PathPattern: /feed.rss
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref DynamicCachePolicy
         # Map S3 misses to the chrome'd /404.html the builder writes. Both
         # codes are routed because OAC returns 403 for keys outside the
         # public/* prefix and 404 for missing keys inside it. Short cache
@@ -422,6 +484,7 @@ Resources:
           DRAWBANG_USERS_TABLE: !Ref UsersTable
           DRAWBANG_USERNAMES_TABLE: !Ref UsernamesTable
           DRAWBANG_DRAWINGS_TABLE: !Ref DrawingsTable
+          CF_DISTRIBUTION_ID: !Ref AssetsDistribution
           JWT_SECRET: !Ref JwtSecret
           SES_FROM_ADDRESS: !Ref SesFromAddress
           NODE_OPTIONS: "--enable-source-maps"
@@ -439,6 +502,13 @@ Resources:
             - Effect: Allow
               Action: [ses:SendEmail, ses:SendRawEmail]
               Resource: "*"
+        # Invalidate the CloudFront cache after a publish so the gallery +
+        # author's profile + RSS pick up the new drawing within seconds
+        # instead of waiting for the s-maxage TTL.
+        - Statement:
+            - Effect: Allow
+              Action: cloudfront:CreateInvalidation
+              Resource: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${AssetsDistribution}"
       Events:
         Ingest:
           Type: HttpApi
