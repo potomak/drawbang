@@ -81,6 +81,29 @@
 .dr-meta dt { color: var(--fg-muted); }
 .dr-meta dd { margin: 0; word-break: break-all; }
 .mono-trunc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+/* Avatar — small pixel-perfect square next to a username link or page
+   title. Sized inline via width/height; this rule pins the rendering
+   primitives so the gif doesn't get smoothed by the browser scaler. */
+img.avatar {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+  border: var(--border) solid var(--border-c);
+  background: var(--canvas-bg);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+/* Author link on /d/<id>: vertical-align the avatar with the username
+   text and drop the inline-flex's default baseline jitter. */
+.dr-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+.dr-author img.avatar { margin-right: 6px; }
+/* Page title avatar (/u/<username>) sits inline with the h1 text. */
+.page-title img.avatar { width: 32px; height: 32px; margin-right: 10px; }
 .dr-actions { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
 .dr-action-row { display: flex; gap: 8px; flex-wrap: wrap; }
 

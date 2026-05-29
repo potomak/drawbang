@@ -56,3 +56,10 @@ export class NoopInvalidator implements CacheInvalidator {
 export function pathsToInvalidateOnPublish(username: string): string[] {
   return ["/gallery*", `/u/${username}*`, "/feed.rss"];
 }
+
+// Invalidates the profile so the new avatar appears immediately. Drawing
+// pages absorb the change on their own s-maxage TTL (we keep that short
+// for the same reason).
+export function pathsToInvalidateOnAvatarChange(username: string): string[] {
+  return [`/u/${username}*`];
+}

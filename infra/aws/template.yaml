@@ -322,6 +322,20 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: !Ref DynamicCachePolicy
+          # /auth/* (POST register/login/forgot/reset/avatar) — runs through
+          # CloudFront so in-page scripts on /d/<id> can call the avatar
+          # endpoint with a relative URL. Caching is disabled (each request
+          # carries its own JWT), and OriginRequestPolicy = managed
+          # AllViewerExceptHostHeader forwards Authorization + body to the
+          # api origin without confusing it with the CloudFront Host.
+          - PathPattern: /auth/*
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
         # Map S3 misses to the chrome'd /404.html the builder writes. Both
         # codes are routed because OAC returns 403 for keys outside the
         # public/* prefix and 404 for missing keys inside it. Short cache
@@ -575,6 +589,12 @@ Resources:
             ApiId: !Ref IngestApi
             Method: POST
             Path: /auth/password/reset
+        AuthAvatar:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: POST
+            Path: /auth/avatar
         Gallery:
           Type: HttpApi
           Properties:

@@ -55,7 +55,24 @@ test("tile page: no Advanced disclosure / no technical fields", () => {
 
 test("tile page: author label (signed)", () => {
   const html = renderTilePage(baseView);
-  assert.match(html, /<dt>Author<\/dt><dd><a href="\/u\/alice">alice<\/a><\/dd>/);
+  assert.match(
+    html,
+    /<dt>Author<\/dt><dd><a class="dr-author" href="\/u\/alice">alice<\/a><\/dd>/,
+  );
+});
+
+test("tile page: avatar renders before the username when set", () => {
+  const id = "b".repeat(64);
+  const html = renderTilePage({
+    ...baseView,
+    author: { user_id: "a".repeat(64), username: "alice", avatar_drawing_id: id },
+  });
+  assert.match(html, new RegExp(`<img class="avatar" src="/drawings/${id}\\.gif"`));
+});
+
+test("tile page: no avatar img when author has none set", () => {
+  const html = renderTilePage(baseView);
+  assert.doesNotMatch(html, /<img class="avatar"/);
 });
 
 test("tile page: author label (anonymous)", () => {

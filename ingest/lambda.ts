@@ -11,7 +11,9 @@ import {
   handleLogin,
   handleRegister,
   handleResetPassword,
+  handleSetAvatar,
   type AuthHandlerConfig,
+  type SetAvatarAuth,
 } from "./auth-handler.js";
 import { S3Storage } from "./s3-storage.js";
 import { DynamoUserStatsStore } from "./user-stats-store.js";
@@ -79,6 +81,8 @@ const authConfig: AuthHandlerConfig = {
   email: new SesEmailSender({ fromAddress: sesFromAddress }),
   jwtSecret,
   publicBaseUrl,
+  drawingStore,
+  cacheInvalidator,
 };
 
 export async function handler(
@@ -180,6 +184,16 @@ async function handleAuthRoute(
     case "/auth/password/reset":
       result = await handleResetPassword(body, authConfig);
       break;
+    case "/auth/avatar": {
+      const auth = extractAuth(event);
+      if (!auth) return json(401, { error: "authentication required" });
+      const setAvatarAuth: SetAvatarAuth = {
+        user_id: auth.user_id,
+        username: auth.username,
+      };
+      result = await handleSetAvatar(body, setAvatarAuth, authConfig);
+      break;
+    }
     default:
       return text(405, "method not allowed");
   }

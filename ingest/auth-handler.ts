@@ -8,6 +8,11 @@ import {
   type UserStore,
 } from "./user-store.js";
 import type { EmailSender } from "./email.js";
+import type { DrawingStore } from "./drawing-store.js";
+import {
+  pathsToInvalidateOnAvatarChange,
+  type CacheInvalidator,
+} from "./cache-invalidation.js";
 
 // POST /auth/register | /auth/login | /auth/password/forgot | /auth/password/reset.
 //
@@ -46,6 +51,10 @@ export interface AuthHandlerConfig {
   jwtSecret: string;
   publicBaseUrl: string;
   now?: () => Date;
+  // Required only for the /auth/avatar route (needs the drawing for the
+  // ownership check + the CF invalidator to refresh the profile after).
+  drawingStore?: DrawingStore;
+  cacheInvalidator?: CacheInvalidator;
 }
 
 export interface AuthResult {
@@ -242,6 +251,73 @@ export async function handleResetPassword(
     }
     throw e;
   }
+}
+
+interface SetAvatarRequest {
+  drawing_id?: unknown;
+}
+
+// Authenticated session passed by the route after JWT verification. We need
+// the email to address the users-table row; the JWT has user_id + username,
+// so the auth-handler does the user_id → email lookup via getByEmail isn't
+// possible (no GSI on user_id), but the username → email path via the
+// usernames table is. Keep this matching the JWT shape the route extracts.
+export interface SetAvatarAuth {
+  user_id: string;
+  username: string;
+}
+
+export async function handleSetAvatar(
+  req: SetAvatarRequest,
+  auth: SetAvatarAuth,
+  cfg: AuthHandlerConfig,
+): Promise<AuthResult> {
+  if (!cfg.drawingStore) return err(500, "drawing store not configured");
+  const drawing_id =
+    typeof req.drawing_id === "string" && /^[0-9a-f]{64}$/.test(req.drawing_id)
+      ? req.drawing_id
+      : null;
+  if (req.drawing_id !== null && drawing_id === null) {
+    return err(400, "invalid drawing_id (expected 64-hex or null)");
+  }
+
+  // Resolve the caller's account row from their public handle. The JWT
+  // carries user_id but the user store is keyed on email, so we hop via
+  // the usernames table.
+  const account = await cfg.userStore.getByUsername(auth.username);
+  if (!account || account.user_id !== auth.user_id) {
+    return err(401, "authentication required");
+  }
+
+  if (drawing_id) {
+    // Ownership check: the drawing must exist AND belong to the caller.
+    // Anonymous-bucketed drawings (e.g. /u/anonymous) can't be claimed
+    // by anyone else since they need username equality.
+    const drawing = await cfg.drawingStore.get(drawing_id);
+    if (!drawing) return err(404, "drawing not found");
+    if (drawing.username !== auth.username) {
+      return err(403, "not your drawing");
+    }
+  }
+
+  const updated = await cfg.userStore.setAvatar(account.email, drawing_id);
+
+  // Fire-and-forget: refresh the profile so the new avatar appears
+  // immediately. Drawing pages refresh on their own (their s-maxage was
+  // dropped to a day for this reason).
+  if (cfg.cacheInvalidator) {
+    void cfg.cacheInvalidator.invalidate(
+      pathsToInvalidateOnAvatarChange(updated.username),
+    );
+  }
+
+  return {
+    status: 200,
+    body: {
+      username: updated.username,
+      avatar_drawing_id: updated.avatar_drawing_id ?? null,
+    },
+  };
 }
 
 function normalizeEmail(value: unknown): string | null {

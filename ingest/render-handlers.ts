@@ -68,7 +68,11 @@ export interface RenderResponse {
 // mutable, so they ride a short edge cache + stale-while-revalidate that
 // the publish path invalidates on write.
 const CC_GALLERY = "public, s-maxage=86400, stale-while-revalidate=60";
-const CC_DRAWING_PAGE = "public, max-age=300, s-maxage=31536000";
+// Drawing pages were immutable when the gif was the only content, but the
+// author's avatar can change underneath us — drop to a day so avatar edits
+// propagate within 24h without forcing a per-avatar CF invalidation across
+// every /d/<id> the user has published.
+const CC_DRAWING_PAGE = "public, max-age=300, s-maxage=86400, stale-while-revalidate=60";
 const CC_PROFILE = "public, s-maxage=86400, stale-while-revalidate=60";
 const CC_FEED = "public, s-maxage=3600";
 const CC_NOT_FOUND = "public, max-age=60";
@@ -156,6 +160,11 @@ export async function renderDrawingPageHandler(
   const forks = await cfg.drawingStore.queryForks(drawing_id, {
     limit: cfg.perPage ?? PER_PAGE,
   });
+  // Author avatar: optional lookup so legacy "anonymous" / unregistered
+  // usernames just render without an avatar.
+  const authorAccount = cfg.userStore
+    ? await cfg.userStore.getByUsername(row.username)
+    : null;
   const body = renderTilePage({
     drawing_id: row.drawing_id,
     id_short: row.drawing_id.slice(0, 8),
@@ -163,7 +172,11 @@ export async function renderDrawingPageHandler(
     parent: row.parent_id
       ? { parent: row.parent_id, parent_short: row.parent_id.slice(0, 8) }
       : null,
-    author: { user_id: row.user_id, username: row.username },
+    author: {
+      user_id: row.user_id,
+      username: row.username,
+      avatar_drawing_id: authorAccount?.avatar_drawing_id ?? null,
+    },
     forks: forks.items.map(itemFromRow),
     public_base_url: cfg.publicBaseUrl,
     repo_url: cfg.repoUrl,
@@ -196,13 +209,22 @@ export async function renderProfilePageHandler(
   // instead of 404. Skips the lookup entirely when there are drawings (the
   // user_id is already denormalized on the first row).
   let userId: string;
+  let avatarDrawingId: string | null = null;
   if (page.items.length === 0) {
     if (!cfg.userStore) return notFound(cfg);
     const account = await cfg.userStore.getByUsername(username);
     if (!account) return notFound(cfg);
     userId = account.user_id;
+    avatarDrawingId = account.avatar_drawing_id ?? null;
   } else {
     userId = page.items[0].user_id;
+    // Lookup the avatar separately when there are drawings (the avatar
+    // isn't denormalized on the DrawingRow). Skipped when no userStore
+    // is wired (dev/tests).
+    if (cfg.userStore) {
+      const account = await cfg.userStore.getByUsername(username);
+      avatarDrawingId = account?.avatar_drawing_id ?? null;
+    }
   }
   const next = buildFragmentUrl(`/u/${username}/items`, page.next_cursor);
   const items = page.items.map(itemFromRow);
@@ -219,6 +241,7 @@ export async function renderProfilePageHandler(
     user_id: userId,
     drawings: items,
     stats,
+    avatar_drawing_id: avatarDrawingId,
     repo_url: cfg.repoUrl,
   });
   if (next) body = injectProfileSentinel(body, next);

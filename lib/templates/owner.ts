@@ -26,7 +26,22 @@ export interface OwnerView {
   // ones. Without it the stats block is whatever the last builder run
   // emitted (typically hours stale).
   stats_url?: string;
+  // drawing_id the user picked as their avatar. Renders a small inline
+  // gif next to the username when set.
+  avatar_drawing_id?: string | null;
   repo_url: string;
+}
+
+// Inline avatar next to a username. Returns "" when drawing_id is missing
+// or malformed so callers can splice it in unconditionally.
+export function renderAvatar(
+  drawing_id: string | null | undefined,
+  username: string,
+  size: number,
+): string {
+  if (!drawing_id || !/^[0-9a-f]{64}$/.test(drawing_id)) return "";
+  const px = Math.max(8, Math.floor(size));
+  return `<img class="avatar" src="/drawings/${esc(drawing_id)}.gif" alt="${esc(username)}" width="${px}" height="${px}" loading="lazy" />`;
 }
 
 export default function renderOwner(v: OwnerView): string {
@@ -62,7 +77,7 @@ ${items}
   <body>
     ${renderHeader({ active: "identity" })}
     <main>
-      <h1 class="page-title">Drawings by ${esc(v.username)}</h1>
+      <h1 class="page-title">${renderAvatar(v.avatar_drawing_id, v.username, 32)}Drawings by ${esc(v.username)}</h1>
 ${stats}${body}
     </main>
     ${renderFooter({ active: "identity", repoUrl: v.repo_url })}

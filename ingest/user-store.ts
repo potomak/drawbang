@@ -23,6 +23,10 @@ export interface UserRecord {
   password_hash: string;
   token_version: number; // bumped on password reset → invalidates reset links
   created_at: string; // ISO-8601
+  // drawing_id of the gif the account chose as its avatar. Validated against
+  // DrawingStore at write time so users can only pin their own drawings.
+  // null/absent → use the default identicon (browsers see no avatar img).
+  avatar_drawing_id?: string;
 }
 
 export class EmailTakenError extends Error {
@@ -65,6 +69,10 @@ export interface UserStore {
     expectedTokenVersion: number,
     nowIso: string,
   ): Promise<UserRecord>;
+  // Sets the user's avatar to the given drawing id. Caller is responsible
+  // for validating ownership BEFORE invoking this — the store just writes.
+  // Pass null to clear.
+  setAvatar(email: string, drawing_id: string | null): Promise<UserRecord>;
 }
 
 // -- DynamoDB -----------------------------------------------------------------
@@ -201,6 +209,25 @@ export class DynamoUserStore implements UserStore {
       throw e;
     }
   }
+
+  async setAvatar(
+    email: string,
+    drawing_id: string | null,
+  ): Promise<UserRecord> {
+    const r = await this.doc.send(
+      new UpdateCommand({
+        TableName: this.usersTable,
+        Key: { email },
+        UpdateExpression: drawing_id
+          ? "SET avatar_drawing_id = :a"
+          : "REMOVE avatar_drawing_id",
+        ConditionExpression: "attribute_exists(email)",
+        ExpressionAttributeValues: drawing_id ? { ":a": drawing_id } : undefined,
+        ReturnValues: "ALL_NEW",
+      }),
+    );
+    return r.Attributes as UserRecord;
+  }
 }
 
 // -- In-memory (tests + dev) --------------------------------------------------
@@ -245,6 +272,22 @@ export class MemoryUserStore implements UserStore {
       password_hash: passwordHash,
       token_version: r.token_version + 1,
     };
+    this.byEmail.set(email, updated);
+    return { ...updated };
+  }
+
+  async setAvatar(
+    email: string,
+    drawing_id: string | null,
+  ): Promise<UserRecord> {
+    const r = this.byEmail.get(email);
+    if (!r) throw new Error(`user not found: ${email}`);
+    const updated: UserRecord = drawing_id
+      ? { ...r, avatar_drawing_id: drawing_id }
+      : (() => {
+          const { avatar_drawing_id: _drop, ...rest } = r;
+          return rest;
+        })();
     this.byEmail.set(email, updated);
     return { ...updated };
   }
