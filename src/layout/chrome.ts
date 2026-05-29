@@ -37,6 +37,7 @@ export const IDENTITY_FALLBACK_HREF = "/login";
  */
 export const NAV_LINKS: readonly NavLink[] = [
   { href: "/gallery", label: "Gallery", id: "gallery" },
+  { href: "/products", label: "Products", id: "products" },
 ];
 
 function identityLink(opts: ChromeOptions): NavLink {

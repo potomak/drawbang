@@ -8,6 +8,8 @@ import renderTilePage from "../lib/templates/tile-page.js";
 import renderFeed from "../lib/templates/feed.js";
 import renderOwner from "../lib/templates/owner.js";
 import renderNotFound from "../lib/templates/not-found.js";
+import renderProducts from "../lib/templates/products.js";
+import { productCardsFromCounters } from "../lib/products-cards.js";
 import {
   decodeCursor,
   encodeCursor,
@@ -15,11 +17,17 @@ import {
   type DrawingRow,
   type DrawingStore,
 } from "./drawing-store.js";
+import type { MerchCatalog } from "../merch/lambda.js";
+import type { ProductCounter } from "../merch/product-counters.js";
 
 // Render handlers for the dynamic /gallery, /d/<id>, /u/<un>, /feed.rss
 // surfaces. Each returns a complete HTML/XML body plus the cache header
 // the route should ship. The Lambda adapter (or the dev-server in
 // dev:all) takes care of HTTP framing.
+
+export interface ProductCountersSource {
+  listAll(): Promise<ProductCounter[]>;
+}
 
 export interface RenderHandlersConfig {
   drawingStore: DrawingStore;
@@ -27,6 +35,12 @@ export interface RenderHandlersConfig {
   repoUrl: string;
   // Items per page on the gallery + profile. Defaults to PER_PAGE.
   perPage?: number;
+  // /products surface. Both must be set; missing either → /products 404s.
+  // Dev environments without a merch counters table just leave them off.
+  productCountersSource?: ProductCountersSource;
+  merchCatalog?: MerchCatalog;
+  // Test seam for the recency label on product cards. Defaults to wall-clock.
+  now?: () => Date;
 }
 
 export interface RenderResponse {
@@ -247,6 +261,41 @@ function injectProfileSentinel(html: string, nextUrl: string): string {
       </script>
     </main>`,
     );
+}
+
+// -- /products + /products/p/<N> --------------------------------------------
+
+const CC_PRODUCTS = "public, s-maxage=86400, stale-while-revalidate=60";
+
+export async function renderProductsPageHandler(
+  cfg: RenderHandlersConfig,
+  rawPage: string | null,
+): Promise<RenderResponse> {
+  if (!cfg.productCountersSource || !cfg.merchCatalog) return notFound(cfg);
+  const perPage = cfg.perPage ?? PER_PAGE;
+  const page = rawPage ? Math.max(1, Number.parseInt(rawPage, 10)) : 1;
+  if (!Number.isFinite(page) || page < 1) return notFound(cfg);
+
+  const counters = await cfg.productCountersSource.listAll();
+  const now = cfg.now ? cfg.now() : new Date();
+  const cards = productCardsFromCounters(counters, cfg.merchCatalog, now);
+  const totalPages = Math.max(1, Math.ceil(cards.length / perPage));
+  if (page > totalPages) return notFound(cfg);
+  const slice = cards.slice((page - 1) * perPage, page * perPage);
+  const body = renderProducts({
+    page,
+    total_pages: totalPages,
+    cards: slice,
+    prev_page: page > 1 ? { prev_page: page - 1 } : null,
+    next_page: page < totalPages ? { next_page: page + 1 } : null,
+    repo_url: cfg.repoUrl,
+  });
+  return {
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: CC_PRODUCTS,
+    body,
+  };
 }
 
 // -- /feed.rss ---------------------------------------------------------------

@@ -1,0 +1,92 @@
+import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
+import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
+import { esc } from "./_escape.js";
+
+export interface ProductCard {
+  drawing_id: string;
+  drawing_id_short: string;
+  product_id: string;
+  product_name: string;
+  from_dollars: string;
+  count: number;
+  // Optional human-readable relative time ("3 days ago"). v1 leaves null and
+  // renders just the count; a follow-up can compute and inject this.
+  recency_label: string | null;
+}
+
+export interface ProductsView {
+  page: number;
+  total_pages: number;
+  cards: ProductCard[];
+  prev_page: { prev_page: number } | null;
+  next_page: { next_page: number } | null;
+  repo_url: string;
+}
+
+export default function renderProducts(v: ProductsView): string {
+  const isEmpty = v.cards.length === 0;
+  const sub = isEmpty
+    ? ""
+    : `<p class="page-sub">Page ${esc(v.page)} of ${esc(v.total_pages)}</p>`;
+  const body = isEmpty
+    ? `      <p class="muted">No merch ordered yet — once someone buys their first item, it'll show up here ranked by popularity. Want to be first? Pick a drawing from <a href="/gallery">the gallery</a> and hit "Make merch".</p>`
+    : `      <ul class="pr-grid">
+${v.cards.map(renderCard).join("\n")}
+      </ul>
+      <nav class="pager">
+        ${v.prev_page ? `<a href="${prevHref(v.prev_page.prev_page)}">← Prev</a>` : ""}
+        ${v.next_page ? `<a href="/products/p/${esc(v.next_page.next_page)}">Next →</a>` : ""}
+      </nav>`;
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    ${renderAnalytics()}
+    ${renderMetaPixel()}
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Draw! · Products · page ${esc(v.page)}</title>
+    <link rel="stylesheet" href="/gallery-v2.css" />
+  </head>
+  <body>
+    ${renderHeader({ active: "products" })}
+    <main>
+      <h1 class="page-title">Products</h1>
+      ${sub}
+${body}
+    </main>
+    ${renderFooter({ active: "products", repoUrl: v.repo_url })}
+  </body>
+</html>
+`;
+}
+
+function prevHref(n: number): string {
+  return n === 1 ? "/products" : `/products/p/${n}`;
+}
+
+// Known product_id values map onto the static mockup JPGs in /mockups/.
+// Unknown ids fall back to the tee mockup so the surface degrades gracefully
+// if the catalog grows before the redesign catches up.
+const MOCKUP_BY_PRODUCT: Record<string, { src: string; cls: string }> = {
+  tee: { src: "/mockups/tee.jpg", cls: "pr-art-tee" },
+  "tee-softstyle": { src: "/mockups/tee.jpg", cls: "pr-art-tee" },
+  mug: { src: "/mockups/mug.jpg", cls: "pr-art-mug" },
+  "sticker-sheet": { src: "/mockups/sticker-sheet.jpg", cls: "pr-art-sticker" },
+};
+
+function renderCard(c: ProductCard): string {
+  const mock = MOCKUP_BY_PRODUCT[c.product_id] ?? MOCKUP_BY_PRODUCT.tee;
+  const recency = c.recency_label ? ` · ${esc(c.recency_label)}` : "";
+  return `        <li data-drawing-id="${esc(c.drawing_id)}" data-product-id="${esc(c.product_id)}">
+          <a class="pr-card" href="/merch?d=${esc(c.drawing_id)}&amp;product=${esc(c.product_id)}">
+            <div class="pr-art ${esc(mock.cls)}">
+              <img class="pr-mockup" src="${esc(mock.src)}" alt="" loading="lazy" />
+              <img class="pr-drawing" src="/tiles/${esc(c.drawing_id)}.gif" alt="${esc(c.product_name)} featuring drawing ${esc(c.drawing_id_short)}" loading="lazy" />
+            </div>
+            <div class="pr-info">
+              <span class="pr-name">${esc(c.product_name)}</span>
+              <span class="pr-row">from $${esc(c.from_dollars)} · ${esc(c.count)} order${c.count === 1 ? "" : "s"}${recency}</span>
+            </div>
+          </a>
+        </li>`;
+}

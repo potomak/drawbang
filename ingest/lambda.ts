@@ -24,11 +24,15 @@ import {
   renderFeedHandler,
   renderGalleryItemsHandler,
   renderGalleryPageHandler,
+  renderProductsPageHandler,
   renderProfileItemsHandler,
   renderProfilePageHandler,
   type RenderHandlersConfig,
   type RenderResponse,
 } from "./render-handlers.js";
+import { ProductCountersStore } from "../merch/product-counters.js";
+import type { MerchCatalog } from "../merch/lambda.js";
+import merchCatalogJson from "../config/merch.json" with { type: "json" };
 
 const bucket = required("DRAWBANG_BUCKET");
 const publicBaseUrl = required("PUBLIC_BASE_URL");
@@ -40,6 +44,9 @@ const drawingsTable = required("DRAWBANG_DRAWINGS_TABLE");
 // Optional: when unset (e.g. local dev), publish skips CF invalidation —
 // cached pages refresh at s-maxage instead.
 const cfDistributionId = process.env.CF_DISTRIBUTION_ID ?? "";
+// /products feeds off this table (drawing_id × product_id → count) which
+// the merch dispatch increments on each paid-→-submitted transition.
+const productCountersTable = process.env.DRAWBANG_PRODUCT_COUNTERS_TABLE ?? "drawbang-product-counters";
 const jwtSecret = required("JWT_SECRET");
 // Optional: until SES is wired, password-reset emails fail at send time
 // (caught + logged in the handler) but the rest of ingest stays up.
@@ -56,10 +63,14 @@ const drawingStore = new DynamoDrawingStore({ tableName: drawingsTable });
 const cacheInvalidator = cfDistributionId
   ? new CloudFrontInvalidator({ distributionId: cfDistributionId })
   : undefined;
+const productCountersStore = new ProductCountersStore({ tableName: productCountersTable });
+const merchCatalog = merchCatalogJson as MerchCatalog;
 const renderConfig: RenderHandlersConfig = {
   drawingStore,
   publicBaseUrl,
   repoUrl,
+  productCountersSource: { listAll: () => productCountersStore.listAll() },
+  merchCatalog,
 };
 const authConfig: AuthHandlerConfig = {
   userStore,
@@ -88,6 +99,15 @@ export async function handler(
   }
   if (method === "GET" && path === "/feed.rss") {
     return adaptRender(await renderFeedHandler(renderConfig));
+  }
+  if (method === "GET" && path === "/products") {
+    return adaptRender(await renderProductsPageHandler(renderConfig, "1"));
+  }
+  {
+    const m = path.match(/^\/products\/p\/(\d+)$/);
+    if (method === "GET" && m) {
+      return adaptRender(await renderProductsPageHandler(renderConfig, m[1]));
+    }
   }
   {
     const m = path.match(/^\/d\/([0-9a-f]{64})$/);

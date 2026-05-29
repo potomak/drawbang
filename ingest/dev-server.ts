@@ -20,6 +20,7 @@ import {
   renderFeedHandler,
   renderGalleryItemsHandler,
   renderGalleryPageHandler,
+  renderProductsPageHandler,
   renderProfileItemsHandler,
   renderProfilePageHandler,
   type RenderHandlersConfig,
@@ -95,7 +96,11 @@ const server = http.createServer(async (req, res) => {
         rendered = await renderGalleryItemsHandler(renderConfig, cursor);
       } else if (pathOnly === "/feed.rss") {
         rendered = await renderFeedHandler(renderConfig);
+      } else if (pathOnly === "/products") {
+        rendered = await renderProductsPageHandler(renderConfig, "1");
       } else {
+        const pm = pathOnly.match(/^\/products\/p\/(\d+)$/);
+        if (pm) rendered = await renderProductsPageHandler(renderConfig, pm[1]);
         const dm = pathOnly.match(/^\/d\/([0-9a-f]{64})$/);
         if (dm) rendered = await renderDrawingPageHandler(renderConfig, dm[1]);
         const um = pathOnly.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])$/);
