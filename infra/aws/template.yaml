@@ -502,6 +502,9 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref UsernamesTable }
         - DynamoDBCrudPolicy: { TableName: !Ref DrawingsTable }
+        # The /products handler queries the merch popularity counters (the
+        # MerchFunction is the writer; ingest only reads here).
+        - DynamoDBReadPolicy: { TableName: !Ref ProductCountersTable }
         # SES send for password-reset emails. SendEmail/SendRawEmail aren't
         # resource-scopable in a useful way here (the identity ARN varies),
         # so allow on "*" — the function only ever sends reset links.
