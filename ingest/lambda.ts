@@ -16,7 +16,18 @@ import {
 import { S3Storage } from "./s3-storage.js";
 import { DynamoUserStatsStore } from "./user-stats-store.js";
 import { DynamoUserStore } from "./user-store.js";
+import { DynamoDrawingStore } from "./drawing-store.js";
 import { SesEmailSender } from "./email.js";
+import {
+  renderDrawingPageHandler,
+  renderFeedHandler,
+  renderGalleryItemsHandler,
+  renderGalleryPageHandler,
+  renderProfileItemsHandler,
+  renderProfilePageHandler,
+  type RenderHandlersConfig,
+  type RenderResponse,
+} from "./render-handlers.js";
 
 const bucket = required("DRAWBANG_BUCKET");
 const publicBaseUrl = required("PUBLIC_BASE_URL");
@@ -24,6 +35,7 @@ const repoUrl = required("REPO_URL");
 const userStatsTable = required("DRAWBANG_USER_STATS_TABLE");
 const usersTable = required("DRAWBANG_USERS_TABLE");
 const usernamesTable = required("DRAWBANG_USERNAMES_TABLE");
+const drawingsTable = required("DRAWBANG_DRAWINGS_TABLE");
 const jwtSecret = required("JWT_SECRET");
 // Optional: until SES is wired, password-reset emails fail at send time
 // (caught + logged in the handler) but the rest of ingest stays up.
@@ -36,6 +48,12 @@ const userStatsStore = new DynamoUserStatsStore({
   tableName: userStatsTable,
 });
 const userStore = new DynamoUserStore({ usersTable, usernamesTable });
+const drawingStore = new DynamoDrawingStore({ tableName: drawingsTable });
+const renderConfig: RenderHandlersConfig = {
+  drawingStore,
+  publicBaseUrl,
+  repoUrl,
+};
 const authConfig: AuthHandlerConfig = {
   userStore,
   email: new SesEmailSender({ fromAddress: sesFromAddress }),
@@ -53,6 +71,37 @@ export async function handler(
   if (method === "POST" && path === "/ingest") {
     return handleIngestRoute(event);
   }
+  // Dynamic HTML routes: gallery, drawing page, profile, feed. Each
+  // queries the drawings DDB store + renders the matching template.
+  if (method === "GET" && path === "/gallery") {
+    return adaptRender(await renderGalleryPageHandler(renderConfig, queryParam(event, "cursor")));
+  }
+  if (method === "GET" && path === "/gallery/items") {
+    return adaptRender(await renderGalleryItemsHandler(renderConfig, queryParam(event, "cursor")));
+  }
+  if (method === "GET" && path === "/feed.rss") {
+    return adaptRender(await renderFeedHandler(renderConfig));
+  }
+  {
+    const m = path.match(/^\/d\/([0-9a-f]{64})$/);
+    if (method === "GET" && m) {
+      return adaptRender(await renderDrawingPageHandler(renderConfig, m[1]));
+    }
+  }
+  {
+    const m = path.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])$/);
+    if (method === "GET" && m) {
+      return adaptRender(await renderProfilePageHandler(renderConfig, m[1]));
+    }
+  }
+  {
+    const m = path.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])\/items$/);
+    if (method === "GET" && m) {
+      return adaptRender(
+        await renderProfileItemsHandler(renderConfig, m[1], queryParam(event, "cursor")),
+      );
+    }
+  }
   // /users/{user_id}/stats — per-account streak / total counters (#115/#116).
   if (method === "GET" && /^\/users\/[^\/]+\/stats$/.test(path)) {
     return handleUserStatsRoute(event, path);
@@ -61,6 +110,21 @@ export async function handler(
     return handleAuthRoute(event, path);
   }
   return text(405, "method not allowed");
+}
+
+function queryParam(event: APIGatewayProxyEventV2, name: string): string | null {
+  return event.queryStringParameters?.[name] ?? null;
+}
+
+function adaptRender(r: RenderResponse): APIGatewayProxyResultV2 {
+  return {
+    statusCode: r.status,
+    headers: {
+      "Content-Type": r.contentType,
+      "Cache-Control": r.cacheControl,
+    },
+    body: r.body,
+  };
 }
 
 async function handleAuthRoute(
@@ -110,6 +174,7 @@ async function handleIngestRoute(
     auth,
     repoUrl,
     userStatsStore,
+    drawingStore,
   });
   return json(result.status, result.body);
 }

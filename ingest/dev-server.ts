@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { handleIngest } from "./handler.js";
 import { FsStorage } from "./storage.js";
 import { MemoryUserStore } from "./user-store.js";
+import { MemoryDrawingStore } from "./drawing-store.js";
 import { ConsoleEmailSender } from "./email.js";
 import { JwtError, verifyJwt } from "./jwt.js";
 import type { AuthedUser } from "./handler.js";
@@ -15,6 +16,16 @@ import {
   type AuthHandlerConfig,
 } from "./auth-handler.js";
 import { build } from "../builder/build.js";
+import {
+  renderDrawingPageHandler,
+  renderFeedHandler,
+  renderGalleryItemsHandler,
+  renderGalleryPageHandler,
+  renderProfileItemsHandler,
+  renderProfilePageHandler,
+  type RenderHandlersConfig,
+  type RenderResponse,
+} from "./render-handlers.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..", "dev-bucket");
@@ -23,6 +34,12 @@ const PUBLIC_BASE = process.env.PUBLIC_BASE ?? "http://localhost:5173";
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret";
 
 const storage = new FsStorage(ROOT);
+const drawingStore = new MemoryDrawingStore();
+const renderConfig: RenderHandlersConfig = {
+  drawingStore,
+  publicBaseUrl: PUBLIC_BASE,
+  repoUrl: "https://github.com/potomak/drawbang",
+};
 const authConfig: AuthHandlerConfig = {
   userStore: new MemoryUserStore(),
   email: new ConsoleEmailSender(),
@@ -82,6 +99,7 @@ const server = http.createServer(async (req, res) => {
         storage,
         publicBaseUrl: PUBLIC_BASE,
         auth,
+        drawingStore,
       });
       json(res, result.status, result.body);
       // 202 = newly accepted, 200 = idempotent retry of an existing
@@ -90,6 +108,36 @@ const server = http.createServer(async (req, res) => {
         await rebuildAfterPublish();
       }
       return;
+    }
+
+    // Dynamic HTML routes (Phase 3). Same handlers the Lambda uses in prod.
+    if (req.method === "GET" && req.url) {
+      const u = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
+      const pathOnly = u.pathname;
+      const cursor = u.searchParams.get("cursor");
+      let rendered: RenderResponse | null = null;
+      if (pathOnly === "/gallery") {
+        rendered = await renderGalleryPageHandler(renderConfig, cursor);
+      } else if (pathOnly === "/gallery/items") {
+        rendered = await renderGalleryItemsHandler(renderConfig, cursor);
+      } else if (pathOnly === "/feed.rss") {
+        rendered = await renderFeedHandler(renderConfig);
+      } else {
+        const dm = pathOnly.match(/^\/d\/([0-9a-f]{64})$/);
+        if (dm) rendered = await renderDrawingPageHandler(renderConfig, dm[1]);
+        const um = pathOnly.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])$/);
+        if (um) rendered = await renderProfilePageHandler(renderConfig, um[1]);
+        const uim = pathOnly.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])\/items$/);
+        if (uim) rendered = await renderProfileItemsHandler(renderConfig, uim[1], cursor);
+      }
+      if (rendered) {
+        res.writeHead(rendered.status, {
+          "Content-Type": rendered.contentType,
+          "Cache-Control": rendered.cacheControl,
+        });
+        res.end(rendered.body);
+        return;
+      }
     }
 
     if (req.method === "POST" && req.url && req.url.startsWith("/auth/")) {

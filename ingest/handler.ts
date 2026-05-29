@@ -5,6 +5,7 @@ import { encodeShareGif } from "../src/editor/share-gif.js";
 import { validateGif } from "./gif-validate.js";
 import type { Storage } from "./storage.js";
 import type { UserStatsStore } from "./user-stats-store.js";
+import type { DrawingStore } from "./drawing-store.js";
 
 // The authenticated publisher, derived from the verified session JWT by the
 // route (lambda.ts / dev-server.ts). The request body never carries identity.
@@ -42,6 +43,11 @@ export interface HandlerConfig {
   // Per-pubkey streak / total counters (#115, #116). Optional so dev/tests
   // can omit it; when absent the publish proceeds without bumping counters.
   userStatsStore?: UserStatsStore;
+  // New dynamic-site source of truth for drawings. Optional so dev/tests
+  // can omit it; when present, every new publish dual-writes the metadata
+  // row alongside the inbox/S3 sidecar so the new gallery/profile/drawing
+  // routes can serve from DDB without waiting for the builder.
+  drawingStore?: DrawingStore;
 }
 
 export interface ChildEntry {
@@ -153,6 +159,30 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
       "public, max-age=31536000, immutable",
     ),
   ]);
+
+  // Dual-write to the dynamic DDB store so the new /gallery, /d/<id>,
+  // /u/<username>, /feed.rss routes can serve the drawing without
+  // waiting for the builder. Wrapped in try/catch — the gif is already
+  // persisted to S3, and a DDB write failure shouldn't surface as a
+  // publish error; the builder picks the row up next time it sweeps.
+  if (cfg.drawingStore) {
+    try {
+      const decoded = decodeGif(gif);
+      await cfg.drawingStore.put({
+        drawing_id: id,
+        size: decoded.size,
+        created_at: nowISO,
+        created_at_ms: now.getTime(),
+        user_id: author.user_id,
+        username: author.username,
+        parent_id: req.parent ?? null,
+        frames: decoded.frames.length,
+        gif_size_bytes: gif.length,
+      });
+    } catch (e) {
+      console.error("[ingest] failed to write drawing row to DDB", e);
+    }
+  }
 
   // 320×320 annotated share image written next to the original at
   // public/tiles/<id>-large.gif. Used as og:image on the tile page.

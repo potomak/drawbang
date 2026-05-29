@@ -1,0 +1,275 @@
+import { PER_PAGE } from "../config/constants.js";
+import renderGallery, {
+  renderGalleryFragment,
+  type GalleryItem,
+  type GalleryView,
+} from "../builder/templates/gallery.js";
+import renderTilePage from "../builder/templates/tile-page.js";
+import renderFeed from "../builder/templates/feed.js";
+import renderOwner from "../builder/templates/owner.js";
+import renderNotFound from "../builder/templates/not-found.js";
+import {
+  decodeCursor,
+  encodeCursor,
+  type DrawingCursor,
+  type DrawingRow,
+  type DrawingStore,
+} from "./drawing-store.js";
+
+// Render handlers for the dynamic /gallery, /d/<id>, /u/<un>, /feed.rss
+// surfaces. Each returns a complete HTML/XML body plus the cache header
+// the route should ship. The Lambda adapter (or the dev-server in
+// dev:all) takes care of HTTP framing.
+
+export interface RenderHandlersConfig {
+  drawingStore: DrawingStore;
+  publicBaseUrl: string;
+  repoUrl: string;
+  // Items per page on the gallery + profile. Defaults to PER_PAGE.
+  perPage?: number;
+}
+
+export interface RenderResponse {
+  status: 200 | 404;
+  contentType: string;
+  cacheControl: string;
+  body: string;
+}
+
+// Cache headers. CloudFront's `s-maxage` controls edge cache; the per-row
+// `max-age` controls browser cache. Drawings are immutable (the ID is
+// content-addressed) so they get the long cache; gallery + profile are
+// mutable, so they ride a short edge cache + stale-while-revalidate that
+// the publish path invalidates on write.
+const CC_GALLERY = "public, s-maxage=86400, stale-while-revalidate=60";
+const CC_DRAWING_PAGE = "public, max-age=300, s-maxage=31536000";
+const CC_PROFILE = "public, s-maxage=86400, stale-while-revalidate=60";
+const CC_FEED = "public, s-maxage=3600";
+const CC_NOT_FOUND = "public, max-age=60";
+
+function itemFromRow(r: DrawingRow): GalleryItem {
+  return {
+    id: r.drawing_id,
+    id_short: r.drawing_id.slice(0, 8),
+    href: `/d/${r.drawing_id}`,
+    thumb: `/drawings/${r.drawing_id}.gif`,
+    created_at: r.created_at,
+  };
+}
+
+function notFound(cfg: RenderHandlersConfig): RenderResponse {
+  return {
+    status: 404,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: CC_NOT_FOUND,
+    body: renderNotFound({ repo_url: cfg.repoUrl }),
+  };
+}
+
+function buildFragmentUrl(
+  basePath: string,
+  cursor: DrawingCursor | null,
+): string | null {
+  if (!cursor) return null;
+  return `${basePath}?cursor=${encodeCursor(cursor)}`;
+}
+
+// -- /gallery + /gallery/items -----------------------------------------------
+
+export async function renderGalleryPageHandler(
+  cfg: RenderHandlersConfig,
+  rawCursor: string | null,
+): Promise<RenderResponse> {
+  const perPage = cfg.perPage ?? PER_PAGE;
+  const cursor = decodeCursor(rawCursor) ?? undefined;
+  const page = await cfg.drawingStore.queryGallery({ limit: perPage, cursor });
+  const next = buildFragmentUrl("/gallery/items", page.next_cursor);
+  const view: GalleryView = {
+    drawings: page.items.map(itemFromRow),
+    repo_url: cfg.repoUrl,
+  };
+  if (next) view.next_fragment_url = next;
+  return {
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: CC_GALLERY,
+    body: renderGallery(view),
+  };
+}
+
+export async function renderGalleryItemsHandler(
+  cfg: RenderHandlersConfig,
+  rawCursor: string | null,
+): Promise<RenderResponse> {
+  const perPage = cfg.perPage ?? PER_PAGE;
+  const cursor = decodeCursor(rawCursor) ?? undefined;
+  const page = await cfg.drawingStore.queryGallery({ limit: perPage, cursor });
+  const next = buildFragmentUrl("/gallery/items", page.next_cursor);
+  return {
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: CC_GALLERY,
+    body: renderGalleryFragment(page.items.map(itemFromRow), next),
+  };
+}
+
+// -- /d/<id> -----------------------------------------------------------------
+
+export async function renderDrawingPageHandler(
+  cfg: RenderHandlersConfig,
+  drawing_id: string,
+): Promise<RenderResponse> {
+  if (!/^[0-9a-f]{64}$/.test(drawing_id)) return notFound(cfg);
+  const row = await cfg.drawingStore.get(drawing_id);
+  if (!row) return notFound(cfg);
+
+  // Forks: cap to the same per-page count; the page only renders the
+  // first slice and accepts that "Forks · N" can lag if a drawing has
+  // gone viral. A "see all forks" follow-up could add a fragment endpoint
+  // similar to the gallery's.
+  const forks = await cfg.drawingStore.queryForks(drawing_id, {
+    limit: cfg.perPage ?? PER_PAGE,
+  });
+  const body = renderTilePage({
+    tile_id: row.drawing_id,
+    id_short: row.drawing_id.slice(0, 8),
+    created_at: row.created_at,
+    parent: row.parent_id
+      ? { parent: row.parent_id, parent_short: row.parent_id.slice(0, 8) }
+      : null,
+    author: { user_id: row.user_id, username: row.username },
+    forks: forks.items.map(itemFromRow),
+    public_base_url: cfg.publicBaseUrl,
+    repo_url: cfg.repoUrl,
+  });
+  return {
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: CC_DRAWING_PAGE,
+    body,
+  };
+}
+
+// -- /u/<username> + /u/<username>/items -------------------------------------
+
+const USERNAME_RE = /^[a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_]$/;
+
+export async function renderProfilePageHandler(
+  cfg: RenderHandlersConfig,
+  username: string,
+): Promise<RenderResponse> {
+  if (!USERNAME_RE.test(username)) return notFound(cfg);
+  const perPage = cfg.perPage ?? PER_PAGE;
+  const page = await cfg.drawingStore.queryByUsername(username, { limit: perPage });
+  // user_id from the first drawing (denormalized in every row). Brand-new
+  // accounts with no drawings yet render a 404 here in v1 — the static
+  // builder used to backfill an empty profile from the users-table scan,
+  // but rebuilding that with a per-pageload account lookup wastes a DDB
+  // read on every miss. Revisit if it actually matters in practice.
+  if (page.items.length === 0) return notFound(cfg);
+  const userId = page.items[0].user_id;
+  const next = buildFragmentUrl(`/u/${username}/items`, page.next_cursor);
+  const items = page.items.map(itemFromRow);
+  // Wrap renderOwner with a tiny shim: it doesn't know about
+  // next_fragment_url today. For Phase 3a we render just the first page
+  // — the infinite-scroll behaviour for profiles is plumbed via the
+  // same fragment-script pattern as the gallery, injected below if a
+  // next page exists.
+  let body = renderOwner({
+    username,
+    user_id: userId,
+    drawings: items,
+    repo_url: cfg.repoUrl,
+  });
+  if (next) body = injectProfileSentinel(body, next);
+  return {
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: CC_PROFILE,
+    body,
+  };
+}
+
+export async function renderProfileItemsHandler(
+  cfg: RenderHandlersConfig,
+  username: string,
+  rawCursor: string | null,
+): Promise<RenderResponse> {
+  if (!USERNAME_RE.test(username)) return notFound(cfg);
+  const perPage = cfg.perPage ?? PER_PAGE;
+  const cursor = decodeCursor(rawCursor) ?? undefined;
+  const page = await cfg.drawingStore.queryByUsername(username, { limit: perPage, cursor });
+  const next = buildFragmentUrl(`/u/${username}/items`, page.next_cursor);
+  return {
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: CC_PROFILE,
+    body: renderGalleryFragment(page.items.map(itemFromRow), next),
+  };
+}
+
+// Splices the gallery's infinite-scroll sentinel + observer script into the
+// profile page just before </main>. The owner template renders into a
+// `<ul class="img-grid">` already; the gallery sentinel + observer
+// observe `[data-gallery-items]` and `[data-gallery-sentinel]`, so we
+// tag the ul + append the sentinel.
+function injectProfileSentinel(html: string, nextUrl: string): string {
+  return html
+    .replace(`<ul class="img-grid">`, `<ul class="img-grid" data-gallery-items>`)
+    .replace(
+      `    </main>`,
+      `      <div class="gal-sentinel" data-gallery-sentinel data-next="${nextUrl}"></div>
+      <script>
+(function () {
+  function wire(sentinel) {
+    if (!sentinel || sentinel.dataset.wired) return;
+    sentinel.dataset.wired = "1";
+    var next = sentinel.dataset.next;
+    if (!next) return;
+    var io = new IntersectionObserver(async function (entries) {
+      if (!entries.some(function (e) { return e.isIntersecting; })) return;
+      io.disconnect();
+      try {
+        var res = await fetch(next);
+        if (!res.ok) return;
+        var html = await res.text();
+        var list = document.querySelector("[data-gallery-items]");
+        if (list) list.insertAdjacentHTML("beforeend", html);
+        sentinel.remove();
+        var nextSentinel = document.querySelector("[data-gallery-sentinel]:not([data-wired])");
+        if (nextSentinel) wire(nextSentinel);
+      } catch (e) {}
+    }, { rootMargin: "200px" });
+    io.observe(sentinel);
+  }
+  document.querySelectorAll("[data-gallery-sentinel]").forEach(wire);
+})();
+      </script>
+    </main>`,
+    );
+}
+
+// -- /feed.rss ---------------------------------------------------------------
+
+export async function renderFeedHandler(
+  cfg: RenderHandlersConfig,
+): Promise<RenderResponse> {
+  const page = await cfg.drawingStore.queryGallery({ limit: 100 });
+  const body = renderFeed({
+    base_url: cfg.publicBaseUrl,
+    build_date: new Date().toUTCString(),
+    drawings: page.items.map((r) => ({
+      id: r.drawing_id,
+      id_short: r.drawing_id.slice(0, 8),
+      pub_date: new Date(r.created_at_ms).toUTCString(),
+      href: `/d/${r.drawing_id}`,
+      thumb: `/drawings/${r.drawing_id}.gif`,
+    })),
+  });
+  return {
+    status: 200,
+    contentType: "application/rss+xml; charset=utf-8",
+    cacheControl: CC_FEED,
+    body,
+  };
+}

@@ -1,11 +1,13 @@
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
+import type { GalleryItem } from "./gallery.js";
+import { renderItem } from "./gallery.js";
 
 // /t/<tile_id> — the canonical page for a single 16×16 tile (the atom). Tiles
 // are content-addressed and reusable across canvases; this page is the
 // unified successor to the old /d/<id> drawing page (every standalone gif is
-// a tile now). It shows the gif, author, fork lineage, and the
+// a tile now). It shows the gif, author, fork lineage, forks, and the
 // share/merch/fork/download actions.
 
 export interface TilePageView {
@@ -16,6 +18,11 @@ export interface TilePageView {
   // null on legacy tiles (published by an anonymous keypair before the
   // account system). They render as "anonymous" with no profile link.
   author: { user_id: string; username: string } | null;
+  // Drawings that forked from this one. Empty/omitted when none, or for
+  // the legacy static-render path that doesn't have a fork lookup
+  // available. The dynamic /d/<id> handler queries GSI3 and passes the
+  // results here.
+  forks?: GalleryItem[];
   public_base_url: string;
   repo_url: string;
 }
@@ -48,6 +55,15 @@ export default function renderTilePage(v: TilePageView): string {
     ? `<dt>Author</dt><dd><a href="/u/${esc(v.author.username)}">${esc(v.author.username)}</a></dd>`
     : `<dt>Author</dt><dd>anonymous</dd>`;
   const created = formatCreatedAt(v.created_at);
+  const forks = v.forks ?? [];
+  const forksSection = forks.length > 0
+    ? `      <section class="dr-forks">
+        <p class="panel-h">Forks · ${forks.length}</p>
+        <ul class="img-grid">
+${forks.map(renderItem).join("\n")}
+        </ul>
+      </section>`
+    : "";
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -104,6 +120,7 @@ export default function renderTilePage(v: TilePageView): string {
           </div>
         </div>
       </div>
+${forksSection}
     </main>
     ${renderFooter({ active: "gallery", repoUrl: v.repo_url })}
     <script src="/flash.js"></script>

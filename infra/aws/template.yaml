@@ -366,6 +366,42 @@ Resources:
       KeySchema:
         - { AttributeName: username, KeyType: HASH }
 
+  # Source of truth for published drawings in the dynamic-site world. The
+  # ingest handler dual-writes a row alongside the inbox/S3 sidecar so the
+  # new /gallery + /d/<id> + /u/<username> + /feed.rss routes can serve
+  # without waiting for the builder. Sparse `parent_id` means GSI3 only
+  # indexes drawings that are forks of another (saves write cost on the
+  # majority of rows).
+  DrawingsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: drawbang-drawings
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: drawing_id, AttributeType: S }
+        - { AttributeName: gallery_pk, AttributeType: S }
+        - { AttributeName: username, AttributeType: S }
+        - { AttributeName: parent_id, AttributeType: S }
+        - { AttributeName: created_at_ms, AttributeType: N }
+      KeySchema:
+        - { AttributeName: drawing_id, KeyType: HASH }
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - { AttributeName: gallery_pk,    KeyType: HASH }
+            - { AttributeName: created_at_ms, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+        - IndexName: GSI2
+          KeySchema:
+            - { AttributeName: username,      KeyType: HASH }
+            - { AttributeName: created_at_ms, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+        - IndexName: GSI3
+          KeySchema:
+            - { AttributeName: parent_id,     KeyType: HASH }
+            - { AttributeName: created_at_ms, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+
   # -- Ingest Lambda + API Gateway --------------------------------------------
 
   IngestFunction:
@@ -385,6 +421,7 @@ Resources:
           DRAWBANG_USER_STATS_TABLE: !Ref UserStatsTable
           DRAWBANG_USERS_TABLE: !Ref UsersTable
           DRAWBANG_USERNAMES_TABLE: !Ref UsernamesTable
+          DRAWBANG_DRAWINGS_TABLE: !Ref DrawingsTable
           JWT_SECRET: !Ref JwtSecret
           SES_FROM_ADDRESS: !Ref SesFromAddress
           NODE_OPTIONS: "--enable-source-maps"
@@ -394,6 +431,7 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref UserStatsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref UsernamesTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref DrawingsTable }
         # SES send for password-reset emails. SendEmail/SendRawEmail aren't
         # resource-scopable in a useful way here (the identity ARN varies),
         # so allow on "*" — the function only ever sends reset links.
@@ -550,6 +588,9 @@ Outputs:
   UsernamesTableName:
     Description: DynamoDB table reserving unique usernames.
     Value: !Ref UsernamesTable
+  DrawingsTableName:
+    Description: DynamoDB table backing the dynamic gallery/drawing/profile routes.
+    Value: !Ref DrawingsTable
   IngestEndpoint:
     Description: POST here with the IngestRequest body.
     Value: !Sub "https://${IngestApi}.execute-api.${AWS::Region}.amazonaws.com/ingest"
