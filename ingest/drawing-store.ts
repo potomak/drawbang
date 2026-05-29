@@ -132,8 +132,14 @@ export class DynamoDrawingStore implements DrawingStore {
     // route handler already short-circuits on existing rows before calling
     // put(), so this PutItem path runs at most once per content id. We
     // stamp `gallery_pk = "GALLERY"` here so the row lands in GSI1; the
-    // DrawingRow shape stays GSI-agnostic for the caller.
-    const item = { ...row, gallery_pk: GALLERY_PARTITION } as Record<string, unknown>;
+    // DrawingRow shape stays GSI-agnostic for the caller. parent_id is
+    // omitted entirely when null so GSI3 stays sparse (DDB rejects NULL
+    // on a GSI key with ValidationException).
+    const item: Record<string, unknown> = {
+      ...row,
+      gallery_pk: GALLERY_PARTITION,
+    };
+    if (row.parent_id === null) delete item.parent_id;
     await this.doc.send(new PutCommand({ TableName: this.table, Item: item }));
   }
 
