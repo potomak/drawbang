@@ -20,6 +20,7 @@ import {
 import type { MerchCatalog } from "../merch/lambda.js";
 import type { ProductCounter } from "../merch/product-counters.js";
 import type { UserStatsStore } from "./user-stats-store.js";
+import type { UserStore } from "./user-store.js";
 import { earnedBadges } from "../config/badges.js";
 import type { OwnerStats } from "../lib/templates/owner.js";
 
@@ -46,6 +47,10 @@ export interface RenderHandlersConfig {
   // page renders the stats block server-side off this store; when absent
   // (dev/tests) the profile just shows the drawings grid.
   userStatsStore?: UserStatsStore;
+  // Account lookup. When wired, /u/<username> renders an empty profile
+  // page for accounts that exist but haven't published anything yet
+  // (instead of 404'ing). Optional in dev/tests.
+  userStore?: UserStore;
   // Test seam for the recency label on product cards. Defaults to wall-clock.
   now?: () => Date;
 }
@@ -187,8 +192,18 @@ export async function renderProfilePageHandler(
   // builder used to backfill an empty profile from the users-table scan,
   // but rebuilding that with a per-pageload account lookup wastes a DDB
   // read on every miss. Revisit if it actually matters in practice.
-  if (page.items.length === 0) return notFound(cfg);
-  const userId = page.items[0].user_id;
+  // Account exists but no published drawings yet: render an empty profile
+  // instead of 404. Skips the lookup entirely when there are drawings (the
+  // user_id is already denormalized on the first row).
+  let userId: string;
+  if (page.items.length === 0) {
+    if (!cfg.userStore) return notFound(cfg);
+    const account = await cfg.userStore.getByUsername(username);
+    if (!account) return notFound(cfg);
+    userId = account.user_id;
+  } else {
+    userId = page.items[0].user_id;
+  }
   const next = buildFragmentUrl(`/u/${username}/items`, page.next_cursor);
   const items = page.items.map(itemFromRow);
   const stats = cfg.userStatsStore

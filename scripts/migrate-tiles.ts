@@ -33,6 +33,9 @@ const drawingsTable = required("DRAWBANG_DRAWINGS_TABLE");
 const dryRun = process.argv.includes("--dry-run");
 const skipExisting = process.argv.includes("--skip-existing");
 
+const LEGACY_USERNAME = "anonymous";
+const LEGACY_USER_ID = "0".repeat(64);
+
 function required(name: string): string {
   const v = process.env[name];
   if (!v) {
@@ -89,15 +92,12 @@ async function main(): Promise<void> {
         failed++;
         continue;
       }
-      if (!row.user_id || !row.username) {
-        // Legacy anonymous (pre-account) drawings. The dynamic gallery
-        // assumes a username for the /u/<username> link and as the GSI2
-        // partition key. Skip them — they remain reachable via S3 if
-        // anyone has a direct /t/<id> bookmark and we still 301 it.
-        console.warn(`    skip ${row.id.slice(0, 8)}: legacy anonymous (no username)`);
-        skipped++;
-        continue;
-      }
+      // Legacy anonymous (pre-account) drawings get bucketed under a
+      // sentinel "anonymous" user so they still surface in the gallery
+      // + a single archive profile at /u/anonymous. Real users can't
+      // register the handle (auth-handler.ts reserves it).
+      const user_id = row.user_id ?? LEGACY_USER_ID;
+      const username = row.username ?? LEGACY_USERNAME;
       if (skipExisting) {
         const existing = await store.get(row.id);
         if (existing) {
@@ -133,14 +133,14 @@ async function main(): Promise<void> {
         size,
         created_at: row.created_at,
         created_at_ms,
-        user_id: row.user_id,
-        username: row.username,
+        user_id,
+        username,
         parent_id: row.parent,
         frames,
         gif_size_bytes: gif.length,
       };
       if (dryRun) {
-        console.log(`    DRY: ${row.id.slice(0, 8)} → ${row.username} (${size}x${size}, ${frames}f, ${gif.length}b)`);
+        console.log(`    DRY: ${row.id.slice(0, 8)} → ${username} (${size}x${size}, ${frames}f, ${gif.length}b)`);
       } else {
         await store.put(ddbRow);
       }

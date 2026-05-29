@@ -72,6 +72,7 @@ const renderConfig: RenderHandlersConfig = {
   productCountersSource: { listAll: () => productCountersStore.listAll() },
   merchCatalog,
   userStatsStore,
+  userStore,
 };
 const authConfig: AuthHandlerConfig = {
   userStore,

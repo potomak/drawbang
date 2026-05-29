@@ -266,8 +266,17 @@ Resources:
             - EventType: viewer-request
               FunctionARN: !GetAtt RewriteCleanUrls.FunctionMetadata.FunctionARN
         CacheBehaviors:
-          # /gallery + /gallery/items?cursor=... — full page and HTML fragments.
-          - PathPattern: /gallery*
+          # /gallery (the page itself, exact path) — not /gallery* because
+          # that would also catch /gallery-v2.css and route it to Lambda.
+          - PathPattern: /gallery
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref DynamicCachePolicy
+          # /gallery/items?cursor=... HTML fragment endpoint.
+          - PathPattern: /gallery/*
             TargetOriginId: api
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD]
@@ -297,8 +306,16 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: !Ref DynamicCachePolicy
-          # /products + /products/p/<N> popular merch gallery.
-          - PathPattern: /products*
+          # /products (exact) + /products/p/<N>. Split for the same reason
+          # /gallery is — keep wildcards off the asset-prefix space.
+          - PathPattern: /products
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref DynamicCachePolicy
+          - PathPattern: /products/*
             TargetOriginId: api
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD]

@@ -51,6 +51,11 @@ export interface UserStore {
   // UsernameTakenError on conflict.
   register(rec: UserRecord): Promise<UserRecord>;
   getByEmail(email: string): Promise<UserRecord | null>;
+  // Resolves a public handle to the underlying account. Returns null when
+  // the handle is unregistered. Used by the dynamic /u/<username> profile
+  // route to render an empty profile page for an account that has no
+  // published drawings yet (instead of 404).
+  getByUsername(username: string): Promise<UserRecord | null>;
   // Sets a new password_hash, conditional on token_version === expected, and
   // bumps token_version (single-use reset). Throws TokenVersionMismatchError
   // if the row is missing or the version no longer matches.
@@ -125,6 +130,19 @@ export class DynamoUserStore implements UserStore {
       new GetCommand({ TableName: this.usersTable, Key: { email } }),
     );
     return r.Item ? (r.Item as UserRecord) : null;
+  }
+
+  // 2-hop: usernames table (username PK) gives us the email, then the
+  // users table gives us the full record. Both calls are GetItem (sub-ms
+  // p50). Profile pageloads are aggressively edge-cached so this only
+  // runs on cache misses.
+  async getByUsername(username: string): Promise<UserRecord | null> {
+    const r1 = await this.doc.send(
+      new GetCommand({ TableName: this.usernamesTable, Key: { username } }),
+    );
+    const email = (r1.Item as { email?: string } | undefined)?.email;
+    if (!email) return null;
+    return this.getByEmail(email);
   }
 
   // Full scan of the accounts table, projecting just the public handle + id.
@@ -202,6 +220,14 @@ export class MemoryUserStore implements UserStore {
   async getByEmail(email: string): Promise<UserRecord | null> {
     const r = this.byEmail.get(email);
     return r ? { ...r } : null;
+  }
+
+  async getByUsername(username: string): Promise<UserRecord | null> {
+    if (!this.usernames.has(username)) return null;
+    for (const rec of this.byEmail.values()) {
+      if (rec.username === username) return { ...rec };
+    }
+    return null;
   }
 
   async updatePassword(
