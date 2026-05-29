@@ -37,14 +37,8 @@ import { decodeShare, encodeShare } from "./share.js";
 import * as local from "./local.js";
 import { isLoggedIn } from "./auth.js";
 import {
-  MuralClaimRejectedError,
-  MuralCooldownError,
   MissingSessionError,
-  TileTakenError,
-  claimTile,
   publishCanvas,
-  submit,
-  type TileClaimRef,
 } from "./submit.js";
 import {
   canGrowCols,
@@ -57,10 +51,7 @@ import {
   growRows,
   setCell,
 } from "./editor/canvas-doc.js";
-import { mountMuralBanner, type MuralBannerHandle } from "./mural-banner.js";
-import { showFlash, hideFlash } from "./layout/flash.js";
-import { formatDuration } from "./format.js";
-import { muralIdForDate, muralName, isMuralIdValid, TILES_PER_SIDE } from "../config/murals.js";
+import { showFlash } from "./layout/flash.js";
 
 // Native resolution of the main canvas. 16×35 = 560 — matches the v2
 // editor's max wrap width, so CSS scaling produces clean pixel boundaries.
@@ -70,25 +61,10 @@ const FRAME_THUMB_PIXEL_SIZE = 5;
 const INGEST_URL = import.meta.env.VITE_INGEST_URL ?? "/ingest";
 const STATE_URL = import.meta.env.VITE_STATE_URL ?? "/state/last-publish.json";
 const DRAWING_BASE_URL = import.meta.env.VITE_DRAWING_BASE_URL ?? "/tiles";
-// Mural claim + state live on the same API Gateway as /ingest, which is a
-// different origin than CloudFront in prod (CloudFront's default behaviour
-// blocks POST). Derive the API base by stripping the /ingest suffix; in dev
-// INGEST_URL is "/ingest" so this resolves to "" and the mural URLs stay
-// relative for Vite's proxy.
-const MURAL_API_BASE = INGEST_URL.replace(/\/ingest$/, "");
-const MURAL_CLAIM_URL = `${MURAL_API_BASE}/mural/claim`;
-const CANVAS_PUBLISH_URL = `${MURAL_API_BASE}/canvas`;
-const muralStateUrl = (muralId: string): string =>
-  `${MURAL_API_BASE}/mural/${encodeURIComponent(muralId)}/state`;
-
-// Set when the editor loaded via /?m=&x=&y= and a claim has been successfully
-// negotiated with the server. Picked up by handlePublish() to thread the
-// mural_claim through to /ingest.
-let activeTileClaim: TileClaimRef | null = null;
-// True when the editor loaded in mural-tile mode (?m=&x=&y=). The multi-tile
-// canvas grid is hidden in that mode — you're drawing one tile for the mural.
-let muralMode = false;
-let bannerHandle: MuralBannerHandle | null = null;
+// Canvas publish shares the same API Gateway as /ingest. Strip the /ingest
+// suffix; in dev INGEST_URL is "/ingest" so this resolves to "" and the URL
+// stays relative for Vite's proxy.
+const CANVAS_PUBLISH_URL = INGEST_URL.replace(/\/ingest$/, "") + "/canvas";
 
 // -- Editor state -----------------------------------------------------------
 
@@ -680,27 +656,6 @@ async function handlePublish(): Promise<void> {
     });
   };
   try {
-    if (activeTileClaim) {
-      // Mural-tile publish: a single 16×16 placed into the claimed cell.
-      const result = await submit({
-        ingestUrl: INGEST_URL,
-        stateUrl: STATE_URL,
-        gif: encodeGif({ frames: state.frames, activePalette }),
-        parent: parentId ?? undefined,
-        tileClaim: activeTileClaim,
-        onPhase,
-        onProgress,
-      });
-      flashPublished(result.share_url);
-      trackPublishSuccess({ frames: state.frames.length, solve_ms: result.solve_ms });
-      if (localId) {
-        await local.save({ id: localId, frames: state.frames, activePalette, publishedId: result.id });
-      }
-      setLastPublishedId(result.id);
-      resetEditor({ keepPublishedId: true });
-      return;
-    }
-
     // Personal canvas publish (1×1 or larger).
     saveActiveCell();
     const cells = filledCells(canvasDoc).map((c) => ({
@@ -730,24 +685,6 @@ async function handlePublish(): Promise<void> {
     if (err instanceof MissingSessionError) {
       showFlash({ kind: "error", message: "Sign in to publish." });
       redirectToLogin();
-      return;
-    }
-    if (err instanceof TileTakenError) {
-      showFlash({
-        kind: "error",
-        message: "This tile was just taken — pick another from the mural.",
-      });
-      return;
-    }
-    if (err instanceof MuralClaimRejectedError) {
-      showFlash({ kind: "error", message: `Mural publish rejected: ${err.message}` });
-      return;
-    }
-    if (err instanceof MuralCooldownError) {
-      showFlash({
-        kind: "error",
-        message: `Cooldown active — wait ${formatDuration(err.retryAfterS)} before publishing to this mural again.`,
-      });
       return;
     }
     showFlash({
@@ -796,11 +733,6 @@ function switchCell(x: number, y: number): void {
 }
 
 function renderGridNav(): void {
-  // Hidden while drawing a single mural tile (?m= flow).
-  if (activeTileClaim || muralMode) {
-    gridNavEl.hidden = true;
-    return;
-  }
   gridNavEl.hidden = false;
   saveActiveCell(); // keep the active cell's filled-state current
   gridNavEl.innerHTML = "";
@@ -872,141 +804,6 @@ function copyShareLink(): void {
     message: `Share link copied (${hash.length} chars).`,
     autoDismissMs: 5000,
   });
-}
-
-// -- Mural banner ---------------------------------------------------------
-
-function parseTileClaimParams(
-  c: string | null,
-  x: string | null,
-  y: string | null,
-): TileClaimRef | null {
-  if (!c || !x || !y) return null;
-  if (!isMuralIdValid(c)) return null;
-  const xi = Number.parseInt(x, 10);
-  const yi = Number.parseInt(y, 10);
-  if (!Number.isFinite(xi) || !Number.isFinite(yi)) return null;
-  if (xi < 0 || xi >= TILES_PER_SIDE || yi < 0 || yi >= TILES_PER_SIDE) return null;
-  return { muralId: c, x: xi, y: yi };
-}
-
-function ensureBannerContainer(): HTMLElement {
-  let el = document.getElementById("mural-banner");
-  if (!el) {
-    el = document.createElement("div");
-    el.id = "mural-banner";
-    const app = document.getElementById("app");
-    if (app?.parentNode) {
-      app.parentNode.insertBefore(el, app);
-    } else {
-      document.body.prepend(el);
-    }
-  }
-  return el;
-}
-
-// Derived from VITE_STATE_URL so the editor only needs one configured
-// origin for the static-state files. Both files sit next to each other under
-// /state/ on the CloudFront distribution.
-const CURRENT_MURAL_URL = STATE_URL.replace(/last-publish\.json$/, "current-mural.json");
-
-async function initHomeBanner(): Promise<void> {
-  const container = ensureBannerContainer();
-  const expectedMuralId = muralIdForDate(new Date());
-  const fallback = (): void => {
-    bannerHandle = mountMuralBanner(container, {
-      mode: "home",
-      mural_id: expectedMuralId,
-      name: muralName(expectedMuralId),
-      tiles_published: 0,
-      tiles_total: TILES_PER_SIDE * TILES_PER_SIDE,
-    });
-  };
-  try {
-    // Read the ingest+builder-written snapshot from CloudFront (60s edge
-    // cache + S3) instead of hitting /mural/<id>/state every home visit —
-    // the banner only needs the count, and the snapshot is rewritten on every
-    // publish so it stays fresh within ~60s.
-    const res = await fetch(CURRENT_MURAL_URL);
-    if (!res.ok) {
-      fallback();
-      return;
-    }
-    const j = (await res.json()) as {
-      mural_id: string;
-      name: string;
-      tiles_published: number;
-      tiles_total: number;
-    };
-    // Between weekly rollover and the first publish, the snapshot may still
-    // point at last week's mural. Show the new mural with a zero count
-    // rather than a stale name.
-    if (j.mural_id !== expectedMuralId) {
-      fallback();
-      return;
-    }
-    bannerHandle = mountMuralBanner(container, {
-      mode: "home",
-      mural_id: j.mural_id,
-      name: j.name,
-      tiles_published: j.tiles_published,
-      tiles_total: j.tiles_total,
-    });
-  } catch {
-    fallback();
-  }
-}
-
-async function initTileClaimBanner(tc: TileClaimRef): Promise<void> {
-  const container = ensureBannerContainer();
-  bannerHandle = mountMuralBanner(container, {
-    mode: "tile-claim",
-    mural_id: tc.muralId,
-    name: muralName(tc.muralId),
-    x: tc.x,
-    y: tc.y,
-    phase: "claiming",
-  });
-  try {
-    const claim = await claimTile({
-      muralId: tc.muralId,
-      x: tc.x,
-      y: tc.y,
-      stateUrl: muralStateUrl(tc.muralId),
-      claimUrl: MURAL_CLAIM_URL,
-      onPhase: (phase, detail) =>
-        showFlash({ kind: "info", message: `Mural ${phase}: ${detail}` }),
-      onProgress: (p) => {
-        const rate = (p.hashes / Math.max(1, p.elapsedMs / 1000)).toFixed(0);
-        showFlash({
-          kind: "info",
-          message: `Mural solving… ${p.hashes.toLocaleString()} hashes (${rate}/s)`,
-        });
-      },
-    });
-    activeTileClaim = tc;
-    hideFlash();
-    bannerHandle?.setState({
-      mode: "tile-claim",
-      mural_id: tc.muralId,
-      name: muralName(tc.muralId),
-      x: tc.x,
-      y: tc.y,
-      phase: "claimed",
-      claim_expires_at: claim.claim_expires_at,
-    });
-  } catch (err) {
-    hideFlash();
-    bannerHandle?.setState({
-      mode: "tile-claim",
-      mural_id: tc.muralId,
-      name: muralName(tc.muralId),
-      x: tc.x,
-      y: tc.y,
-      phase: "failed",
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
 }
 
 function persist(): void {
@@ -1103,19 +900,6 @@ async function boot(): Promise<void> {
     }
   } catch {
     // ignore — applyPalette default state is already in place
-  }
-
-  // Mural-aware banner: tile-claim mode if ?m=&x=&y= is present, else home.
-  const params = new URL(location.href).searchParams;
-  const cParam = params.get("m");
-  const xParam = params.get("x");
-  const yParam = params.get("y");
-  const tileClaimRequest = parseTileClaimParams(cParam, xParam, yParam);
-  muralMode = tileClaimRequest !== null;
-  if (tileClaimRequest) {
-    void initTileClaimBanner(tileClaimRequest);
-  } else {
-    void initHomeBanner();
   }
 
   const hash = location.hash.match(/#d=([A-Za-z0-9_-]+)/)?.[1];

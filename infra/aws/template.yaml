@@ -192,10 +192,6 @@ Resources:
             req.uri = "/account.html";
           } else if (uri === "/privacy") {
             req.uri = "/privacy.html";
-          } else if (uri === "/murals") {
-            req.uri = "/murals.html";
-          } else if (/^\/murals\/mural-\d{4}-W\d{2}$/.test(uri)) {
-            req.uri = uri + ".html";
           } else if (uri === "/404") {
             req.uri = "/404.html";
           }
@@ -246,8 +242,6 @@ Resources:
               FunctionARN: !GetAtt RewriteCleanUrls.FunctionMetadata.FunctionARN
         # Don't cache the state files that drive PoW difficulty — the editor
         # needs to see fresh baselines within seconds of publish.
-        # /state/current-mural.json falls through to the default behavior so
-        # the 60s Cache-Control on the object actually applies at the edge.
         CacheBehaviors:
           - PathPattern: /state/last-publish.json
             TargetOriginId: assets
@@ -255,12 +249,6 @@ Resources:
             AllowedMethods: [GET, HEAD]
             CachedMethods: [GET, HEAD]
             # Managed CachingDisabled.
-            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
-          - PathPattern: /state/mural/*
-            TargetOriginId: assets
-            ViewerProtocolPolicy: redirect-to-https
-            AllowedMethods: [GET, HEAD]
-            CachedMethods: [GET, HEAD]
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
         # Map S3 misses to the chrome'd /404.html the builder writes. Both
         # codes are routed because OAC returns 403 for keys outside the
@@ -349,51 +337,9 @@ Resources:
             - { AttributeName: count, KeyType: RANGE }
           Projection: { ProjectionType: ALL }
 
-  # -- Mural DDB tables ------------------------------------------------------
-  # Sole source of truth for weekly collaborative mural tile claims and
-  # publishes. S3 has no CAS, so we use DDB conditional writes for tile
-  # ownership and TransactWriteItems for the atomic publish-tile + cooldown
-  # update. See docs/mural-plan.md.
-  MuralTilesTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: drawbang-mural-tiles
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - { AttributeName: mural_id, AttributeType: S }
-        - { AttributeName: tile_key,  AttributeType: S }
-      KeySchema:
-        - { AttributeName: mural_id, KeyType: HASH }
-        - { AttributeName: tile_key,  KeyType: RANGE }
-      # ttl_epoch on abandoned-claim rows lets DDB sweep them away well after
-      # the mural closes. Correctness for active claims still lives in the
-      # conditional write (compares claim_expires_at inline), so we set TTL
-      # to claim_expires_at + 7d in the writer, not to claim_expires_at.
-      TimeToLiveSpecification:
-        AttributeName: ttl_epoch
-        Enabled: true
-
-  # Per-account-per-mural cooldown timestamps. Used inside TransactWriteItems
-  # alongside the publish-tile update so cooldown enforcement is atomic with
-  # the publish itself. TTL purges rows after the mural closes.
-  MuralCooldownsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: drawbang-mural-cooldowns
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - { AttributeName: user_id,   AttributeType: S }
-        - { AttributeName: mural_id, AttributeType: S }
-      KeySchema:
-        - { AttributeName: user_id,   KeyType: HASH }
-        - { AttributeName: mural_id, KeyType: RANGE }
-      TimeToLiveSpecification:
-        AttributeName: ttl_epoch
-        Enabled: true
-
   # Per-account aggregated streak + total counters for #115/#116. One row
-  # per author with daily-drawings + weekly-mural dimensions, updated
-  # under optimistic concurrency from the ingest handler.
+  # per author with daily-drawings dimension, updated under optimistic
+  # concurrency from the ingest handler.
   # Account-keyed (user_id) streak/total counters. Named -account-stats, not
   # -user-stats: the original table was keyed on the keypair `pubkey`, and
   # changing a DynamoDB partition key forces a replacement that CloudFormation
@@ -450,8 +396,6 @@ Resources:
             - !Sub "https://${DomainName}"
             - !Sub "https://${AssetsDistribution.DomainName}"
           REPO_URL: !Ref RepoUrl
-          DRAWBANG_MURAL_TILES_TABLE: !Ref MuralTilesTable
-          DRAWBANG_MURAL_COOLDOWNS_TABLE: !Ref MuralCooldownsTable
           DRAWBANG_USER_STATS_TABLE: !Ref UserStatsTable
           DRAWBANG_USERS_TABLE: !Ref UsersTable
           DRAWBANG_USERNAMES_TABLE: !Ref UsernamesTable
@@ -461,8 +405,6 @@ Resources:
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
-        - DynamoDBCrudPolicy: { TableName: !Ref MuralTilesTable }
-        - DynamoDBCrudPolicy: { TableName: !Ref MuralCooldownsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref UserStatsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref UsernamesTable }
@@ -486,18 +428,6 @@ Resources:
             ApiId: !Ref IngestApi
             Method: POST
             Path: /canvas
-        MuralClaim:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref IngestApi
-            Method: POST
-            Path: /mural/claim
-        MuralState:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref IngestApi
-            Method: GET
-            Path: /mural/{id}/state
         UserStats:
           Type: HttpApi
           Properties:
@@ -631,12 +561,6 @@ Outputs:
   ProductCountersTableName:
     Description: DynamoDB table for (drawing_id, product_id) order counts. Read by the builder for /products.
     Value: !Ref ProductCountersTable
-  MuralTilesTableName:
-    Description: DynamoDB table for mural tile claims/publishes. Source of truth for /murals.
-    Value: !Ref MuralTilesTable
-  MuralCooldownsTableName:
-    Description: DynamoDB table for per-pubkey-per-mural publish cooldowns.
-    Value: !Ref MuralCooldownsTable
   UserStatsTableName:
     Description: DynamoDB table for per-account streak + total counters (#115/#116).
     Value: !Ref UserStatsTable

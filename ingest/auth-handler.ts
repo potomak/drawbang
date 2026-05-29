@@ -13,9 +13,9 @@ import type { EmailSender } from "./email.js";
 //
 // Identity = email (private, unique) + password. Public handle = username
 // (unique, immutable v1) used in /u/<username> URLs. Sessions are stateless
-// HS256 JWTs ({ sub: user_id, un: username }); /ingest + /mural/claim trust
-// them without a DB read. Password reset is single-use via a token_version
-// claim checked against the user row at /auth/password/reset time.
+// HS256 JWTs ({ sub: user_id, un: username }); /ingest trusts them without a
+// DB read. Password reset is single-use via a token_version claim checked
+// against the user row at /auth/password/reset time.
 
 const SESSION_TTL_S = 60 * 60 * 24 * 30; // 30 days
 const PASSWORD_RESET_TTL_S = 60 * 60; // 1 hour
@@ -26,7 +26,7 @@ const MAX_PASSWORD = 200;
 
 const RESERVED_USERNAMES = new Set([
   "login", "signup", "password", "account", "u", "d", "t", "c", "days", "keys",
-  "gallery", "merch", "products", "murals", "mural", "canvas", "canvases",
+  "gallery", "merch", "products", "canvas", "canvases",
   "tile", "tiles", "identity", "privacy", "share", "feed", "404", "admin",
   "api", "ingest", "state", "drawings", "static", "assets", "proof-of-work-test",
 ]);

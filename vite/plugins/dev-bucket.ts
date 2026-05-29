@@ -31,22 +31,9 @@ interface BuilderRoute {
   contentType: string;
 }
 
-const MURAL_ID = /^mural-\d{4}-W\d{2}$/;
-
 const BUILDER_ROUTES: BuilderRoute[] = [
   {
     test: (uri) => (uri === "/gallery" ? "gallery.html" : null),
-    contentType: "text/html; charset=utf-8",
-  },
-  {
-    test: (uri) => (uri === "/murals" ? "murals.html" : null),
-    contentType: "text/html; charset=utf-8",
-  },
-  {
-    test: (uri) => {
-      const m = uri.match(/^\/murals\/([^/]+)$/);
-      return m && MURAL_ID.test(m[1]) ? `murals/${m[1]}.html` : null;
-    },
     contentType: "text/html; charset=utf-8",
   },
   {

@@ -3,20 +3,10 @@ import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
 
 // /t/<tile_id> — the canonical page for a single 16×16 tile (the atom). Tiles
-// are content-addressed and reusable across canvases and murals; this page is
-// the unified successor to the old /d/<id> drawing page (every standalone gif
-// is a tile now). It shows the gif, author, fork lineage, mural memberships,
-// and the share/merch/fork/download actions.
-
-export interface TileMuralMembership {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-  // The account that placed this tile in the mural cell.
-  claimed_by: string; // user_id
-  claimed_by_username: string;
-}
+// are content-addressed and reusable across canvases; this page is the
+// unified successor to the old /d/<id> drawing page (every standalone gif is
+// a tile now). It shows the gif, author, fork lineage, and the
+// share/merch/fork/download actions.
 
 export interface TilePageView {
   tile_id: string;
@@ -26,7 +16,6 @@ export interface TilePageView {
   // null on legacy tiles (published by an anonymous keypair before the
   // account system). They render as "anonymous" with no profile link.
   author: { user_id: string; username: string } | null;
-  murals?: TileMuralMembership[];
   public_base_url: string;
   repo_url: string;
 }
@@ -58,15 +47,6 @@ export default function renderTilePage(v: TilePageView): string {
   const authorBlock = v.author
     ? `<dt>Author</dt><dd><a href="/u/${esc(v.author.username)}">${esc(v.author.username)}</a></dd>`
     : `<dt>Author</dt><dd>anonymous</dd>`;
-  const murals = v.murals ?? [];
-  const muralsBlock = murals.length > 0
-    ? `<dt>Murals</dt><dd><ul class="dr-murals">${murals
-        .map(
-          (c) =>
-            `<li><a href="/murals/${esc(c.id)}#tile-${c.x}-${c.y}">${esc(c.name)}</a> tile (${c.x}, ${c.y}) — by <a href="/u/${esc(c.claimed_by_username)}">${esc(c.claimed_by_username)}</a></li>`,
-        )
-        .join("")}</ul></dd>`
-    : "";
   const created = formatCreatedAt(v.created_at);
   return `<!doctype html>
 <html lang="en">
@@ -103,7 +83,6 @@ export default function renderTilePage(v: TilePageView): string {
             <dd><time datetime="${esc(v.created_at)}">${esc(created)}</time></dd>
             ${authorBlock}
             ${parentBlock}
-            ${muralsBlock}
             <dt id="dr-children-dt" hidden>Children</dt>
             <dd id="dr-children-dd" hidden></dd>
             <dt>ID</dt>

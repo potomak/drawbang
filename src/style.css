@@ -27,24 +27,6 @@ svg, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .app { min-height: 100vh; display: flex; flex-direction: column; }
 body > main, .app > main { display: block; }
 
-/* ===== Canvas banner =====
-   Sibling of #app, so it needs the same horizontal padding + max-width
-   as <main> to align with the editor below. */
-.mural-banner {
-  max-width: 1400px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 20px 24px 0;
-  font-size: var(--t-sm);
-}
-.cv-banner-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.cv-banner-emoji { color: var(--fg-muted); margin-right: 6px; }
-.cv-banner-text { color: var(--fg); }
-.cv-banner-cta { color: var(--accent); }
-.cv-banner--error .cv-banner-emoji { color: var(--accent); }
-@media (max-width: 640px) { .mural-banner { padding: 12px 14px 0; } }
-
-
 /* ===== Button (editor-only variants) =====
    Base .btn / .primary / .ghost live in chrome.css. Variants below are
    editor-specific (icon toolbar, small modal buttons, pressed/disabled

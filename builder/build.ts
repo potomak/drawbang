@@ -1,9 +1,6 @@
 import { PER_PAGE } from "../config/constants.js";
 import type { Storage } from "../ingest/storage.js";
-import type { MuralStore } from "../ingest/mural-store.js";
-import { loadMurals } from "../ingest/murals-sidecar.js";
 import type { UserStatsRow } from "../ingest/user-stats-store.js";
-import { muralPass } from "./mural-pass.js";
 import { validateGif } from "../ingest/gif-validate.js";
 import { earnedBadges } from "../config/badges.js";
 import type { MerchCatalog } from "../merch/lambda.js";
@@ -55,9 +52,6 @@ export interface BuildOptions {
   // For relative-time labels on product cards ("3 days ago"). Defaults to
   // wall-clock now; tests inject for determinism.
   now?: () => Date;
-  // Optional: enables the mural pass to read live tile state. Without it,
-  // /state/current-mural.json still gets a fresh manifest + zero counts.
-  muralStore?: MuralStore;
   // Optional: per-account streak/total counters for /u/<username>.html
   // (#115/#116). Without it, profile pages render without the stats block.
   userStatsSource?: UserStatsSource;
@@ -66,9 +60,6 @@ export interface BuildOptions {
   // brand-new account's /u/<username> 404s. Without it, only accounts with
   // content get pages (legacy/dev behaviour).
   registeredUsers?: Array<{ username: string; user_id: string }>;
-  // Optional: API Gateway base URL for the mural page's state hydration.
-  // See MuralPassOptions.apiBaseUrl for the why.
-  apiBaseUrl?: string;
 }
 
 export const DEFAULT_TEMPLATES: Templates = {
@@ -223,16 +214,11 @@ export async function build(opts: BuildOptions): Promise<{
     if (allForDay.length === 0) continue;
 
     // Render per-tile pages. Normally only fresh tiles; on forceRerender,
-    // every known tile for the day so template changes propagate. Each
-    // render reads the per-tile .murals.json sidecar so the "Murals"
-    // section that ingest wrote on publish survives a forced re-render.
-    // Without this, every builder pass wipes mural membership off old tiles.
+    // every known tile for the day so template changes propagate.
     const drawingsToRender = opts.forceRerender ? allForDay : drawings;
     for (const d of drawingsToRender) {
-      const murals = await loadMurals(opts.storage, d.id);
       const html = templates.tilePage({
         ...tileViewModel(d),
-        murals,
         public_base_url: opts.publicBaseUrl,
         repo_url: repoUrl,
       });
@@ -270,15 +256,6 @@ export async function build(opts: BuildOptions): Promise<{
 
   // Rebuild /products gallery if a counter source is wired up.
   await rebuildProducts(opts, templates, repoUrl);
-
-  // Mural pass: rollover + lock + state pointer + mural/archive pages.
-  await muralPass({
-    storage: opts.storage,
-    muralStore: opts.muralStore,
-    now: opts.now ? opts.now() : new Date(),
-    repoUrl,
-    apiBaseUrl: opts.apiBaseUrl,
-  });
 
   return { sweptDrawings: sweptCount, touchedDays };
 }
@@ -528,19 +505,11 @@ async function rebuildProfiles(
     const stats = opts.userStatsSource && userId
       ? await ownerStatsViewModel(opts.userStatsSource, userId)
       : undefined;
-    // Only emit the client-hydration script when the stats endpoint is
-    // reachable (i.e. apiBaseUrl is wired). Dev/test runs with no
-    // apiBaseUrl keep the page free of hydration to avoid 404s on the
-    // local proxy.
-    const stats_url = stats && opts.apiBaseUrl && userId
-      ? `${opts.apiBaseUrl}/users/${userId}/stats`
-      : undefined;
     const html = templates.owner({
       username,
       user_id: userId,
       drawings: items,
       stats,
-      stats_url,
       repo_url: repoUrl,
     });
     await opts.storage.put(`public/u/${username}.html`, enc.encode(html), "text/html", CC_HTML);
@@ -554,18 +523,13 @@ async function ownerStatsViewModel(
   const row = await source.get(user_id);
   const totals = {
     daily_total: row?.daily_total ?? 0,
-    mural_total: row?.mural_total ?? 0,
   };
   const badges = earnedBadges(totals);
   return {
     daily_total: totals.daily_total,
     daily_streak_current: row?.daily_streak_current ?? 0,
     daily_streak_longest: row?.daily_streak_longest ?? 0,
-    mural_total: totals.mural_total,
-    mural_streak_current: row?.mural_streak_current ?? 0,
-    mural_streak_longest: row?.mural_streak_longest ?? 0,
     daily_badges: badges.daily,
-    mural_badges: badges.mural,
   };
 }
 
@@ -697,8 +661,7 @@ async function renderCanvasOne(
   });
   await opts.storage.put(`public/c/${rec.canvas_id}.html`, enc.encode(html), "text/html", CC_HTML);
 
-  // Tile pages (the atom is addressable at /t/<id>). Mural memberships are
-  // loaded from the sidecar so a tile that's also a mural cell keeps its links.
+  // Tile pages (the atom is addressable at /t/<id>).
   for (const tid of new Set(rec.tiles.filter((t): t is string => t !== null))) {
     const tileHtml = templates.tilePage({
       tile_id: tid,
@@ -706,7 +669,6 @@ async function renderCanvasOne(
       created_at: rec.created_at,
       parent: null,
       author: rec.username && rec.user_id ? { user_id: rec.user_id, username: rec.username } : null,
-      murals: await loadMurals(opts.storage, tid),
       public_base_url: opts.publicBaseUrl,
       repo_url: repoUrl,
     });
@@ -892,11 +854,6 @@ async function cli(): Promise<void> {
   const today = process.env.DRAWBANG_TODAY;
   const forceRerender = process.env.DRAWBANG_FORCE_RERENDER === "1";
   const countersTable = process.env.DRAWBANG_PRODUCT_COUNTERS_TABLE ?? "drawbang-product-counters";
-  // Strip /ingest suffix if present so the mural page hydration script can
-  // hit https://<api>/mural/<id>/state directly (CloudFront blocks POSTs to
-  // un-routed paths). Empty string in dev → relative URLs.
-  const ingestUrl = process.env.DRAWBANG_INGEST_URL ?? "";
-  const apiBaseUrl = ingestUrl.replace(/\/ingest$/, "");
 
   let storage: Storage;
   if (s3Bucket) {
@@ -913,7 +870,6 @@ async function cli(): Promise<void> {
   // no-op so `npm run builder` against ./dev-bucket stays self-contained.
   let productCountersSource: ProductCountersSource | undefined;
   let merchCatalog: MerchCatalog | undefined;
-  let muralStore: MuralStore | undefined;
   let userStatsSource: UserStatsSource | undefined;
   let registeredUsers: Array<{ username: string; user_id: string }> | undefined;
   if (s3Bucket) {
@@ -922,14 +878,6 @@ async function cli(): Promise<void> {
     productCountersSource = { listAll: () => store.listAll() };
     const catalogModule = await import("../config/merch.json", { with: { type: "json" } });
     merchCatalog = catalogModule.default as MerchCatalog;
-    // Mural tile state lives in DDB; without this, muralPass renders the
-    // current mural + every locked mural with empty tile arrays, and the
-    // immutable cache-control on locked-mural HTML pins the wiped state.
-    const { DynamoMuralStore } = await import("../ingest/mural-store.js");
-    muralStore = new DynamoMuralStore({
-      tilesTable: process.env.DRAWBANG_MURAL_TILES_TABLE ?? "drawbang-mural-tiles",
-      cooldownsTable: process.env.DRAWBANG_MURAL_COOLDOWNS_TABLE ?? "drawbang-mural-cooldowns",
-    });
     // Per-account streak + total counters drive the stats block on
     // /u/<username>.html. Builder reads only; ingest is the writer.
     const { DynamoUserStatsStore } = await import("../ingest/user-stats-store.js");
@@ -953,10 +901,8 @@ async function cli(): Promise<void> {
     forceRerender,
     productCountersSource,
     merchCatalog,
-    muralStore,
     userStatsSource,
     registeredUsers,
-    apiBaseUrl,
     logger: (m) => console.log(m),
   });
   console.log(`swept ${result.sweptDrawings} drawings, touched days: ${result.touchedDays.join(", ") || "(none)"}`);

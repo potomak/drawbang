@@ -1,6 +1,6 @@
-// Human-readable duration formatting for user-facing messages like the
-// mural cooldown. Drops seconds when hours are present (an "8 minute and
-// 12 second" precision tail next to "2 hours" reads as noise, not info).
+// Human-readable duration formatting for user-facing messages. Drops
+// seconds when hours are present (an "8 minute and 12 second" precision
+// tail next to "2 hours" reads as noise, not info).
 
 export function formatDuration(seconds: number): string {
   const total = Math.max(0, Math.round(seconds));

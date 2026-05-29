@@ -1,5 +1,5 @@
 import { authHeader, getSession } from "./auth.js";
-import type { LastPublishState, SolveProgress } from "./proof-of-work.js";
+import type { LastPublishState, SolveProgress } from "./pow.js";
 import {
   INITIAL_STATE,
   POW_CONFIG,
@@ -7,7 +7,7 @@ import {
   contentHash,
   hashHex,
   requiredBits,
-} from "./proof-of-work.js";
+} from "./pow.js";
 import { canonicalCanvasString, type CanvasManifest } from "../config/canvas.js";
 
 export interface IngestResponse {
@@ -15,13 +15,6 @@ export interface IngestResponse {
   share_url: string;
   required_bits: number;
   solve_ms: number;
-  mural?: { mural_id: string; x: number; y: number };
-}
-
-export interface TileClaimRef {
-  muralId: string;
-  x: number;
-  y: number;
 }
 
 export interface SubmitOptions {
@@ -29,10 +22,6 @@ export interface SubmitOptions {
   stateUrl: string;
   gif: Uint8Array;
   parent?: string;
-  // If present, the submission is treated as a mural-tile publish. The user
-  // must already hold a valid claim on (muralId, x, y) — typically via a
-  // prior claimTile() call from the same browser tab.
-  tileClaim?: TileClaimRef;
   onPhase?: (phase: "bench" | "solve", detail: string) => void;
   onProgress?: (p: SolveProgress) => void;
   signal?: AbortSignal;
@@ -42,27 +31,6 @@ export class MissingSessionError extends Error {
   constructor() {
     super("sign in to publish");
     this.name = "MissingSessionError";
-  }
-}
-
-export class TileTakenError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "TileTakenError";
-  }
-}
-
-export class MuralClaimRejectedError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "MuralClaimRejectedError";
-  }
-}
-
-export class MuralCooldownError extends Error {
-  constructor(public readonly retryAfterS: number) {
-    super(`cooldown active, retry in ${retryAfterS}s`);
-    this.name = "MuralCooldownError";
   }
 }
 
@@ -80,7 +48,7 @@ export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
   const bits = requiredBits(ageS);
 
   opts.onPhase?.("bench", "measuring hash rate");
-  const worker = new Worker(new URL("./proof-of-work.worker.ts", import.meta.url), { type: "module" });
+  const worker = new Worker(new URL("./pow.worker.ts", import.meta.url), { type: "module" });
   try {
     const benchHps = await runWorker<number>(worker, { type: "bench", ms: 200 }, (msg) => {
       if (msg.type === "benchResult") return msg.hps;
@@ -109,21 +77,12 @@ export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
         solve_ms: solved.solveMs,
         bench_hps: benchHps,
         parent: opts.parent,
-        ...(opts.tileClaim
-          ? {
-              mural_claim: {
-                mural_id: opts.tileClaim.muralId,
-                x: opts.tileClaim.x,
-                y: opts.tileClaim.y,
-              },
-            }
-          : {}),
       }),
       signal: opts.signal,
     });
     if (!res.ok) {
       const bodyText = await res.text();
-      let parsed: { error?: string; retry_after_s?: number } = {};
+      let parsed: { error?: string } = {};
       try {
         parsed = JSON.parse(bodyText);
       } catch {
@@ -131,11 +90,6 @@ export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
       }
       const msg = parsed.error ?? bodyText;
       if (res.status === 401) throw new MissingSessionError();
-      if (res.status === 409) throw new TileTakenError(msg);
-      if (res.status === 403) throw new MuralClaimRejectedError(msg);
-      if (res.status === 429) {
-        throw new MuralCooldownError(parsed.retry_after_s ?? 0);
-      }
       throw new Error(`ingest rejected: ${res.status} ${msg}`);
     }
     return (await res.json()) as IngestResponse;
@@ -194,7 +148,7 @@ export async function publishCanvas(
   const canonical = new TextEncoder().encode(canonicalCanvasString(manifest));
 
   opts.onPhase?.("bench", "measuring hash rate");
-  const worker = new Worker(new URL("./proof-of-work.worker.ts", import.meta.url), { type: "module" });
+  const worker = new Worker(new URL("./pow.worker.ts", import.meta.url), { type: "module" });
   try {
     const benchHps = await runWorker<number>(worker, { type: "bench", ms: 200 }, (msg) => {
       if (msg.type === "benchResult") return msg.hps;
@@ -242,121 +196,6 @@ export async function publishCanvas(
   } finally {
     worker.terminate();
   }
-}
-
-// -- Mural tile claim --------------------------------------------------------
-
-export interface ClaimTileOptions {
-  muralId: string;
-  x: number;
-  y: number;
-  // /mural/<id>/state — fetched to obtain baseline + required_bits.
-  stateUrl: string;
-  // POST endpoint, e.g. /mural/claim.
-  claimUrl: string;
-  onPhase?: (phase: "bench" | "solve", detail: string) => void;
-  onProgress?: (p: SolveProgress) => void;
-  signal?: AbortSignal;
-}
-
-export interface ClaimResponse {
-  claim_expires_at: number;
-  edit_url: string;
-  required_bits: number;
-}
-
-interface MuralStateForClaim {
-  required_bits: number;
-  last_claim_at: string;
-  locked: boolean;
-}
-
-export async function claimTile(opts: ClaimTileOptions): Promise<ClaimResponse> {
-  const session = getSession();
-  if (!session) throw new MissingSessionError();
-
-  const state = await fetchMuralState(opts.stateUrl);
-  if (state.locked) throw new MuralClaimRejectedError("mural is locked");
-  const bits = state.required_bits;
-  const baseline = state.last_claim_at;
-
-  opts.onPhase?.("bench", "measuring hash rate");
-  const worker = new Worker(new URL("./proof-of-work.worker.ts", import.meta.url), {
-    type: "module",
-  });
-  try {
-    const benchHps = await runWorker<number>(
-      worker,
-      { type: "bench", ms: 200 },
-      (msg) => {
-        if (msg.type === "benchResult") return msg.hps;
-      },
-    );
-
-    opts.onPhase?.(
-      "solve",
-      `${bits} bits, est ${estimateSolveSeconds(bits, benchHps).toFixed(1)}s`,
-    );
-
-    const solved = await runWorker<{ nonce: string; hashHex: string; solveMs: number }>(
-      worker,
-      {
-        type: "solveClaim",
-        input: {
-          muralId: opts.muralId,
-          x: opts.x,
-          y: opts.y,
-          userId: session.user_id,
-        },
-        baseline,
-        bits,
-      },
-      (msg) => {
-        if (msg.type === "progress" && opts.onProgress) opts.onProgress(msg);
-        if (msg.type === "done") return msg;
-        if (msg.type === "error") throw new Error(msg.message);
-      },
-      opts.signal,
-    );
-
-    const res = await fetch(opts.claimUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeader() },
-      body: JSON.stringify({
-        mural_id: opts.muralId,
-        x: opts.x,
-        y: opts.y,
-        baseline,
-        nonce: solved.nonce,
-      }),
-      signal: opts.signal,
-    });
-    if (!res.ok) {
-      const bodyText = await res.text();
-      let parsed: { error?: string } = {};
-      try {
-        parsed = JSON.parse(bodyText);
-      } catch {
-        // Non-JSON body — keep raw text.
-      }
-      const msg = parsed.error ?? bodyText;
-      if (res.status === 401) throw new MissingSessionError();
-      if (res.status === 409) throw new TileTakenError(msg);
-      if (res.status === 403) throw new MuralClaimRejectedError(msg);
-      throw new Error(`claim rejected: ${res.status} ${msg}`);
-    }
-    return (await res.json()) as ClaimResponse;
-  } finally {
-    worker.terminate();
-  }
-}
-
-async function fetchMuralState(url: string): Promise<MuralStateForClaim> {
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new MuralClaimRejectedError(`mural state unavailable: ${res.status}`);
-  }
-  return (await res.json()) as MuralStateForClaim;
 }
 
 async function fetchState(url: string): Promise<LastPublishState> {

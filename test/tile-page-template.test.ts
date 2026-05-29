@@ -71,25 +71,6 @@ test("tile page: parent link (when present) renders in the meta dl", () => {
   assert.match(html, /<dt>Parent<\/dt><dd><a href="\/t\/c{64}">cccccccc<\/a><\/dd>/);
 });
 
-test("tile page: mural memberships link to the mural + claimer", () => {
-  const html = renderTilePage({
-    ...baseView,
-    murals: [
-      {
-        id: "mural-2026-W19",
-        name: "Mural 2026-W19",
-        x: 3,
-        y: 7,
-        claimed_by: "b".repeat(64),
-        claimed_by_username: "bob",
-      },
-    ],
-  });
-  assert.match(html, /<dt>Murals<\/dt>/);
-  assert.match(html, /<a href="\/murals\/mural-2026-W19#tile-3-7">Mural 2026-W19<\/a>/);
-  assert.match(html, /by <a href="\/u\/bob">bob<\/a>/);
-});
-
 test("tile page: hidden children placeholders ship on every tile", () => {
   const html = renderTilePage(baseView);
   assert.match(html, /<dt id="dr-children-dt" hidden>Children<\/dt>/);

@@ -22,8 +22,7 @@ export default function renderNotFound(v: NotFoundView): string {
     <main>
       <h1 class="page-title">Page not found</h1>
       <p>
-        Try the <a href="/gallery">gallery</a>, the
-        <a href="/murals">murals archive</a>, or open
+        Try the <a href="/gallery">gallery</a>, or open
         <a href="/">the editor</a> and draw something new.
       </p>
     </main>

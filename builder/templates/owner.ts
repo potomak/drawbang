@@ -8,11 +8,7 @@ export interface OwnerStats {
   daily_total: number;
   daily_streak_current: number;
   daily_streak_longest: number;
-  mural_total: number;
-  mural_streak_current: number;
-  mural_streak_longest: number;
   daily_badges: BadgeDef[];
-  mural_badges: BadgeDef[];
 }
 
 export interface OwnerView {
@@ -78,17 +74,11 @@ ${stats}${body}
 
 function renderStats(s: OwnerStats): string {
   const dailyLine = formatDailyLine(s);
-  const muralLine = formatMuralLine(s);
-  const badges = [...s.daily_badges, ...s.mural_badges];
-  // Badges row always emitted (hidden when empty server-side) so the
-  // hydration script can unhide it without DOM construction when fresh
-  // stats unlock a new tier between builder runs.
+  const badges = s.daily_badges;
   const badgesHidden = badges.length === 0 ? " hidden" : "";
   return `      <dl class="ow-stats">
       <dt>Daily drawings</dt>
       <dd data-stats-daily>${dailyLine}</dd>
-      <dt>Weekly mural</dt>
-      <dd data-stats-mural>${muralLine}</dd>
       <dt data-stats-badges-dt${badgesHidden}>Badges</dt>
       <dd data-stats-badges-dd${badgesHidden}><ul class="ow-badges" data-stats-badges>${badges
         .map((b) => `<li data-badge-id="${esc(b.id)}">${esc(b.label)}</li>`)
@@ -102,17 +92,7 @@ function formatDailyLine(s: OwnerStats): string {
   return `${esc(s.daily_streak_current)}-day streak · best ${esc(s.daily_streak_longest)} · ${esc(s.daily_total)} drawing${s.daily_total === 1 ? "" : "s"} total`;
 }
 
-function formatMuralLine(s: OwnerStats): string {
-  if (s.mural_total === 0) return "No weekly murals yet";
-  return `${esc(s.mural_streak_current)}-week streak · best ${esc(s.mural_streak_longest)} · ${esc(s.mural_total)} mural${s.mural_total === 1 ? "" : "s"} total`;
-}
-
 function renderHydrateScript(statsUrl: string): string {
-  // Inline because the owner page doesn't load any other JS bundles. Keeps
-  // the read-side optional: a transient API outage or ad blocker just
-  // leaves the server-rendered values in place. Stats endpoint already
-  // sets Cache-Control: max-age=15 so two visits within ~15s hit edge,
-  // not the Lambda.
   return `<script>
 (async function () {
   try {
@@ -120,14 +100,10 @@ function renderHydrateScript(statsUrl: string): string {
     if (!res.ok) return;
     const s = await res.json();
     const daily = document.querySelector('[data-stats-daily]');
-    const mural = document.querySelector('[data-stats-mural]');
     if (daily) daily.textContent = s.daily_total === 0
       ? 'No drawings yet'
       : s.daily_streak_current + '-day streak · best ' + s.daily_streak_longest + ' · ' + s.daily_total + ' drawing' + (s.daily_total === 1 ? '' : 's') + ' total';
-    if (mural) mural.textContent = s.mural_total === 0
-      ? 'No weekly murals yet'
-      : s.mural_streak_current + '-week streak · best ' + s.mural_streak_longest + ' · ' + s.mural_total + ' mural' + (s.mural_total === 1 ? '' : 's') + ' total';
-    const all = (s.daily_badges || []).concat(s.mural_badges || []);
+    const all = (s.daily_badges || []);
     const ul = document.querySelector('[data-stats-badges]');
     const dt = document.querySelector('[data-stats-badges-dt]');
     const dd = document.querySelector('[data-stats-badges-dd]');

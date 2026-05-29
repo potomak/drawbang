@@ -264,10 +264,6 @@ test("builder renders streaks + badges on profile page when userStatsSource is w
         daily_streak_current: 3,
         daily_streak_longest: 5,
         daily_last_date: "2026-04-19",
-        mural_total: 2,
-        mural_streak_current: 1,
-        mural_streak_longest: 2,
-        mural_last_id: "mural-2026-W16",
         updated_at: "2026-04-19T10:00:00Z",
       };
     },
@@ -285,16 +281,10 @@ test("builder renders streaks + badges on profile page when userStatsSource is w
   assert.match(profileHtml, /3-day streak/);
   assert.match(profileHtml, /best 5/);
   assert.match(profileHtml, /7 drawings total/);
-  assert.match(profileHtml, /1-week streak/);
-  assert.match(profileHtml, /2 murals total/);
   assert.match(profileHtml, /data-badge-id="daily-7"/);
   assert.ok(
     !/data-badge-id="daily-30"/.test(profileHtml),
     "daily-30 should not appear at daily_total=7",
-  );
-  assert.ok(
-    !/data-badge-id="mural-10"/.test(profileHtml),
-    "mural-10 should not appear at mural_total=2",
   );
 });
 
@@ -307,106 +297,6 @@ test("builder omits stats block when userStatsSource is absent", async () => {
 
   const profileHtml = await fs.readFile(path.join(root, `public/u/alice.html`), "utf8");
   assert.ok(!/<dl class="ow-stats">/.test(profileHtml), "no stats block without source");
-});
-
-test("builder emits the profile-page hydration script only when apiBaseUrl is set", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
-  const storage = new FsStorage(root);
-  const user_id = "a".repeat(64);
-  const username = "alice";
-  await seedDrawing(root, "2026-04-19", 23, { user_id, username });
-  const userStatsSource = {
-    async get() {
-      return {
-        user_id,
-        daily_total: 1, daily_streak_current: 1, daily_streak_longest: 1,
-        daily_last_date: "2026-04-19",
-        mural_total: 0, mural_streak_current: 0, mural_streak_longest: 0,
-        mural_last_id: null,
-        updated_at: "2026-04-19T10:00:00Z",
-      };
-    },
-  };
-
-  // (1) With apiBaseUrl — script present, fetches the expected URL.
-  await build({
-    storage,
-    publicBaseUrl: "https://example.test",
-    today: "2026-04-20",
-    userStatsSource,
-    apiBaseUrl: "https://api.example.test",
-  });
-  const withApi = await fs.readFile(path.join(root, `public/u/${username}.html`), "utf8");
-  assert.match(withApi, /data-stats-daily/, "expected hydration target attribute on the daily dd");
-  assert.match(
-    withApi,
-    /fetch\("https:\/\/api\.example\.test\/users\/a{64}\/stats"\)/,
-    "expected the hydration script to fetch the stats endpoint",
-  );
-
-  // (2) Without apiBaseUrl — stats block still rendered, but no script.
-  const root2 = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
-  const storage2 = new FsStorage(root2);
-  await seedDrawing(root2, "2026-04-19", 23, { user_id, username });
-  await build({
-    storage: storage2,
-    publicBaseUrl: "https://example.test",
-    today: "2026-04-20",
-    userStatsSource,
-  });
-  const noApi = await fs.readFile(path.join(root2, `public/u/${username}.html`), "utf8");
-  assert.match(noApi, /<dl class="ow-stats">/);
-  assert.ok(
-    !/fetch\([^)]*\/stats/.test(noApi),
-    "no hydration fetch when apiBaseUrl is absent",
-  );
-});
-
-test("builder preserves mural membership when re-rendering an existing drawing page", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "drawbang-builder-"));
-  const storage = new FsStorage(root);
-
-  const id = await seedDrawing(root, "2026-04-19", 14, { user_id: "a".repeat(64), username: "alice" });
-
-  // Seed the murals sidecar at the same key ingest writes.
-  const claimedBy = "c".repeat(64);
-  const sidecarPath = path.join(root, `public/tiles/${id}.murals.json`);
-  await fs.mkdir(path.dirname(sidecarPath), { recursive: true });
-  await fs.writeFile(
-    sidecarPath,
-    JSON.stringify({
-      drawing_id: id,
-      murals: [
-        {
-          id: "mural-2026-W16",
-          name: "Week 16, 2026",
-          x: 3,
-          y: 4,
-          claimed_by: claimedBy,
-          claimed_by_username: "carol",
-        },
-      ],
-    }),
-  );
-
-  // forceRerender mirrors the deploy workflow's DRAWBANG_FORCE_RERENDER=1.
-  await build({
-    storage,
-    publicBaseUrl: "https://example.test",
-    today: "2026-04-20",
-    forceRerender: true,
-  });
-
-  const drawingHtml = await fs.readFile(path.join(root, `public/t/${id}.html`), "utf8");
-  assert.match(drawingHtml, /<dt>Murals<\/dt>/);
-  assert.match(
-    drawingHtml,
-    /href="\/murals\/mural-2026-W16#tile-3-4"/,
-  );
-  assert.ok(
-    drawingHtml.includes(`/u/carol`),
-    "expected claimed_by_username attribution in the mural membership link",
-  );
 });
 
 test("registered accounts get a profile page even with no published drawings", async () => {

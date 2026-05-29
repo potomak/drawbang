@@ -52,11 +52,6 @@ export default defineConfig({
       "^/canvas$": "http://localhost:8787",
       "/auth": "http://localhost:8787",
       "/state/last-publish.json": "http://localhost:8787",
-      "/state/current-mural.json": "http://localhost:8787",
-      // Singular `/mural/*` is the API path (claim + state). The plural
-      // `/murals/...` static pages are handled by the dev-bucket plugin
-      // — this regex avoids matching them.
-      "^/mural/.+": "http://localhost:8787",
     },
   },
 });

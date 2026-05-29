@@ -1,4 +1,4 @@
-import { bench, solve, solveClaim, type ClaimPowInput } from "./proof-of-work.js";
+import { bench, solve } from "./pow.js";
 
 interface SolveRequest {
   type: "solve";
@@ -6,17 +6,11 @@ interface SolveRequest {
   baseline: string;
   bits: number;
 }
-interface SolveClaimRequest {
-  type: "solveClaim";
-  input: ClaimPowInput;
-  baseline: string;
-  bits: number;
-}
 interface BenchRequest {
   type: "bench";
   ms: number;
 }
-type Request = SolveRequest | SolveClaimRequest | BenchRequest;
+type Request = SolveRequest | BenchRequest;
 
 self.addEventListener("message", async (ev: MessageEvent<Request>) => {
   const msg = ev.data;
@@ -29,16 +23,6 @@ self.addEventListener("message", async (ev: MessageEvent<Request>) => {
     if (msg.type === "solve") {
       const result = await solve(
         msg.gif,
-        msg.baseline,
-        msg.bits,
-        (p) => (self as any).postMessage({ type: "progress", ...p }),
-      );
-      (self as any).postMessage({ type: "done", ...result });
-      return;
-    }
-    if (msg.type === "solveClaim") {
-      const result = await solveClaim(
-        msg.input,
         msg.baseline,
         msg.bits,
         (p) => (self as any).postMessage({ type: "progress", ...p }),

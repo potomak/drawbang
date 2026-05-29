@@ -13,12 +13,7 @@ export interface UserStatsResponseBody {
   daily_streak_current: number;
   daily_streak_longest: number;
   daily_last_date: string | null;
-  mural_total: number;
-  mural_streak_current: number;
-  mural_streak_longest: number;
-  mural_last_id: string | null;
   daily_badges: BadgeDef[];
-  mural_badges: BadgeDef[];
 }
 
 export interface UserStatsHandlerConfig {
@@ -45,7 +40,6 @@ export async function handleUserStats(
   const row = await cfg.userStatsStore.get(user_id);
   const totals = {
     daily_total: row?.daily_total ?? 0,
-    mural_total: row?.mural_total ?? 0,
   };
   const badges = earnedBadges(totals);
   return {
@@ -56,12 +50,7 @@ export async function handleUserStats(
       daily_streak_current: row?.daily_streak_current ?? 0,
       daily_streak_longest: row?.daily_streak_longest ?? 0,
       daily_last_date: row?.daily_last_date ?? null,
-      mural_total: totals.mural_total,
-      mural_streak_current: row?.mural_streak_current ?? 0,
-      mural_streak_longest: row?.mural_streak_longest ?? 0,
-      mural_last_id: row?.mural_last_id ?? null,
       daily_badges: badges.daily,
-      mural_badges: badges.mural,
     },
     headers: {
       "Content-Type": "application/json",
