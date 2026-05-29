@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import renderTilePage, { formatCreatedAt } from "../builder/templates/tile-page.js";
+import renderTilePage, { formatCreatedAt } from "../lib/templates/tile-page.js";
 
 const baseView = {
   tile_id: "f".repeat(64),
@@ -68,7 +68,7 @@ test("tile page: parent link (when present) renders in the meta dl", () => {
     ...baseView,
     parent: { parent: "c".repeat(64), parent_short: "cccccccc" },
   });
-  assert.match(html, /<dt>Parent<\/dt><dd><a href="\/t\/c{64}">cccccccc<\/a><\/dd>/);
+  assert.match(html, /<dt>Parent<\/dt><dd><a href="\/d\/c{64}">cccccccc<\/a><\/dd>/);
 });
 
 test("tile page: hidden children placeholders ship on every tile", () => {
@@ -107,7 +107,7 @@ test("tile page: emits the full OG suite with absolute URLs and the -large.gif i
   );
   assert.match(
     html,
-    new RegExp(`<link rel="canonical" href="https://pixel\\.drawbang\\.com/t/${id}"`),
+    new RegExp(`<link rel="canonical" href="https://pixel\\.drawbang\\.com/d/${id}"`),
   );
   assert.match(html, /<meta property="og:type" content="website"/);
   assert.match(html, /<meta property="og:site_name" content="Draw!"/);
@@ -118,7 +118,7 @@ test("tile page: emits the full OG suite with absolute URLs and the -large.gif i
   );
   assert.match(
     html,
-    new RegExp(`<meta property="og:url" content="https://pixel\\.drawbang\\.com/t/${id}"`),
+    new RegExp(`<meta property="og:url" content="https://pixel\\.drawbang\\.com/d/${id}"`),
   );
   assert.match(
     html,
@@ -144,7 +144,7 @@ test("tile page: og:image is the -large.gif, not the raw 16×16 gif", () => {
 test("tile page: Reddit button links directly to reddit.com/submit, not the /share page", () => {
   const html = renderTilePage(baseView);
   const id = "f".repeat(64);
-  const expectedUrl = encodeURIComponent(`https://pixel.drawbang.com/t/${id}`);
+  const expectedUrl = encodeURIComponent(`https://pixel.drawbang.com/d/${id}`);
   const expectedTitle = encodeURIComponent("Pixel art from Draw! · Tile ID ffffffff");
   const reddit = new RegExp(
     `<a class="btn" id="dr-share-reddit" href="https://www\\.reddit\\.com/submit\\?url=${expectedUrl}&amp;title=${expectedTitle}"[^>]*>Share to Reddit</a>`,
@@ -156,7 +156,7 @@ test("tile page: Reddit button links directly to reddit.com/submit, not the /sha
 test("tile page: X share button opens twitter.com/intent/tweet with the tile URL", () => {
   const html = renderTilePage(baseView);
   const id = "f".repeat(64);
-  const expectedUrl = encodeURIComponent(`https://pixel.drawbang.com/t/${id}`);
+  const expectedUrl = encodeURIComponent(`https://pixel.drawbang.com/d/${id}`);
   const expectedText = encodeURIComponent("Pixel art from Draw! · Tile ID ffffffff");
   const x = new RegExp(
     `<a class="btn" id="dr-share-x" href="https://twitter\\.com/intent/tweet\\?url=${expectedUrl}&amp;text=${expectedText}"[^>]*>Share to X</a>`,
@@ -168,7 +168,7 @@ test("tile page: Threads share button opens threads.net/intent/post with caption
   const html = renderTilePage(baseView);
   const id = "f".repeat(64);
   const expectedText = encodeURIComponent("Pixel art from Draw! · Tile ID ffffffff");
-  const expectedUrl = encodeURIComponent(`https://pixel.drawbang.com/t/${id}`);
+  const expectedUrl = encodeURIComponent(`https://pixel.drawbang.com/d/${id}`);
   const threads = new RegExp(
     `<a class="btn" id="dr-share-threads" href="https://www\\.threads\\.net/intent/post\\?text=${expectedText}&amp;url=${expectedUrl}"[^>]*>Share to Threads</a>`,
   );

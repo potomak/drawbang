@@ -4,11 +4,11 @@ import { esc } from "./_escape.js";
 import type { GalleryItem } from "./gallery.js";
 import { renderItem } from "./gallery.js";
 
-// /t/<tile_id> — the canonical page for a single 16×16 tile (the atom). Tiles
-// are content-addressed and reusable across canvases; this page is the
-// unified successor to the old /d/<id> drawing page (every standalone gif is
-// a tile now). It shows the gif, author, fork lineage, forks, and the
-// share/merch/fork/download actions.
+// /d/<drawing_id> — the canonical page for a single drawing. Content-
+// addressed (id = sha256(gif)). Shows the gif, author, fork lineage,
+// forks, and the share/merch/fork/download actions. Filename stays
+// `tile-page.ts` until the rename ships in a follow-up; the field
+// `tile_id` is the drawing id.
 
 export interface TilePageView {
   tile_id: string;
@@ -49,7 +49,7 @@ export function formatCreatedAt(iso: string): string {
 export default function renderTilePage(v: TilePageView): string {
   const gif = `/tiles/${esc(v.tile_id)}.gif`;
   const parentBlock = v.parent
-    ? `<dt>Parent</dt><dd><a href="/t/${esc(v.parent.parent)}">${esc(v.parent.parent_short)}</a></dd>`
+    ? `<dt>Parent</dt><dd><a href="/d/${esc(v.parent.parent)}">${esc(v.parent.parent_short)}</a></dd>`
     : "";
   const authorBlock = v.author
     ? `<dt>Author</dt><dd><a href="/u/${esc(v.author.username)}">${esc(v.author.username)}</a></dd>`
@@ -73,12 +73,12 @@ ${forks.map(renderItem).join("\n")}
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Draw! · ${esc(v.id_short)}</title>
     <meta name="description" content="Pixel art from Draw! · Create your own at https://pixel.drawbang.com" />
-    <link rel="canonical" href="${esc(v.public_base_url)}/t/${esc(v.tile_id)}" />
+    <link rel="canonical" href="${esc(v.public_base_url)}/d/${esc(v.tile_id)}" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Draw!" />
     <meta property="og:title" content="Tile ID ${esc(v.id_short)}" />
     <meta property="og:description" content="Pixel art from Draw! · Create your own pixel art at https://pixel.drawbang.com" />
-    <meta property="og:url" content="${esc(v.public_base_url)}/t/${esc(v.tile_id)}" />
+    <meta property="og:url" content="${esc(v.public_base_url)}/d/${esc(v.tile_id)}" />
     <meta property="og:image" content="${esc(v.public_base_url)}/tiles/${esc(v.tile_id)}-large.gif" />
     <meta property="og:image:type" content="image/gif" />
     <meta property="og:image:width" content="960" />
@@ -112,9 +112,9 @@ ${forks.map(renderItem).join("\n")}
               <a class="btn ghost" id="dr-download-gif" href="${gif}" download>Download GIF</a>
             </div>
             <div class="dr-action-row">
-              <a class="btn" id="dr-share-threads" href="https://www.threads.net/intent/post?text=${encodeURIComponent(`Pixel art from Draw! · Tile ID ${v.id_short}`)}&amp;url=${encodeURIComponent(`${v.public_base_url}/t/${v.tile_id}`)}" target="_blank" rel="nofollow noopener noreferrer">Share to Threads</a>
-              <a class="btn" id="dr-share-reddit" href="https://www.reddit.com/submit?url=${encodeURIComponent(`${v.public_base_url}/t/${v.tile_id}`)}&amp;title=${encodeURIComponent(`Pixel art from Draw! · Tile ID ${v.id_short}`)}" target="_blank" rel="nofollow noopener noreferrer">Share to Reddit</a>
-              <a class="btn" id="dr-share-x" href="https://twitter.com/intent/tweet?url=${encodeURIComponent(`${v.public_base_url}/t/${v.tile_id}`)}&amp;text=${encodeURIComponent(`Pixel art from Draw! · Tile ID ${v.id_short}`)}" target="_blank" rel="nofollow noopener noreferrer">Share to X</a>
+              <a class="btn" id="dr-share-threads" href="https://www.threads.net/intent/post?text=${encodeURIComponent(`Pixel art from Draw! · Tile ID ${v.id_short}`)}&amp;url=${encodeURIComponent(`${v.public_base_url}/d/${v.tile_id}`)}" target="_blank" rel="nofollow noopener noreferrer">Share to Threads</a>
+              <a class="btn" id="dr-share-reddit" href="https://www.reddit.com/submit?url=${encodeURIComponent(`${v.public_base_url}/d/${v.tile_id}`)}&amp;title=${encodeURIComponent(`Pixel art from Draw! · Tile ID ${v.id_short}`)}" target="_blank" rel="nofollow noopener noreferrer">Share to Reddit</a>
+              <a class="btn" id="dr-share-x" href="https://twitter.com/intent/tweet?url=${encodeURIComponent(`${v.public_base_url}/d/${v.tile_id}`)}&amp;text=${encodeURIComponent(`Pixel art from Draw! · Tile ID ${v.id_short}`)}" target="_blank" rel="nofollow noopener noreferrer">Share to X</a>
               <button class="btn" id="dr-share" type="button" hidden>Share…</button>
             </div>
           </div>
@@ -139,7 +139,7 @@ ${forksSection}
     var items = '';
     for (var i = 0; i < children.length; i++) {
       var c = children[i];
-      items += '<li><a href="/t/' + c.id + '">' + c.id_short + '</a> · by <a href="/u/' + c.username + '">' + c.username + '</a></li>';
+      items += '<li><a href="/d/' + c.id + '">' + c.id_short + '</a> · by <a href="/u/' + c.username + '">' + c.username + '</a></li>';
     }
     dd.innerHTML = '<ul class="dr-children">' + items + '</ul>';
     dt.hidden = false;

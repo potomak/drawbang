@@ -3,11 +3,11 @@ import renderGallery, {
   renderGalleryFragment,
   type GalleryItem,
   type GalleryView,
-} from "../builder/templates/gallery.js";
-import renderTilePage from "../builder/templates/tile-page.js";
-import renderFeed from "../builder/templates/feed.js";
-import renderOwner from "../builder/templates/owner.js";
-import renderNotFound from "../builder/templates/not-found.js";
+} from "../lib/templates/gallery.js";
+import renderTilePage from "../lib/templates/tile-page.js";
+import renderFeed from "../lib/templates/feed.js";
+import renderOwner from "../lib/templates/owner.js";
+import renderNotFound from "../lib/templates/not-found.js";
 import {
   decodeCursor,
   encodeCursor,

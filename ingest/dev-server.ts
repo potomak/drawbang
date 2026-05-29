@@ -15,7 +15,6 @@ import {
   handleResetPassword,
   type AuthHandlerConfig,
 } from "./auth-handler.js";
-import { build } from "../builder/build.js";
 import {
   renderDrawingPageHandler,
   renderFeedHandler,
@@ -46,30 +45,6 @@ const authConfig: AuthHandlerConfig = {
   jwtSecret: JWT_SECRET,
   publicBaseUrl: PUBLIC_BASE,
 };
-
-// Inline rebuild after every successful ingest. The builder is incremental
-// and FsStorage is local, so the round-trip is well under a second on a
-// small dev-bucket — awaiting it keeps the publish → /gallery view race-
-// free for the user. Failures are logged but don't poison the ingest 200
-// (the inbox bytes are already on disk).
-async function rebuildAfterPublish(): Promise<void> {
-  const start = Date.now();
-  try {
-    const result = await build({
-      storage,
-      publicBaseUrl: PUBLIC_BASE,
-      logger: () => {},
-    });
-    const ms = Date.now() - start;
-    console.log(
-      `[builder] rebuilt in ${ms}ms — swept ${result.sweptDrawings}, touched: ${
-        result.touchedDays.join(", ") || "(none)"
-      }`,
-    );
-  } catch (err) {
-    console.error("[builder] rebuild failed:", err);
-  }
-}
 
 const server = http.createServer(async (req, res) => {
   try {
@@ -102,11 +77,9 @@ const server = http.createServer(async (req, res) => {
         drawingStore,
       });
       json(res, result.status, result.body);
-      // 202 = newly accepted, 200 = idempotent retry of an existing
-      // drawing. Either way the inbox is in a coherent state, so rebuild.
-      if (result.status === 200 || result.status === 202) {
-        await rebuildAfterPublish();
-      }
+      // No builder pass anymore — the new drawing already lives in the
+      // in-memory drawing store, so /gallery and /d/<id> pick it up on
+      // the next GET.
       return;
     }
 

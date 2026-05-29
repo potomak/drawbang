@@ -46,11 +46,14 @@ export default defineConfig({
     // setup where everything appears under one hostname.
     proxy: {
       "/ingest": "http://localhost:8787",
-      // POST /canvas (personal multi-tile publish). Exact match so it doesn't
-      // shadow the /c/<id> static pages served by the dev-bucket plugin.
-      "^/canvas$": "http://localhost:8787",
       "/auth": "http://localhost:8787",
-      "/state/last-publish.json": "http://localhost:8787",
+      // Dynamic-site routes that match what the prod Lambda serves: the
+      // ingest dev-server renders them off MemoryDrawingStore so the
+      // editor's "publish → see in /gallery" loop works locally.
+      "/gallery": "http://localhost:8787",
+      "/feed.rss": "http://localhost:8787",
+      "^/d/.*": "http://localhost:8787",
+      "^/u/.*": "http://localhost:8787",
     },
   },
 });

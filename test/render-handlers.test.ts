@@ -132,7 +132,7 @@ describe("renderDrawingPageHandler", () => {
     // Author link to /u/<username>.
     assert.match(res.body, /href="\/u\/bob"/);
     // Parent shown.
-    assert.match(res.body, new RegExp(`href="/t/${parentId}"`));
+    assert.match(res.body, new RegExp(`href="/d/${parentId}"`));
     // Forks section lists carol's drawing.
     assert.match(res.body, /<p class="panel-h">Forks · 1<\/p>/);
     assert.match(res.body, new RegExp(`/d/${grandchildId}`));

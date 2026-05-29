@@ -22,10 +22,10 @@ test("injectChrome: replaces <!--CHROME:FOOTER--> with the rendered footer + rep
 });
 
 test("injectChrome: <meta name='drawbang:active'> drives the active link AND is stripped from output", () => {
-  const input = `<!doctype html><html><head><meta name="drawbang:active" content="products" /></head><body><!--CHROME:HEADER--><!--CHROME:FOOTER--></body></html>`;
+  const input = `<!doctype html><html><head><meta name="drawbang:active" content="gallery" /></head><body><!--CHROME:HEADER--><!--CHROME:FOOTER--></body></html>`;
   const out = injectChrome(input, REPO);
-  // products link is marked active in both surfaces.
-  const hits = [...out.matchAll(/data-nav="products"[^>]*aria-current="page"/g)];
+  // gallery link is marked active in both surfaces.
+  const hits = [...out.matchAll(/data-nav="gallery"[^>]*aria-current="page"/g)];
   assert.equal(hits.length, 2, "active link in header AND footer");
   // No other link is active.
   assert.equal((out.match(/aria-current="page"/g) ?? []).length, 2);

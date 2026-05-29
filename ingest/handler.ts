@@ -1,5 +1,4 @@
 import { contentHashHex } from "../src/content-hash.js";
-import renderTilePage from "../builder/templates/tile-page.js";
 import { decodeGif } from "../src/editor/gif.js";
 import { encodeShareGif } from "../src/editor/share-gif.js";
 import { validateGif } from "./gif-validate.js";
@@ -58,56 +57,10 @@ export interface HandlerConfig {
   cacheInvalidator?: CacheInvalidator;
 }
 
-export interface ChildEntry {
-  id: string;
-  id_short: string;
-  user_id: string;
-  username: string;
-  created_at: string;
-}
-
-interface ChildrenFile {
-  drawing_id: string;
-  children: ChildEntry[];
-}
-
-function childrenFileKey(id: string): string {
-  return `public/tiles/${id}.children.json`;
-}
-
-async function loadChildren(
-  storage: Storage,
-  id: string,
-): Promise<ChildEntry[]> {
-  const f = await storage.getJSON<ChildrenFile>(childrenFileKey(id));
-  return f?.children ?? [];
-}
-
-async function appendChild(
-  storage: Storage,
-  parentId: string,
-  entry: ChildEntry,
-): Promise<ChildEntry[]> {
-  const existing = await loadChildren(storage, parentId);
-  // De-dupe by child id so a re-publish of the same fork doesn't grow the
-  // parent's list. The drawing id is content-addressed, so byte-identical
-  // re-forks collapse onto one entry.
-  const filtered = existing.filter((e) => e.id !== entry.id);
-  filtered.push(entry);
-  const payload: ChildrenFile = { drawing_id: parentId, children: filtered };
-  await storage.put(
-    childrenFileKey(parentId),
-    new TextEncoder().encode(JSON.stringify(payload)),
-    "application/json",
-    "no-store",
-  );
-  return filtered;
-}
-
 export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Promise<IngestHandlerResult> {
   const now = cfg.now ? cfg.now() : new Date();
   const nowISO = now.toISOString();
-  const shareUrlFor = (id: string): string => `${cfg.publicBaseUrl}/t/${id}`;
+  const shareUrlFor = (id: string): string => `${cfg.publicBaseUrl}/d/${id}`;
 
   // -- 1. Parse gif from base64 and validate structure -----------------------
   let gif: Uint8Array;
@@ -128,15 +81,10 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   const author = cfg.auth;
 
   // -- 3. Idempotency check --------------------------------------------------
-  const day = nowISO.slice(0, 10);
-  const gifKey = `inbox/${day}/${id}.gif`;
-  const jsonKey = `inbox/${day}/${id}.json`;
+  // Tiles are content-addressed (id = sha256(gif_bytes)), so the same drawing
+  // always produces the same id. Re-publishes short-circuit on existing.
   const publishedKey = `public/tiles/${id}.gif`;
-
-  const alreadyHere =
-    (await cfg.storage.exists(publishedKey)) ||
-    (await cfg.storage.exists(gifKey));
-
+  const alreadyHere = await cfg.storage.exists(publishedKey);
   if (alreadyHere) {
     return {
       status: 200,
@@ -144,29 +92,16 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     };
   }
 
-  // -- 4. Persist gif + sidecar ----------------------------------------------
-  const enc = new TextEncoder();
-  const metadata = {
-    id,
-    created_at: nowISO,
-    parent: req.parent ?? null,
-    user_id: author.user_id,
-    username: author.username,
-  };
-  await Promise.all([
-    cfg.storage.put(gifKey, gif, "image/gif"),
-    cfg.storage.put(
-      jsonKey,
-      enc.encode(JSON.stringify(metadata)),
-      "application/json",
-    ),
-    cfg.storage.put(
-      publishedKey,
-      gif,
-      "image/gif",
-      "public, max-age=31536000, immutable",
-    ),
-  ]);
+  // -- 4. Persist the gif -----------------------------------------------------
+  // Stored as public/tiles/<id>.gif so the legacy /tiles/<id>.gif URL keeps
+  // serving; the dynamic /d/<id> page references it via /drawings/<id>.gif
+  // which CloudFront rewrites onto the same object.
+  await cfg.storage.put(
+    publishedKey,
+    gif,
+    "image/gif",
+    "public, max-age=31536000, immutable",
+  );
 
   // Dual-write to the dynamic DDB store so the new /gallery, /d/<id>,
   // /u/<username>, /feed.rss routes can serve the drawing without
@@ -231,39 +166,8 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     }
   }
 
-  // -- 4b. Fork lineage: append this drawing to the parent's children list.
-  if (
-    typeof req.parent === "string" &&
-    /^[0-9a-f]{64}$/.test(req.parent) &&
-    req.parent !== id
-  ) {
-    await appendChild(cfg.storage, req.parent, {
-      id,
-      id_short: id.slice(0, 8),
-      user_id: author.user_id,
-      username: author.username,
-      created_at: nowISO,
-    });
-  }
-
-  // -- 5. Render tile page ---------------------------------------------------
-  const tileHtml = renderTilePage({
-    tile_id: id,
-    id_short: id.slice(0, 8),
-    created_at: nowISO,
-    parent: req.parent
-      ? { parent: req.parent, parent_short: req.parent.slice(0, 8) }
-      : null,
-    author: { user_id: author.user_id, username: author.username },
-    public_base_url: cfg.publicBaseUrl,
-    repo_url: cfg.repoUrl ?? "https://github.com/potomak/drawbang",
-  });
-  await cfg.storage.put(
-    `public/t/${id}.html`,
-    enc.encode(tileHtml),
-    "text/html",
-    "public, max-age=60",
-  );
+  // The dynamic /d/<id> page is served by render-handlers.ts off the
+  // drawing-store row above — no need to sync-render anything here.
 
   // Fire-and-forget CloudFront invalidation. Failures are logged inside
   // the invalidator; the publish has already committed so we return 202
