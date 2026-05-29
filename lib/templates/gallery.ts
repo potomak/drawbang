@@ -36,7 +36,7 @@ export function renderItem(d: GalleryItem): string {
     : "";
   return `<li>
   <a href="${esc(d.href ?? `/d/${d.id}`)}" aria-label="${esc(d.id_short)}">
-    <img src="${esc(d.thumb ?? `/drawings/${d.id}.gif`)}" alt="" width="128" height="128" loading="lazy" />
+    <img src="${esc(d.thumb ?? `/tiles/${d.id}.gif`)}" alt="" width="128" height="128" loading="lazy" />
   </a>
   ${meta}
 </li>`;

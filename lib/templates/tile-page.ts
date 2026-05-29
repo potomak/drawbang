@@ -23,7 +23,7 @@ export interface TilePageView {
   author: {
     user_id: string;
     username: string;
-    avatar_drawing_id?: string | null;
+    avatar_drawing_id: string | null;
   } | null;
   // Drawings that forked from this one. Empty/omitted when none, or for
   // the legacy static-render path that doesn't have a fork lookup
@@ -95,7 +95,7 @@ ${forks.map(renderItem).join("\n")}
   </head>
   <body>
     ${renderHeader({ active: "gallery" })}
-    <main>
+    <main data-tile-page data-drawing-id="${esc(v.drawing_id)}" data-id-short="${esc(v.id_short)}" data-author-username="${esc(v.author?.username ?? "")}">
       <div class="dr-grid">
         <div class="dr-art-wrap">
           <img src="${gif}" alt="tile ${esc(v.id_short)}" width="320" height="320" />
@@ -130,147 +130,7 @@ ${forksSection}
     </main>
     ${renderFooter({ active: "gallery", repoUrl: v.repo_url })}
     <script src="/flash.js"></script>
-    <script>
-(function () {
-  // "Set as avatar" — shown only when the viewer is the author of this
-  // drawing. The check is best-effort client-side (the server still
-  // enforces ownership via username equality on /auth/avatar). Reads
-  // the session JWT + cached username from the same localStorage keys
-  // the editor writes after login.
-  var btn = document.getElementById('dr-set-avatar');
-  if (!btn) return;
-  var author = ${JSON.stringify(v.author?.username ?? "")};
-  if (!author) return;
-  var current = null;
-  var token = null;
-  try {
-    current = localStorage.getItem('drawbang:username');
-    token = localStorage.getItem('drawbang:jwt');
-  } catch (e) {}
-  if (!current || !token || current !== author) return;
-  btn.hidden = false;
-  btn.addEventListener('click', async function () {
-    btn.disabled = true;
-    try {
-      var res = await fetch('/auth/avatar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ drawing_id: ${JSON.stringify(v.drawing_id)} }),
-      });
-      if (!res.ok) {
-        var text = await res.text();
-        var msg = 'Failed to set avatar';
-        try { var j = JSON.parse(text); if (j && j.error) msg = j.error; } catch (e) {}
-        throw new Error(msg);
-      }
-      if (typeof window.drawbangShowFlash === 'function') {
-        window.drawbangShowFlash({ kind: 'success', message: 'Avatar updated — your profile will refresh shortly.', autoDismissMs: 4000 });
-      }
-    } catch (e) {
-      if (typeof window.drawbangShowFlash === 'function') {
-        window.drawbangShowFlash({ kind: 'error', message: e && e.message ? e.message : 'Could not set avatar' });
-      }
-    } finally {
-      btn.disabled = false;
-    }
-  });
-})();
-(function () {
-  // Copy-link button — reuses the shared flash UI loaded via /flash.js
-  // above (CLAUDE.md "UI/UX consistency"). Falls back to execCommand on
-  // browsers without async-clipboard (older Safari, http:// contexts).
-  var btn = document.getElementById('dr-copy-link');
-  if (!btn) return;
-  function flash(kind, message) {
-    if (typeof window.drawbangShowFlash === 'function') {
-      window.drawbangShowFlash({ kind: kind, message: message, autoDismissMs: 1800 });
-    }
-  }
-  async function fallbackCopy(url) {
-    var tmp = document.createElement('textarea');
-    tmp.value = url;
-    tmp.setAttribute('readonly', '');
-    tmp.style.position = 'fixed';
-    tmp.style.top = '-9999px';
-    document.body.appendChild(tmp);
-    tmp.select();
-    var ok = false;
-    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
-    document.body.removeChild(tmp);
-    return ok;
-  }
-  btn.addEventListener('click', async function () {
-    var url = window.location.href;
-    var ok = false;
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(url);
-        ok = true;
-      } else {
-        ok = await fallbackCopy(url);
-      }
-    } catch (e) {
-      ok = await fallbackCopy(url);
-    }
-    flash(ok ? 'success' : 'error', ok ? 'Link copied' : 'Could not copy — try long-pressing the URL');
-    if (typeof window.gtag === 'function') window.gtag('event', 'copy_share_link_click', {});
-  });
-})();
-(function () {
-  // Web Share API. Progressive enhancement: the button stays hidden when
-  // navigator.share is unavailable (notably desktop Firefox), so users on
-  // those browsers fall back to the dedicated Reddit / X buttons.
-  var btn = document.getElementById('dr-share');
-  if (!btn) return;
-  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') return;
-  var payload = {
-    title: 'Tile ID ' + ${JSON.stringify(v.id_short)},
-    text: 'Pixel art from Draw!',
-    url: window.location.href,
-  };
-  if (typeof navigator.canShare === 'function' && !navigator.canShare(payload)) return;
-  btn.hidden = false;
-  btn.addEventListener('click', async function () {
-    if (typeof window.gtag === 'function') window.gtag('event', 'share_click', { target: 'web_share' });
-    try {
-      await navigator.share(payload);
-    } catch (e) {
-      if (e && e.name !== 'AbortError' && typeof window.drawbangShowFlash === 'function') {
-        window.drawbangShowFlash({
-          kind: 'error',
-          message: 'Could not open share sheet',
-          autoDismissMs: 1800,
-        });
-      }
-    }
-  });
-})();
-(function () {
-  // Anchor-style action buttons. Each one's native navigation runs; we only
-  // attach a click listener to fire a GA event. window.gtag is guarded so
-  // DNT/opt-out users are silently no-op.
-  function track(name, params) {
-    if (typeof window.gtag !== 'function') return;
-    window.gtag('event', name, params);
-  }
-  var drawingId = ${JSON.stringify(v.drawing_id)};
-  var anchors = [
-    { id: 'dr-make-merch',   event: 'make_merch_click',  props: { drawing_id: drawingId } },
-    { id: 'dr-fork',         event: 'fork_click',        props: { drawing_id: drawingId } },
-    { id: 'dr-share-threads',event: 'share_click',       props: { target: 'threads' } },
-    { id: 'dr-share-reddit', event: 'share_click',       props: { target: 'reddit' } },
-    { id: 'dr-share-x',      event: 'share_click',       props: { target: 'x' } },
-    { id: 'dr-download-gif', event: 'gif_download_click', props: { source: 'tile_page' } },
-  ];
-  for (var i = 0; i < anchors.length; i++) {
-    (function (a) {
-      var el = document.getElementById(a.id);
-      if (!el) return;
-      el.addEventListener('click', function () { track(a.event, a.props); });
-    })(anchors[i]);
-  }
-})();
-    </script>
+    <script src="/tile-page.js"></script>
   </body>
 </html>
 `;

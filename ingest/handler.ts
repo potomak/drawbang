@@ -43,7 +43,7 @@ export interface HandlerConfig {
   auth: AuthedUser;
   repoUrl?: string;
   now?: () => Date;
-  // Per-pubkey streak / total counters (#115, #116). Optional so dev/tests
+  // Per-account streak / total counters (#115, #116). Optional so dev/tests
   // can omit it; when absent the publish proceeds without bumping counters.
   userStatsStore?: UserStatsStore;
   // New dynamic-site source of truth for drawings. Optional so dev/tests
@@ -93,9 +93,9 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   }
 
   // -- 4. Persist the gif -----------------------------------------------------
-  // Stored as public/tiles/<id>.gif so the legacy /tiles/<id>.gif URL keeps
-  // serving; the dynamic /d/<id> page references it via /drawings/<id>.gif
-  // which CloudFront rewrites onto the same object.
+  // Stored as public/tiles/<id>.gif. Templates link to /tiles/<id>.gif
+  // directly; the legacy /drawings/<id>.gif path still resolves via the
+  // CloudFront rewrite for any stragglers in third-party caches.
   await cfg.storage.put(
     publishedKey,
     gif,
@@ -130,7 +130,9 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   // 320×320 annotated share image written next to the original at
   // public/tiles/<id>-large.gif. Used as og:image on the tile page.
   // Wrapped in try/catch — the original gif is already committed and a
-  // share-image failure must not surface as a publish error.
+  // share-image failure must not surface as a publish error. Log with
+  // the tile id so operators can backfill missing -large.gifs via
+  // scripts/backfill-large-gifs.ts.
   try {
     const decoded = decodeGif(gif);
     if (!decoded.activePalette) {
@@ -148,7 +150,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
       "public, max-age=31536000, immutable",
     );
   } catch (e) {
-    console.error("[ingest] failed to write 320x320 og gif", e);
+    console.error(`[ingest] -large.gif write failed for ${id}:`, e);
   }
 
   // Streak / total counters (#115). Wrapped in try/catch because the gif

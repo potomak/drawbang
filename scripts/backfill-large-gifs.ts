@@ -1,19 +1,21 @@
-// One-shot backfill: every drawing in public/drawings/<id>.gif needs a
-// 320×320 annotated sibling at <id>-large.gif (the OG image used by
-// Reddit/X/Slack/Discord previews — see commit 956d8d0 and issue #195).
-// Forward-only writes from ingest cover new publishes; this script walks
-// S3 once to fill in the historical corpus.
+// One-shot backfill: every tile at public/tiles/<id>.gif needs a 320×320
+// annotated sibling at <id>-large.gif (the OG image used by Reddit / X /
+// Slack / Discord previews — see commit 956d8d0 and issue #195). Forward-
+// only writes from ingest cover new publishes; this script walks S3 once
+// to fill in tiles whose -large.gif never landed (migrated rows from
+// scripts/migrate-tiles.ts + scripts/recover-missing-tiles.ts, plus any
+// publish-time failures the try/catch silently swallowed).
 //
 // Idempotent by default: skips any <id>.gif whose <id>-large.gif already
 // exists. Pass --force to re-encode and overwrite existing -large.gifs
-// (use when the encoder output format changes, e.g. when #195 ships).
+// (use when the encoder output format changes).
 //
 // Usage:
 //   AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_DEFAULT_REGION=us-east-1 \
 //   DRAWBANG_S3_BUCKET=drawbang-assets \
 //   npx tsx scripts/backfill-large-gifs.ts [--dry-run] [--force] [--concurrency=10]
 //
-// Existing CloudFront /drawings/* edge caches won't refresh until the
+// Existing CloudFront /tiles/* edge caches won't refresh until the
 // max-age=31536000 TTL expires; that's acceptable for a one-time cosmetic
 // upgrade. New uploads land at fresh keys regardless.
 
@@ -37,7 +39,7 @@ const CONCURRENCY = concurrencyArg
 
 const storage = new S3Storage({ bucket });
 
-const ID_RE = /^public\/drawings\/([0-9a-f]{64})\.gif$/;
+const ID_RE = /^public\/tiles\/([0-9a-f]{64})\.gif$/;
 
 interface Result {
   upscaled: number;
@@ -50,11 +52,11 @@ async function run(): Promise<Result> {
   console.log(
     `[backfill] bucket=${bucket} dryRun=${dryRun} force=${force} concurrency=${CONCURRENCY}`,
   );
-  const keys = await storage.listPrefix("public/drawings");
-  console.log(`[backfill] listed ${keys.length} keys under public/drawings/`);
+  const keys = await storage.listPrefix("public/tiles");
+  console.log(`[backfill] listed ${keys.length} keys under public/tiles/`);
 
-  // Original 16×16 gifs only — skip already-upscaled, sidecars, and any
-  // accidentally non-conforming keys.
+  // Original 16×16 (or higher-res) gifs only — skip already-upscaled
+  // sidecars and anything that doesn't match the content-addressed name.
   const candidates: string[] = [];
   let skippedNonId = 0;
   for (const k of keys) {
@@ -87,7 +89,7 @@ async function run(): Promise<Result> {
           const my = cursor++;
           const key = candidates[my];
           const id = ID_RE.exec(key)![1];
-          const largeKey = `public/drawings/${id}-large.gif`;
+          const largeKey = `public/tiles/${id}-large.gif`;
           try {
             if (!force && (await storage.exists(largeKey))) {
               result.alreadyHad++;

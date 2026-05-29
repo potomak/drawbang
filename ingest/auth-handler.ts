@@ -5,6 +5,7 @@ import {
   EmailTakenError,
   TokenVersionMismatchError,
   UsernameTakenError,
+  UserNotFoundError,
   type UserStore,
 } from "./user-store.js";
 import type { EmailSender } from "./email.js";
@@ -257,22 +258,27 @@ interface SetAvatarRequest {
   drawing_id?: unknown;
 }
 
-// Authenticated session passed by the route after JWT verification. We need
-// the email to address the users-table row; the JWT has user_id + username,
-// so the auth-handler does the user_id → email lookup via getByEmail isn't
-// possible (no GSI on user_id), but the username → email path via the
-// usernames table is. Keep this matching the JWT shape the route extracts.
+// Authenticated session passed by the route after JWT verification. The
+// users table is keyed by email, but the JWT only carries user_id + username
+// — so we hop username → email via the usernames table. (No GSI on user_id,
+// since getByEmail is the hot path for login + reset.)
 export interface SetAvatarAuth {
   user_id: string;
   username: string;
 }
 
+// POST body: `{ "drawing_id": "<64hex>" }` to set, `{ "drawing_id": null }`
+// to clear. Omitting the field is rejected as a 400 — clearing must be
+// explicit so a client bug can't silently wipe an avatar.
 export async function handleSetAvatar(
   req: SetAvatarRequest,
   auth: SetAvatarAuth,
   cfg: AuthHandlerConfig,
 ): Promise<AuthResult> {
   if (!cfg.drawingStore) return err(500, "drawing store not configured");
+  if (req.drawing_id === undefined) {
+    return err(400, "missing drawing_id (send null to clear)");
+  }
   const drawing_id =
     typeof req.drawing_id === "string" && /^[0-9a-f]{64}$/.test(req.drawing_id)
       ? req.drawing_id
@@ -281,9 +287,11 @@ export async function handleSetAvatar(
     return err(400, "invalid drawing_id (expected 64-hex or null)");
   }
 
-  // Resolve the caller's account row from their public handle. The JWT
-  // carries user_id but the user store is keyed on email, so we hop via
-  // the usernames table.
+  // Resolve the caller's account row from their public handle. The
+  // user_id !== auth.user_id branch is defense-in-depth: usernames are
+  // immutable in v1 so the row always matches, but if rename ever ships,
+  // an old JWT pointing at a freed-up handle now owned by someone else
+  // must NOT be allowed to set their avatar.
   const account = await cfg.userStore.getByUsername(auth.username);
   if (!account || account.user_id !== auth.user_id) {
     return err(401, "authentication required");
@@ -291,8 +299,9 @@ export async function handleSetAvatar(
 
   if (drawing_id) {
     // Ownership check: the drawing must exist AND belong to the caller.
-    // Anonymous-bucketed drawings (e.g. /u/anonymous) can't be claimed
-    // by anyone else since they need username equality.
+    // Anonymous-bucketed drawings can't be claimed by anyone else since
+    // "anonymous" is in RESERVED_USERNAMES, so no real account has that
+    // username and the equality below always fails for them.
     const drawing = await cfg.drawingStore.get(drawing_id);
     if (!drawing) return err(404, "drawing not found");
     if (drawing.username !== auth.username) {
@@ -300,11 +309,19 @@ export async function handleSetAvatar(
     }
   }
 
-  const updated = await cfg.userStore.setAvatar(account.email, drawing_id);
+  let updated;
+  try {
+    updated = await cfg.userStore.setAvatar(account.email, drawing_id);
+  } catch (e) {
+    // Account was deleted between the getByUsername above and the write.
+    // Surface as 401 so the client re-authenticates.
+    if (e instanceof UserNotFoundError) return err(401, "authentication required");
+    throw e;
+  }
 
   // Fire-and-forget: refresh the profile so the new avatar appears
-  // immediately. Drawing pages refresh on their own (their s-maxage was
-  // dropped to a day for this reason).
+  // immediately. Drawing pages absorb the change on their own short
+  // s-maxage TTL (CC_DRAWING_PAGE in render-handlers.ts).
   if (cfg.cacheInvalidator) {
     void cfg.cacheInvalidator.invalidate(
       pathsToInvalidateOnAvatarChange(updated.username),

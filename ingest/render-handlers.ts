@@ -63,15 +63,14 @@ export interface RenderResponse {
 }
 
 // Cache headers. CloudFront's `s-maxage` controls edge cache; the per-row
-// `max-age` controls browser cache. Drawings are immutable (the ID is
-// content-addressed) so they get the long cache; gallery + profile are
-// mutable, so they ride a short edge cache + stale-while-revalidate that
-// the publish path invalidates on write.
+// `max-age` controls browser cache. Gallery + profile are mutable and ride
+// a short edge cache + stale-while-revalidate that the publish path
+// invalidates on write. Drawing pages get the same edge TTL so a freshly-
+// set avatar propagates within a day (the gif itself is content-addressed
+// and immutable). The 5-minute browser max-age trades a slight refresh lag
+// for fewer origin trips when users open multiple of their own drawings
+// back-to-back.
 const CC_GALLERY = "public, s-maxage=86400, stale-while-revalidate=60";
-// Drawing pages were immutable when the gif was the only content, but the
-// author's avatar can change underneath us — drop to a day so avatar edits
-// propagate within 24h without forcing a per-avatar CF invalidation across
-// every /d/<id> the user has published.
 const CC_DRAWING_PAGE = "public, max-age=300, s-maxage=86400, stale-while-revalidate=60";
 const CC_PROFILE = "public, s-maxage=86400, stale-while-revalidate=60";
 const CC_FEED = "public, s-maxage=3600";
@@ -82,7 +81,7 @@ function itemFromRow(r: DrawingRow): GalleryItem {
     id: r.drawing_id,
     id_short: r.drawing_id.slice(0, 8),
     href: `/d/${r.drawing_id}`,
-    thumb: `/drawings/${r.drawing_id}.gif`,
+    thumb: `/tiles/${r.drawing_id}.gif`,
     created_at: r.created_at,
   };
 }
@@ -161,10 +160,13 @@ export async function renderDrawingPageHandler(
     limit: cfg.perPage ?? PER_PAGE,
   });
   // Author avatar: optional lookup so legacy "anonymous" / unregistered
-  // usernames just render without an avatar.
-  const authorAccount = cfg.userStore
-    ? await cfg.userStore.getByUsername(row.username)
-    : null;
+  // usernames just render without an avatar. Short-circuit for the
+  // "anonymous" bucket since RESERVED_USERNAMES guarantees no real
+  // account row exists for it.
+  const authorAccount =
+    cfg.userStore && row.username !== "anonymous"
+      ? await cfg.userStore.getByUsername(row.username)
+      : null;
   const body = renderTilePage({
     drawing_id: row.drawing_id,
     id_short: row.drawing_id.slice(0, 8),
@@ -200,32 +202,21 @@ export async function renderProfilePageHandler(
   if (!USERNAME_RE.test(username)) return notFound(cfg);
   const perPage = cfg.perPage ?? PER_PAGE;
   const page = await cfg.drawingStore.queryByUsername(username, { limit: perPage });
-  // user_id from the first drawing (denormalized in every row). Brand-new
-  // accounts with no drawings yet render a 404 here in v1 — the static
-  // builder used to backfill an empty profile from the users-table scan,
-  // but rebuilding that with a per-pageload account lookup wastes a DDB
-  // read on every miss. Revisit if it actually matters in practice.
-  // Account exists but no published drawings yet: render an empty profile
-  // instead of 404. Skips the lookup entirely when there are drawings (the
-  // user_id is already denormalized on the first row).
+  // Account lookup: needed for the avatar field on every render, and for
+  // the empty-profile branch where it's the only way to resolve user_id.
+  // The "anonymous" bucket has no real account row, so skip the lookup.
+  const account =
+    cfg.userStore && username !== "anonymous"
+      ? await cfg.userStore.getByUsername(username)
+      : null;
   let userId: string;
-  let avatarDrawingId: string | null = null;
   if (page.items.length === 0) {
-    if (!cfg.userStore) return notFound(cfg);
-    const account = await cfg.userStore.getByUsername(username);
     if (!account) return notFound(cfg);
     userId = account.user_id;
-    avatarDrawingId = account.avatar_drawing_id ?? null;
   } else {
     userId = page.items[0].user_id;
-    // Lookup the avatar separately when there are drawings (the avatar
-    // isn't denormalized on the DrawingRow). Skipped when no userStore
-    // is wired (dev/tests).
-    if (cfg.userStore) {
-      const account = await cfg.userStore.getByUsername(username);
-      avatarDrawingId = account?.avatar_drawing_id ?? null;
-    }
   }
+  const avatarDrawingId = account?.avatar_drawing_id ?? null;
   const next = buildFragmentUrl(`/u/${username}/items`, page.next_cursor);
   const items = page.items.map(itemFromRow);
   const stats = cfg.userStatsStore
@@ -376,7 +367,7 @@ export async function renderFeedHandler(
       id_short: r.drawing_id.slice(0, 8),
       pub_date: new Date(r.created_at_ms).toUTCString(),
       href: `/d/${r.drawing_id}`,
-      thumb: `/drawings/${r.drawing_id}.gif`,
+      thumb: `/tiles/${r.drawing_id}.gif`,
     })),
   });
   return {

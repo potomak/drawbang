@@ -13,19 +13,14 @@ export interface OwnerStats {
 
 export interface OwnerView {
   username: string;      // public handle, used in the URL
-  user_id: string;       // 64-hex stable id, used for stats hydration
+  user_id: string;       // 64-hex stable id
   // Newest-first.
   drawings: GalleryItem[];
-  // Per-pubkey stats (#115/#116). Optional: a brand-new owner with no
-  // user_stats row yet renders as all-zeros via builder coercion. The
-  // template renders nothing when omitted so legacy tests / dev paths
-  // stay unaffected.
+  // Per-account stats (#115/#116). Optional: a brand-new owner with no
+  // user_stats row yet renders as all-zeros from the handler. The
+  // template renders nothing when omitted so dev/test paths stay
+  // unaffected.
   stats?: OwnerStats;
-  // Optional: when set, the page ships an inline hydration script that
-  // GETs this URL on load and overlays fresh stats on the server-rendered
-  // ones. Without it the stats block is whatever the last builder run
-  // emitted (typically hours stale).
-  stats_url?: string;
   // drawing_id the user picked as their avatar. Renders a small inline
   // gif next to the username when set.
   avatar_drawing_id?: string | null;
@@ -41,14 +36,14 @@ export function renderAvatar(
 ): string {
   if (!drawing_id || !/^[0-9a-f]{64}$/.test(drawing_id)) return "";
   const px = Math.max(8, Math.floor(size));
-  return `<img class="avatar" src="/drawings/${esc(drawing_id)}.gif" alt="${esc(username)}" width="${px}" height="${px}" loading="lazy" />`;
+  return `<img class="avatar" src="/tiles/${esc(drawing_id)}.gif" alt="${esc(username)}" width="${px}" height="${px}" loading="lazy" />`;
 }
 
 export default function renderOwner(v: OwnerView): string {
   const items = v.drawings
     .map(
       (d) => `          <li>
-            <a href="${esc(d.href ?? `/t/${d.id}`)}" aria-label="${esc(d.id_short)}">
+            <a href="${esc(d.href ?? `/d/${d.id}`)}" aria-label="${esc(d.id_short)}">
               <img src="${esc(d.thumb ?? `/tiles/${d.id}.gif`)}" alt="" width="128" height="128" loading="lazy" />
             </a>
           </li>`,
@@ -63,7 +58,6 @@ ${items}
       </ul>`
     : `      <p class="muted">No drawings published by this account yet.</p>`;
   const stats = v.stats ? renderStats(v.stats) : "";
-  const hydrate = v.stats && v.stats_url ? renderHydrateScript(v.stats_url) : "";
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -81,7 +75,6 @@ ${items}
 ${stats}${body}
     </main>
     ${renderFooter({ active: "identity", repoUrl: v.repo_url })}
-    ${hydrate}
   </body>
 </html>
 `;
@@ -105,36 +98,4 @@ function renderStats(s: OwnerStats): string {
 function formatDailyLine(s: OwnerStats): string {
   if (s.daily_total === 0) return "No drawings yet";
   return `${esc(s.daily_streak_current)}-day streak · best ${esc(s.daily_streak_longest)} · ${esc(s.daily_total)} drawing${s.daily_total === 1 ? "" : "s"} total`;
-}
-
-function renderHydrateScript(statsUrl: string): string {
-  return `<script>
-(async function () {
-  try {
-    const res = await fetch(${JSON.stringify(statsUrl)});
-    if (!res.ok) return;
-    const s = await res.json();
-    const daily = document.querySelector('[data-stats-daily]');
-    if (daily) daily.textContent = s.daily_total === 0
-      ? 'No drawings yet'
-      : s.daily_streak_current + '-day streak · best ' + s.daily_streak_longest + ' · ' + s.daily_total + ' drawing' + (s.daily_total === 1 ? '' : 's') + ' total';
-    const all = (s.daily_badges || []);
-    const ul = document.querySelector('[data-stats-badges]');
-    const dt = document.querySelector('[data-stats-badges-dt]');
-    const dd = document.querySelector('[data-stats-badges-dd]');
-    if (ul) {
-      var items = '';
-      for (var i = 0; i < all.length; i++) {
-        var b = all[i];
-        items += '<li data-badge-id="' + b.id + '">' + b.label + '</li>';
-      }
-      ul.innerHTML = items;
-    }
-    if (dt) dt.hidden = all.length === 0;
-    if (dd) dd.hidden = all.length === 0;
-  } catch (e) {
-    // Non-fatal — server-rendered values stand.
-  }
-})();
-</script>`;
 }

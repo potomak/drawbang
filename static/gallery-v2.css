@@ -1,10 +1,10 @@
 @import url("/chrome.css");
 
 /* =====================================================================
-   Drawbang v2 — builder-rendered pages (gallery, day-gallery, drawing
-   detail, owner, products, canvas, canvases archive). Shared chrome
-   (header/footer/tokens/base typography/btn) lives in chrome.css; this
-   file ONLY contains classes that show up on those pages.
+   Drawbang v2 — server-rendered pages (gallery, drawing detail, owner
+   profile, products). Shared chrome (header/footer/tokens/base
+   typography/btn) lives in chrome.css; this file ONLY contains classes
+   that show up on those pages.
 
    Do NOT mirror chrome rules here — edit chrome.css and both surfaces
    pick the change up. The whole point of this split is to avoid the
@@ -84,15 +84,17 @@
 
 /* Avatar — small pixel-perfect square next to a username link or page
    title. Sized inline via width/height; this rule pins the rendering
-   primitives so the gif doesn't get smoothed by the browser scaler. */
+   primitives so the gif doesn't get smoothed by the browser scaler.
+   crisp-edges first as the broader-supported fallback; pixelated last
+   so it wins the cascade where supported (Chromium, Firefox). */
 img.avatar {
   display: inline-block;
   vertical-align: middle;
   margin-right: 8px;
   border: var(--border) solid var(--border-c);
   background: var(--canvas-bg);
-  image-rendering: pixelated;
   image-rendering: crisp-edges;
+  image-rendering: pixelated;
 }
 /* Author link on /d/<id>: vertical-align the avatar with the username
    text and drop the inline-flex's default baseline jitter. */
@@ -107,7 +109,7 @@ img.avatar {
 .dr-actions { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
 .dr-action-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
-/* Owner stats block (/keys/<pubkey>) — streaks + badges (#115/#116).
+/* Owner stats block (/u/<username>) — streaks + badges (#115/#116).
    Same grid shape as .dr-meta so it sits comfortably above the drawings grid. */
 .ow-stats {
   display: grid;

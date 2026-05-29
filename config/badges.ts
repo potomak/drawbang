@@ -1,4 +1,4 @@
-// Badge thresholds for #115/#116. Badges are derived from the per-pubkey
+// Badge thresholds for #115/#116. Badges are derived from the per-account
 // counters in UserStatsRow (no separate storage) — earnedBadges() takes a
 // stats row and returns the subset of definitions whose threshold the user
 // has crossed.

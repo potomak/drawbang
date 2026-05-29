@@ -7,7 +7,11 @@ const baseView = {
   id_short: "ffffffff",
   created_at: "2026-05-08T04:24:56.088Z",
   parent: null,
-  author: { user_id: "a".repeat(64), username: "alice" },
+  author: {
+    user_id: "a".repeat(64),
+    username: "alice",
+    avatar_drawing_id: null,
+  },
   public_base_url: "https://pixel.drawbang.com",
   repo_url: "https://github.com/example/drawbang",
 };
@@ -67,7 +71,7 @@ test("tile page: avatar renders before the username when set", () => {
     ...baseView,
     author: { user_id: "a".repeat(64), username: "alice", avatar_drawing_id: id },
   });
-  assert.match(html, new RegExp(`<img class="avatar" src="/drawings/${id}\\.gif"`));
+  assert.match(html, new RegExp(`<img class="avatar" src="/tiles/${id}\\.gif"`));
 });
 
 test("tile page: no avatar img when author has none set", () => {
@@ -96,7 +100,7 @@ test("tile page: forks rendered server-side when present", () => {
         id: "c".repeat(64),
         id_short: "cccccccc",
         href: `/d/${"c".repeat(64)}`,
-        thumb: `/drawings/${"c".repeat(64)}.gif`,
+        thumb: `/tiles/${"c".repeat(64)}.gif`,
         created_at: "2026-05-09T00:00:00.000Z",
       },
     ],
@@ -116,12 +120,20 @@ test("tile page: Copy link is an interactive button, not a self-link", () => {
   assert.doesNotMatch(html, /<a class="btn" href="\/t\/[^"]+">Copy link<\/a>/);
 });
 
-test("tile page: copy handler loads /flash.js and surfaces a flash on success", () => {
+test("tile page: loads /flash.js + /tile-page.js so the lifted client behaviour fires", () => {
   const html = renderTilePage(baseView);
   assert.match(html, /<script src="\/flash\.js"><\/script>/);
-  assert.match(html, /navigator\.clipboard\.writeText/);
-  assert.match(html, /window\.drawbangShowFlash/);
-  assert.match(html, /document\.execCommand\('copy'\)/);
+  assert.match(html, /<script src="\/tile-page\.js"><\/script>/);
+});
+
+test("tile page: <main> ships the drawing/author data attributes the script reads", () => {
+  const html = renderTilePage(baseView);
+  assert.match(html, /<main data-tile-page data-drawing-id="f{64}" data-id-short="ffffffff" data-author-username="alice">/);
+});
+
+test("tile page: <main> data-author-username is empty when the drawing is anonymous", () => {
+  const html = renderTilePage({ ...baseView, author: null });
+  assert.match(html, /<main data-tile-page [^>]*data-author-username="">/);
 });
 
 test("tile page: emits the full OG suite with absolute URLs and the -large.gif image", () => {
@@ -215,15 +227,7 @@ test("tile page: Web Share button is rendered hidden by default (progressive enh
   );
 });
 
-test("tile page: Web Share script feature-tests navigator.share and falls back silently", () => {
-  const html = renderTilePage(baseView);
-  assert.match(html, /typeof navigator\.share !== 'function'/);
-  assert.match(html, /navigator\.canShare/);
-  assert.match(html, /navigator\.share\(payload\)/);
-  assert.match(html, /e\.name !== 'AbortError'/);
-});
-
-test("tile page: inline GA tracking wires each action button to its event", () => {
+test("tile page: action buttons ship their GA-wired ids", () => {
   const html = renderTilePage(baseView);
   assert.match(html, /id="dr-make-merch"/);
   assert.match(html, /id="dr-fork"/);
@@ -231,14 +235,18 @@ test("tile page: inline GA tracking wires each action button to its event", () =
   assert.match(html, /id="dr-share-reddit"/);
   assert.match(html, /id="dr-share-x"/);
   assert.match(html, /id="dr-download-gif"/);
-  for (const ev of [
-    "make_merch_click",
-    "fork_click",
-    "share_click",
-    "gif_download_click",
-    "copy_share_link_click",
-  ]) {
-    assert.match(html, new RegExp(`'${ev}'`));
-  }
-  assert.match(html, /typeof window\.gtag !== 'function'/);
+  assert.match(html, /id="dr-copy-link"/);
+  assert.match(html, /id="dr-share"/);
+  assert.match(html, /id="dr-set-avatar"/);
+});
+
+test("tile page: drawing-action behaviour is NOT inlined (lives in /tile-page.js)", () => {
+  const html = renderTilePage(baseView);
+  // Analytics + Meta Pixel still inject their own inline scripts via
+  // renderAnalytics/renderMetaPixel — they're allowed. What we don't want
+  // back is the per-button IIFE blob that used to live here.
+  assert.doesNotMatch(html, /getElementById\('dr-set-avatar'\)/);
+  assert.doesNotMatch(html, /getElementById\('dr-copy-link'\)/);
+  assert.doesNotMatch(html, /navigator\.clipboard\.writeText/);
+  assert.doesNotMatch(html, /navigator\.share\(payload\)/);
 });

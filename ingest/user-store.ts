@@ -50,6 +50,13 @@ export class TokenVersionMismatchError extends Error {
   }
 }
 
+export class UserNotFoundError extends Error {
+  constructor() {
+    super("user not found");
+    this.name = "UserNotFoundError";
+  }
+}
+
 export interface UserStore {
   // Atomically reserves email + username. Throws EmailTakenError /
   // UsernameTakenError on conflict.
@@ -214,19 +221,28 @@ export class DynamoUserStore implements UserStore {
     email: string,
     drawing_id: string | null,
   ): Promise<UserRecord> {
-    const r = await this.doc.send(
-      new UpdateCommand({
-        TableName: this.usersTable,
-        Key: { email },
-        UpdateExpression: drawing_id
-          ? "SET avatar_drawing_id = :a"
-          : "REMOVE avatar_drawing_id",
-        ConditionExpression: "attribute_exists(email)",
-        ExpressionAttributeValues: drawing_id ? { ":a": drawing_id } : undefined,
-        ReturnValues: "ALL_NEW",
-      }),
-    );
-    return r.Attributes as UserRecord;
+    try {
+      const r = await this.doc.send(
+        new UpdateCommand({
+          TableName: this.usersTable,
+          Key: { email },
+          UpdateExpression: drawing_id
+            ? "SET avatar_drawing_id = :a"
+            : "REMOVE avatar_drawing_id",
+          ConditionExpression: "attribute_exists(email)",
+          ExpressionAttributeValues: drawing_id
+            ? { ":a": drawing_id }
+            : undefined,
+          ReturnValues: "ALL_NEW",
+        }),
+      );
+      return r.Attributes as UserRecord;
+    } catch (e) {
+      if ((e as { name?: string }).name === "ConditionalCheckFailedException") {
+        throw new UserNotFoundError();
+      }
+      throw e;
+    }
   }
 }
 
@@ -281,13 +297,11 @@ export class MemoryUserStore implements UserStore {
     drawing_id: string | null,
   ): Promise<UserRecord> {
     const r = this.byEmail.get(email);
-    if (!r) throw new Error(`user not found: ${email}`);
+    if (!r) throw new UserNotFoundError();
+    const { avatar_drawing_id: _drop, ...rest } = r;
     const updated: UserRecord = drawing_id
-      ? { ...r, avatar_drawing_id: drawing_id }
-      : (() => {
-          const { avatar_drawing_id: _drop, ...rest } = r;
-          return rest;
-        })();
+      ? { ...rest, avatar_drawing_id: drawing_id }
+      : rest;
     this.byEmail.set(email, updated);
     return { ...updated };
   }

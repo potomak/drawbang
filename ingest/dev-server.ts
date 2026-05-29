@@ -13,7 +13,9 @@ import {
   handleRegister,
   handleForgotPassword,
   handleResetPassword,
+  handleSetAvatar,
   type AuthHandlerConfig,
+  type SetAvatarAuth,
 } from "./auth-handler.js";
 import {
   renderDrawingPageHandler,
@@ -35,16 +37,19 @@ const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret";
 
 const storage = new FsStorage(ROOT);
 const drawingStore = new MemoryDrawingStore();
+const userStore = new MemoryUserStore();
 const renderConfig: RenderHandlersConfig = {
   drawingStore,
   publicBaseUrl: PUBLIC_BASE,
   repoUrl: "https://github.com/potomak/drawbang",
+  userStore,
 };
 const authConfig: AuthHandlerConfig = {
-  userStore: new MemoryUserStore(),
+  userStore,
   email: new ConsoleEmailSender(),
   jwtSecret: JWT_SECRET,
   publicBaseUrl: PUBLIC_BASE,
+  drawingStore,
 };
 
 const server = http.createServer(async (req, res) => {
@@ -141,6 +146,19 @@ const server = http.createServer(async (req, res) => {
         case "/auth/password/reset":
           result = await handleResetPassword(parsed, authConfig);
           break;
+        case "/auth/avatar": {
+          const auth = extractAuth(req);
+          if (!auth) {
+            json(res, 401, { error: "authentication required" });
+            return;
+          }
+          const setAvatarAuth: SetAvatarAuth = {
+            user_id: auth.user_id,
+            username: auth.username,
+          };
+          result = await handleSetAvatar(parsed, setAvatarAuth, authConfig);
+          break;
+        }
         default:
           res.writeHead(404);
           res.end("not found");
