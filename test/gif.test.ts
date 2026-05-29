@@ -3,6 +3,8 @@ import { test } from "node:test";
 import { Bitmap, TRANSPARENT } from "../src/editor/bitmap.js";
 import { decodeGif, encodeGif } from "../src/editor/gif.js";
 import { DEFAULT_ACTIVE_PALETTE } from "../src/editor/palette.js";
+import { DRAWING_SIZES } from "../config/constants.js";
+import { validateGif } from "../ingest/gif-validate.js";
 
 test("encode a single-frame gif at 16x16 with the default palette", () => {
   const b = new Bitmap();
@@ -53,4 +55,45 @@ test("round-trip: multiple frames", () => {
 test("decode rejects garbage input", () => {
   const notAGif = new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x3b]);
   assert.throws(() => decodeGif(notAGif));
+});
+
+for (const size of DRAWING_SIZES) {
+  test(`round-trip at ${size}x${size}: encode then decode preserves frame data + palette`, () => {
+    const frame = new Bitmap(size, size);
+    // Diagonal stripe + a transparent corner.
+    for (let i = 0; i < size; i++) frame.set(i, i, ((i % 15) + 1));
+    frame.set(0, size - 1, TRANSPARENT);
+
+    const bytes = encodeGif({
+      frames: [frame],
+      activePalette: DEFAULT_ACTIVE_PALETTE,
+      size,
+    });
+
+    // Header dimensions match the requested size.
+    assert.equal(bytes[6] | (bytes[7] << 8), size);
+    assert.equal(bytes[8] | (bytes[9] << 8), size);
+
+    const decoded = decodeGif(bytes);
+    assert.equal(decoded.size, size);
+    assert.equal(decoded.frames.length, 1);
+    assert.equal(decoded.frames[0].width, size);
+    assert.equal(decoded.frames[0].height, size);
+    assert.deepEqual(Array.from(decoded.frames[0].data), Array.from(frame.data));
+
+    // Validator accepts the encoded gif and reports the same size.
+    const v = validateGif(bytes);
+    assert.equal(v.size, size);
+    assert.equal(v.frameCount, 1);
+  });
+}
+
+test("validateGif rejects a disallowed size (24x24)", () => {
+  // Hand-build a GIF with a forbidden dimension. The encoder won't produce
+  // one, so we splice the header bytes instead.
+  const frame = new Bitmap(16, 16);
+  const bytes = encodeGif({ frames: [frame], activePalette: DEFAULT_ACTIVE_PALETTE });
+  const tampered = new Uint8Array(bytes);
+  tampered[6] = 24; tampered[7] = 0; tampered[8] = 24; tampered[9] = 0;
+  assert.throws(() => validateGif(tampered), /size 24 not allowed/);
 });

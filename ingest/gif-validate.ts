@@ -1,10 +1,9 @@
 import {
   ACTIVE_PALETTE_SIZE,
   DRAWBANG_APP_IDENTIFIER,
-  HEIGHT,
   MAX_FRAMES,
-  MAX_GIF_BYTES,
-  WIDTH,
+  isAllowedDrawingSize,
+  maxGifBytesFor,
 } from "../config/constants.js";
 
 const textDecoder = new TextDecoder("ascii");
@@ -12,25 +11,32 @@ const textDecoder = new TextDecoder("ascii");
 export interface GifValidation {
   frameCount: number;
   activePalette: Uint8Array;
+  size: number;
 }
 
 // Validates a GIF against the editor's hard limits. Throws a descriptive
-// Error if anything is off; returns the frame count and DRAWBANG active
-// palette on success. Does not perform LZW decoding — it only scans block
-// boundaries and reads the application extension we embed.
+// Error if anything is off; returns the frame count, detected square size,
+// and DRAWBANG active palette on success. Does not perform LZW decoding —
+// only scans block boundaries and reads the application extension we embed.
 export function validateGif(bytes: Uint8Array): GifValidation {
-  if (bytes.length > MAX_GIF_BYTES) {
-    throw new Error(`gif too large: ${bytes.length} > ${MAX_GIF_BYTES}`);
-  }
   if (bytes.length < 13) throw new Error("gif too short");
   if (textDecoder.decode(bytes.subarray(0, 6)) !== "GIF89a") {
     throw new Error("not a GIF89a");
   }
   const lsdW = bytes[6] | (bytes[7] << 8);
   const lsdH = bytes[8] | (bytes[9] << 8);
-  if (lsdW !== WIDTH || lsdH !== HEIGHT) {
-    throw new Error(`gif size ${lsdW}x${lsdH} != ${WIDTH}x${HEIGHT}`);
+  if (lsdW !== lsdH) {
+    throw new Error(`gif not square: ${lsdW}x${lsdH}`);
   }
+  if (!isAllowedDrawingSize(lsdW)) {
+    throw new Error(`gif size ${lsdW} not allowed`);
+  }
+  const size = lsdW;
+  const cap = maxGifBytesFor(size);
+  if (bytes.length > cap) {
+    throw new Error(`gif too large for ${size}x${size}: ${bytes.length} > ${cap}`);
+  }
+
   const packed = bytes[10];
   let p = 13;
   if ((packed & 0x80) === 0) throw new Error("gif missing global color table");
@@ -81,7 +87,7 @@ export function validateGif(bytes: Uint8Array): GifValidation {
       const iy = bytes[p + 2] | (bytes[p + 3] << 8);
       const iw = bytes[p + 4] | (bytes[p + 5] << 8);
       const ih = bytes[p + 6] | (bytes[p + 7] << 8);
-      if (ix < 0 || iy < 0 || ix + iw > WIDTH || iy + ih > HEIGHT) {
+      if (ix < 0 || iy < 0 || ix + iw > size || iy + ih > size) {
         throw new Error(`frame image descriptor out of bounds`);
       }
       p += 8;
@@ -99,7 +105,7 @@ export function validateGif(bytes: Uint8Array): GifValidation {
 
   if (frameCount === 0) throw new Error("gif has no frames");
   if (!activePalette) throw new Error("gif missing DRAWBANG application extension");
-  return { frameCount, activePalette };
+  return { frameCount, activePalette, size };
 }
 
 function skipSubBlocks(bytes: Uint8Array, p: number): number {

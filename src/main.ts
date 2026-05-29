@@ -41,10 +41,15 @@ import {
   submit,
 } from "./submit.js";
 import { showFlash } from "./layout/flash.js";
+import { DEFAULT_SIZE, DRAWING_SIZES } from "../config/constants.js";
 
-// Native resolution of the main canvas. 16×35 = 560 — matches the v2
-// editor's max wrap width, so CSS scaling produces clean pixel boundaries.
-const MAIN_PIXEL_SIZE = 35;
+// Target physical canvas: ~560 backing pixels per side, matched to the v2
+// editor wrap. Per-size pixelSize keeps the visible canvas the same physical
+// dimension across the four sizes (8→70, 16→35, 32→17, 64→8).
+const MAIN_CANVAS_TARGET = 560;
+function pixelSizeFor(size: number): number {
+  return Math.max(1, Math.floor(MAIN_CANVAS_TARGET / size));
+}
 const FRAME_THUMB_PIXEL_SIZE = 5;
 
 const INGEST_URL = import.meta.env.VITE_INGEST_URL ?? "/ingest";
@@ -52,7 +57,8 @@ const DRAWING_BASE_URL = import.meta.env.VITE_DRAWING_BASE_URL ?? "/tiles";
 
 // -- Editor state -----------------------------------------------------------
 
-const state: FrameState = { frames: [new Bitmap()], current: 0 };
+let currentSize = DEFAULT_SIZE;
+const state: FrameState = { frames: [new Bitmap(currentSize, currentSize)], current: 0 };
 let activePalette: Uint8Array = new Uint8Array(DEFAULT_ACTIVE_PALETTE);
 // RetroPalette.id of the currently-applied palette. Persisted to localStorage and applied
 // on boot + on every editor reset so the user's last pick survives a
@@ -112,6 +118,10 @@ const ICON = {
 const app = document.getElementById("app")!;
 app.innerHTML = /* html */ `
   <main>
+    <div class="ed-size-picker" role="radiogroup" aria-label="Canvas size">
+      <span class="ed-size-label">Size</span>
+      ${DRAWING_SIZES.map((s) => `<button type="button" class="btn xs ed-size-opt" data-size="${s}" aria-pressed="${s === DEFAULT_SIZE ? "true" : "false"}">${s}×${s}</button>`).join("")}
+    </div>
     <div class="ed-actions">
       <button class="btn" data-action="publish">${ICON.publish} Publish</button>
       <button class="btn primary" data-action="make-merch" id="merchBtn">${ICON.cart} Make merch</button>
@@ -182,7 +192,8 @@ app.innerHTML = /* html */ `
 
 const mainCanvasEl = document.getElementById("main") as HTMLCanvasElement;
 const mainCanvas = new PixelCanvas(mainCanvasEl, {
-  pixelSize: MAIN_PIXEL_SIZE,
+  pixelSize: pixelSizeFor(currentSize),
+  size: currentSize,
   showGrid: true,
   gridColor: "#1f1d1a",
 });
@@ -472,7 +483,7 @@ function pasteAsNewFrame(): void {
 
 function resetEditor(opts: { keepPublishedId?: boolean } = {}): void {
   stopPlay();
-  state.frames = [new Bitmap()];
+  state.frames = [new Bitmap(currentSize, currentSize)];
   state.current = 0;
   history.clear();
   localId = null;
@@ -628,7 +639,7 @@ async function handlePublish(): Promise<void> {
   try {
     const result = await submit({
       ingestUrl: INGEST_URL,
-      gif: encodeGif({ frames: state.frames, activePalette }),
+      gif: encodeGif({ frames: state.frames, activePalette, size: currentSize }),
       parent: parentId ?? undefined,
     });
     flashPublished(result.share_url);
@@ -661,7 +672,7 @@ function flashPublished(shareUrl: string): void {
 }
 
 function downloadGif(): void {
-  const bytes = encodeGif({ frames: state.frames, activePalette });
+  const bytes = encodeGif({ frames: state.frames, activePalette, size: currentSize });
   const copy = new Uint8Array(bytes);
   const blob = new Blob([copy as unknown as BlobPart], { type: "image/gif" });
   const url = URL.createObjectURL(blob);
@@ -673,7 +684,48 @@ function downloadGif(): void {
   trackGifDownloadClick({ source: "editor", frames: state.frames.length });
 }
 
+// -- Size picker -----------------------------------------------------------
+
+function changeSize(newSize: number): void {
+  if (!DRAWING_SIZES.includes(newSize) || newSize === currentSize) return;
+  const hasContent = state.frames.some((f) => f.data.some((v) => v !== TRANSPARENT));
+  if (hasContent) {
+    const ok = confirm(
+      `Switch canvas to ${newSize}×${newSize}? Your current drawing will be cleared.`,
+    );
+    if (!ok) return;
+  }
+  currentSize = newSize;
+  state.frames = [new Bitmap(currentSize, currentSize)];
+  state.current = 0;
+  mainCanvas.setSize(currentSize, pixelSizeFor(currentSize));
+  history.clear();
+  parentId = null;
+  setLastPublishedId(null);
+  renderSizePicker();
+  render();
+  renderFrameStrip();
+  persist();
+}
+
+function renderSizePicker(): void {
+  document
+    .querySelectorAll<HTMLButtonElement>(".ed-size-opt")
+    .forEach((btn) => {
+      const s = Number(btn.dataset.size);
+      btn.setAttribute("aria-pressed", s === currentSize ? "true" : "false");
+    });
+}
+
 function copyShareLink(): void {
+  if (currentSize !== DEFAULT_SIZE) {
+    showFlash({
+      kind: "info",
+      message: `Share links only work at ${DEFAULT_SIZE}×${DEFAULT_SIZE} for now. Publish the drawing to share it.`,
+      autoDismissMs: 5000,
+    });
+    return;
+  }
   const hash = encodeShare({ frames: state.frames, activePalette });
   const url = `${location.origin}${location.pathname}#d=${hash}`;
   navigator.clipboard?.writeText(url);
@@ -725,6 +777,13 @@ document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach((b) =>
     if (next === tool) return; // No-op re-click — don't bother GA.
     trackToolClick(next);
     setActiveTool(next);
+  }),
+);
+
+document.querySelectorAll<HTMLButtonElement>(".ed-size-opt").forEach((b) =>
+  b.addEventListener("click", () => {
+    const next = Number(b.dataset.size);
+    if (Number.isFinite(next)) changeSize(next);
   }),
 );
 
@@ -789,6 +848,12 @@ async function boot(): Promise<void> {
       if (!res.ok) throw new Error(`fork fetch failed: ${res.status}`);
       const buf = new Uint8Array(await res.arrayBuffer());
       const decoded = decodeGif(buf);
+      // Sync the editor's size to whatever the forked drawing was published at.
+      if (decoded.size !== currentSize) {
+        currentSize = decoded.size;
+        mainCanvas.setSize(currentSize, pixelSizeFor(currentSize));
+        renderSizePicker();
+      }
       state.frames = decoded.frames;
       if (decoded.activePalette) activePalette = decoded.activePalette;
       state.current = 0;

@@ -1,9 +1,7 @@
 import {
   ACTIVE_PALETTE_SIZE,
   FRAME_DELAY_MS,
-  HEIGHT,
   MAX_FRAMES,
-  WIDTH,
 } from "../../config/constants.js";
 import { LOGO_BITMAP, LOGO_H, LOGO_W } from "../layout/logo-bitmap.js";
 import { Bitmap, TRANSPARENT } from "./bitmap.js";
@@ -12,24 +10,22 @@ import { activePaletteToRgb, type RGB } from "./palette.js";
 // @ts-expect-error omggif ships no TS types
 import { GifWriter } from "omggif";
 
-// 960×960 share image: the source 16×16 art upscaled 42× and inset on a
-// derived background, with a used-colors palette swatch top-left and the
-// Drawbang wordmark bottom-right. Used as og:image on every drawing page.
-// Output is a plain GIF (no DRAWBANG extension) — not editable, strictly
-// a social preview artifact. See #195.
+// 960×960 share image: the source NxN art upscaled to fit a ~672px art area
+// and inset on a derived background, with a used-colors palette swatch
+// top-left and the Drawbang wordmark bottom-right. Used as og:image on every
+// drawing page. Output is a plain GIF (no DRAWBANG extension) — not editable,
+// strictly a social preview artifact. See #195.
 //
-// Dimensions are chosen so every overlay element snaps to a clean integer
-// pixel grid even after social-media platforms scale the asset down to
-// their preview size — at 320×320 the wordmark and swatches read as
-// sub-pixel mush after browser resampling.
+// The art-area target is 672 so every overlay element snaps to a clean
+// integer pixel grid even after social-media platforms scale the asset down
+// to their preview size — at 320×320 the wordmark and swatches read as
+// sub-pixel mush after browser resampling. The actual ART_W is `size *
+// floor(672 / size)`, so 64x64 letterboxes a tiny bit (640) and the smaller
+// sizes round up to clean 672.
 
 export const SHARE_W = 960;
 export const SHARE_H = 960;
-const ART_SCALE = 42;
-const ART_W = WIDTH * ART_SCALE; // 672
-const ART_H = HEIGHT * ART_SCALE; // 672
-const ART_X = (SHARE_W - ART_W) / 2; // 144
-const ART_Y = (SHARE_H - ART_H) / 2; // 144
+const ART_AREA_TARGET = 672;
 
 const SWATCH_X = 24;
 const SWATCH_Y = 24;
@@ -71,6 +67,15 @@ export function encodeShareGif({
   if (activePalette.length !== ACTIVE_PALETTE_SIZE) {
     throw new Error(`encodeShareGif: active palette must be ${ACTIVE_PALETTE_SIZE} bytes`);
   }
+  const size = frames[0].width;
+  if (frames[0].height !== size) {
+    throw new Error(`encodeShareGif: first frame not square (${size}x${frames[0].height})`);
+  }
+  const artScale = Math.max(1, Math.floor(ART_AREA_TARGET / size));
+  const artW = size * artScale;
+  const artH = size * artScale;
+  const artX = Math.round((SHARE_W - artW) / 2);
+  const artY = Math.round((SHARE_H - artH) / 2);
 
   const paletteRgb = activePaletteToRgb(activePalette);
   const usage = countUsage(frames);
@@ -97,12 +102,12 @@ export function encodeShareGif({
 
   const delay = Math.max(1, Math.round(delayMs / 10));
   for (const frame of frames) {
-    if (frame.width !== WIDTH || frame.height !== HEIGHT) {
+    if (frame.width !== size || frame.height !== size) {
       throw new Error(
-        `encodeShareGif: frame ${frame.width}x${frame.height} != ${WIDTH}x${HEIGHT}`,
+        `encodeShareGif: frame ${frame.width}x${frame.height} != ${size}x${size}`,
       );
     }
-    const composed = composeFrame(chrome, frame);
+    const composed = composeFrame(chrome, frame, { size, artScale, artX, artY });
     writer.addFrame(0, 0, SHARE_W, SHARE_H, composed, {
       delay,
       transparent: TRANSPARENT_INDEX,
@@ -235,18 +240,26 @@ function fillRect(buf: Uint8Array, x: number, y: number, w: number, h: number, s
   }
 }
 
-function composeFrame(chrome: Uint8Array, frame: Bitmap): Uint8Array {
+interface ComposeOpts {
+  size: number;
+  artScale: number;
+  artX: number;
+  artY: number;
+}
+
+function composeFrame(chrome: Uint8Array, frame: Bitmap, opts: ComposeOpts): Uint8Array {
+  const { size, artScale, artX, artY } = opts;
   const out = new Uint8Array(chrome);
-  for (let sy = 0; sy < HEIGHT; sy++) {
-    for (let sx = 0; sx < WIDTH; sx++) {
-      const slot = frame.data[sy * WIDTH + sx];
+  for (let sy = 0; sy < size; sy++) {
+    for (let sx = 0; sx < size; sx++) {
+      const slot = frame.data[sy * size + sx];
       // Transparent source pixels show the chrome bg through, so skip them.
       if (slot === TRANSPARENT_INDEX) continue;
-      const baseX = ART_X + sx * ART_SCALE;
-      const baseY = ART_Y + sy * ART_SCALE;
-      for (let dy = 0; dy < ART_SCALE; dy++) {
+      const baseX = artX + sx * artScale;
+      const baseY = artY + sy * artScale;
+      for (let dy = 0; dy < artScale; dy++) {
         const rowStart = (baseY + dy) * SHARE_W + baseX;
-        for (let dx = 0; dx < ART_SCALE; dx++) {
+        for (let dx = 0; dx < artScale; dx++) {
           out[rowStart + dx] = slot;
         }
       }

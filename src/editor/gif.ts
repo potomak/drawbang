@@ -1,11 +1,10 @@
 import {
   ACTIVE_PALETTE_SIZE,
+  DEFAULT_SIZE,
   DRAWBANG_APP_AUTH_CODE,
   DRAWBANG_APP_IDENTIFIER,
   FRAME_DELAY_MS,
-  HEIGHT,
   MAX_FRAMES,
-  WIDTH,
 } from "../../config/constants.js";
 import { Bitmap, TRANSPARENT } from "./bitmap.js";
 import { activePaletteToRgb } from "./palette.js";
@@ -24,12 +23,18 @@ export interface EncodeInput {
   frames: Bitmap[];
   activePalette: Uint8Array; // length ACTIVE_PALETTE_SIZE, base-palette indices
   delayMs?: number;
+  // Square dimension of every frame. Defaults to DEFAULT_SIZE so untouched
+  // 16x16 callers keep working; new size-aware callers pass this explicitly.
+  size?: number;
 }
 
 export interface DecodeResult {
   frames: Bitmap[];
   activePalette: Uint8Array | null; // null if the GIF lacks a DRAWBANG extension
   delayMs: number;
+  // Square dimension detected from the GIF header. Lets callers tell what
+  // size canvas to render or re-encode into.
+  size: number;
 }
 
 const textEncoder = new TextEncoder();
@@ -49,7 +54,12 @@ function toGifDelay(ms: number): number {
   return Math.max(1, Math.round(ms / 10));
 }
 
-export function encodeGif({ frames, activePalette, delayMs = FRAME_DELAY_MS }: EncodeInput): Uint8Array {
+export function encodeGif({
+  frames,
+  activePalette,
+  delayMs = FRAME_DELAY_MS,
+  size = DEFAULT_SIZE,
+}: EncodeInput): Uint8Array {
   if (frames.length === 0) throw new Error("encodeGif: no frames");
   if (frames.length > MAX_FRAMES) throw new Error(`encodeGif: too many frames (${frames.length})`);
   if (activePalette.length !== ACTIVE_PALETTE_SIZE) {
@@ -57,18 +67,20 @@ export function encodeGif({ frames, activePalette, delayMs = FRAME_DELAY_MS }: E
   }
 
   const gct = buildGctInts(activePalette);
-  const buf = new Uint8Array(64 * 1024);
-  const writer = new GifWriter(buf, WIDTH, HEIGHT, {
+  // Worst-case raw-pixel bound plus headroom for LZW + GIF headers/sub-block
+  // overhead. 4x pixels is plenty even for adversarial palettes.
+  const buf = new Uint8Array(Math.max(64 * 1024, size * size * frames.length * 4 + 4096));
+  const writer = new GifWriter(buf, size, size, {
     palette: gct,
     loop: frames.length > 1 ? 0 : undefined,
   });
 
   const delay = toGifDelay(delayMs);
   for (const frame of frames) {
-    if (frame.width !== WIDTH || frame.height !== HEIGHT) {
-      throw new Error(`encodeGif: frame ${frame.width}x${frame.height} != ${WIDTH}x${HEIGHT}`);
+    if (frame.width !== size || frame.height !== size) {
+      throw new Error(`encodeGif: frame ${frame.width}x${frame.height} != ${size}x${size}`);
     }
-    writer.addFrame(0, 0, WIDTH, HEIGHT, frame.data, {
+    writer.addFrame(0, 0, size, size, frame.data, {
       delay,
       transparent: TRANSPARENT_INDEX,
       disposal: 2,
@@ -84,9 +96,12 @@ export function decodeGif(bytes: Uint8Array): DecodeResult {
   const count: number = reader.numFrames();
   if (count === 0) throw new Error("decodeGif: no frames");
   if (count > MAX_FRAMES) throw new Error(`decodeGif: too many frames (${count})`);
-  if (reader.width !== WIDTH || reader.height !== HEIGHT) {
-    throw new Error(`decodeGif: expected ${WIDTH}x${HEIGHT}, got ${reader.width}x${reader.height}`);
+  const w: number = reader.width;
+  const h: number = reader.height;
+  if (w !== h) {
+    throw new Error(`decodeGif: not square (${w}x${h})`);
   }
+  const size = w;
 
   // Build an RGB -> active-palette-slot lookup from the active palette
   // embedded in the GIF. If the DRAWBANG extension is present use it; otherwise
@@ -101,19 +116,19 @@ export function decodeGif(bytes: Uint8Array): DecodeResult {
     const info = reader.frameInfo(i);
     if (i === 0 && info.delay) delayMs = info.delay * 10;
 
-    const rgba = new Uint8Array(WIDTH * HEIGHT * 4);
+    const rgba = new Uint8Array(size * size * 4);
     reader.decodeAndBlitFrameRGBA(i, rgba);
-    const indices = new Uint8Array(WIDTH * HEIGHT).fill(TRANSPARENT_INDEX);
+    const indices = new Uint8Array(size * size).fill(TRANSPARENT_INDEX);
     for (let p = 0, q = 0; p < rgba.length; p += 4, q++) {
       if (rgba[p + 3] === 0) continue; // alpha zero → transparent
       const key = (rgba[p] << 16) | (rgba[p + 1] << 8) | rgba[p + 2];
       const slot = colorToSlot.get(key);
       indices[q] = slot ?? 0;
     }
-    frames.push(new Bitmap(WIDTH, HEIGHT, indices));
+    frames.push(new Bitmap(size, size, indices));
   }
 
-  return { frames, activePalette, delayMs };
+  return { frames, activePalette, delayMs, size };
 }
 
 function buildColorToSlot(activePalette: Uint8Array | null): Map<number, number> {

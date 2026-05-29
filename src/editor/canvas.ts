@@ -1,4 +1,4 @@
-import { WIDTH, HEIGHT } from "../../config/constants.js";
+import { DEFAULT_SIZE } from "../../config/constants.js";
 import { Bitmap, TRANSPARENT } from "./bitmap.js";
 import type { RGB } from "./palette.js";
 
@@ -6,12 +6,16 @@ export interface CanvasSettings {
   pixelSize: number;
   showGrid: boolean;
   gridColor: string;
+  // Drawing-grid dimension (in pixels). Defaults to DEFAULT_SIZE; the editor
+  // changes this at runtime when the user picks a different canvas size.
+  size?: number;
 }
 
 export class PixelCanvas {
   private readonly el: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   readonly settings: CanvasSettings;
+  private size: number;
 
   constructor(el: HTMLCanvasElement, settings: CanvasSettings) {
     this.el = el;
@@ -19,8 +23,19 @@ export class PixelCanvas {
     if (!ctx) throw new Error("2d context unavailable");
     this.ctx = ctx;
     this.settings = settings;
-    el.width = WIDTH * settings.pixelSize;
-    el.height = HEIGHT * settings.pixelSize;
+    this.size = settings.size ?? DEFAULT_SIZE;
+    el.width = this.size * settings.pixelSize;
+    el.height = this.size * settings.pixelSize;
+  }
+
+  // Reconfigure for a new drawing-grid dimension. `pixelSize` is provided
+  // explicitly so callers can choose the right zoom for the new size.
+  setSize(newSize: number, pixelSize: number): void {
+    this.size = newSize;
+    this.settings.pixelSize = pixelSize;
+    this.el.width = newSize * pixelSize;
+    this.el.height = newSize * pixelSize;
+    this.clear();
   }
 
   clear(): void {
@@ -34,17 +49,17 @@ export class PixelCanvas {
     const x = Math.floor((clientX - rect.left) / px);
     const y = Math.floor((clientY - rect.top) / py);
     return {
-      x: Math.max(0, Math.min(WIDTH - 1, x)),
-      y: Math.max(0, Math.min(HEIGHT - 1, y)),
+      x: Math.max(0, Math.min(this.size - 1, x)),
+      y: Math.max(0, Math.min(this.size - 1, y)),
     };
   }
 
   draw(bitmap: Bitmap, palette: readonly RGB[], onion?: Bitmap | null): void {
     const ps = this.settings.pixelSize;
-    // Size the backing canvas to the bitmap. The editor always draws a 16×16
-    // cell (no-op resize), but the merch preview reuses this to render a
-    // larger canvas composite (cols*16 × rows*16) — without resizing, anything
-    // past the fixed 16×16 buffer was clipped, showing only the first tile.
+    // Size the backing canvas to the bitmap. The editor always draws a
+    // size×size cell (no-op resize on the common path), but the merch
+    // preview reuses this to render an upscaled cell — without resizing,
+    // anything past the fixed buffer was clipped.
     const w = bitmap.width * ps;
     const h = bitmap.height * ps;
     if (this.el.width !== w || this.el.height !== h) {
