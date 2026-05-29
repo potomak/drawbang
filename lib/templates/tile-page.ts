@@ -94,7 +94,7 @@ ${forks.map(renderItem).join("\n")}
     <link rel="stylesheet" href="/gallery-v2.css" />
   </head>
   <body>
-    ${renderHeader({ active: "gallery" })}
+    ${renderHeader({ active: "home" })}
     <main data-tile-page data-drawing-id="${esc(v.drawing_id)}" data-id-short="${esc(v.id_short)}" data-author-username="${esc(v.author?.username ?? "")}">
       <div class="dr-grid">
         <div class="dr-art-wrap">
@@ -112,7 +112,7 @@ ${forks.map(renderItem).join("\n")}
           <div class="dr-actions">
             <div class="dr-action-row">
               <a class="btn primary" id="dr-make-merch" href="/merch?d=${esc(v.drawing_id)}&amp;frame=0" rel="nofollow noreferrer">Make merch</a>
-              <a class="btn" id="dr-fork" href="/?fork=${esc(v.drawing_id)}">Fork &amp; edit</a>
+              <a class="btn" id="dr-fork" href="/draw?fork=${esc(v.drawing_id)}">Fork &amp; edit</a>
               <button class="btn" id="dr-set-avatar" type="button" hidden>Set as avatar</button>
               <button class="btn" id="dr-copy-link" type="button">Copy link</button>
               <a class="btn ghost" id="dr-download-gif" href="${gif}" download>Download GIF</a>
@@ -128,7 +128,7 @@ ${forks.map(renderItem).join("\n")}
       </div>
 ${forksSection}
     </main>
-    ${renderFooter({ active: "gallery", repoUrl: v.repo_url })}
+    ${renderFooter({ active: "home", repoUrl: v.repo_url })}
     <script src="/flash.js"></script>
     <script src="/tile-page.js"></script>
   </body>

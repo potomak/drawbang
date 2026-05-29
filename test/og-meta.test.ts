@@ -7,34 +7,34 @@ import path from "node:path";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(here, "..");
 
-async function readHome(): Promise<string> {
-  return fs.readFile(path.join(REPO, "index.html"), "utf8");
+async function readEditor(): Promise<string> {
+  return fs.readFile(path.join(REPO, "draw.html"), "utf8");
 }
 
-describe("home page OG / meta tags (index.html)", () => {
+describe("editor page OG / meta tags (draw.html)", () => {
   test("emits a name=description matching the agreed copy", async () => {
-    const html = await readHome();
+    const html = await readEditor();
     assert.match(
       html,
       /<meta name="description" content="A 16×16 pixel-art editor"\s*\/>/,
     );
   });
 
-  test("emits a canonical link to the public home URL", async () => {
-    const html = await readHome();
+  test("emits a canonical link to the public editor URL", async () => {
+    const html = await readEditor();
     assert.match(
       html,
-      /<link rel="canonical" href="https:\/\/pixel\.drawbang\.com\/"\s*\/>/,
+      /<link rel="canonical" href="https:\/\/pixel\.drawbang\.com\/draw"\s*\/>/,
     );
   });
 
   test("emits the full og:* suite with absolute URLs", async () => {
-    const html = await readHome();
+    const html = await readEditor();
     assert.match(html, /<meta property="og:type" content="website"/);
     assert.match(html, /<meta property="og:site_name" content="Draw!"/);
-    assert.match(html, /<meta property="og:title" content="Draw!"/);
+    assert.match(html, /<meta property="og:title" content="Draw! — editor"/);
     assert.match(html, /<meta property="og:description" content="A 16×16 pixel-art editor"/);
-    assert.match(html, /<meta property="og:url" content="https:\/\/pixel\.drawbang\.com\/"/);
+    assert.match(html, /<meta property="og:url" content="https:\/\/pixel\.drawbang\.com\/draw"/);
     assert.match(
       html,
       /<meta property="og:image" content="https:\/\/pixel\.drawbang\.com\/og-logo\.png"/,
@@ -45,7 +45,7 @@ describe("home page OG / meta tags (index.html)", () => {
   });
 
   test("emits twitter:card=summary for the 1:1 square preview", async () => {
-    const html = await readHome();
+    const html = await readEditor();
     assert.match(html, /<meta name="twitter:card" content="summary"/);
   });
 

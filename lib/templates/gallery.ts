@@ -1,6 +1,7 @@
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
+import { formatItemDate } from "./_time.js";
 
 export interface GalleryItem {
   id: string;
@@ -42,18 +43,9 @@ export function renderItem(d: GalleryItem): string {
 </li>`;
 }
 
-// Compact date for thumbnails: "May 28" if same year, "May 28, 2025" otherwise.
-// UTC-anchored so server + client renders agree.
-export function formatItemDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const m = months[d.getUTCMonth()];
-  const day = d.getUTCDate();
-  const y = d.getUTCFullYear();
-  const sameYear = y === new Date().getUTCFullYear();
-  return sameYear ? `${m} ${day}` : `${m} ${day}, ${y}`;
-}
+// formatItemDate moved to ./_time.js; re-exported here for backward compat
+// with anything that still imports it from gallery.
+export { formatItemDate };
 
 export default function renderGallery(v: GalleryView): string {
   const items = v.drawings.map(renderItem).join("\n");
@@ -69,7 +61,7 @@ export default function renderGallery(v: GalleryView): string {
 ${items}
       </ul>${v.next_fragment_url ? renderScrollSentinel(v.next_fragment_url) : ""}`
     : `      <p class="panel-h">${heading}</p>
-      <p class="muted">No drawings published yet — open <a href="/">the editor</a> and mint the first one.</p>`;
+      <p class="muted">No drawings published yet — open <a href="/draw">the editor</a> and mint the first one.</p>`;
   const archiveSection = (v.days ?? []).length
     ? `      <hr class="divider" />
       <p class="panel-h">Archive</p>

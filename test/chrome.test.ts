@@ -29,13 +29,13 @@ test("renderHeader nav order matches NAV_LINKS, then identity, then logout", () 
   assert.deepEqual(datas, expectedIds);
 });
 
-test("renderHeader: active='gallery' marks only the gallery link with aria-current='page'", () => {
-  const html = renderHeader({ active: "gallery" });
+test("renderHeader: active='home' marks only the home link with aria-current='page'", () => {
+  const html = renderHeader({ active: "home" });
   // Exactly one aria-current="page" attribute…
   const ariaMatches = [...html.matchAll(/aria-current="page"/g)];
   assert.equal(ariaMatches.length, 1);
-  // …and it sits on the gallery link.
-  assert.match(html, /data-nav="gallery"[^>]*aria-current="page"/);
+  // …and it sits on the home link.
+  assert.match(html, /data-nav="home"[^>]*aria-current="page"/);
   // products and identity links are NOT marked active.
   assert.doesNotMatch(html, /data-nav="products"[^>]*aria-current/);
   assert.doesNotMatch(html, /data-nav="identity"[^>]*aria-current/);
@@ -110,13 +110,14 @@ test("chrome module gzips under 1.5 KB", async () => {
   // same way Vite does for prod builds, then gzip. JSDoc + whitespace
   // are stripped before the size check, so the budget is about the
   // actual browser payload, not the source-with-comments.
-  // Budget bumped from 1024 → 1536 once social links + feedback +
-  // placeholder bug icon SVG landed; leaves room for the real bug icon.
+  // Budget bumps: 1024 → 1536 once social links + feedback + placeholder
+  // bug icon SVG landed; 1536 → 1664 once the FAB landed with its inline
+  // "+" SVG. Leaves a bit of headroom for the next small chrome addition.
   const here = path.dirname(fileURLToPath(import.meta.url));
   const src = await fs.readFile(path.join(here, "../src/layout/chrome.ts"), "utf8");
   const { code } = await transform(src, { loader: "ts", minify: true });
   const gz = gzipSync(code);
-  assert.ok(gz.length < 1536, `chrome.ts minified+gzipped to ${gz.length} bytes, expected < 1536`);
+  assert.ok(gz.length < 1664, `chrome.ts minified+gzipped to ${gz.length} bytes, expected < 1664`);
 });
 
 test("renderFooter references the chrome-toggle.js at a stable URL", () => {
@@ -153,11 +154,11 @@ test("identity link carries data-identity-link='1' so the patcher can find it", 
 
 test("non-identity links do NOT carry data-identity-link", () => {
   const header = renderHeader();
-  // Only the identity link should have the marker. The gallery + products
+  // Only the identity link should have the marker. The home + products
   // links would be a footgun if they got rewritten by the patcher.
   const matches = [...header.matchAll(/data-identity-link="1"/g)];
   assert.equal(matches.length, 1);
-  assert.doesNotMatch(header, /data-nav="gallery"[^>]*data-identity-link/);
+  assert.doesNotMatch(header, /data-nav="home"[^>]*data-identity-link/);
   assert.doesNotMatch(header, /data-nav="products"[^>]*data-identity-link/);
 });
 
@@ -183,6 +184,16 @@ test("renderHeader exposes the menu toggle button + nav id linkage for #170's re
   const html = renderHeader();
   assert.match(html, /<button class="chrome-menu-toggle" aria-controls="chrome-nav" aria-expanded="false" hidden>/);
   assert.match(html, /<nav id="chrome-nav"/);
+});
+
+test("renderFooter renders the FAB linking to /draw by default", () => {
+  const html = renderFooter({ repoUrl: REPO });
+  assert.match(html, /<a class="fab" href="\/draw" aria-label="New drawing"/);
+});
+
+test("renderFooter suppresses the FAB when fab: false (editor page)", () => {
+  const html = renderFooter({ repoUrl: REPO, fab: false });
+  assert.doesNotMatch(html, /class="fab"/);
 });
 
 test("renderHeader escapes user-controlled identityUsername defensively", () => {

@@ -79,9 +79,11 @@ asset, new tracking script) must consider every entry below.
 
 | URL                            | Rendered by                                       | Surface |
 |--------------------------------|---------------------------------------------------|---------|
-| `/`                            | `index.html` + `src/main.ts`                      | Editor (Vite) |
-| `/gallery`                     | `lib/templates/gallery.ts` via Lambda             | Dynamic |
-| `/gallery/items?cursor=…`      | `lib/templates/gallery.ts` (fragment-only)        | Dynamic (infinite scroll) |
+| `/`                            | `lib/templates/home.ts` via Lambda                | Dynamic — social feed (cards) |
+| `/feed/items?cursor=…`         | `lib/templates/home.ts` (fragment-only)           | Dynamic (infinite scroll) |
+| `/draw`                        | `draw.html` + `src/main.ts`                       | Editor (Vite) |
+| `/gallery`                     | 301 → `/`                                         | CloudFront Function redirect |
+| `/gallery/items`               | 301 → `/feed/items`                               | CloudFront Function redirect |
 | `/d/<64hex>`                   | `lib/templates/tile-page.ts` via Lambda           | Dynamic |
 | `/u/<username>`                | `lib/templates/owner.ts` via Lambda               | Dynamic |
 | `/u/<username>/items?cursor=…` | gallery fragment via Lambda                       | Dynamic (infinite scroll) |
@@ -95,6 +97,12 @@ asset, new tracking script) must consider every entry below.
 | `/password/reset`              | `password-reset.html` + `src/password-reset.ts`   | Auth (Vite) |
 | `/account`                     | `account.html` + `src/account.ts`                 | Logged-in account (Vite) |
 | `/privacy`                     | `privacy.html` + `src/privacy.ts`                 | Static-ish (Vite) |
+
+Every page that renders the chrome ships a fixed-position **FAB** ("+")
+linking to `/draw` so the editor is always one tap away. Vite pages opt
+out via `<meta name="drawbang:fab" content="off">` (only `draw.html` does
+this today, since linking to itself would be redundant). Lambda templates
+inherit the default. CSS lives in `static/chrome.css`.
 
 The shared chrome (`src/layout/chrome.ts`) renders the header + footer
 for everything except `/feed.rss` (XML). Vite-served pages get the
@@ -234,17 +242,23 @@ ingest/               Lambda + dev-server: ingest, render, auth
                       logged). Mirrors lambda.ts route table.
 
 lib/templates/        Server-renderer (tagged-literal HTML)
-  gallery.ts          /gallery + the items fragment (infinite-scroll
-                      sentinel + observer).
+  home.ts             / (the social feed) + /feed/items fragment
+                      (infinite-scroll sentinel + observer).
+  gallery.ts          Legacy grid template — still exports renderItem +
+                      formatItemDate for the tile-page forks section.
+                      /gallery itself 301s to / in production.
   tile-page.ts        /d/<id> (drawing detail with author, parent,
                       forks, action buttons, avatar). Behaviour lives
                       in static/tile-page.js.
   owner.ts            /u/<username> (profile gallery, streak/badges,
                       avatar). Exports renderAvatar() shared with
-                      tile-page.ts.
+                      tile-page.ts + home.ts.
   products.ts         /products (merch catalog, ranked by popularity).
   feed.ts             /feed.rss.
   not-found.ts        /404.html shell.
+  _time.ts            formatItemDate() — shared by home + gallery +
+                      anywhere else that wants short "May 28" / "May 28,
+                      2025" date strings.
 
 merch/                Stripe + Printify orders Lambda
   lambda.ts           Entry point + DI wiring.

@@ -54,7 +54,13 @@ export class NoopInvalidator implements CacheInvalidator {
 // The set of paths a freshly-published drawing should invalidate. Kept as a
 // pure function so tests can pin the exact paths emitted.
 export function pathsToInvalidateOnPublish(username: string): string[] {
-  return ["/gallery*", `/u/${username}*`, "/feed.rss"];
+  return [
+    "/",
+    "/feed/items*",
+    "/gallery*",
+    `/u/${username}*`,
+    "/feed.rss",
+  ];
 }
 
 // Invalidates the profile so the new avatar appears immediately. Drawing

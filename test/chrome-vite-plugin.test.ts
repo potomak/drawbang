@@ -49,7 +49,19 @@ test("injectChrome: no markers → input is returned essentially unchanged (stil
 
 test("injectChrome: handles unquoted meta + extra whitespace", () => {
   // Defensive — Vite's HTML transform pipeline can reformat input.
-  const input = `<!doctype html><html><head>\n    <meta name="drawbang:active"   content="gallery"  />\n  </head><body><!--CHROME:HEADER--></body></html>`;
+  const input = `<!doctype html><html><head>\n    <meta name="drawbang:active"   content="home"  />\n  </head><body><!--CHROME:HEADER--></body></html>`;
   const out = injectChrome(input, REPO);
-  assert.match(out, /data-nav="gallery"[^>]*aria-current="page"/);
+  assert.match(out, /data-nav="home"[^>]*aria-current="page"/);
+});
+
+test("injectChrome: <meta name='drawbang:fab' content='off'> suppresses the FAB", () => {
+  const inputWith = `<!doctype html><html><head></head><body><!--CHROME:FOOTER--></body></html>`;
+  const outWith = injectChrome(inputWith, REPO);
+  assert.match(outWith, /<a class="fab"/);
+
+  const inputWithout = `<!doctype html><html><head><meta name="drawbang:fab" content="off" /></head><body><!--CHROME:FOOTER--></body></html>`;
+  const outWithout = injectChrome(inputWithout, REPO);
+  assert.doesNotMatch(outWithout, /class="fab"/);
+  // The meta tag itself is stripped from the output.
+  assert.doesNotMatch(outWithout, /drawbang:fab/);
 });

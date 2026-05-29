@@ -4,8 +4,8 @@ import { MemoryDrawingStore, type DrawingRow } from "../ingest/drawing-store.js"
 import {
   renderDrawingPageHandler,
   renderFeedHandler,
-  renderGalleryItemsHandler,
-  renderGalleryPageHandler,
+  renderFeedItemsHandler,
+  renderHomePageHandler,
   renderProfileItemsHandler,
   renderProfilePageHandler,
   type RenderHandlersConfig,
@@ -42,51 +42,58 @@ function makeConfig(perPage = 3): {
   };
 }
 
-describe("renderGalleryPageHandler", () => {
-  test("empty gallery renders the empty-state copy", async () => {
+describe("renderHomePageHandler", () => {
+  test("empty feed renders the empty-state copy", async () => {
     const { cfg } = makeConfig();
-    const res = await renderGalleryPageHandler(cfg, null);
+    const res = await renderHomePageHandler(cfg, null);
     assert.equal(res.status, 200);
-    assert.match(res.body, /No drawings published yet/);
-    assert.doesNotMatch(res.body, /data-gallery-sentinel/);
+    assert.match(res.body, /No drawings yet/);
+    assert.doesNotMatch(res.body, /data-feed-sentinel/);
   });
 
-  test("multiple drawings render newest-first with timestamps", async () => {
+  test("multiple drawings render newest-first as feed cards", async () => {
     const { store, cfg } = makeConfig();
     await store.put(row({ drawing_id: "1".repeat(64), username: "alice", created_at_ms: 100 }));
     await store.put(row({ drawing_id: "2".repeat(64), username: "bob",   created_at_ms: 200 }));
-    const res = await renderGalleryPageHandler(cfg, null);
+    const res = await renderHomePageHandler(cfg, null);
     assert.equal(res.status, 200);
+    assert.match(res.body, /<article class="feed-card">/);
     const i1 = res.body.indexOf("2".repeat(64));
     const i2 = res.body.indexOf("1".repeat(64));
     assert.ok(i1 > -1 && i2 > -1, "expected both drawings in the rendered HTML");
     assert.ok(i1 < i2, "expected newer drawing to be rendered first");
-    // Per-item timestamps land in <time> elements.
-    assert.match(res.body, /<time class="gal-item-time"/);
   });
 
-  test("more items than perPage emits an infinite-scroll sentinel", async () => {
+  test("more items than perPage emits an infinite-scroll sentinel pointing at /feed/items", async () => {
     const { store, cfg } = makeConfig(2);
     for (let i = 0; i < 4; i++) {
       await store.put(row({ drawing_id: String(i).padStart(64, "f"), created_at_ms: 1000 + i }));
     }
-    const res = await renderGalleryPageHandler(cfg, null);
-    assert.match(res.body, /data-gallery-sentinel/);
-    assert.match(res.body, /data-next="\/gallery\/items\?cursor=/);
+    const res = await renderHomePageHandler(cfg, null);
+    assert.match(res.body, /data-feed-sentinel/);
+    assert.match(res.body, /data-next="\/feed\/items\?cursor=/);
+  });
+
+  test("'anonymous' rows render without a profile link", async () => {
+    const { store, cfg } = makeConfig();
+    await store.put(row({ drawing_id: "a".repeat(64), username: "anonymous" }));
+    const res = await renderHomePageHandler(cfg, null);
+    assert.match(res.body, /feed-card-author-anon[^"]*">anonymous/);
+    assert.doesNotMatch(res.body, /href="\/u\/anonymous"/);
   });
 });
 
-describe("renderGalleryItemsHandler (fragment endpoint)", () => {
-  test("returns just the li items + sentinel — no chrome", async () => {
+describe("renderFeedItemsHandler (fragment endpoint)", () => {
+  test("returns just the cards + sentinel — no chrome", async () => {
     const { store, cfg } = makeConfig(2);
     for (let i = 0; i < 4; i++) {
       await store.put(row({ drawing_id: String(i).padStart(64, "f"), created_at_ms: 1000 + i }));
     }
-    const res = await renderGalleryItemsHandler(cfg, null);
+    const res = await renderFeedItemsHandler(cfg, null);
     assert.doesNotMatch(res.body, /<html/);
     assert.doesNotMatch(res.body, /class="hdr"/);
-    assert.match(res.body, /<li>/);
-    assert.match(res.body, /data-gallery-sentinel/);
+    assert.match(res.body, /<article class="feed-card">/);
+    assert.match(res.body, /data-feed-sentinel/);
   });
 
   test("last page omits the sentinel", async () => {
@@ -94,14 +101,12 @@ describe("renderGalleryItemsHandler (fragment endpoint)", () => {
     for (let i = 0; i < 3; i++) {
       await store.put(row({ drawing_id: String(i).padStart(64, "f"), created_at_ms: 1000 + i }));
     }
-    // Page 1: items[1002, 1001], next_cursor present.
-    const page1 = await renderGalleryItemsHandler(cfg, null);
+    const page1 = await renderFeedItemsHandler(cfg, null);
     const next = page1.body.match(/data-next="([^"]+)"/);
     assert.ok(next, "expected next cursor in page 1");
     const cursor = new URL(next![1], "http://x").searchParams.get("cursor");
-    // Page 2: items[1000], no next.
-    const page2 = await renderGalleryItemsHandler(cfg, cursor);
-    assert.doesNotMatch(page2.body, /data-gallery-sentinel/);
+    const page2 = await renderFeedItemsHandler(cfg, cursor);
+    assert.doesNotMatch(page2.body, /data-feed-sentinel/);
   });
 });
 

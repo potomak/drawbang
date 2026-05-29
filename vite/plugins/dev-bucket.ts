@@ -126,6 +126,7 @@ const BUILDER_ROUTES: BuilderRoute[] = [
 // Vite-entry clean URL → backing file in the project root. Matches the
 // CloudFront rules so dev navigation behaves the same as prod.
 function viteEntryRewrite(uri: string): string | null {
+  if (uri === "/draw") return "/draw.html";
   if (uri === "/merch") return "/merch.html";
   if (uri === "/login") return "/login.html";
   if (uri === "/signup") return "/signup.html";
@@ -161,12 +162,24 @@ export function devBucketPlugin(opts: DevBucketPluginOptions = {}): Plugin {
         const url = req.url ?? "";
         const [pathOnly, query = ""] = url.split("?", 2);
 
-        // 0. Legacy /d/<id> drawing pages are retired — 301 to the unified
-        // tile page /t/<id> (mirrors the prod CloudFront function).
-        const dMatch = pathOnly.match(/^\/d\/([0-9a-f]{64})$/);
-        if (dMatch) {
+        // 0a. Legacy /t/<id> tile pages 301 to the canonical /d/<id>
+        // (mirrors the prod CloudFront function). /d/<id> itself is
+        // proxied to the ingest dev-server by vite.config.ts.
+        const tMatch = pathOnly.match(/^\/t\/([0-9a-f]{64})$/);
+        if (tMatch) {
           res.statusCode = 301;
-          res.setHeader("Location", `/t/${dMatch[1]}`);
+          res.setHeader("Location", `/d/${tMatch[1]}`);
+          res.end();
+          return;
+        }
+
+        // 0b. /gallery + /gallery/items 301 to /, /feed/items respectively.
+        // The vite proxy also forwards these to the dev-server which 301s
+        // too — this is belt-and-suspenders for proxy/middleware order.
+        if (pathOnly === "/gallery" || pathOnly === "/gallery/items") {
+          const target = pathOnly === "/gallery" ? "/" : "/feed/items";
+          res.statusCode = 301;
+          res.setHeader("Location", query ? `${target}?${query}` : target);
           res.end();
           return;
         }

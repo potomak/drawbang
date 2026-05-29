@@ -20,8 +20,8 @@ import {
 import {
   renderDrawingPageHandler,
   renderFeedHandler,
-  renderGalleryItemsHandler,
-  renderGalleryPageHandler,
+  renderFeedItemsHandler,
+  renderHomePageHandler,
   renderProductsPageHandler,
   renderProfileItemsHandler,
   renderProfilePageHandler,
@@ -94,11 +94,19 @@ const server = http.createServer(async (req, res) => {
       const u = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
       const pathOnly = u.pathname;
       const cursor = u.searchParams.get("cursor");
+      // /gallery -> 301 / (mirrors the prod CloudFront Function redirect).
+      if (pathOnly === "/gallery" || pathOnly === "/gallery/items") {
+        const target = pathOnly === "/gallery" ? "/" : "/feed/items";
+        const qs = u.search;
+        res.writeHead(301, { Location: qs ? `${target}${qs}` : target });
+        res.end();
+        return;
+      }
       let rendered: RenderResponse | null = null;
-      if (pathOnly === "/gallery") {
-        rendered = await renderGalleryPageHandler(renderConfig, cursor);
-      } else if (pathOnly === "/gallery/items") {
-        rendered = await renderGalleryItemsHandler(renderConfig, cursor);
+      if (pathOnly === "/") {
+        rendered = await renderHomePageHandler(renderConfig, cursor);
+      } else if (pathOnly === "/feed/items") {
+        rendered = await renderFeedItemsHandler(renderConfig, cursor);
       } else if (pathOnly === "/feed.rss") {
         rendered = await renderFeedHandler(renderConfig);
       } else if (pathOnly === "/products") {

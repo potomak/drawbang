@@ -24,8 +24,8 @@ import { SesEmailSender } from "./email.js";
 import {
   renderDrawingPageHandler,
   renderFeedHandler,
-  renderGalleryItemsHandler,
-  renderGalleryPageHandler,
+  renderFeedItemsHandler,
+  renderHomePageHandler,
   renderProductsPageHandler,
   renderProfileItemsHandler,
   renderProfilePageHandler,
@@ -95,13 +95,19 @@ export async function handler(
   if (method === "POST" && path === "/ingest") {
     return handleIngestRoute(event);
   }
-  // Dynamic HTML routes: gallery, drawing page, profile, feed. Each
-  // queries the drawings DDB store + renders the matching template.
-  if (method === "GET" && path === "/gallery") {
-    return adaptRender(await renderGalleryPageHandler(renderConfig, queryParam(event, "cursor")));
+  // Dynamic HTML routes: feed home, drawing page, profile, RSS, products.
+  // Each queries the drawings DDB store + renders the matching template.
+  if (method === "GET" && path === "/") {
+    return adaptRender(await renderHomePageHandler(renderConfig, queryParam(event, "cursor")));
   }
-  if (method === "GET" && path === "/gallery/items") {
-    return adaptRender(await renderGalleryItemsHandler(renderConfig, queryParam(event, "cursor")));
+  if (method === "GET" && path === "/feed/items") {
+    return adaptRender(await renderFeedItemsHandler(renderConfig, queryParam(event, "cursor")));
+  }
+  // /gallery still routes to the Lambda as a safety net behind the
+  // CloudFront 301; emit a 301 here too in case a request bypasses the
+  // edge (direct API Gateway hit during a deploy, e.g.).
+  if (method === "GET" && (path === "/gallery" || path === "/gallery/items")) {
+    return redirect301(path === "/gallery" ? "/" : "/feed/items", event);
   }
   if (method === "GET" && path === "/feed.rss") {
     return adaptRender(await renderFeedHandler(renderConfig));
@@ -292,5 +298,20 @@ function text(status: number, body: string): APIGatewayProxyResultV2 {
     statusCode: status,
     headers: { "Content-Type": "text/plain" },
     body,
+  };
+}
+
+function redirect301(
+  location: string,
+  event: APIGatewayProxyEventV2,
+): APIGatewayProxyResultV2 {
+  // Preserve any cursor querystring so /gallery/items?cursor=… reaches
+  // /feed/items?cursor=… intact.
+  const qs = event.rawQueryString;
+  const target = qs ? `${location}?${qs}` : location;
+  return {
+    statusCode: 301,
+    headers: { Location: target, "Cache-Control": "public, max-age=3600" },
+    body: "",
   };
 }

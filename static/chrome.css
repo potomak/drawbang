@@ -213,6 +213,31 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
    until the client script reveals them. */
 .btn[hidden] { display: none; }
 
+/* ===== FAB =====
+   Fixed "+" entry point to the editor. Lives in the chrome so every
+   server-rendered surface gets it for free; suppressed on the editor
+   page itself via FooterOptions.fab = false. Safe-area insets keep it
+   off the iOS home-bar / right-edge gestures. */
+.fab {
+  position: fixed;
+  right: calc(var(--pad) + env(safe-area-inset-right, 0px));
+  bottom: calc(var(--pad) + env(safe-area-inset-bottom, 0px));
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-on);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  text-decoration: none;
+  z-index: 100;
+  transition: transform 60ms;
+}
+.fab:hover { filter: brightness(0.95); text-decoration: none; }
+.fab:active { transform: translate(0, 2px); }
+.fab svg { display: block; }
+
 /* ===== Flash slot =====
    Singleton notification overlay pinned below the sticky header (src/layout/
    flash.ts on Vite surfaces, static/flash.js on builder-rendered surfaces).

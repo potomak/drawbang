@@ -16,6 +16,10 @@ export interface ChromePluginOptions {
 }
 
 const ACTIVE_META = /<meta\s+name="drawbang:active"\s+content="([^"]*)"\s*\/?>\s*\n?/i;
+// Pages opt out of the chrome's "+" FAB with <meta name="drawbang:fab"
+// content="off">. Only the editor uses this today (linking to itself
+// would be redundant); other Vite SPAs leave it unset so the FAB shows.
+const FAB_META = /<meta\s+name="drawbang:fab"\s+content="([^"]*)"\s*\/?>\s*\n?/i;
 const HEADER_MARKER = "<!--CHROME:HEADER-->";
 const FOOTER_MARKER = "<!--CHROME:FOOTER-->";
 const ANALYTICS_MARKER = "<!--CHROME:ANALYTICS-->";
@@ -35,11 +39,16 @@ export function chromePlugin(opts: ChromePluginOptions = {}): Plugin {
 }
 
 export function injectChrome(html: string, repoUrl: string): string {
-  const match = html.match(ACTIVE_META);
-  const active = match?.[1] as NavLink["id"] | undefined;
-  let out = match ? html.replace(ACTIVE_META, "") : html;
+  const activeMatch = html.match(ACTIVE_META);
+  const active = activeMatch?.[1]
+    ? (activeMatch[1] as NavLink["id"])
+    : undefined;
+  const fabMatch = html.match(FAB_META);
+  const fab = fabMatch?.[1] === "off" ? false : true;
+  let out = activeMatch ? html.replace(ACTIVE_META, "") : html;
+  if (fabMatch) out = out.replace(FAB_META, "");
   out = out.replace(HEADER_MARKER, renderHeader({ active }));
-  out = out.replace(FOOTER_MARKER, renderFooter({ active, repoUrl }));
+  out = out.replace(FOOTER_MARKER, renderFooter({ active, repoUrl, fab }));
   out = out.replace(ANALYTICS_MARKER, renderAnalytics());
   out = out.replace(META_PIXEL_MARKER, renderMetaPixel());
   return out;

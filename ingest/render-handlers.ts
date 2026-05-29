@@ -6,6 +6,11 @@ import renderGallery, {
 } from "../lib/templates/gallery.js";
 import renderTilePage from "../lib/templates/tile-page.js";
 import renderFeed from "../lib/templates/feed.js";
+import renderHome, {
+  renderFeedFragment,
+  type FeedItem,
+  type HomeView,
+} from "../lib/templates/home.js";
 import renderOwner from "../lib/templates/owner.js";
 import renderNotFound from "../lib/templates/not-found.js";
 import renderProducts from "../lib/templates/products.js";
@@ -101,6 +106,80 @@ function buildFragmentUrl(
 ): string | null {
   if (!cursor) return null;
   return `${basePath}?cursor=${encodeCursor(cursor)}`;
+}
+
+// -- / (feed home) + /feed/items ---------------------------------------------
+
+async function loadFeedItems(
+  cfg: RenderHandlersConfig,
+  rows: DrawingRow[],
+): Promise<FeedItem[]> {
+  // Batch the author avatar lookups: gather unique non-anonymous usernames,
+  // GetItem each once, attach to the matching rows. Without a userStore
+  // (dev/tests) the avatars are simply null.
+  const usernames = new Set<string>();
+  for (const r of rows) {
+    if (r.username !== "anonymous") usernames.add(r.username);
+  }
+  const avatars = new Map<string, string | null>();
+  if (cfg.userStore && usernames.size > 0) {
+    await Promise.all(
+      [...usernames].map(async (un) => {
+        const acct = await cfg.userStore!.getByUsername(un);
+        avatars.set(un, acct?.avatar_drawing_id ?? null);
+      }),
+    );
+  }
+  return rows.map((r) => ({
+    id: r.drawing_id,
+    id_short: r.drawing_id.slice(0, 8),
+    href: `/d/${r.drawing_id}`,
+    thumb: `/tiles/${r.drawing_id}.gif`,
+    created_at: r.created_at,
+    author:
+      r.username === "anonymous"
+        ? null
+        : {
+            username: r.username,
+            avatar_drawing_id: avatars.get(r.username) ?? null,
+          },
+  }));
+}
+
+export async function renderHomePageHandler(
+  cfg: RenderHandlersConfig,
+  rawCursor: string | null,
+): Promise<RenderResponse> {
+  const perPage = cfg.perPage ?? PER_PAGE;
+  const cursor = decodeCursor(rawCursor) ?? undefined;
+  const page = await cfg.drawingStore.queryGallery({ limit: perPage, cursor });
+  const items = await loadFeedItems(cfg, page.items);
+  const next = buildFragmentUrl("/feed/items", page.next_cursor);
+  const view: HomeView = { items, repo_url: cfg.repoUrl };
+  if (next) view.next_fragment_url = next;
+  return {
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: CC_GALLERY,
+    body: renderHome(view),
+  };
+}
+
+export async function renderFeedItemsHandler(
+  cfg: RenderHandlersConfig,
+  rawCursor: string | null,
+): Promise<RenderResponse> {
+  const perPage = cfg.perPage ?? PER_PAGE;
+  const cursor = decodeCursor(rawCursor) ?? undefined;
+  const page = await cfg.drawingStore.queryGallery({ limit: perPage, cursor });
+  const items = await loadFeedItems(cfg, page.items);
+  const next = buildFragmentUrl("/feed/items", page.next_cursor);
+  return {
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: CC_GALLERY,
+    body: renderFeedFragment(items, next),
+  };
 }
 
 // -- /gallery + /gallery/items -----------------------------------------------

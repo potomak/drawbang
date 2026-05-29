@@ -18,15 +18,15 @@ export default function renderNotFound(v: NotFoundView): string {
     <link rel="stylesheet" href="/gallery-v2.css" />
   </head>
   <body>
-    ${renderHeader()}
+    ${renderHeader({ active: "home" })}
     <main>
       <h1 class="page-title">Page not found</h1>
       <p>
-        Try the <a href="/gallery">gallery</a>, or open
-        <a href="/">the editor</a> and draw something new.
+        Try the <a href="/">feed</a>, or open
+        <a href="/draw">the editor</a> and draw something new.
       </p>
     </main>
-    ${renderFooter({ repoUrl: v.repo_url })}
+    ${renderFooter({ active: "home", repoUrl: v.repo_url })}
   </body>
 </html>
 `;

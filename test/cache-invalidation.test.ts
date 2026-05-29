@@ -5,8 +5,10 @@ import {
   pathsToInvalidateOnPublish,
 } from "../ingest/cache-invalidation.js";
 
-test("pathsToInvalidateOnPublish: gallery + that user's profile + feed", () => {
+test("pathsToInvalidateOnPublish: home feed + gallery + that user's profile + RSS", () => {
   assert.deepEqual(pathsToInvalidateOnPublish("alice"), [
+    "/",
+    "/feed/items*",
     "/gallery*",
     "/u/alice*",
     "/feed.rss",

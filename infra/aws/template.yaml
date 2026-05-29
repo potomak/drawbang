@@ -82,20 +82,14 @@ Globals:
 
 Resources:
   # -- Assets bucket -----------------------------------------------------------
-  # Holds:
-  #   public/                    served by CloudFront
-  #     index.html               editor entry
-  #     assets/*                 editor JS/CSS bundles
-  #     gallery.css              gallery stylesheet
-  #     gallery.html             gallery landing
-  #     drawings/<id>.gif        published gifs
-  #     d/<id>.html              per-drawing pages (also accessible at /d/<id>)
-  #     days/<d>/p/<n>.html      per-day galleries
-  #     days/<d>/{index.jsonl,manifest.json}
-  #     u/<username>/index.jsonl per-account index (append-only)
-  #     u/<username>.html        per-account profile gallery (mutable)
-  #     feed.rss
-  #   inbox/                     private, ingest writes; builder sweeps
+  # Holds (under public/, served by CloudFront):
+  #   draw.html                  editor entry (Vite SPA, at /draw)
+  #   {merch,order,login,signup,account,privacy,password-*}.html  Vite SPAs
+  #   assets/*                   Vite-built JS/CSS bundles
+  #   tiles/<id>.gif             published drawings (+ <id>-large.gif for OG)
+  #   chrome.css, gallery-v2.css, *.js  static chrome assets
+  # Dynamic HTML routes (/, /feed/items, /d/<id>, /u/<un>, /products,
+  # /feed.rss) are Lambda-rendered — they don't live in S3.
   AssetsBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -145,10 +139,12 @@ Resources:
           var req = event.request;
           var uri = req.uri;
           // This Function runs only on the default S3 cache behaviour. The
-          // dynamic Lambda routes (/gallery*, /d/*, /u/*, /feed.rss) match
-          // their own behaviours and skip this Function entirely.
+          // dynamic Lambda routes (/, /feed/items, /d/*, /u/*, /products*,
+          // /feed.rss) match their own behaviours and skip this Function
+          // entirely.
           //
           // Rewrites:
+          //   /draw                      -> /draw.html  (Vite SPA: editor)
           //   /merch                     -> /merch.html  (Vite SPA)
           //   /merch/order/<uuid>        -> /order.html  (Vite SPA)
           //   /login /signup /password/* /account -> *.html  (Vite SPAs)
@@ -158,6 +154,8 @@ Resources:
           //
           // Redirects:
           //   /t/<id>                    -> 301 /d/<id>  (legacy drawing URL)
+          //   /gallery                   -> 301 /        (feed is the new home)
+          //   /gallery/items?cursor=…    -> 301 /feed/items?cursor=…
           var tMatch = uri.match(/^\/t\/([0-9a-f]{64})$/);
           if (tMatch) {
             return {
@@ -166,12 +164,40 @@ Resources:
               headers: { location: { value: "/d/" + tMatch[1] } },
             };
           }
+          if (uri === "/gallery") {
+            return {
+              statusCode: 301,
+              statusDescription: "Moved Permanently",
+              headers: { location: { value: "/" } },
+            };
+          }
+          if (uri === "/gallery/items") {
+            // querystring on /gallery/items is the cursor; preserve it.
+            var qs = event.request.querystring;
+            var loc = "/feed/items";
+            if (qs && typeof qs === "object") {
+              var parts = [];
+              for (var k in qs) {
+                if (qs[k] && typeof qs[k].value === "string") {
+                  parts.push(encodeURIComponent(k) + "=" + encodeURIComponent(qs[k].value));
+                }
+              }
+              if (parts.length) loc += "?" + parts.join("&");
+            }
+            return {
+              statusCode: 301,
+              statusDescription: "Moved Permanently",
+              headers: { location: { value: loc } },
+            };
+          }
           var aMatch = uri.match(/^\/drawings\/([0-9a-f]{64}(?:-large)?\.gif)$/);
           if (aMatch) {
             req.uri = "/tiles/" + aMatch[1];
             return req;
           }
-          if (uri === "/merch") {
+          if (uri === "/draw") {
+            req.uri = "/draw.html";
+          } else if (uri === "/merch") {
             req.uri = "/merch.html";
           } else if (/^\/merch\/order\/[0-9a-f-]{36}$/.test(uri)) {
             req.uri = "/order.html";
@@ -232,16 +258,17 @@ Resources:
     Properties:
       DistributionConfig:
         Enabled: true
-        Comment: Drawbang editor + gallery + drawings.
-        DefaultRootObject: index.html
+        Comment: Drawbang editor + feed home + drawings.
+        # No DefaultRootObject: the root path / is its own behavior that
+        # routes to the Lambda feed handler. The editor lives at /draw.
         PriceClass: PriceClass_100
         HttpVersion: http2and3
         Origins:
           - Id: assets
             DomainName: !GetAtt AssetsBucket.RegionalDomainName
             # Strip the bucket's `public/` prefix so users can hit clean
-            # URLs like /index.html, /d/<id>.html, /drawings/<id>.gif while
-            # objects sit under public/ in S3.
+            # URLs like /draw.html, /tiles/<id>.gif while objects sit
+            # under public/ in S3.
             OriginPath: /public
             S3OriginConfig:
               OriginAccessIdentity: ""
@@ -266,17 +293,17 @@ Resources:
             - EventType: viewer-request
               FunctionARN: !GetAtt RewriteCleanUrls.FunctionMetadata.FunctionARN
         CacheBehaviors:
-          # /gallery (the page itself, exact path) — not /gallery* because
-          # that would also catch /gallery-v2.css and route it to Lambda.
-          - PathPattern: /gallery
+          # / (the feed home, exact path). Replaces the legacy /gallery
+          # behavior — /gallery itself now 301s here via the CF function.
+          - PathPattern: /
             TargetOriginId: api
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD]
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: !Ref DynamicCachePolicy
-          # /gallery/items?cursor=... HTML fragment endpoint.
-          - PathPattern: /gallery/*
+          # /feed/items?cursor=... HTML fragment endpoint (infinite scroll).
+          - PathPattern: /feed/items
             TargetOriginId: api
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD]
@@ -595,18 +622,18 @@ Resources:
             ApiId: !Ref IngestApi
             Method: POST
             Path: /auth/avatar
-        Gallery:
+        HomePage:
           Type: HttpApi
           Properties:
             ApiId: !Ref IngestApi
             Method: GET
-            Path: /gallery
-        GalleryItems:
+            Path: /
+        FeedItems:
           Type: HttpApi
           Properties:
             ApiId: !Ref IngestApi
             Method: GET
-            Path: /gallery/items
+            Path: /feed/items
         Feed:
           Type: HttpApi
           Properties:

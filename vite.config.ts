@@ -12,6 +12,10 @@ const enableHttps = process.env.VITE_HTTPS === "1";
 export default defineConfig({
   root: ".",
   publicDir: "static",
+  // MPA mode: don't fall back to index.html for unmatched URLs (it's
+  // gone — the editor lives at /draw now, and / is the dynamic feed
+  // served by the ingest dev-server).
+  appType: "mpa",
   plugins: [
     chromePlugin({ repoUrl: process.env.VITE_REPO_URL }),
     devBucketPlugin(),
@@ -23,7 +27,7 @@ export default defineConfig({
     target: "es2022",
     rollupOptions: {
       input: {
-        main: resolve(__dirname, "index.html"),
+        draw: resolve(__dirname, "draw.html"),
         merch: resolve(__dirname, "merch.html"),
         order: resolve(__dirname, "order.html"),
         login: resolve(__dirname, "login.html"),
@@ -49,9 +53,13 @@ export default defineConfig({
       "/auth": "http://localhost:8787",
       // Dynamic-site routes that match what the prod Lambda serves: the
       // ingest dev-server renders them off MemoryDrawingStore so the
-      // editor's "publish → see in /gallery" loop works locally.
-      "/gallery": "http://localhost:8787",
+      // editor's "publish → see on the feed" loop works locally.
+      // ^/$ matches just `/` (the feed home) — vite proxy keys starting
+      // with ^ are regex, prefix keys would also match other paths.
+      "^/$": "http://localhost:8787",
       "/feed.rss": "http://localhost:8787",
+      "/feed/items": "http://localhost:8787",
+      "/gallery": "http://localhost:8787",
       "^/d/.*": "http://localhost:8787",
       "^/u/.*": "http://localhost:8787",
     },

@@ -21,6 +21,12 @@ export interface ChromeOptions {
 
 export interface FooterOptions extends ChromeOptions {
   repoUrl: string;
+  /**
+   * Show the fixed-position "+" FAB (links to /draw). Default true.
+   * The editor's chrome plugin call passes `false` so the FAB doesn't
+   * appear on the page where it would link back to itself.
+   */
+  fab?: boolean;
 }
 
 /**
@@ -36,7 +42,7 @@ export const IDENTITY_FALLBACK_HREF = "/login";
  * Adding a new top-level section is a one-line change here.
  */
 export const NAV_LINKS: readonly NavLink[] = [
-  { href: "/gallery", label: "Gallery", id: "gallery" },
+  { href: "/", label: "Home", id: "home" },
   { href: "/products", label: "Products", id: "products" },
 ];
 
@@ -96,6 +102,7 @@ export function renderFooter(opts: FooterOptions): string {
   // plumbing. flash.js loads first so its window.drawbang{Show,Hide}Flash
   // (and pending-flash auto-consume) are ready by the time anything else
   // on the page wants to fire a notification.
+  const fab = opts.fab === false ? "" : renderFab();
   return `<footer class="ftr">
   <div class="ftr-left">
     <nav class="ftr-links" aria-label="Footer">
@@ -111,9 +118,19 @@ export function renderFooter(opts: FooterOptions): string {
     <a class="ftr-feedback" href="${esc(FEEDBACK_URL)}" target="_blank" rel="noopener">${FEEDBACK_ICON_SVG}<span>Feedback</span></a>
   </div>
 </footer>
-<script src="/flash.js"></script>
+${fab}<script src="/flash.js"></script>
 <script src="/chrome-toggle.js"></script>
 <script src="/chrome-identity.js"></script>`;
+}
+
+// Fixed-position "+" button that takes the viewer to /draw from any
+// server-rendered page. Styled in chrome.css alongside the rest of the
+// shared chrome — see `.fab` there.
+function renderFab(): string {
+  return `<a class="fab" href="/draw" aria-label="New drawing" data-fab>
+  <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg>
+</a>
+`;
 }
 
 const SOCIAL_LINKS: ReadonlyArray<{ label: string; href: string }> = [
