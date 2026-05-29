@@ -2,7 +2,7 @@
 
 /* =====================================================================
    Drawbang v2 — Vite-served surfaces (editor, merch, share, order,
-   identity, pow-test). Shared header/footer/tokens live in
+   identity). Shared header/footer/tokens live in
    static/chrome.css; this file ONLY contains editor extensions to the
    base reset plus surface-specific styles for those pages.
 
@@ -580,36 +580,3 @@ dialog form menu button:hover { border-color: var(--border-strong); }
 .auth-field input:focus { outline: none; border-color: var(--border-strong); }
 .auth-field small { font-size: var(--t-xs); }
 
-/* =====================================================================
-   POW TEST BED (/pow-test)
-   ===================================================================== */
-.proof-of-work-test-body main { max-width: 720px; }
-.proof-of-work-test-body h1 { font-size: var(--t-xl); margin: 0 0 16px; letter-spacing: 0.02em; }
-.proof-of-work-test-body .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
-.proof-of-work-test-body label { display: flex; gap: 6px; align-items: center; font-size: var(--t-sm); color: var(--fg-dim); }
-.proof-of-work-test-body input, .proof-of-work-test-body select {
-  font: 400 var(--t-sm) var(--font);
-  color: var(--fg);
-  background: var(--bg);
-  border: var(--border) solid var(--border-c);
-  padding: 6px 8px;
-  height: 32px;
-}
-.proof-of-work-test-body input[type="number"] { width: 5.5rem; }
-.proof-of-work-test-body button {
-  font: 500 var(--t-sm) var(--font);
-  background: var(--bg-elev);
-  color: var(--fg);
-  border: var(--border) solid var(--border-c);
-  padding: 0 12px;
-  height: 32px;
-  cursor: pointer;
-  letter-spacing: 0.02em;
-}
-.proof-of-work-test-body button:hover { border-color: var(--border-strong); }
-.proof-of-work-test-body button:disabled { opacity: 0.4; cursor: not-allowed; }
-.proof-of-work-test-body table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); margin-top: 16px; }
-.proof-of-work-test-body th, .proof-of-work-test-body td { border-bottom: var(--border) solid var(--border-c); padding: 6px 8px; text-align: left; }
-.proof-of-work-test-body th { color: var(--fg-muted); font-weight: 500; }
-.proof-of-work-test-body td.mono { font-family: var(--font); }
-.proof-of-work-test-body td.hash { word-break: break-all; }

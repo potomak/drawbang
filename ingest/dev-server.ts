@@ -1,7 +1,6 @@
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { promises as fs } from "node:fs";
 import { handleIngest } from "./handler.js";
 import { FsStorage } from "./storage.js";
 import { MemoryUserStore } from "./user-store.js";
@@ -90,17 +89,6 @@ const server = http.createServer(async (req, res) => {
       if (result.status === 200 || result.status === 202) {
         await rebuildAfterPublish();
       }
-      return;
-    }
-
-    if (req.method === "GET" && req.url === "/state/last-publish.json") {
-      const body = await fs.readFile(path.join(ROOT, "public/state/last-publish.json")).catch(() => null);
-      if (!body) {
-        json(res, 200, { last_publish_at: "1970-01-01T00:00:00.000Z", last_difficulty_bits: 20 });
-        return;
-      }
-      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
-      res.end(body);
       return;
     }
 

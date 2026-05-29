@@ -85,7 +85,6 @@ Resources:
   #     u/<username>/index.jsonl per-account index (append-only)
   #     u/<username>.html        per-account profile gallery (mutable)
   #     feed.rss
-  #     state/last-publish.json  written by the ingest Lambda
   #   inbox/                     private, ingest writes; builder sweeps
   AssetsBucket:
     Type: AWS::S3::Bucket
@@ -237,16 +236,6 @@ Resources:
           FunctionAssociations:
             - EventType: viewer-request
               FunctionARN: !GetAtt RewriteCleanUrls.FunctionMetadata.FunctionARN
-        # Don't cache the state files that drive PoW difficulty — the editor
-        # needs to see fresh baselines within seconds of publish.
-        CacheBehaviors:
-          - PathPattern: /state/last-publish.json
-            TargetOriginId: assets
-            ViewerProtocolPolicy: redirect-to-https
-            AllowedMethods: [GET, HEAD]
-            CachedMethods: [GET, HEAD]
-            # Managed CachingDisabled.
-            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
         # Map S3 misses to the chrome'd /404.html the builder writes. Both
         # codes are routed because OAC returns 403 for keys outside the
         # public/* prefix and 404 for missing keys inside it. Short cache

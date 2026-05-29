@@ -6,7 +6,7 @@ import os from "node:os";
 import { Bitmap } from "../src/editor/bitmap.js";
 import { encodeGif } from "../src/editor/gif.js";
 import { DEFAULT_ACTIVE_PALETTE } from "../src/editor/palette.js";
-import { contentHash, hashHex, powHash, solve } from "../src/proof-of-work.js";
+import { contentHashHex } from "../src/content-hash.js";
 import { FsStorage } from "../ingest/storage.js";
 import { build } from "../builder/build.js";
 
@@ -26,10 +26,7 @@ async function seedDrawing(
   // content-addressing would collapse them into a single drawing).
   frame.set(marker % 16, Math.floor(marker / 16) % 16, ((marker % 15) + 1));
   const gif = encodeGif({ frames: [frame], activePalette: DEFAULT_ACTIVE_PALETTE });
-  const baseline = "1970-01-01T00:00:00.000Z";
-  const sol = await solve(gif, baseline, 12); // cheap for tests
-  const id = hashHex(await contentHash(gif));
-  const pow = hashHex(await powHash(gif, baseline, sol.nonce));
+  const id = await contentHashHex(gif);
 
   const gifPath = path.join(root, "inbox", day, `${id}.gif`);
   const jsonPath = path.join(root, "inbox", day, `${id}.json`);
@@ -40,12 +37,6 @@ async function seedDrawing(
   // (account-less) inbox JSONs.
   const sidecar: Record<string, unknown> = {
     id,
-    pow,
-    nonce: sol.nonce,
-    baseline,
-    solve_ms: sol.solveMs,
-    bench_hps: 12345,
-    required_bits: 12,
     created_at: `${day}T10:00:00.000Z`,
     parent: null,
   };

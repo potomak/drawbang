@@ -4,9 +4,9 @@ import basicSsl from "@vitejs/plugin-basic-ssl";
 import { chromePlugin } from "./vite/plugins/chrome.js";
 import { devBucketPlugin } from "./vite/plugins/dev-bucket.js";
 
-// HTTPS in dev only — Web Crypto (the PoW SHA-256 fallback) needs a secure
-// context, and plain http://<LAN-IP> isn't one. Plugin generates a
-// self-signed cert on first start.
+// HTTPS in dev only — Web Crypto needs a secure context, and plain
+// http://<LAN-IP> isn't one. Plugin generates a self-signed cert on first
+// start.
 const enableHttps = process.env.VITE_HTTPS === "1";
 
 export default defineConfig({
@@ -24,7 +24,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
-        "proof-of-work-test": resolve(__dirname, "proof-of-work-test.html"),
         merch: resolve(__dirname, "merch.html"),
         order: resolve(__dirname, "order.html"),
         login: resolve(__dirname, "login.html"),

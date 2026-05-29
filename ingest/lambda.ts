@@ -43,10 +43,6 @@ const authConfig: AuthHandlerConfig = {
   publicBaseUrl,
 };
 
-// Module-scope rolling baseline window for publish. Survives warm containers
-// but not across containers — the handler already treats it as best-effort.
-const baselineHistory: string[] = [];
-
 export async function handler(
   event: APIGatewayProxyEventV2,
   _context: Context,
@@ -113,7 +109,6 @@ async function handleIngestRoute(
     publicBaseUrl,
     auth,
     repoUrl,
-    baselineHistory,
     userStatsStore,
   });
   return json(result.status, result.body);

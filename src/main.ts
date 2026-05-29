@@ -48,7 +48,6 @@ const MAIN_PIXEL_SIZE = 35;
 const FRAME_THUMB_PIXEL_SIZE = 5;
 
 const INGEST_URL = import.meta.env.VITE_INGEST_URL ?? "/ingest";
-const STATE_URL = import.meta.env.VITE_STATE_URL ?? "/state/last-publish.json";
 const DRAWING_BASE_URL = import.meta.env.VITE_DRAWING_BASE_URL ?? "/tiles";
 
 // -- Editor state -----------------------------------------------------------
@@ -625,27 +624,15 @@ async function handlePublish(): Promise<void> {
     return;
   }
   trackPublishClick(state.frames.length);
-  showFlash({ kind: "info", message: "Starting proof of work…" });
-  const onPhase = (phase: string, detail: string) =>
-    showFlash({ kind: "info", message: `${phase}: ${detail}` });
-  const onProgress = (p: { hashes: number; elapsedMs: number }) => {
-    const rate = (p.hashes / Math.max(1, p.elapsedMs / 1000)).toFixed(0);
-    showFlash({
-      kind: "info",
-      message: `Solving… ${p.hashes.toLocaleString()} hashes (${rate}/s)`,
-    });
-  };
+  showFlash({ kind: "info", message: "Publishing…" });
   try {
     const result = await submit({
       ingestUrl: INGEST_URL,
-      stateUrl: STATE_URL,
       gif: encodeGif({ frames: state.frames, activePalette }),
       parent: parentId ?? undefined,
-      onPhase,
-      onProgress,
     });
     flashPublished(result.share_url);
-    trackPublishSuccess({ frames: state.frames.length, solve_ms: result.solve_ms });
+    trackPublishSuccess({ frames: state.frames.length, solve_ms: 0 });
     if (localId) {
       await local.save({ id: localId, frames: state.frames, activePalette, publishedId: result.id });
     }

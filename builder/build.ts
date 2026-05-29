@@ -5,7 +5,7 @@ import { validateGif } from "../ingest/gif-validate.js";
 import { earnedBadges } from "../config/badges.js";
 import type { MerchCatalog } from "../merch/lambda.js";
 import type { ProductCounter } from "../merch/product-counters.js";
-import { contentHash, hashHex, leadingZeroBits, powHash } from "../src/proof-of-work.js";
+import { contentHashHex } from "../src/content-hash.js";
 import renderDayGallery from "./templates/day-gallery.js";
 import renderGallery from "./templates/gallery.js";
 import renderFeed from "./templates/feed.js";
@@ -72,11 +72,7 @@ export const DEFAULT_TEMPLATES: Templates = {
 
 interface DrawingMetadata {
   id: string;
-  pow: string;
   created_at: string;
-  required_bits: number;
-  solve_ms: number | null;
-  bench_hps: number | null;
   parent: string | null;
   // Account fields land via the inbox JSON sidecar that ingest writes. null
   // only on legacy drawings published by the old anonymous keypair scheme —
@@ -146,37 +142,28 @@ export async function build(opts: BuildOptions): Promise<{
       const id = gifKey.split("/").pop()!.replace(/\.gif$/, "");
       const metaKey = gifKey.replace(/\.gif$/, ".json");
       const gifBytes = await opts.storage.getBytes(gifKey);
-      const meta = await opts.storage.getJSON<DrawingMetadata & { nonce: string; baseline: string }>(metaKey);
+      const meta = await opts.storage.getJSON<DrawingMetadata>(metaKey);
       if (!gifBytes || !meta) {
         log(`  skip ${id}: missing gif or metadata`);
         continue;
       }
 
-      // Defense in depth: re-verify content id + PoW before publishing.
+      // Defense in depth: re-verify content id before publishing.
       try {
         validateGif(gifBytes);
       } catch (err) {
         log(`  reject ${id}: ${(err as Error).message}`);
         continue;
       }
-      if (hashHex(await contentHash(gifBytes)) !== meta.id) {
+      if ((await contentHashHex(gifBytes)) !== meta.id) {
         log(`  reject ${id}: content hash mismatch`);
-        continue;
-      }
-      const pow = await powHash(gifBytes, meta.baseline, meta.nonce);
-      if (leadingZeroBits(pow) < meta.required_bits || hashHex(pow) !== meta.pow) {
-        log(`  reject ${id}: pow re-verification failed`);
         continue;
       }
 
       await opts.storage.put(`public/tiles/${id}.gif`, gifBytes, "image/gif", CC_GIF_IMMUTABLE);
       drawings.push({
         id,
-        pow: meta.pow,
         created_at: meta.created_at,
-        required_bits: meta.required_bits,
-        solve_ms: meta.solve_ms,
-        bench_hps: meta.bench_hps,
         parent: meta.parent,
         user_id: meta.user_id ?? null,
         username: meta.username ?? null,
