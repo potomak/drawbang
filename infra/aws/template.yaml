@@ -563,13 +563,14 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       CorsConfiguration:
-        # Both the custom domain (when set) and the cloudfront.net default are
-        # listed: SAM's transform corrupts the CORS config when an !If sits
-        # inside CorsConfiguration, so we keep this as a plain literal list
-        # and accept a harmless duplicate when HasCustomDomain is false.
+        # The custom domain is the canonical origin for the deployed editor.
+        # Wildcard secondary entry covers the cloudfront.net hostname (and
+        # any future origin) without referencing AssetsDistribution — doing
+        # so would close a CloudFormation cycle with the new api origin
+        # CloudFront points at this API.
         AllowOrigins:
-          - !If [HasCustomDomain, !Sub "https://${DomainName}", !Sub "https://${AssetsDistribution.DomainName}"]
-          - !Sub "https://${AssetsDistribution.DomainName}"
+          - !Sub "https://${DomainName}"
+          - "*"
         AllowMethods: [GET, POST, OPTIONS]
         AllowHeaders: [content-type, authorization]
         MaxAge: 3600
