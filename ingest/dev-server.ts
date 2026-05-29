@@ -8,7 +8,6 @@ import { MemoryUserStore } from "./user-store.js";
 import { ConsoleEmailSender } from "./email.js";
 import { JwtError, verifyJwt } from "./jwt.js";
 import type { AuthedUser } from "./handler.js";
-import { handleCanvasPublish } from "./canvas-publish-handler.js";
 import {
   handleLogin,
   handleRegister,
@@ -88,32 +87,6 @@ const server = http.createServer(async (req, res) => {
       json(res, result.status, result.body);
       // 202 = newly accepted, 200 = idempotent retry of an existing
       // drawing. Either way the inbox is in a coherent state, so rebuild.
-      if (result.status === 200 || result.status === 202) {
-        await rebuildAfterPublish();
-      }
-      return;
-    }
-
-    if (req.method === "POST" && req.url === "/canvas") {
-      const auth = extractAuth(req);
-      if (!auth) {
-        json(res, 401, { error: "authentication required" });
-        return;
-      }
-      const body = await readBody(req);
-      let parsed: any;
-      try {
-        parsed = JSON.parse(body);
-      } catch {
-        json(res, 400, { error: "bad json" });
-        return;
-      }
-      const result = await handleCanvasPublish(parsed, {
-        storage,
-        publicBaseUrl: PUBLIC_BASE,
-        auth,
-      });
-      json(res, result.status, result.body);
       if (result.status === 200 || result.status === 202) {
         await rebuildAfterPublish();
       }

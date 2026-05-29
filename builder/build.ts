@@ -12,9 +12,7 @@ import renderFeed from "./templates/feed.js";
 import renderNotFound from "./templates/not-found.js";
 import renderOwner from "./templates/owner.js";
 import renderProducts from "./templates/products.js";
-import renderCanvasPage, { type CanvasPageView } from "./templates/canvas-page.js";
 import renderTilePage, { type TilePageView } from "./templates/tile-page.js";
-import { ogScale, stitchCompositeGif, stitchCompositePng } from "../ingest/stitch.js";
 import type { DayGalleryView } from "./templates/day-gallery.js";
 import type { GalleryView } from "./templates/gallery.js";
 import type { FeedView } from "./templates/feed.js";
@@ -69,7 +67,6 @@ export const DEFAULT_TEMPLATES: Templates = {
   notFound: renderNotFound,
   owner: renderOwner,
   products: renderProducts,
-  canvasPage: renderCanvasPage,
   tilePage: renderTilePage,
 };
 
@@ -233,23 +230,12 @@ export async function build(opts: BuildOptions): Promise<{
   // also re-render the predecessor of each touched day so its next_day
   // link picks up the newcomer — without this the previous day would stay
   // frozen with next_day=null from whenever it was last rendered.
-  // Sweep canvas (multi-tile drawing) inbox records → /c/<id>.html pages +
-  // rolling canvas index. Runs before galleries/profiles so they can list them.
-  const { usernames: canvasUsernames, days: canvasDays } = await rebuildCanvases(
-    opts,
-    templates,
-    repoUrl,
-  );
-
-  // Day-archive pages — merge drawing days + canvas days.
-  await rebuildDayGalleries(opts, templates, repoUrl, [
-    ...new Set([...touchedDays, ...canvasDays]),
-  ]);
+  await rebuildDayGalleries(opts, templates, repoUrl, touchedDays);
 
   // Rebuild per-account profile galleries (mutable like /gallery.html, not
   // immutable like the day pages). New entries land via newByUsername; on
   // forceRerender every existing profile page is also re-rendered.
-  await rebuildProfiles(opts, templates, repoUrl, newByUsername, canvasUsernames);
+  await rebuildProfiles(opts, templates, repoUrl, newByUsername);
 
   // Rebuild rolling surfaces: landing page and RSS feed.
   await rebuildRolling(opts, templates, today, repoUrl);
@@ -267,7 +253,6 @@ export interface Templates {
   notFound: (v: NotFoundView) => string;
   owner: (v: OwnerView) => string;
   products: (v: ProductsView) => string;
-  canvasPage: (v: CanvasPageView) => string;
   tilePage: (v: TilePageView) => string;
 }
 
@@ -294,37 +279,12 @@ function parseJsonl(text: string): DrawingMetadata[] {
     .map((line) => JSON.parse(line) as DrawingMetadata);
 }
 
-// Rolling index of published canvases (not day-partitioned like drawings).
-// Drives canvas listings on the gallery, feed, and per-account profiles.
-const CANVAS_INDEX_KEY = "public/canvases-index.jsonl";
-
-interface CanvasIndexEntry {
-  canvas_id: string;
-  created_at: string;
-  thumb: string;
-  username: string | null;
-  user_id: string | null;
-}
-
 interface GalleryItemFull {
   id: string;
   id_short: string;
   href: string;
   thumb: string;
   created_at: string;
-}
-
-function parseCanvasIndex(text: string): CanvasIndexEntry[] {
-  return text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((l) => JSON.parse(l) as CanvasIndexEntry);
-}
-
-async function loadCanvasIndex(opts: BuildOptions): Promise<CanvasIndexEntry[]> {
-  const b = await opts.storage.getBytes(CANVAS_INDEX_KEY);
-  return b ? parseCanvasIndex(dec.decode(b)) : [];
 }
 
 function drawingItem(d: DrawingMetadata): GalleryItemFull {
@@ -334,16 +294,6 @@ function drawingItem(d: DrawingMetadata): GalleryItemFull {
     href: `/t/${d.id}`,
     thumb: `/tiles/${d.id}.gif`,
     created_at: d.created_at,
-  };
-}
-
-function canvasItem(e: CanvasIndexEntry): GalleryItemFull {
-  return {
-    id: e.canvas_id,
-    id_short: e.canvas_id.slice(0, 8),
-    href: `/c/${e.canvas_id}`,
-    thumb: e.thumb,
-    created_at: e.created_at,
   };
 }
 
@@ -359,23 +309,11 @@ async function rebuildDayGalleries(
 ): Promise<void> {
   if (touchedDays.length === 0) return;
 
-  // Canvases (rolling) grouped by their created-at date, so a day page can show
-  // both drawings and canvases.
-  const canvasByDate = new Map<string, CanvasIndexEntry[]>();
-  for (const e of await loadCanvasIndex(opts)) {
-    const date = e.created_at.slice(0, 10);
-    const list = canvasByDate.get(date) ?? [];
-    list.push(e);
-    canvasByDate.set(date, list);
-  }
-
-  // Full sorted day list (ascending) — drawing day dirs ∪ canvas dates — used
-  // for neighbor links.
+  // Full sorted day list (ascending) — used for neighbor links.
   const dayDirs = await opts.storage.listPrefix("public/days");
-  const allDays = [...new Set([
-    ...dayDirs.map((k) => k.split("/").pop()!).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)),
-    ...canvasByDate.keys(),
-  ])].sort();
+  const allDays = [...new Set(
+    dayDirs.map((k) => k.split("/").pop()!).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)),
+  )].sort();
 
   const touchedSet = new Set(touchedDays);
   // Re-render predecessors so their next_day link picks up the newcomer.
@@ -392,10 +330,7 @@ async function rebuildDayGalleries(
 
     const indexBytes = await opts.storage.getBytes(`public/days/${day}/index.jsonl`);
     const drawings = indexBytes ? parseJsonl(dec.decode(indexBytes)) : [];
-    const items: GalleryItemFull[] = [
-      ...drawings.map(drawingItem),
-      ...(canvasByDate.get(day) ?? []).map(canvasItem),
-    ].sort(byCreatedDesc);
+    const items: GalleryItemFull[] = drawings.map(drawingItem).sort(byCreatedDesc);
     if (items.length === 0) continue;
 
     const totalPages = Math.max(1, Math.ceil(items.length / PER_PAGE));
@@ -433,7 +368,6 @@ async function rebuildProfiles(
   templates: Templates,
   repoUrl: string,
   newByUsername: Map<string, DrawingMetadata[]>,
-  canvasUsernames: Set<string>,
 ): Promise<void> {
   // Append fresh entries to each account's append-only drawing index.
   for (const [username, fresh] of newByUsername) {
@@ -448,16 +382,6 @@ async function rebuildProfiles(
     );
   }
 
-  // Canvases this account authored come from the rolling canvas index.
-  const canvasIndex = await loadCanvasIndex(opts);
-  const canvasByUser = new Map<string, CanvasIndexEntry[]>();
-  for (const e of canvasIndex) {
-    if (!e.username) continue;
-    const list = canvasByUser.get(e.username) ?? [];
-    list.push(e);
-    canvasByUser.set(e.username, list);
-  }
-
   // Registered accounts always get a profile page, even with no content — a
   // brand-new account's /u/<username> must not 404. Map gives us the user_id
   // for the stats block when the account has no drawings to source it from.
@@ -465,12 +389,11 @@ async function rebuildProfiles(
     (opts.registeredUsers ?? []).map((u) => [u.username, u.user_id]),
   );
 
-  // Profiles to (re-)render: anyone who got new drawings or canvases this run,
-  // plus every registered account; on forceRerender, every account with an
-  // existing index or canvases too.
+  // Profiles to (re-)render: anyone who got new drawings this run plus every
+  // registered account; on forceRerender, every account with an existing
+  // index too.
   const profilesToRender = new Set<string>([
     ...newByUsername.keys(),
-    ...canvasUsernames,
     ...userIdByName.keys(),
   ]);
   if (opts.forceRerender) {
@@ -479,27 +402,19 @@ async function rebuildProfiles(
       const m = k.match(/^public\/u\/([a-z0-9_-]{3,20})\/index\.jsonl$/);
       if (m) profilesToRender.add(m[1]);
     }
-    for (const u of canvasByUser.keys()) profilesToRender.add(u);
   }
 
   for (const username of profilesToRender) {
     const indexBytes = await opts.storage.getBytes(`public/u/${username}/index.jsonl`);
     const drawings = indexBytes ? parseJsonl(dec.decode(indexBytes)) : [];
-    const canvases = canvasByUser.get(username) ?? [];
-    // Skip only content-less usernames that aren't registered accounts (e.g. a
-    // stale index dir). Registered accounts render even when empty.
-    if (drawings.length === 0 && canvases.length === 0 && !userIdByName.has(username)) {
+    if (drawings.length === 0 && !userIdByName.has(username)) {
       continue;
     }
 
-    const items: GalleryItemFull[] = [
-      ...drawings.map(drawingItem),
-      ...canvases.map(canvasItem),
-    ].sort(byCreatedDesc);
+    const items: GalleryItemFull[] = drawings.map(drawingItem).sort(byCreatedDesc);
 
     const userId =
       drawings.find((d) => d.user_id)?.user_id ??
-      canvases.find((c) => c.user_id)?.user_id ??
       userIdByName.get(username) ??
       "";
     const stats = opts.userStatsSource && userId
@@ -533,151 +448,6 @@ async function ownerStatsViewModel(
   };
 }
 
-interface CanvasRecord {
-  canvas_id: string;
-  cols: number;
-  rows: number;
-  tiles: (string | null)[];
-  user_id: string | null;
-  username: string | null;
-  parent: string | null;
-  created_at: string;
-}
-
-async function rebuildCanvases(
-  opts: BuildOptions,
-  templates: Templates,
-  repoUrl: string,
-): Promise<{ usernames: Set<string>; days: Set<string> }> {
-  const fresh: CanvasRecord[] = [];
-  const rerender: CanvasRecord[] = [];
-
-  // Freshly published canvases land as inbox/<day>/<id>.canvas.json.
-  const inboxDirs = await opts.storage.listPrefix("inbox");
-  for (const dir of inboxDirs) {
-    const day = dir.split("/").pop()!;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
-    const files = await opts.storage.listPrefix(`inbox/${day}`);
-    for (const f of files) {
-      if (!f.endsWith(".canvas.json")) continue;
-      const rec = await opts.storage.getJSON<CanvasRecord>(f);
-      if (rec?.canvas_id) fresh.push(rec);
-      await opts.storage.remove(f);
-    }
-  }
-
-  // forceRerender re-renders every already-published canvas from its manifest
-  // (HTML/composite only — the rolling index is not re-appended).
-  if (opts.forceRerender) {
-    const cKeys = await opts.storage.listPrefix("public/c");
-    for (const k of cKeys) {
-      if (!k.endsWith(".json")) continue;
-      const rec = await opts.storage.getJSON<CanvasRecord>(k);
-      if (rec?.canvas_id) rerender.push(rec);
-    }
-  }
-
-  const usernames = new Set<string>();
-  const days = new Set<string>();
-  const newEntries: CanvasIndexEntry[] = [];
-  for (const rec of fresh) {
-    const thumb = await renderCanvasOne(opts, templates, repoUrl, rec);
-    if (rec.username) usernames.add(rec.username);
-    days.add(rec.created_at.slice(0, 10));
-    newEntries.push({
-      canvas_id: rec.canvas_id,
-      created_at: rec.created_at,
-      thumb,
-      username: rec.username,
-      user_id: rec.user_id,
-    });
-  }
-  for (const rec of rerender) {
-    await renderCanvasOne(opts, templates, repoUrl, rec);
-  }
-
-  if (newEntries.length > 0) {
-    const existing = (await opts.storage.getBytes(CANVAS_INDEX_KEY)) ?? new Uint8Array();
-    let merged = dec.decode(existing);
-    for (const e of newEntries) merged += JSON.stringify(e) + "\n";
-    await opts.storage.put(CANVAS_INDEX_KEY, enc.encode(merged), "application/jsonl", CC_INTERNAL);
-  }
-
-  return { usernames, days };
-}
-
-// Renders /c/<id>.html, ensures the small composite (multi-tile gallery thumb)
-// + the ~960px -large.png (OG), and returns the gallery thumb URL.
-async function renderCanvasOne(
-  opts: BuildOptions,
-  templates: Templates,
-  repoUrl: string,
-  rec: CanvasRecord,
-): Promise<string> {
-  const multi = rec.cols * rec.rows > 1;
-  // Gallery/feed thumbnail: animated composite GIF for multi-tile (static PNG
-  // fallback if a canvas ever exceeds 255 colours), the tile gif for a 1×1.
-  // OG always uses the upscaled static -large.png.
-  let thumb = `/tiles/${rec.tiles.find((t): t is string => t !== null) ?? ""}.gif`;
-
-  const tiles: { x: number; y: number; gif: Uint8Array }[] = [];
-  for (let y = 0; y < rec.rows; y++) {
-    for (let x = 0; x < rec.cols; x++) {
-      const tid = rec.tiles[y * rec.cols + x];
-      if (!tid) continue;
-      const gif = await opts.storage.getBytes(`public/tiles/${tid}.gif`);
-      if (gif) tiles.push({ x, y, gif });
-    }
-  }
-  try {
-    if (multi) {
-      const animated = await stitchCompositeGif(tiles, rec.cols, rec.rows);
-      if (animated) {
-        await opts.storage.put(`public/c/${rec.canvas_id}.gif`, animated, "image/gif", CC_GIF_IMMUTABLE);
-        thumb = `/c/${rec.canvas_id}.gif`;
-      } else {
-        const png = await stitchCompositePng(tiles, rec.cols, rec.rows);
-        await opts.storage.put(`public/c/${rec.canvas_id}.png`, png, "image/png", CC_GIF_IMMUTABLE);
-        thumb = `/c/${rec.canvas_id}.png`;
-      }
-    }
-    const large = await stitchCompositePng(tiles, rec.cols, rec.rows, ogScale(rec.cols, rec.rows));
-    await opts.storage.put(`public/c/${rec.canvas_id}-large.png`, large, "image/png", CC_GIF_IMMUTABLE);
-  } catch (e) {
-    opts.logger?.(`  canvas ${rec.canvas_id}: composite stitch failed: ${(e as Error).message}`);
-  }
-
-  const html = templates.canvasPage({
-    canvas_id: rec.canvas_id,
-    id_short: rec.canvas_id.slice(0, 8),
-    cols: rec.cols,
-    rows: rec.rows,
-    tiles: rec.tiles,
-    author: rec.username ? { username: rec.username } : null,
-    created_at: rec.created_at,
-    preview_url: `/c/${rec.canvas_id}-large.png`,
-    public_base_url: opts.publicBaseUrl,
-    repo_url: repoUrl,
-  });
-  await opts.storage.put(`public/c/${rec.canvas_id}.html`, enc.encode(html), "text/html", CC_HTML);
-
-  // Tile pages (the atom is addressable at /t/<id>).
-  for (const tid of new Set(rec.tiles.filter((t): t is string => t !== null))) {
-    const tileHtml = templates.tilePage({
-      tile_id: tid,
-      id_short: tid.slice(0, 8),
-      created_at: rec.created_at,
-      parent: null,
-      author: rec.username && rec.user_id ? { user_id: rec.user_id, username: rec.username } : null,
-      public_base_url: opts.publicBaseUrl,
-      repo_url: repoUrl,
-    });
-    await opts.storage.put(`public/t/${tid}.html`, enc.encode(tileHtml), "text/html", CC_HTML);
-  }
-
-  return thumb;
-}
-
 async function rebuildRolling(
   opts: BuildOptions,
   templates: Templates,
@@ -704,13 +474,8 @@ async function rebuildRolling(
     (await opts.storage.getBytes(`public/days/${latestDay}/index.jsonl`)) ?? new Uint8Array();
   const latestDrawings = parseJsonl(dec.decode(latestLine));
 
-  // Canvases are rolling (not day-partitioned); merge the recent ones into the
-  // landing "Latest" strip and the feed.
-  const canvasIdx = await loadCanvasIndex(opts);
-  const latest = [
-    ...latestDrawings.map(drawingItem),
-    ...canvasIdx.map(canvasItem),
-  ]
+  const latest = latestDrawings
+    .map(drawingItem)
     .sort(byCreatedDesc)
     .slice(0, PER_PAGE);
 
@@ -732,10 +497,8 @@ async function rebuildRolling(
     allRecent.push(...parseJsonl(dec.decode(body)));
     if (allRecent.length >= 200) break;
   }
-  const recentFeed = [
-    ...allRecent.map(drawingItem),
-    ...canvasIdx.map(canvasItem),
-  ]
+  const recentFeed = allRecent
+    .map(drawingItem)
     .sort(byCreatedDesc)
     .slice(0, 100);
   const feed = templates.feed({

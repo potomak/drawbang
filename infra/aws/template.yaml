@@ -136,7 +136,6 @@ Resources:
           var req = event.request;
           var uri = req.uri;
           // /t/<64hex>                 -> /t/<64hex>.html  (canonical tile page)
-          // /c/<64hex>                 -> /c/<64hex>.html  (canvas page)
           // /days/YYYY-MM-DD/p/N       -> /days/YYYY-MM-DD/p/N.html
           // /gallery                   -> /gallery.html
           // /merch                     -> /merch.html  (catalog picker SPA)
@@ -163,8 +162,6 @@ Resources:
             return req;
           }
           if (/^\/t\/[0-9a-f]{64}$/.test(uri)) {
-            req.uri = uri + ".html";
-          } else if (/^\/c\/[0-9a-f]{64}$/.test(uri)) {
             req.uri = uri + ".html";
           } else if (/^\/days\/\d{4}-\d{2}-\d{2}\/p\/\d+$/.test(uri)) {
             req.uri = uri + ".html";
@@ -422,12 +419,6 @@ Resources:
             ApiId: !Ref IngestApi
             Method: POST
             Path: /ingest
-        CanvasPublish:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref IngestApi
-            Method: POST
-            Path: /canvas
         UserStats:
           Type: HttpApi
           Properties:

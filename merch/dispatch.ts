@@ -1,6 +1,5 @@
 import { decodeGif } from "../src/editor/gif.js";
 import type { Bitmap } from "../src/editor/bitmap.js";
-import { buildCanvasComposite, type CompositeTile } from "../src/canvas-composite.js";
 import type { BrandLogoProvider } from "./brand-logo.js";
 import type { OrdersStore, Order } from "./orders.js";
 import { DEFAULT_PLACEMENT, expandPlacement } from "./placement.js";
@@ -14,11 +13,6 @@ export interface PlacePrintifyOrderDeps {
   printify: PrintifyClient;
   catalog: MerchCatalog;
   fetchDrawing: (drawingId: string) => Promise<Uint8Array | null>;
-  // Resolves a canvas manifest (cols/rows/tiles) for multi-tile orders. The
-  // tiles are then fetched via fetchDrawing (a tile gif IS a drawing gif).
-  fetchCanvasManifest: (
-    canvasId: string,
-  ) => Promise<{ cols: number; rows: number; tiles: (string | null)[] } | null>;
   publicBaseUrl: string;
   // Optional Draw! brand wordmark uploader — used to add the inside-neck
   // logo on the tee (any product whose config carries `brand_decorations`).
@@ -69,40 +63,16 @@ export async function placePrintifyOrder(
     let printifyOrderId = order.printify_order_id;
 
     if (!printifyProductId) {
-      // Resolve the print frame + palette from either a single tile gif or a
-      // multi-tile canvas composite (square, letterboxed via
-      // buildCanvasComposite). Both yield a Bitmap the SVG upscaler handles
-      // identically — the only difference is the source dimension.
       let frame: Bitmap;
       let activePalette: Uint8Array;
-      if (order.canvas_id) {
-        const manifest = await deps.fetchCanvasManifest(order.canvas_id);
-        if (!manifest) throw new Error(`canvas not found: ${order.canvas_id}`);
-        const tiles: CompositeTile[] = [];
-        for (let y = 0; y < manifest.rows; y++) {
-          for (let x = 0; x < manifest.cols; x++) {
-            const tileId = manifest.tiles[y * manifest.cols + x];
-            if (!tileId) continue;
-            const gif = await deps.fetchDrawing(tileId);
-            if (!gif) throw new Error(`canvas tile not found: ${tileId}`);
-            tiles.push({ x, y, gif });
-          }
-        }
-        const composite = buildCanvasComposite(tiles, manifest.cols, manifest.rows);
-        const f = composite.frames[order.frame];
-        if (!f) throw new Error(`frame index out of range: ${order.frame}`);
-        frame = f;
-        activePalette = composite.activePalette;
-      } else {
-        const gifBytes = await deps.fetchDrawing(order.drawing_id);
-        if (!gifBytes) throw new Error(`drawing not found: ${order.drawing_id}`);
-        const decoded = decodeGif(gifBytes);
-        if (!decoded.activePalette) throw new Error("gif missing DRAWBANG palette");
-        const f = decoded.frames[order.frame];
-        if (!f) throw new Error(`frame index out of range: ${order.frame}`);
-        frame = f;
-        activePalette = decoded.activePalette;
-      }
+      const gifBytes = await deps.fetchDrawing(order.drawing_id);
+      if (!gifBytes) throw new Error(`drawing not found: ${order.drawing_id}`);
+      const decoded = decodeGif(gifBytes);
+      if (!decoded.activePalette) throw new Error("gif missing DRAWBANG palette");
+      const f = decoded.frames[order.frame];
+      if (!f) throw new Error(`frame index out of range: ${order.frame}`);
+      frame = f;
+      activePalette = decoded.activePalette;
 
       // Render the print asset as an SVG sized to the largest print-area dim,
       // rounded down to a multiple of the source dimension (16 for a tile,
@@ -116,13 +86,12 @@ export async function placePrintifyOrder(
         ) * dim;
       const svgBytes = upscaleBitmapToSvg(frame, activePalette, { sizePx });
 
-      const filenamePrefix = order.canvas_id ? "drawbang-canvas-" : "drawbang-";
       const image = await deps.printify.uploadImage(
-        `${filenamePrefix}${order.drawing_id}-f${order.frame}.svg`,
+        `drawbang-${order.drawing_id}-f${order.frame}.svg`,
         svgBytes,
       );
 
-      const drawingUrl = `${deps.publicBaseUrl}/${order.canvas_id ? "c" : "t"}/${order.drawing_id}`;
+      const drawingUrl = `${deps.publicBaseUrl}/t/${order.drawing_id}`;
       const positions = product.placeholder_positions ?? ["front"];
       // expandPlacement returns the array of image entries for one
       // placeholder — a single centred entry for the named presets, or
@@ -217,9 +186,7 @@ export async function placePrintifyOrder(
     // counter records exactly one increment per order. Failures are
     // logged but do not flip the order to "failed" — the order itself
     // is already in production at this point.
-    // Canvas orders are skipped here in v1: the /products gallery thumbnails
-    // read /tiles/<drawing_id>.gif, which doesn't exist for a canvas_id.
-    if (submitted && deps.productCounters && !order.canvas_id) {
+    if (submitted && deps.productCounters) {
       try {
         await deps.productCounters.incrementOnSubmit({
           drawing_id: order.drawing_id,

@@ -4,11 +4,8 @@ import {
   INITIAL_STATE,
   POW_CONFIG,
   ageSecondsBetween,
-  contentHash,
-  hashHex,
   requiredBits,
 } from "./pow.js";
-import { canonicalCanvasString, type CanvasManifest } from "../config/canvas.js";
 
 export interface IngestResponse {
   id: string;
@@ -93,106 +90,6 @@ export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
       throw new Error(`ingest rejected: ${res.status} ${msg}`);
     }
     return (await res.json()) as IngestResponse;
-  } finally {
-    worker.terminate();
-  }
-}
-
-// -- Canvas publish (personal multi-tile drawing) ----------------------------
-
-export interface CanvasCellInput {
-  x: number;
-  y: number;
-  gif: Uint8Array;
-}
-
-export interface CanvasPublishResponse {
-  canvas_id: string;
-  tile_ids: string[];
-  share_url: string;
-}
-
-export interface PublishCanvasOptions {
-  canvasUrl: string; // POST /canvas
-  stateUrl: string;
-  cols: number;
-  rows: number;
-  cells: CanvasCellInput[]; // non-empty cells, each an encoded 16×16 gif
-  parent?: string;
-  onPhase?: (phase: "bench" | "solve", detail: string) => void;
-  onProgress?: (p: SolveProgress) => void;
-  signal?: AbortSignal;
-}
-
-export async function publishCanvas(
-  opts: PublishCanvasOptions,
-): Promise<CanvasPublishResponse> {
-  const session = getSession();
-  if (!session) throw new MissingSessionError();
-  if (opts.cells.length === 0) throw new Error("nothing to publish");
-
-  const state = await fetchState(opts.stateUrl);
-  const ageS = Math.max(
-    0,
-    ageSecondsBetween(new Date().toISOString(), state.last_publish_at),
-  );
-  const bits = requiredBits(ageS);
-
-  // Content-address each tile, then build the canonical manifest the PoW + the
-  // server's canvas_id are computed over.
-  const grid: (string | null)[] = Array(opts.cols * opts.rows).fill(null);
-  for (const c of opts.cells) {
-    grid[c.y * opts.cols + c.x] = hashHex(await contentHash(c.gif));
-  }
-  const manifest: CanvasManifest = { cols: opts.cols, rows: opts.rows, tiles: grid };
-  const canonical = new TextEncoder().encode(canonicalCanvasString(manifest));
-
-  opts.onPhase?.("bench", "measuring hash rate");
-  const worker = new Worker(new URL("./pow.worker.ts", import.meta.url), { type: "module" });
-  try {
-    const benchHps = await runWorker<number>(worker, { type: "bench", ms: 200 }, (msg) => {
-      if (msg.type === "benchResult") return msg.hps;
-    });
-    opts.onPhase?.("solve", `${bits} bits, est ${estimateSolveSeconds(bits, benchHps).toFixed(1)}s`);
-    const solved = await runWorker<{ nonce: string; solveMs: number }>(
-      worker,
-      { type: "solve", gif: canonical, baseline: state.last_publish_at, bits },
-      (msg) => {
-        if (msg.type === "progress" && opts.onProgress) opts.onProgress(msg);
-        if (msg.type === "done") return msg;
-        if (msg.type === "error") throw new Error(msg.message);
-      },
-      opts.signal,
-    );
-
-    const res = await fetch(opts.canvasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeader() },
-      body: JSON.stringify({
-        cols: opts.cols,
-        rows: opts.rows,
-        tiles: opts.cells.map((c) => ({ x: c.x, y: c.y, gif: base64(c.gif) })),
-        nonce: solved.nonce,
-        baseline: state.last_publish_at,
-        solve_ms: solved.solveMs,
-        bench_hps: benchHps,
-        parent: opts.parent,
-      }),
-      signal: opts.signal,
-    });
-    if (!res.ok) {
-      const bodyText = await res.text();
-      let parsed: { error?: string } = {};
-      try {
-        parsed = JSON.parse(bodyText);
-      } catch {
-        // Non-JSON body — keep raw text.
-      }
-      const msg = parsed.error ?? bodyText;
-      if (res.status === 401) throw new MissingSessionError();
-      throw new Error(`canvas publish rejected: ${res.status} ${msg}`);
-    }
-    return (await res.json()) as CanvasPublishResponse;
   } finally {
     worker.terminate();
   }

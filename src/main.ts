@@ -38,19 +38,8 @@ import * as local from "./local.js";
 import { isLoggedIn } from "./auth.js";
 import {
   MissingSessionError,
-  publishCanvas,
+  submit,
 } from "./submit.js";
-import {
-  canGrowCols,
-  canGrowRows,
-  createCanvasDoc,
-  filledCells,
-  framesEmpty,
-  getCell,
-  growCols,
-  growRows,
-  setCell,
-} from "./editor/canvas-doc.js";
 import { showFlash } from "./layout/flash.js";
 
 // Native resolution of the main canvas. 16×35 = 560 — matches the v2
@@ -61,17 +50,10 @@ const FRAME_THUMB_PIXEL_SIZE = 5;
 const INGEST_URL = import.meta.env.VITE_INGEST_URL ?? "/ingest";
 const STATE_URL = import.meta.env.VITE_STATE_URL ?? "/state/last-publish.json";
 const DRAWING_BASE_URL = import.meta.env.VITE_DRAWING_BASE_URL ?? "/tiles";
-// Canvas publish shares the same API Gateway as /ingest. Strip the /ingest
-// suffix; in dev INGEST_URL is "/ingest" so this resolves to "" and the URL
-// stays relative for Vite's proxy.
-const CANVAS_PUBLISH_URL = INGEST_URL.replace(/\/ingest$/, "") + "/canvas";
 
 // -- Editor state -----------------------------------------------------------
 
 const state: FrameState = { frames: [new Bitmap()], current: 0 };
-// Multi-tile "canvas" document. The active cell's frames ARE state.frames;
-// other cells live in the doc and swap in/out on navigation.
-let canvasDoc = createCanvasDoc();
 let activePalette: Uint8Array = new Uint8Array(DEFAULT_ACTIVE_PALETTE);
 // RetroPalette.id of the currently-applied palette. Persisted to localStorage and applied
 // on boot + on every editor reset so the user's last pick survives a
@@ -493,8 +475,6 @@ function resetEditor(opts: { keepPublishedId?: boolean } = {}): void {
   stopPlay();
   state.frames = [new Bitmap()];
   state.current = 0;
-  canvasDoc = createCanvasDoc();
-  renderGridNav();
   history.clear();
   localId = null;
   // Re-apply the user's chosen palette on reset — picking a palette is an
@@ -656,31 +636,21 @@ async function handlePublish(): Promise<void> {
     });
   };
   try {
-    // Personal canvas publish (1×1 or larger).
-    saveActiveCell();
-    const cells = filledCells(canvasDoc).map((c) => ({
-      x: c.x,
-      y: c.y,
-      gif: encodeGif({ frames: c.frames, activePalette }),
-    }));
-    if (cells.length === 0) {
-      showFlash({ kind: "error", message: "Draw something before publishing." });
-      return;
-    }
-    const result = await publishCanvas({
-      canvasUrl: CANVAS_PUBLISH_URL,
+    const result = await submit({
+      ingestUrl: INGEST_URL,
       stateUrl: STATE_URL,
-      cols: canvasDoc.cols,
-      rows: canvasDoc.rows,
-      cells,
+      gif: encodeGif({ frames: state.frames, activePalette }),
       parent: parentId ?? undefined,
       onPhase,
       onProgress,
     });
     flashPublished(result.share_url);
-    trackPublishSuccess({ frames: state.frames.length, solve_ms: 0 });
-    setLastPublishedId(null);
-    resetEditor();
+    trackPublishSuccess({ frames: state.frames.length, solve_ms: result.solve_ms });
+    if (localId) {
+      await local.save({ id: localId, frames: state.frames, activePalette, publishedId: result.id });
+    }
+    setLastPublishedId(result.id);
+    resetEditor({ keepPublishedId: true });
   } catch (err) {
     if (err instanceof MissingSessionError) {
       showFlash({ kind: "error", message: "Sign in to publish." });
@@ -701,85 +671,6 @@ function flashPublished(shareUrl: string): void {
   link.target = "_blank";
   link.rel = "noopener";
   showFlash({ kind: "success", message: ["Published: ", link] });
-}
-
-// -- Canvas grid navigator (multi-tile) ------------------------------------
-
-const gridNavEl: HTMLDivElement = (() => {
-  const el = document.createElement("div");
-  el.className = "ed-grid-nav";
-  el.id = "gridNav";
-  const grid = document.querySelector(".ed-grid");
-  grid?.parentElement?.insertBefore(el, grid);
-  return el;
-})();
-
-function saveActiveCell(): void {
-  setCell(canvasDoc, canvasDoc.activeX, canvasDoc.activeY, state.frames);
-}
-
-function switchCell(x: number, y: number): void {
-  if (x === canvasDoc.activeX && y === canvasDoc.activeY) return;
-  saveActiveCell();
-  canvasDoc.activeX = x;
-  canvasDoc.activeY = y;
-  const target = getCell(canvasDoc, x, y);
-  state.frames = target ?? [new Bitmap()];
-  if (!target) setCell(canvasDoc, x, y, state.frames);
-  state.current = 0;
-  history.clear();
-  render();
-  renderGridNav();
-}
-
-function renderGridNav(): void {
-  gridNavEl.hidden = false;
-  saveActiveCell(); // keep the active cell's filled-state current
-  gridNavEl.innerHTML = "";
-
-  const label = document.createElement("span");
-  label.className = "ed-grid-size";
-  label.textContent = `Canvas ${canvasDoc.cols}×${canvasDoc.rows}`;
-  gridNavEl.appendChild(label);
-
-  const grid = document.createElement("div");
-  grid.className = "ed-grid-cells";
-  grid.style.gridTemplateColumns = `repeat(${canvasDoc.cols}, 1fr)`;
-  for (let y = 0; y < canvasDoc.rows; y++) {
-    for (let x = 0; x < canvasDoc.cols; x++) {
-      const cell = document.createElement("button");
-      cell.type = "button";
-      const active = x === canvasDoc.activeX && y === canvasDoc.activeY;
-      const frames = getCell(canvasDoc, x, y);
-      const filled = frames ? !framesEmpty(frames) : false;
-      cell.className =
-        "ed-grid-cell" + (active ? " active" : "") + (filled ? " filled" : "");
-      cell.setAttribute("aria-label", `tile ${x + 1}, ${y + 1}`);
-      cell.addEventListener("click", () => switchCell(x, y));
-      grid.appendChild(cell);
-    }
-  }
-  gridNavEl.appendChild(grid);
-
-  const addCol = document.createElement("button");
-  addCol.type = "button";
-  addCol.className = "btn xs";
-  addCol.textContent = "+ col";
-  addCol.disabled = !canGrowCols(canvasDoc);
-  addCol.addEventListener("click", () => {
-    if (growCols(canvasDoc)) renderGridNav();
-  });
-  gridNavEl.appendChild(addCol);
-
-  const addRow = document.createElement("button");
-  addRow.type = "button";
-  addRow.className = "btn xs";
-  addRow.textContent = "+ row";
-  addRow.disabled = !canGrowRows(canvasDoc);
-  addRow.addEventListener("click", () => {
-    if (growRows(canvasDoc)) renderGridNav();
-  });
-  gridNavEl.appendChild(addRow);
 }
 
 function downloadGif(): void {
@@ -907,25 +798,15 @@ async function boot(): Promise<void> {
 
   if (forkId) {
     try {
-      // A fork id is either a tile (single gif) or a canvas (manifest of
-      // tiles). Probe the canvas manifest first; fall back to the single-tile
-      // path. Both the tile page and the canvas page link /?fork=<id>.
-      const manifest = /^[0-9a-f]{64}$/.test(forkId)
-        ? await fetchCanvasManifest(forkId)
-        : null;
-      if (manifest) {
-        await loadCanvasFork(forkId, manifest);
-      } else {
-        const res = await fetch(`${DRAWING_BASE_URL}/${forkId}.gif`);
-        if (!res.ok) throw new Error(`fork fetch failed: ${res.status}`);
-        const buf = new Uint8Array(await res.arrayBuffer());
-        const decoded = decodeGif(buf);
-        state.frames = decoded.frames;
-        if (decoded.activePalette) activePalette = decoded.activePalette;
-        state.current = 0;
-        parentId = forkId;
-        setLastPublishedId(forkId);
-      }
+      const res = await fetch(`${DRAWING_BASE_URL}/${forkId}.gif`);
+      if (!res.ok) throw new Error(`fork fetch failed: ${res.status}`);
+      const buf = new Uint8Array(await res.arrayBuffer());
+      const decoded = decodeGif(buf);
+      state.frames = decoded.frames;
+      if (decoded.activePalette) activePalette = decoded.activePalette;
+      state.current = 0;
+      parentId = forkId;
+      setLastPublishedId(forkId);
     } catch (err) {
       showFlash({
         kind: "error",
@@ -947,54 +828,6 @@ async function boot(): Promise<void> {
   }
 
   render();
-  renderGridNav();
-}
-
-interface CanvasManifestDoc {
-  cols: number;
-  rows: number;
-  tiles: (string | null)[]; // row-major, length cols*rows; null = empty cell
-}
-
-// Returns the canvas manifest if <id> is a canvas, or null if it's a plain
-// tile (404). Same-origin: /c/<id>.json sits next to the editor on CloudFront.
-async function fetchCanvasManifest(id: string): Promise<CanvasManifestDoc | null> {
-  const res = await fetch(`/c/${id}.json`, { cache: "no-store" });
-  if (!res.ok) return null;
-  return (await res.json()) as CanvasManifestDoc;
-}
-
-// Loads a canvas (its tiles) into the multi-tile editor doc so the user can
-// edit every cell and re-publish. Mirrors the publish set: each non-empty cell
-// becomes a CanvasDoc cell. The editor shares one palette across cells, so we
-// adopt the first tile's palette.
-async function loadCanvasFork(forkId: string, manifest: CanvasManifestDoc): Promise<void> {
-  const doc = createCanvasDoc();
-  doc.cols = manifest.cols;
-  doc.rows = manifest.rows;
-  let palette: Uint8Array | null = null;
-  let firstFilled: { x: number; y: number } | null = null;
-  for (let y = 0; y < manifest.rows; y++) {
-    for (let x = 0; x < manifest.cols; x++) {
-      const tileId = manifest.tiles[y * manifest.cols + x];
-      if (!tileId) continue;
-      const res = await fetch(`${DRAWING_BASE_URL}/${tileId}.gif`);
-      if (!res.ok) throw new Error(`fork tile fetch failed: ${res.status}`);
-      const decoded = decodeGif(new Uint8Array(await res.arrayBuffer()));
-      setCell(doc, x, y, decoded.frames);
-      if (!palette && decoded.activePalette) palette = decoded.activePalette;
-      if (!firstFilled) firstFilled = { x, y };
-    }
-  }
-  if (firstFilled) {
-    doc.activeX = firstFilled.x;
-    doc.activeY = firstFilled.y;
-  }
-  canvasDoc = doc;
-  if (palette) activePalette = palette;
-  state.frames = getCell(doc, doc.activeX, doc.activeY) ?? [new Bitmap()];
-  state.current = 0;
-  parentId = forkId;
 }
 
 void boot();

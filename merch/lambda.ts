@@ -415,10 +415,6 @@ function bootDeps(): MerchHandlerDeps {
       fetchDrawing: async (drawingId) =>
         (await s3.getBytes(`public/tiles/${drawingId}.gif`)) ??
         (await s3.getBytes(`public/drawings/${drawingId}.gif`)),
-      fetchCanvasManifest: (canvasId) =>
-        s3.getJSON<{ cols: number; rows: number; tiles: (string | null)[] }>(
-          `public/c/${canvasId}.json`,
-        ),
       brandLogo,
       productCounters,
     });

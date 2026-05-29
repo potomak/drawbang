@@ -4,10 +4,6 @@ import type {
   Context,
 } from "aws-lambda";
 import { handleIngest, type AuthedUser, type IngestRequest } from "./handler.js";
-import {
-  handleCanvasPublish,
-  type CanvasPublishRequest,
-} from "./canvas-publish-handler.js";
 import { JwtError, verifyJwt } from "./jwt.js";
 import { handleUserStats } from "./user-stats-handler.js";
 import {
@@ -60,9 +56,6 @@ export async function handler(
 
   if (method === "POST" && path === "/ingest") {
     return handleIngestRoute(event);
-  }
-  if (method === "POST" && path === "/canvas") {
-    return handleCanvasPublishRoute(event);
   }
   // /users/{user_id}/stats — per-account streak / total counters (#115/#116).
   if (method === "GET" && /^\/users\/[^\/]+\/stats$/.test(path)) {
@@ -122,27 +115,6 @@ async function handleIngestRoute(
     repoUrl,
     baselineHistory,
     userStatsStore,
-  });
-  return json(result.status, result.body);
-}
-
-async function handleCanvasPublishRoute(
-  event: APIGatewayProxyEventV2,
-): Promise<APIGatewayProxyResultV2> {
-  const auth = extractAuth(event);
-  if (!auth) return json(401, { error: "authentication required" });
-  let body: CanvasPublishRequest;
-  try {
-    body = parseJson(event) as CanvasPublishRequest;
-  } catch {
-    return json(400, { error: "bad json body" });
-  }
-  const result = await handleCanvasPublish(body, {
-    storage,
-    publicBaseUrl,
-    auth,
-    repoUrl,
-    baselineHistory,
   });
   return json(result.status, result.body);
 }
