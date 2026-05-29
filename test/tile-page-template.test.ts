@@ -3,7 +3,7 @@ import { test } from "node:test";
 import renderTilePage, { formatCreatedAt } from "../lib/templates/tile-page.js";
 
 const baseView = {
-  tile_id: "f".repeat(64),
+  drawing_id: "f".repeat(64),
   id_short: "ffffffff",
   created_at: "2026-05-08T04:24:56.088Z",
   parent: null,
@@ -71,17 +71,26 @@ test("tile page: parent link (when present) renders in the meta dl", () => {
   assert.match(html, /<dt>Parent<\/dt><dd><a href="\/d\/c{64}">cccccccc<\/a><\/dd>/);
 });
 
-test("tile page: hidden children placeholders ship on every tile", () => {
-  const html = renderTilePage(baseView);
-  assert.match(html, /<dt id="dr-children-dt" hidden>Children<\/dt>/);
-  assert.match(html, /<dd id="dr-children-dd" hidden><\/dd>/);
+test("tile page: forks rendered server-side when present", () => {
+  const html = renderTilePage({
+    ...baseView,
+    forks: [
+      {
+        id: "c".repeat(64),
+        id_short: "cccccccc",
+        href: `/d/${"c".repeat(64)}`,
+        thumb: `/drawings/${"c".repeat(64)}.gif`,
+        created_at: "2026-05-09T00:00:00.000Z",
+      },
+    ],
+  });
+  assert.match(html, /<p class="panel-h">Forks · 1<\/p>/);
+  assert.match(html, new RegExp(`href="/d/${"c".repeat(64)}"`));
 });
 
-test("tile page: hydration script fetches /tiles/<id>.children.json", () => {
+test("tile page: no forks section when forks is empty/omitted", () => {
   const html = renderTilePage(baseView);
-  assert.match(html, /<script>/);
-  assert.match(html, new RegExp(`"${"f".repeat(64)}"`));
-  assert.match(html, /\/tiles\/' \+ id \+ '\.children\.json/);
+  assert.doesNotMatch(html, /<section class="dr-forks">/);
 });
 
 test("tile page: Copy link is an interactive button, not a self-link", () => {

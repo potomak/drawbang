@@ -19,6 +19,9 @@ import {
 } from "./drawing-store.js";
 import type { MerchCatalog } from "../merch/lambda.js";
 import type { ProductCounter } from "../merch/product-counters.js";
+import type { UserStatsStore } from "./user-stats-store.js";
+import { earnedBadges } from "../config/badges.js";
+import type { OwnerStats } from "../lib/templates/owner.js";
 
 // Render handlers for the dynamic /gallery, /d/<id>, /u/<un>, /feed.rss
 // surfaces. Each returns a complete HTML/XML body plus the cache header
@@ -39,6 +42,10 @@ export interface RenderHandlersConfig {
   // Dev environments without a merch counters table just leave them off.
   productCountersSource?: ProductCountersSource;
   merchCatalog?: MerchCatalog;
+  // Per-account streak + total counters (#115/#116). When set, the profile
+  // page renders the stats block server-side off this store; when absent
+  // (dev/tests) the profile just shows the drawings grid.
+  userStatsStore?: UserStatsStore;
   // Test seam for the recency label on product cards. Defaults to wall-clock.
   now?: () => Date;
 }
@@ -145,7 +152,7 @@ export async function renderDrawingPageHandler(
     limit: cfg.perPage ?? PER_PAGE,
   });
   const body = renderTilePage({
-    tile_id: row.drawing_id,
+    drawing_id: row.drawing_id,
     id_short: row.drawing_id.slice(0, 8),
     created_at: row.created_at,
     parent: row.parent_id
@@ -184,6 +191,9 @@ export async function renderProfilePageHandler(
   const userId = page.items[0].user_id;
   const next = buildFragmentUrl(`/u/${username}/items`, page.next_cursor);
   const items = page.items.map(itemFromRow);
+  const stats = cfg.userStatsStore
+    ? await ownerStatsView(cfg.userStatsStore, userId)
+    : undefined;
   // Wrap renderOwner with a tiny shim: it doesn't know about
   // next_fragment_url today. For Phase 3a we render just the first page
   // — the infinite-scroll behaviour for profiles is plumbed via the
@@ -193,6 +203,7 @@ export async function renderProfilePageHandler(
     username,
     user_id: userId,
     drawings: items,
+    stats,
     repo_url: cfg.repoUrl,
   });
   if (next) body = injectProfileSentinel(body, next);
@@ -219,6 +230,21 @@ export async function renderProfileItemsHandler(
     contentType: "text/html; charset=utf-8",
     cacheControl: CC_PROFILE,
     body: renderGalleryFragment(page.items.map(itemFromRow), next),
+  };
+}
+
+async function ownerStatsView(
+  store: UserStatsStore,
+  user_id: string,
+): Promise<OwnerStats> {
+  const row = await store.get(user_id);
+  const totals = { daily_total: row?.daily_total ?? 0 };
+  const badges = earnedBadges(totals);
+  return {
+    daily_total: totals.daily_total,
+    daily_streak_current: row?.daily_streak_current ?? 0,
+    daily_streak_longest: row?.daily_streak_longest ?? 0,
+    daily_badges: badges.daily,
   };
 }
 
