@@ -29,6 +29,15 @@ const RESERVED_USERNAMES = new Set([
   "gallery", "merch", "products", "canvas", "canvases",
   "tile", "tiles", "identity", "privacy", "share", "feed", "404", "admin",
   "api", "ingest", "state", "drawings", "static", "assets",
+  // Sentinel handle used by scripts/migrate-tiles.ts to bucket every
+  // pre-account-system drawing into /u/anonymous. Also reserved as a
+  // sentinel row in the drawbang-usernames table so the registration
+  // TransactWriteItems condition blocks anyone trying to claim it.
+  "anonymous",
+  // Project name — operator-reserved (with a matching sentinel row in
+  // drawbang-usernames) so no end user can pretend to be an official
+  // Drawbang account.
+  "drawbang",
 ]);
 
 export interface AuthHandlerConfig {
