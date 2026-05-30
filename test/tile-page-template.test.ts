@@ -12,6 +12,7 @@ const baseView = {
     username: "alice",
     avatar_drawing_id: null,
   },
+  like_count: 0,
   public_base_url: "https://pixel.drawbang.com",
   repo_url: "https://github.com/example/drawbang",
 };
@@ -249,4 +250,12 @@ test("tile page: drawing-action behaviour is NOT inlined (lives in /tile-page.js
   assert.doesNotMatch(html, /getElementById\('dr-copy-link'\)/);
   assert.doesNotMatch(html, /navigator\.clipboard\.writeText/);
   assert.doesNotMatch(html, /navigator\.share\(payload\)/);
+});
+
+test("tile page: renders a like button with the SSR count + loads /like.js", () => {
+  const html = renderTilePage({ ...baseView, like_count: 12 });
+  assert.match(html, new RegExp(`data-like-target="${"f".repeat(64)}"`));
+  assert.match(html, /aria-pressed="false"/);
+  assert.match(html, /<span class="like-count" data-like-count>12<\/span>/);
+  assert.match(html, /<script src="\/like\.js"><\/script>/);
 });

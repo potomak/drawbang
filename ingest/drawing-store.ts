@@ -43,6 +43,9 @@ export interface DrawingRow {
   parent_id: string | null;
   frames: number;
   gif_size_bytes: number;
+  // Denormalised likes counter. Maintained by LikesStore via TransactWrite
+  // atop the like/unlike write. Absent on rows pre-dating the likes table.
+  like_count?: number;
 }
 
 export interface DrawingCursor {

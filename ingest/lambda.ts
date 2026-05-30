@@ -19,6 +19,13 @@ import { S3Storage } from "./s3-storage.js";
 import { DynamoUserStatsStore } from "./user-stats-store.js";
 import { DynamoUserStore } from "./user-store.js";
 import { DynamoDrawingStore } from "./drawing-store.js";
+import { DynamoLikesStore } from "./likes-store.js";
+import {
+  handleLike,
+  handleMyLikes,
+  handleUnlike,
+  type LikesHandlerConfig,
+} from "./likes-handler.js";
 import { CloudFrontInvalidator } from "./cache-invalidation.js";
 import { SesEmailSender } from "./email.js";
 import {
@@ -43,6 +50,7 @@ const userStatsTable = required("DRAWBANG_USER_STATS_TABLE");
 const usersTable = required("DRAWBANG_USERS_TABLE");
 const usernamesTable = required("DRAWBANG_USERNAMES_TABLE");
 const drawingsTable = required("DRAWBANG_DRAWINGS_TABLE");
+const likesTable = required("DRAWBANG_LIKES_TABLE");
 // Optional: when unset (e.g. local dev), publish skips CF invalidation —
 // cached pages refresh at s-maxage instead.
 const cfDistributionId = process.env.CF_DISTRIBUTION_ID ?? "";
@@ -62,6 +70,11 @@ const userStatsStore = new DynamoUserStatsStore({
 });
 const userStore = new DynamoUserStore({ usersTable, usernamesTable });
 const drawingStore = new DynamoDrawingStore({ tableName: drawingsTable });
+const likesStore = new DynamoLikesStore({
+  likesTable,
+  drawingsTable,
+});
+const likesConfig: LikesHandlerConfig = { likesStore };
 const cacheInvalidator = cfDistributionId
   ? new CloudFrontInvalidator({ distributionId: cfDistributionId })
   : undefined;
@@ -144,6 +157,17 @@ export async function handler(
   // /users/{user_id}/stats — per-account streak / total counters (#115/#116).
   if (method === "GET" && /^\/users\/[^\/]+\/stats$/.test(path)) {
     return handleUserStatsRoute(event, path);
+  }
+  // /drawings/{id}/like — toggle a like.
+  {
+    const m = path.match(/^\/drawings\/([0-9a-f]{64})\/like$/);
+    if (m && (method === "POST" || method === "DELETE")) {
+      return handleLikesToggleRoute(event, m[1], method);
+    }
+  }
+  // /me/likes?ids=<csv> — return the subset the caller has liked.
+  if (method === "GET" && path === "/me/likes") {
+    return handleMyLikesRoute(event);
   }
   if (method === "POST" && path.startsWith("/auth/")) {
     return handleAuthRoute(event, path);
@@ -246,6 +270,29 @@ function extractAuth(event: APIGatewayProxyEventV2): AuthedUser | null {
     if (e instanceof JwtError) return null;
     throw e;
   }
+}
+
+async function handleLikesToggleRoute(
+  event: APIGatewayProxyEventV2,
+  drawing_id: string,
+  method: "POST" | "DELETE",
+): Promise<APIGatewayProxyResultV2> {
+  const auth = extractAuth(event);
+  if (!auth) return json(401, { error: "authentication required" });
+  const result =
+    method === "POST"
+      ? await handleLike(drawing_id, auth, likesConfig)
+      : await handleUnlike(drawing_id, auth, likesConfig);
+  return jsonWithHeaders(result.status, result.body, result.headers);
+}
+
+async function handleMyLikesRoute(
+  event: APIGatewayProxyEventV2,
+): Promise<APIGatewayProxyResultV2> {
+  const auth = extractAuth(event);
+  if (!auth) return json(401, { error: "authentication required" });
+  const result = await handleMyLikes(queryParam(event, "ids"), auth, likesConfig);
+  return jsonWithHeaders(result.status, result.body, result.headers);
 }
 
 async function handleUserStatsRoute(

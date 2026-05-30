@@ -363,6 +363,29 @@ Resources:
             Compress: true
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          # /drawings/<id>/like (POST + DELETE). Same policy pair as /auth/*
+          # — each request carries its own JWT, so no caching, and we
+          # forward Authorization via AllViewerExceptHostHeader.
+          # The trailing `/like` is required so this pattern doesn't steal
+          # `/drawings/<id>.gif`, which is rewritten to `/tiles/<id>.gif`
+          # by the default behavior's CloudFront Function.
+          - PathPattern: /drawings/*/like
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          # /me/likes?ids=… — per-user fetch of "did I like these?".
+          - PathPattern: /me/likes
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
         # Map S3 misses to the chrome'd /404.html the builder writes. Both
         # codes are routed because OAC returns 403 for keys outside the
         # public/* prefix and 404 for missing keys inside it. Short cache
@@ -529,6 +552,30 @@ Resources:
             - { AttributeName: created_at_ms, KeyType: RANGE }
           Projection: { ProjectionType: ALL }
 
+  # ❤️ likes on drawings. PK=drawing_id, SK=user_id; one row per (drawing,
+  # user) pair. The denormalised like_count attribute lives on DrawingsTable
+  # and is bumped transactionally with the row write/delete here.
+  # GSI1-user inverts the table to (user_id, created_at_ms) for a future
+  # "drawings I liked" feed — KEYS_ONLY since the consumer only needs ids.
+  LikesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: drawbang-likes
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: drawing_id, AttributeType: S }
+        - { AttributeName: user_id, AttributeType: S }
+        - { AttributeName: created_at_ms, AttributeType: N }
+      KeySchema:
+        - { AttributeName: drawing_id, KeyType: HASH }
+        - { AttributeName: user_id, KeyType: RANGE }
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1-user
+          KeySchema:
+            - { AttributeName: user_id, KeyType: HASH }
+            - { AttributeName: created_at_ms, KeyType: RANGE }
+          Projection: { ProjectionType: KEYS_ONLY }
+
   # -- Ingest Lambda + API Gateway --------------------------------------------
 
   IngestFunction:
@@ -549,6 +596,7 @@ Resources:
           DRAWBANG_USERS_TABLE: !Ref UsersTable
           DRAWBANG_USERNAMES_TABLE: !Ref UsernamesTable
           DRAWBANG_DRAWINGS_TABLE: !Ref DrawingsTable
+          DRAWBANG_LIKES_TABLE: !Ref LikesTable
           CF_DISTRIBUTION_ID: !Ref CloudFrontDistributionIdOverride
           JWT_SECRET: !Ref JwtSecret
           SES_FROM_ADDRESS: !Ref SesFromAddress
@@ -560,6 +608,7 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref UsernamesTable }
         - DynamoDBCrudPolicy: { TableName: !Ref DrawingsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref LikesTable }
         # The /products handler queries the merch popularity counters (the
         # MerchFunction is the writer; ingest only reads here).
         - DynamoDBReadPolicy: { TableName: !Ref ProductCountersTable }
@@ -670,6 +719,24 @@ Resources:
             ApiId: !Ref IngestApi
             Method: GET
             Path: /products/p/{page}
+        LikeCreate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: POST
+            Path: /drawings/{id}/like
+        LikeDelete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: DELETE
+            Path: /drawings/{id}/like
+        MyLikes:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /me/likes
 
   IngestApi:
     Type: AWS::Serverless::HttpApi
@@ -683,7 +750,7 @@ Resources:
         AllowOrigins:
           - !Sub "https://${DomainName}"
           - "*"
-        AllowMethods: [GET, POST, OPTIONS]
+        AllowMethods: [GET, POST, DELETE, OPTIONS]
         AllowHeaders: [content-type, authorization]
         MaxAge: 3600
 

@@ -55,6 +55,7 @@ that gated it is replaced by login.
   /gallery, /d/<id>, /u/<username>, /feed.rss →  Lambda render handlers
   /products, /products/p/<N>                  →     (same Lambda)
   POST /ingest, POST /auth/*                  →     (same Lambda)
+  POST|DELETE /drawings/<id>/like, /me/likes  →     (same Lambda)
   POST /merch/*, GET /merch/order/{id}        →  Separate merch Lambda
 ```
 
@@ -97,6 +98,15 @@ asset, new tracking script) must consider every entry below.
 | `/password/reset`              | `password-reset.html` + `src/password-reset.ts`   | Auth (Vite) |
 | `/account`                     | `account.html` + `src/account.ts`                 | Logged-in account (Vite) |
 | `/privacy`                     | `privacy.html` + `src/privacy.ts`                 | Static-ish (Vite) |
+
+Auth-gated JSON endpoints (Bearer JWT in `Authorization` header, no caching at the edge):
+
+| URL                            | Method        | Handler |
+|--------------------------------|---------------|---------|
+| `/drawings/<id>/like`          | POST / DELETE | `ingest/likes-handler.ts` — toggle a like. |
+| `/me/likes?ids=<csv>`          | GET           | `ingest/likes-handler.ts` — subset of the supplied ids the caller has liked. |
+| `/auth/*`                      | POST          | `ingest/auth-handler.ts` (register/login/forgot/reset/avatar). |
+| `/users/<user_id>/stats`       | GET           | `ingest/user-stats-handler.ts` — public, but on a short max-age. |
 
 Every page that renders the chrome ships a fixed-position **FAB** ("+")
 linking to `/draw` so the editor is always one tap away. Vite pages opt
@@ -161,7 +171,7 @@ across them.**
 |----------------------------|-------------------------------------------------------------------|--------------------------------------------------------|
 | `static/chrome.css`        | Design tokens (`:root`), base body/typography, header (`.hdr`+nav), footer (`.ftr`), `main` slot, page chrome (`.page-title`, `.divider`, ...), base `.btn` + `.primary` + `.ghost` + `.btn[hidden]`. Flash slot. | Both — `src/style.css` and `static/gallery-v2.css` each `@import url("/chrome.css")` at the top. |
 | `src/style.css`            | Editor-surface extensions to the base reset (touch-first `user-select: none`, etc.), `.canvas-banner`, `.btn` variants (`.icon`/`.sm`/`.xs`/`[disabled]`/...), and every Vite-served page (editor `.ed-*`, merch `.mc-*`, order, identity). | Vite-served pages only.                                |
-| `static/gallery-v2.css`    | Lambda-rendered classes: `.img-grid`, `.dr-*`, `.pr-*`, `.ow-*`, `.mono-trunc`, `img.avatar`.  | Lambda templates (`/gallery-v2.css` link tag).         |
+| `static/gallery-v2.css`    | Lambda-rendered classes: `.img-grid`, `.dr-*`, `.pr-*`, `.ow-*`, `.feed-card-*`, `.like-btn`, `.mono-trunc`, `img.avatar`.  | Lambda templates (`/gallery-v2.css` link tag).         |
 
 Rule of thumb when adding a class:
 1. If `src/layout/chrome.ts` renders it → `chrome.css`.
@@ -220,9 +230,20 @@ ingest/               Lambda + dev-server: ingest, render, auth
   user-stats-store.ts DDB wrapper for per-account streak + total counters
                       (#115/#116) + MemoryUserStatsStore for dev/tests.
   user-stats-handler.ts GET /users/{user_id}/stats — fresh counters + badges.
+  likes-store.ts      DDB wrapper for the drawbang-likes table (PK=drawing_id,
+                      SK=user_id; GSI1-user inverts for a future "drawings
+                      I liked" feed). like/unlike use TransactWriteItems
+                      across this table + DrawingsTable so the denormalised
+                      `like_count` on DrawingRow stays consistent. Memory
+                      variant for dev/tests; AlreadyLikedError /
+                      NotLikedError / DrawingNotFoundError surface as 409/404.
+  likes-handler.ts    POST /drawings/{id}/like, DELETE /drawings/{id}/like,
+                      GET /me/likes?ids=<csv>.
   cache-invalidation.ts CloudFrontInvalidator + path generators
                       (pathsToInvalidateOnPublish, …OnAvatarChange).
-                      NoopInvalidator for tests.
+                      NoopInvalidator for tests. Likes deliberately do NOT
+                      invalidate — counts catch up at the next s-maxage
+                      expiry (5 min on / and /d/<id>).
   jwt.ts              HS256 sign/verify (Node crypto, no dep) for sessions
                       + reset.
   password.ts         scrypt hash/verify.
@@ -235,8 +256,9 @@ ingest/               Lambda + dev-server: ingest, render, auth
   s3-storage.ts       S3Storage (Lambda + scripts).
   lambda.ts           API Gateway v2 entry point — routes /ingest,
                       /gallery*, /d/*, /u/*, /feed.rss, /products*,
-                      /users/{id}/stats, /auth/*. Verifies the Bearer
-                      JWT for /ingest + /auth/avatar.
+                      /users/{id}/stats, /auth/*, /drawings/{id}/like
+                      (POST + DELETE), /me/likes. Verifies the Bearer JWT
+                      for /ingest, /auth/avatar, and every likes route.
   dev-server.ts       Node HTTP shim for `npm run ingest:dev` —
                       Memory* stores + ConsoleEmailSender (reset link
                       logged). Mirrors lambda.ts route table.
@@ -279,6 +301,11 @@ static/               Plain JS + CSS shipped as edge assets
   chrome-toggle.js    Hamburger toggle for narrow viewports.
   tile-page.js        Drawing-page client behaviour (avatar, copy-link,
                       Web Share, GA tracking).
+  like.js             Heart-button wirer for feed cards + /d/<id>: batch
+                      GET /me/likes for filled state, optimistic POST/DELETE
+                      /drawings/<id>/like, redirect to /login on no/expired
+                      session. MutationObserver picks up infinite-scroll
+                      appends without coupling to the feed observer.
   og-logo.png         OG fallback image.
 
 vite/plugins/
@@ -401,6 +428,8 @@ Lambda (runtime, set via SAM):
 - `DRAWBANG_DRAWINGS_TABLE` — DDB source of truth for the dynamic
   gallery / drawing / profile / forks routes (default
   `drawbang-drawings`).
+- `DRAWBANG_LIKES_TABLE` — DDB table for ❤️ likes (default
+  `drawbang-likes`).
 - `DRAWBANG_PRODUCT_COUNTERS_TABLE` — feeds `/products` (default
   `drawbang-product-counters`).
 - `CF_DISTRIBUTION_ID` — CloudFront distribution id for publish-time

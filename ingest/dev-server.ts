@@ -5,6 +5,13 @@ import { handleIngest } from "./handler.js";
 import { FsStorage } from "./storage.js";
 import { MemoryUserStore } from "./user-store.js";
 import { MemoryDrawingStore } from "./drawing-store.js";
+import { MemoryLikesStore } from "./likes-store.js";
+import {
+  handleLike,
+  handleMyLikes,
+  handleUnlike,
+  type LikesHandlerConfig,
+} from "./likes-handler.js";
 import { ConsoleEmailSender } from "./email.js";
 import { JwtError, verifyJwt } from "./jwt.js";
 import type { AuthedUser } from "./handler.js";
@@ -38,6 +45,8 @@ const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret";
 const storage = new FsStorage(ROOT);
 const drawingStore = new MemoryDrawingStore();
 const userStore = new MemoryUserStore();
+const likesStore = new MemoryLikesStore(drawingStore);
+const likesConfig: LikesHandlerConfig = { likesStore };
 const renderConfig: RenderHandlersConfig = {
   drawingStore,
   publicBaseUrl: PUBLIC_BASE,
@@ -127,6 +136,36 @@ const server = http.createServer(async (req, res) => {
           "Cache-Control": rendered.cacheControl,
         });
         res.end(rendered.body);
+        return;
+      }
+    }
+
+    // /drawings/{id}/like (POST + DELETE) — toggle a like.
+    if (req.url) {
+      const u = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
+      const likeMatch = u.pathname.match(/^\/drawings\/([0-9a-f]{64})\/like$/);
+      if (likeMatch && (req.method === "POST" || req.method === "DELETE")) {
+        const auth = extractAuth(req);
+        if (!auth) {
+          json(res, 401, { error: "authentication required" });
+          return;
+        }
+        const result =
+          req.method === "POST"
+            ? await handleLike(likeMatch[1], auth, likesConfig)
+            : await handleUnlike(likeMatch[1], auth, likesConfig);
+        jsonWithHeaders(res, result.status, result.body, result.headers);
+        return;
+      }
+      if (req.method === "GET" && u.pathname === "/me/likes") {
+        const auth = extractAuth(req);
+        if (!auth) {
+          json(res, 401, { error: "authentication required" });
+          return;
+        }
+        const ids = u.searchParams.get("ids");
+        const result = await handleMyLikes(ids, auth, likesConfig);
+        jsonWithHeaders(res, result.status, result.body, result.headers);
         return;
       }
     }

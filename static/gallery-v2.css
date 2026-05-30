@@ -68,7 +68,9 @@
 }
 .feed-card-meta {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   font-size: var(--t-xs);
 }
 .feed-card-permalink {
@@ -76,6 +78,40 @@
   text-decoration: none;
 }
 .feed-card-permalink:hover { color: var(--accent); text-decoration: underline; }
+
+/* =====================================================================
+   Like button — shared by feed cards + drawing detail. Outline by default;
+   filled (red) when aria-pressed="true". Lives here because both surfaces
+   are Lambda-rendered.
+   ===================================================================== */
+.like-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 0;
+  padding: 6px;
+  margin: 0;
+  color: var(--fg-muted);
+  font: inherit;
+  cursor: pointer;
+  line-height: 1;
+  border-radius: 4px;
+  transition: color 80ms, transform 80ms;
+}
+.like-btn:hover { color: var(--accent); }
+.like-btn:active { transform: translate(1px, 1px); }
+.like-btn:disabled { cursor: progress; opacity: 0.6; }
+.like-btn .like-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.like-btn[aria-pressed="true"] { color: #e0245e; }
+.like-btn[aria-pressed="true"] .like-icon { fill: currentColor; stroke: currentColor; }
+.like-count { font-variant-numeric: tabular-nums; }
 .feed-sentinel {
   display: block;
   height: 1px;

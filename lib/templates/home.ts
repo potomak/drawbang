@@ -21,6 +21,7 @@ export interface FeedItem {
   thumb: string;         // /tiles/<id>.gif
   href: string;          // /d/<id>
   created_at: string;    // ISO 8601
+  like_count: number;    // SSR initial value; client hydrates filled state
   // null for legacy "anonymous" rows that predate accounts. Render the
   // card without a profile link in that case.
   author: FeedAuthor | null;
@@ -48,9 +49,20 @@ export function renderFeedCard(item: FeedItem): string {
     <img src="${esc(item.thumb)}" alt="" width="256" height="256" loading="lazy" />
   </a>
   <footer class="feed-card-meta">
+    ${renderLikeButton(item.id, item.like_count)}
     <a class="feed-card-permalink" href="${esc(item.href)}">View</a>
   </footer>
 </article></li>`;
+}
+
+// Heart button shared by the feed cards + the drawing page. Filled state is
+// hydrated client-side by `/like.js` against `GET /me/likes?ids=…`; the
+// initial SSR markup is always the outline state with the canonical count.
+export function renderLikeButton(drawing_id: string, like_count: number): string {
+  return `<button class="like-btn" type="button" data-like-target="${esc(drawing_id)}" aria-pressed="false" aria-label="Like this drawing">
+      <svg class="like-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 21s-7-4.35-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 11c0 5.65-7 10-7 10z"/></svg>
+      <span class="like-count" data-like-count>${like_count}</span>
+    </button>`;
 }
 
 // Items-only render (no chrome). Used by /feed/items?cursor=… so the
@@ -96,7 +108,8 @@ ${cards}${v.next_fragment_url ? `
 ${body}
     </main>
     ${renderFooter({ active: "home", repoUrl: v.repo_url })}
-${observerScript}  </body>
+${observerScript}    <script src="/like.js"></script>
+  </body>
 </html>
 `;
 }

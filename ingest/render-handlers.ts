@@ -68,15 +68,13 @@ export interface RenderResponse {
 }
 
 // Cache headers. CloudFront's `s-maxage` controls edge cache; the per-row
-// `max-age` controls browser cache. Gallery + profile are mutable and ride
-// a short edge cache + stale-while-revalidate that the publish path
-// invalidates on write. Drawing pages get the same edge TTL so a freshly-
-// set avatar propagates within a day (the gif itself is content-addressed
-// and immutable). The 5-minute browser max-age trades a slight refresh lag
-// for fewer origin trips when users open multiple of their own drawings
-// back-to-back.
-const CC_GALLERY = "public, s-maxage=86400, stale-while-revalidate=60";
-const CC_DRAWING_PAGE = "public, max-age=300, s-maxage=86400, stale-while-revalidate=60";
+// `max-age` controls browser cache. Profile rides a long edge cache that
+// the publish + avatar paths invalidate on write. Feed home (/) and the
+// per-drawing page carry a short edge TTL so stale like counts refresh
+// within minutes instead of a day — the liker sees their own change
+// instantly via optimistic JS, but non-likers depend on the next miss.
+const CC_GALLERY = "public, s-maxage=300, stale-while-revalidate=60";
+const CC_DRAWING_PAGE = "public, max-age=60, s-maxage=300, stale-while-revalidate=60";
 const CC_PROFILE = "public, s-maxage=86400, stale-while-revalidate=60";
 const CC_FEED = "public, s-maxage=3600";
 const CC_NOT_FOUND = "public, max-age=60";
@@ -136,6 +134,7 @@ async function loadFeedItems(
     href: `/d/${r.drawing_id}`,
     thumb: `/tiles/${r.drawing_id}.gif`,
     created_at: r.created_at,
+    like_count: r.like_count ?? 0,
     author:
       r.username === "anonymous"
         ? null
@@ -259,6 +258,7 @@ export async function renderDrawingPageHandler(
       avatar_drawing_id: authorAccount?.avatar_drawing_id ?? null,
     },
     forks: forks.items.map(itemFromRow),
+    like_count: row.like_count ?? 0,
     public_base_url: cfg.publicBaseUrl,
     repo_url: cfg.repoUrl,
   });

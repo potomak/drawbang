@@ -23,6 +23,7 @@ function row(overrides: Partial<DrawingRow> = {}): DrawingRow {
     parent_id: overrides.parent_id ?? null,
     frames: overrides.frames ?? 1,
     gif_size_bytes: overrides.gif_size_bytes ?? 1234,
+    like_count: overrides.like_count,
   };
 }
 
@@ -81,6 +82,22 @@ describe("renderHomePageHandler", () => {
     assert.match(res.body, /feed-card-author-anon[^"]*">anonymous/);
     assert.doesNotMatch(res.body, /href="\/u\/anonymous"/);
   });
+
+  test("like_count from the row is surfaced as the SSR count", async () => {
+    const { store, cfg } = makeConfig();
+    const id = "a".repeat(64);
+    await store.put(row({ drawing_id: id, like_count: 42 }));
+    const res = await renderHomePageHandler(cfg, null);
+    assert.match(res.body, new RegExp(`data-like-target="${id}"`));
+    assert.match(res.body, /<span class="like-count" data-like-count>42<\/span>/);
+  });
+
+  test("rows without a like_count attribute default to 0 in the SSR markup", async () => {
+    const { store, cfg } = makeConfig();
+    await store.put(row({ drawing_id: "a".repeat(64) }));
+    const res = await renderHomePageHandler(cfg, null);
+    assert.match(res.body, /<span class="like-count" data-like-count>0<\/span>/);
+  });
 });
 
 describe("renderFeedItemsHandler (fragment endpoint)", () => {
@@ -121,6 +138,16 @@ describe("renderDrawingPageHandler", () => {
     const { cfg } = makeConfig();
     const res = await renderDrawingPageHandler(cfg, "not-hex");
     assert.equal(res.status, 404);
+  });
+
+  test("renders the like button with the row's like_count", async () => {
+    const { store, cfg } = makeConfig();
+    const id = "a".repeat(64);
+    await store.put(row({ drawing_id: id, like_count: 9 }));
+    const res = await renderDrawingPageHandler(cfg, id);
+    assert.equal(res.status, 200);
+    assert.match(res.body, new RegExp(`data-like-target="${id}"`));
+    assert.match(res.body, /<span class="like-count" data-like-count>9<\/span>/);
   });
 
   test("renders a drawing with author + parent + forks", async () => {

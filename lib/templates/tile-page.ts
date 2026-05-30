@@ -3,6 +3,7 @@ import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
 import type { GalleryItem } from "./gallery.js";
 import { renderItem } from "./gallery.js";
+import { renderLikeButton } from "./home.js";
 import { renderAvatar } from "./owner.js";
 
 // /d/<drawing_id> — the canonical page for a single drawing. Content-
@@ -30,6 +31,8 @@ export interface TilePageView {
   // available. The dynamic /d/<id> handler queries GSI3 and passes the
   // results here.
   forks?: GalleryItem[];
+  // SSR initial like count. Filled state is hydrated by /like.js.
+  like_count: number;
   public_base_url: string;
   repo_url: string;
 }
@@ -111,6 +114,7 @@ ${forks.map(renderItem).join("\n")}
           </dl>
           <div class="dr-actions">
             <div class="dr-action-row">
+              ${renderLikeButton(v.drawing_id, v.like_count)}
               <a class="btn primary" id="dr-make-merch" href="/merch?d=${esc(v.drawing_id)}&amp;frame=0" rel="nofollow noreferrer">Make merch</a>
               <a class="btn" id="dr-fork" href="/draw?fork=${esc(v.drawing_id)}">Fork &amp; edit</a>
               <button class="btn" id="dr-set-avatar" type="button" hidden>Set as avatar</button>
@@ -131,6 +135,7 @@ ${forksSection}
     ${renderFooter({ active: "home", repoUrl: v.repo_url })}
     <script src="/flash.js"></script>
     <script src="/tile-page.js"></script>
+    <script src="/like.js"></script>
   </body>
 </html>
 `;

@@ -21,6 +21,7 @@ function item(overrides: Partial<FeedItem> = {}): FeedItem {
     href: overrides.href ?? `/d/${id}`,
     thumb: overrides.thumb ?? `/tiles/${id}.gif`,
     created_at: overrides.created_at ?? "2026-05-01T12:00:00.000Z",
+    like_count: overrides.like_count ?? 0,
     author,
   };
 }
@@ -103,6 +104,22 @@ describe("renderFeedCard", () => {
     const id = "f".repeat(64);
     const html = renderFeedCard(item({ id }));
     assert.match(html, new RegExp(`<a class="feed-card-art" href="/d/${id}"`));
+  });
+
+  test("renders a like button with the SSR count + data-like-target", () => {
+    const id = "c".repeat(64);
+    const html = renderFeedCard(item({ id, like_count: 7 }));
+    assert.match(html, new RegExp(`data-like-target="${id}"`));
+    assert.match(html, /aria-pressed="false"/);
+    assert.match(html, /<span class="like-count" data-like-count>7<\/span>/);
+  });
+
+  test("renderHome loads /like.js so the buttons get wired", () => {
+    const html = renderHome({
+      items: [item()],
+      repo_url: "https://github.com/test/test",
+    });
+    assert.match(html, /<script src="\/like\.js"><\/script>/);
   });
 });
 
