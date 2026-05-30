@@ -114,12 +114,48 @@ describe("renderFeedCard", () => {
     assert.match(html, /<span class="like-count" data-like-count>7<\/span>/);
   });
 
-  test("renderHome loads /like.js so the buttons get wired", () => {
+  test("renders a Fork action linking to /draw?fork=<id>", () => {
+    const id = "c".repeat(64);
+    const html = renderFeedCard(item({ id }));
+    assert.match(html, new RegExp(`<a class="feed-action" href="/draw\\?fork=${id}"`));
+    assert.match(html, />Fork<\/span>/);
+  });
+
+  test("renders a Share button with data-share-button + path target", () => {
+    const id = "c".repeat(64);
+    const html = renderFeedCard(item({ id, id_short: id.slice(0, 8) }));
+    assert.match(html, /data-share-button/);
+    assert.match(html, new RegExp(`data-share-target="/d/${id}"`));
+    assert.match(html, />Share<\/span>/);
+  });
+
+  test("View permalink is gone (the image is the click target now)", () => {
+    const html = renderFeedCard(item());
+    assert.doesNotMatch(html, /feed-card-permalink/);
+    assert.doesNotMatch(html, />View<\/a>/);
+  });
+
+  test("layout is horizontal: profile column + main column siblings", () => {
+    const html = renderFeedCard(item());
+    assert.match(html, /<div class="feed-card-author">/);
+    assert.match(html, /<div class="feed-card-main">/);
+  });
+
+  test("drawing has no rectangle around it (no border-ish wrapper class kept)", () => {
+    const html = renderFeedCard(item());
+    // The container exists for the link semantics but the old border-only
+    // .feed-card-meta wrapper is gone — actions live in feed-card-actions.
+    assert.doesNotMatch(html, /class="feed-card-meta"/);
+    assert.match(html, /<div class="feed-card-actions">/);
+  });
+
+  test("renderHome loads /like.js and /share.js so the buttons get wired", () => {
     const html = renderHome({
       items: [item()],
       repo_url: "https://github.com/test/test",
     });
     assert.match(html, /<script src="\/like\.js"><\/script>/);
+    assert.match(html, /<script src="\/share\.js"><\/script>/);
   });
 });
 

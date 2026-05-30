@@ -12,12 +12,13 @@
    ===================================================================== */
 
 /* =====================================================================
-   FEED HOME (/) — vertical card list, mobile-first, single column
+   FEED HOME (/) — vertical list of horizontal-layout cards. The card
+   itself has NO border or background; a single bottom divider separates
+   rows. The drawing image is also borderless.
    ===================================================================== */
 .feed-list {
   display: flex;
   flex-direction: column;
-  gap: 20px;
   max-width: 600px;
   margin: 0 auto;
   padding: 0 12px 96px;
@@ -26,16 +27,21 @@
 .feed-list > li { display: block; }
 .feed-card {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  border: var(--border) solid var(--border-c);
-  background: var(--bg-elev);
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px 4px;
+  border: 0;
+  background: transparent;
+  border-bottom: var(--border) solid var(--border-c);
 }
+.feed-list > li:last-child .feed-card { border-bottom: 0; }
 .feed-card-author {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  flex: 0 0 140px;
+  min-width: 0;
   font-size: var(--t-sm);
 }
 .feed-card-author-link {
@@ -44,73 +50,90 @@
   gap: 8px;
   color: var(--fg);
   text-decoration: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .feed-card-author-link:hover { color: var(--accent); }
-.feed-card-author-link img.avatar { margin-right: 0; }
+.feed-card-author-link img.avatar { margin-right: 0; flex: 0 0 auto; }
+.feed-card-author-link > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .feed-card-author-anon { color: var(--fg-muted); }
 .feed-card-time {
   color: var(--fg-muted);
   font-size: var(--t-xs);
 }
+.feed-card-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 .feed-card-art {
   display: block;
-  aspect-ratio: 1;
-  background: var(--canvas-bg);
-  border: var(--border) solid var(--border-c);
+  border: 0;
+  background: transparent;
+  text-decoration: none;
 }
 .feed-card-art img {
   display: block;
   width: 100%;
-  height: 100%;
-  object-fit: contain;
+  max-width: 320px;
+  height: auto;
   image-rendering: crisp-edges;
   image-rendering: pixelated;
 }
-.feed-card-meta {
+.feed-card-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: var(--t-xs);
+  gap: 4px;
+  flex-wrap: wrap;
 }
-.feed-card-permalink {
-  color: var(--fg-muted);
-  text-decoration: none;
-}
-.feed-card-permalink:hover { color: var(--accent); text-decoration: underline; }
 
 /* =====================================================================
-   Like button — shared by feed cards + drawing detail. Outline by default;
-   filled (red) when aria-pressed="true". Lives here because both surfaces
-   are Lambda-rendered.
+   Shared action icon-buttons on Lambda-rendered surfaces. Outline by
+   default; the Like variant fills (red) when aria-pressed="true".
    ===================================================================== */
-.like-btn {
+.feed-action {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   background: transparent;
   border: 0;
-  padding: 6px;
+  padding: 6px 8px;
   margin: 0;
   color: var(--fg-muted);
   font: inherit;
+  font-size: var(--t-sm);
   cursor: pointer;
   line-height: 1;
+  text-decoration: none;
   border-radius: 4px;
   transition: color 80ms, transform 80ms;
 }
-.like-btn:hover { color: var(--accent); }
-.like-btn:active { transform: translate(1px, 1px); }
-.like-btn:disabled { cursor: progress; opacity: 0.6; }
-.like-btn .like-icon {
+.feed-action:hover { color: var(--accent); text-decoration: none; }
+.feed-action:active { transform: translate(1px, 1px); }
+.feed-action:disabled { cursor: progress; opacity: 0.6; }
+.feed-action svg {
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
   stroke-linejoin: round;
   stroke-linecap: round;
+  display: block;
+  flex: 0 0 auto;
 }
+/* Like button: same base, but filled when pressed. Standalone .like-btn
+   still works on the tile-page (which doesn't ship .feed-action's
+   `font-size: var(--t-sm)` distinction). */
+.like-btn { color: var(--fg-muted); cursor: pointer; }
+.like-btn:hover { color: var(--accent); }
 .like-btn[aria-pressed="true"] { color: #e0245e; }
-.like-btn[aria-pressed="true"] .like-icon { fill: currentColor; stroke: currentColor; }
+.like-btn[aria-pressed="true"] .like-icon { fill: currentColor; }
 .like-count { font-variant-numeric: tabular-nums; }
 .feed-sentinel {
   display: block;

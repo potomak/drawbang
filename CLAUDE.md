@@ -171,7 +171,7 @@ across them.**
 |----------------------------|-------------------------------------------------------------------|--------------------------------------------------------|
 | `static/chrome.css`        | Design tokens (`:root`), base body/typography, header (`.hdr`+nav), footer (`.ftr`), `main` slot, page chrome (`.page-title`, `.divider`, ...), base `.btn` + `.primary` + `.ghost` + `.btn[hidden]`. Flash slot. | Both — `src/style.css` and `static/gallery-v2.css` each `@import url("/chrome.css")` at the top. |
 | `src/style.css`            | Editor-surface extensions to the base reset (touch-first `user-select: none`, etc.), `.canvas-banner`, `.btn` variants (`.icon`/`.sm`/`.xs`/`[disabled]`/...), and every Vite-served page (editor `.ed-*`, merch `.mc-*`, order, identity). | Vite-served pages only.                                |
-| `static/gallery-v2.css`    | Lambda-rendered classes: `.img-grid`, `.dr-*`, `.pr-*`, `.ow-*`, `.feed-card-*`, `.like-btn`, `.mono-trunc`, `img.avatar`.  | Lambda templates (`/gallery-v2.css` link tag).         |
+| `static/gallery-v2.css`    | Lambda-rendered classes: `.img-grid`, `.dr-*`, `.pr-*`, `.ow-*`, `.feed-card-*`, `.feed-action`, `.like-btn`, `.mono-trunc`, `img.avatar`.  | Lambda templates (`/gallery-v2.css` link tag).         |
 
 Rule of thumb when adding a class:
 1. If `src/layout/chrome.ts` renders it → `chrome.css`.
@@ -306,6 +306,9 @@ static/               Plain JS + CSS shipped as edge assets
                       /drawings/<id>/like, redirect to /login on no/expired
                       session. MutationObserver picks up infinite-scroll
                       appends without coupling to the feed observer.
+  share.js            Web Share wirer for `[data-share-button]` controls
+                      on the feed. navigator.share when supported, falls
+                      back to clipboard copy + flash. Loaded by home.ts.
   og-logo.png         OG fallback image.
 
 vite/plugins/

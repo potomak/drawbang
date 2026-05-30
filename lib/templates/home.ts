@@ -36,22 +36,25 @@ export interface HomeView {
 }
 
 export function renderFeedCard(item: FeedItem): string {
-  const authorBlock = item.author
+  const authorInner = item.author
     ? `<a class="feed-card-author-link" href="/u/${esc(item.author.username)}">${renderAvatar(item.author.avatar_drawing_id, item.author.username, 36)}<span>@${esc(item.author.username)}</span></a>`
     : `<span class="feed-card-author-link feed-card-author-anon">anonymous</span>`;
   const date = formatItemDate(item.created_at);
   return `<li><article class="feed-card">
-  <header class="feed-card-author">
-    ${authorBlock}
+  <div class="feed-card-author">
+    ${authorInner}
     <time class="feed-card-time" datetime="${esc(item.created_at)}">${esc(date)}</time>
-  </header>
-  <a class="feed-card-art" href="${esc(item.href)}" aria-label="View drawing ${esc(item.id_short)}">
-    <img src="${esc(item.thumb)}" alt="" width="256" height="256" loading="lazy" />
-  </a>
-  <footer class="feed-card-meta">
-    ${renderLikeButton(item.id, item.like_count)}
-    <a class="feed-card-permalink" href="${esc(item.href)}">View</a>
-  </footer>
+  </div>
+  <div class="feed-card-main">
+    <a class="feed-card-art" href="${esc(item.href)}" aria-label="Open drawing ${esc(item.id_short)}">
+      <img src="${esc(item.thumb)}" alt="" width="256" height="256" loading="lazy" />
+    </a>
+    <div class="feed-card-actions">
+      ${renderLikeButton(item.id, item.like_count)}
+      ${renderForkAction(item.id)}
+      ${renderShareAction(item.id, item.id_short)}
+    </div>
+  </div>
 </article></li>`;
 }
 
@@ -59,9 +62,24 @@ export function renderFeedCard(item: FeedItem): string {
 // hydrated client-side by `/like.js` against `GET /me/likes?ids=…`; the
 // initial SSR markup is always the outline state with the canonical count.
 export function renderLikeButton(drawing_id: string, like_count: number): string {
-  return `<button class="like-btn" type="button" data-like-target="${esc(drawing_id)}" aria-pressed="false" aria-label="Like this drawing">
+  return `<button class="like-btn feed-action" type="button" data-like-target="${esc(drawing_id)}" aria-pressed="false" aria-label="Like this drawing">
       <svg class="like-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 21s-7-4.35-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 11c0 5.65-7 10-7 10z"/></svg>
       <span class="like-count" data-like-count>${like_count}</span>
+    </button>`;
+}
+
+function renderForkAction(drawing_id: string): string {
+  return `<a class="feed-action" href="/draw?fork=${esc(drawing_id)}" aria-label="Fork and edit">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="7" cy="5" r="2"/><circle cx="17" cy="5" r="2"/><circle cx="12" cy="19" r="2"/><path d="M7 7v3c0 1.1 .9 2 2 2h6c1.1 0 2-.9 2-2V7"/><path d="M12 12v5"/></svg>
+      <span>Fork</span>
+    </a>`;
+}
+
+function renderShareAction(drawing_id: string, id_short: string): string {
+  const title = `Pixel art from Draw! · Tile ID ${id_short}`;
+  return `<button class="feed-action" type="button" data-share-button data-share-target="/d/${esc(drawing_id)}" data-share-title="${esc(title)}" aria-label="Share drawing">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3v13"/><path d="M7 8l5-5 5 5"/><path d="M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/></svg>
+      <span>Share</span>
     </button>`;
 }
 
@@ -109,6 +127,7 @@ ${body}
     </main>
     ${renderFooter({ active: "home", repoUrl: v.repo_url })}
 ${observerScript}    <script src="/like.js"></script>
+    <script src="/share.js"></script>
   </body>
 </html>
 `;
