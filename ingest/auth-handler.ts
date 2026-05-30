@@ -11,7 +11,7 @@ import {
 import type { EmailSender } from "./email.js";
 import type { DrawingStore } from "./drawing-store.js";
 import {
-  pathsToInvalidateOnAvatarChange,
+  pathsToInvalidateOnProfilePictureChange,
   type CacheInvalidator,
 } from "./cache-invalidation.js";
 
@@ -52,8 +52,9 @@ export interface AuthHandlerConfig {
   jwtSecret: string;
   publicBaseUrl: string;
   now?: () => Date;
-  // Required only for the /auth/avatar route (needs the drawing for the
-  // ownership check + the CF invalidator to refresh the profile after).
+  // Required only for the /auth/profile-picture route (needs the drawing
+  // for the ownership check + the CF invalidator to refresh the profile
+  // after).
   drawingStore?: DrawingStore;
   cacheInvalidator?: CacheInvalidator;
 }
@@ -254,7 +255,7 @@ export async function handleResetPassword(
   }
 }
 
-interface SetAvatarRequest {
+interface SetProfilePictureRequest {
   drawing_id?: unknown;
 }
 
@@ -262,17 +263,17 @@ interface SetAvatarRequest {
 // users table is keyed by email, but the JWT only carries user_id + username
 // — so we hop username → email via the usernames table. (No GSI on user_id,
 // since getByEmail is the hot path for login + reset.)
-export interface SetAvatarAuth {
+export interface SetProfilePictureAuth {
   user_id: string;
   username: string;
 }
 
 // POST body: `{ "drawing_id": "<64hex>" }` to set, `{ "drawing_id": null }`
 // to clear. Omitting the field is rejected as a 400 — clearing must be
-// explicit so a client bug can't silently wipe an avatar.
-export async function handleSetAvatar(
-  req: SetAvatarRequest,
-  auth: SetAvatarAuth,
+// explicit so a client bug can't silently wipe a profile picture.
+export async function handleSetProfilePicture(
+  req: SetProfilePictureRequest,
+  auth: SetProfilePictureAuth,
   cfg: AuthHandlerConfig,
 ): Promise<AuthResult> {
   if (!cfg.drawingStore) return err(500, "drawing store not configured");
@@ -291,7 +292,7 @@ export async function handleSetAvatar(
   // user_id !== auth.user_id branch is defense-in-depth: usernames are
   // immutable in v1 so the row always matches, but if rename ever ships,
   // an old JWT pointing at a freed-up handle now owned by someone else
-  // must NOT be allowed to set their avatar.
+  // must NOT be allowed to set their profile picture.
   const account = await cfg.userStore.getByUsername(auth.username);
   if (!account || account.user_id !== auth.user_id) {
     return err(401, "authentication required");
@@ -319,12 +320,12 @@ export async function handleSetAvatar(
     throw e;
   }
 
-  // Fire-and-forget: refresh the profile so the new avatar appears
-  // immediately. Drawing pages absorb the change on their own short
-  // s-maxage TTL (CC_DRAWING_PAGE in render-handlers.ts).
+  // Fire-and-forget: refresh the profile so the new profile picture
+  // appears immediately. Drawing pages absorb the change on their own
+  // short s-maxage TTL (CC_DRAWING_PAGE in render-handlers.ts).
   if (cfg.cacheInvalidator) {
     void cfg.cacheInvalidator.invalidate(
-      pathsToInvalidateOnAvatarChange(updated.username),
+      pathsToInvalidateOnProfilePictureChange(updated.username),
     );
   }
 
@@ -332,7 +333,7 @@ export async function handleSetAvatar(
     status: 200,
     body: {
       username: updated.username,
-      avatar_drawing_id: updated.avatar_drawing_id ?? null,
+      profile_picture_drawing_id: updated.avatar_drawing_id ?? null,
     },
   };
 }

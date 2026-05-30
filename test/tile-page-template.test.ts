@@ -10,7 +10,7 @@ const baseView = {
   author: {
     user_id: "a".repeat(64),
     username: "alice",
-    avatar_drawing_id: null,
+    profile_picture_drawing_id: null,
   },
   like_count: 0,
   public_base_url: "https://pixel.drawbang.com",
@@ -66,18 +66,18 @@ test("tile page: author label (signed)", () => {
   );
 });
 
-test("tile page: avatar renders before the username when set", () => {
+test("tile page: profile picture renders before the username when set", () => {
   const id = "b".repeat(64);
   const html = renderTilePage({
     ...baseView,
-    author: { user_id: "a".repeat(64), username: "alice", avatar_drawing_id: id },
+    author: { user_id: "a".repeat(64), username: "alice", profile_picture_drawing_id: id },
   });
-  assert.match(html, new RegExp(`<img class="avatar" src="/tiles/${id}\\.gif"`));
+  assert.match(html, new RegExp(`<img class="profile-picture" src="/tiles/${id}\\.gif"`));
 });
 
-test("tile page: no avatar img when author has none set", () => {
+test("tile page: no profile picture img when author has none set", () => {
   const html = renderTilePage(baseView);
-  assert.doesNotMatch(html, /<img class="avatar"/);
+  assert.doesNotMatch(html, /<img class="profile-picture"/);
 });
 
 test("tile page: author label (anonymous)", () => {
@@ -238,7 +238,7 @@ test("tile page: action buttons ship their GA-wired ids", () => {
   assert.match(html, /id="dr-download-gif"/);
   assert.match(html, /id="dr-copy-link"/);
   assert.match(html, /id="dr-share"/);
-  assert.match(html, /id="dr-set-avatar"/);
+  assert.match(html, /id="dr-set-profile-picture"/);
 });
 
 test("tile page: drawing-action behaviour is NOT inlined (lives in /tile-page.js)", () => {
@@ -246,7 +246,7 @@ test("tile page: drawing-action behaviour is NOT inlined (lives in /tile-page.js
   // Analytics + Meta Pixel still inject their own inline scripts via
   // renderAnalytics/renderMetaPixel — they're allowed. What we don't want
   // back is the per-button IIFE blob that used to live here.
-  assert.doesNotMatch(html, /getElementById\('dr-set-avatar'\)/);
+  assert.doesNotMatch(html, /getElementById\('dr-set-profile-picture'\)/);
   assert.doesNotMatch(html, /getElementById\('dr-copy-link'\)/);
   assert.doesNotMatch(html, /navigator\.clipboard\.writeText/);
   assert.doesNotMatch(html, /navigator\.share\(payload\)/);

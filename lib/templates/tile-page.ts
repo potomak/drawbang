@@ -5,7 +5,7 @@ import { esc } from "./_escape.js";
 import type { GalleryItem } from "./gallery.js";
 import { renderItem } from "./gallery.js";
 import { renderLikeButton } from "./home.js";
-import { renderAvatar } from "./owner.js";
+import { renderProfilePicture } from "./owner.js";
 
 // /d/<drawing_id> — the canonical page for a single drawing. Content-
 // addressed (id = sha256(gif)). Shows the gif, author, fork lineage,
@@ -20,12 +20,12 @@ export interface TilePageView {
   parent: { parent: string; parent_short: string } | null;
   // null on legacy tiles (published by an anonymous keypair before the
   // account system). They render as "anonymous" with no profile link.
-  // avatar_drawing_id is null when the author hasn't picked an avatar
-  // yet (or doesn't have a real account row).
+  // profile_picture_drawing_id is null when the author hasn't picked a
+  // profile picture yet (or doesn't have a real account row).
   author: {
     user_id: string;
     username: string;
-    avatar_drawing_id: string | null;
+    profile_picture_drawing_id: string | null;
   } | null;
   // Drawings that forked from this one. Empty/omitted when none, or for
   // the legacy static-render path that doesn't have a fork lookup
@@ -63,7 +63,7 @@ export default function renderTilePage(v: TilePageView): string {
     ? `<dt>Parent</dt><dd><a href="/d/${esc(v.parent.parent)}">${esc(v.parent.parent_short)}</a></dd>`
     : "";
   const authorBlock = v.author
-    ? `<dt>Author</dt><dd><a class="dr-author" href="/u/${esc(v.author.username)}">${renderAvatar(v.author.avatar_drawing_id, v.author.username, 20)}${esc(v.author.username)}</a></dd>`
+    ? `<dt>Author</dt><dd><a class="dr-author" href="/u/${esc(v.author.username)}">${renderProfilePicture(v.author.profile_picture_drawing_id, v.author.username, 20)}${esc(v.author.username)}</a></dd>`
     : `<dt>Author</dt><dd>anonymous</dd>`;
   const created = formatCreatedAt(v.created_at);
   const forks = v.forks ?? [];
@@ -118,7 +118,7 @@ ${forks.map(renderItem).join("\n")}
               ${renderLikeButton(v.drawing_id, v.like_count)}
               <a class="btn primary" id="dr-make-merch" href="/merch?d=${esc(v.drawing_id)}&amp;frame=0" rel="nofollow noreferrer">Make merch</a>
               <a class="btn" id="dr-fork" href="/draw?fork=${esc(v.drawing_id)}">Fork &amp; edit</a>
-              <button class="btn" id="dr-set-avatar" type="button" hidden>Set as avatar</button>
+              <button class="btn" id="dr-set-profile-picture" type="button" hidden>Set as profile picture</button>
               <button class="btn" id="dr-copy-link" type="button">Copy link</button>
               <a class="btn ghost" id="dr-download-gif" href="${gif}" download>Download GIF</a>
             </div>

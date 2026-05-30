@@ -112,19 +112,19 @@ async function loadFeedItems(
   cfg: RenderHandlersConfig,
   rows: DrawingRow[],
 ): Promise<FeedItem[]> {
-  // Batch the author avatar lookups: gather unique non-anonymous usernames,
-  // GetItem each once, attach to the matching rows. Without a userStore
-  // (dev/tests) the avatars are simply null.
+  // Batch the author profile-picture lookups: gather unique non-anonymous
+  // usernames, GetItem each once, attach to the matching rows. Without a
+  // userStore (dev/tests) the profile pictures are simply null.
   const usernames = new Set<string>();
   for (const r of rows) {
     if (r.username !== "anonymous") usernames.add(r.username);
   }
-  const avatars = new Map<string, string | null>();
+  const pictures = new Map<string, string | null>();
   if (cfg.userStore && usernames.size > 0) {
     await Promise.all(
       [...usernames].map(async (un) => {
         const acct = await cfg.userStore!.getByUsername(un);
-        avatars.set(un, acct?.avatar_drawing_id ?? null);
+        pictures.set(un, acct?.avatar_drawing_id ?? null);
       }),
     );
   }
@@ -140,7 +140,7 @@ async function loadFeedItems(
         ? null
         : {
             username: r.username,
-            avatar_drawing_id: avatars.get(r.username) ?? null,
+            profile_picture_drawing_id: pictures.get(r.username) ?? null,
           },
   }));
 }
@@ -237,9 +237,9 @@ export async function renderDrawingPageHandler(
   const forks = await cfg.drawingStore.queryForks(drawing_id, {
     limit: cfg.perPage ?? PER_PAGE,
   });
-  // Author avatar: optional lookup so legacy "anonymous" / unregistered
-  // usernames just render without an avatar. Short-circuit for the
-  // "anonymous" bucket since RESERVED_USERNAMES guarantees no real
+  // Author profile picture: optional lookup so legacy "anonymous" /
+  // unregistered usernames just render without one. Short-circuit for
+  // the "anonymous" bucket since RESERVED_USERNAMES guarantees no real
   // account row exists for it.
   const authorAccount =
     cfg.userStore && row.username !== "anonymous"
@@ -255,7 +255,7 @@ export async function renderDrawingPageHandler(
     author: {
       user_id: row.user_id,
       username: row.username,
-      avatar_drawing_id: authorAccount?.avatar_drawing_id ?? null,
+      profile_picture_drawing_id: authorAccount?.avatar_drawing_id ?? null,
     },
     forks: forks.items.map(itemFromRow),
     like_count: row.like_count ?? 0,
@@ -281,9 +281,10 @@ export async function renderProfilePageHandler(
   if (!USERNAME_RE.test(username)) return notFound(cfg);
   const perPage = cfg.perPage ?? PER_PAGE;
   const page = await cfg.drawingStore.queryByUsername(username, { limit: perPage });
-  // Account lookup: needed for the avatar field on every render, and for
-  // the empty-profile branch where it's the only way to resolve user_id.
-  // The "anonymous" bucket has no real account row, so skip the lookup.
+  // Account lookup: needed for the profile-picture field on every render,
+  // and for the empty-profile branch where it's the only way to resolve
+  // user_id. The "anonymous" bucket has no real account row, so skip
+  // the lookup.
   const account =
     cfg.userStore && username !== "anonymous"
       ? await cfg.userStore.getByUsername(username)
@@ -295,7 +296,7 @@ export async function renderProfilePageHandler(
   } else {
     userId = page.items[0].user_id;
   }
-  const avatarDrawingId = account?.avatar_drawing_id ?? null;
+  const profilePictureDrawingId = account?.avatar_drawing_id ?? null;
   const next = buildFragmentUrl(`/u/${username}/items`, page.next_cursor);
   const items = page.items.map(itemFromRow);
   const stats = cfg.userStatsStore
@@ -311,7 +312,7 @@ export async function renderProfilePageHandler(
     user_id: userId,
     drawings: items,
     stats,
-    avatar_drawing_id: avatarDrawingId,
+    profile_picture_drawing_id: profilePictureDrawingId,
     repo_url: cfg.repoUrl,
   });
   if (next) body = injectProfileSentinel(body, next);

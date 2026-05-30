@@ -239,7 +239,7 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
 .btn.ghost { background: transparent; }
 /* .btn sets display:inline-flex which would otherwise override the UA
    [hidden] { display: none } rule. Pin it back so server-rendered
-   hidden buttons (e.g. dr-set-avatar, dr-share) actually stay hidden
+   hidden buttons (e.g. dr-set-profile-picture, dr-share) actually stay hidden
    until the client script reveals them. */
 .btn[hidden] { display: none; }
 

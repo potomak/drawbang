@@ -386,16 +386,19 @@ Resources:
             Compress: true
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
-          # /likes/counts?ids=… — public, short-cache. Uses the managed
-          # CachingOptimized policy so CF honours our origin's
-          # Cache-Control header (max-age=15) and amortises bursts.
+          # /likes/counts?ids=… — public but NOT cached. The origin
+          # returns Cache-Control: no-store; CachingDisabled here so
+          # CloudFront doesn't second-guess that. Required for the
+          # "like → reload → see fresh count" UX: any edge cache means
+          # the liker's own browser/edge could keep returning the
+          # pre-like value for the cache TTL.
           - PathPattern: /likes/*
             TargetOriginId: api
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD, OPTIONS]
             CachedMethods: [GET, HEAD]
             Compress: true
-            CachePolicyId: !Ref DynamicCachePolicy
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
         # Map S3 misses to the chrome'd /404.html the builder writes. Both
         # codes are routed because OAC returns 403 for keys outside the
         # public/* prefix and 404 for missing keys inside it. Short cache
@@ -675,12 +678,12 @@ Resources:
             ApiId: !Ref IngestApi
             Method: POST
             Path: /auth/password/reset
-        AuthAvatar:
+        AuthProfilePicture:
           Type: HttpApi
           Properties:
             ApiId: !Ref IngestApi
             Method: POST
-            Path: /auth/avatar
+            Path: /auth/profile-picture
         HomePage:
           Type: HttpApi
           Properties:

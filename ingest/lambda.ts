@@ -11,9 +11,9 @@ import {
   handleLogin,
   handleRegister,
   handleResetPassword,
-  handleSetAvatar,
+  handleSetProfilePicture,
   type AuthHandlerConfig,
-  type SetAvatarAuth,
+  type SetProfilePictureAuth,
 } from "./auth-handler.js";
 import { S3Storage } from "./s3-storage.js";
 import { DynamoUserStatsStore } from "./user-stats-store.js";
@@ -221,14 +221,14 @@ async function handleAuthRoute(
     case "/auth/password/reset":
       result = await handleResetPassword(body, authConfig);
       break;
-    case "/auth/avatar": {
+    case "/auth/profile-picture": {
       const auth = extractAuth(event);
       if (!auth) return json(401, { error: "authentication required" });
-      const setAvatarAuth: SetAvatarAuth = {
+      const setPpAuth: SetProfilePictureAuth = {
         user_id: auth.user_id,
         username: auth.username,
       };
-      result = await handleSetAvatar(body, setAvatarAuth, authConfig);
+      result = await handleSetProfilePicture(body, setPpAuth, authConfig);
       break;
     }
     default:

@@ -160,7 +160,7 @@ describe("handleLikeCounts (public, anonymous)", () => {
     const body = res.body as { counts: Record<string, number> };
     assert.equal(body.counts[DRAWING_ID], 2);
     assert.equal(body.counts[ALT_ID], 1);
-    assert.match(res.headers?.["Cache-Control"] ?? "", /max-age=15/);
+    assert.match(res.headers?.["Cache-Control"] ?? "", /no-store/);
   });
 
   test("missing ids param returns an empty map", async () => {

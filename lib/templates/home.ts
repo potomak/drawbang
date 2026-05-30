@@ -7,17 +7,16 @@ import {
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
 import { formatItemDate } from "./_time.js";
-import { renderAvatar } from "./owner.js";
 
 // `/` — the social feed home. Vertical card list, mobile-first, single
 // column on small screens with a max-width container on larger ones.
-// Reuses `renderAvatar()` for the author block and the same infinite-
-// scroll observer pattern as the legacy gallery (kept inline here — one
-// consumer, low cost).
+// Reuses `renderProfilePicture()` for the left column and the same
+// infinite-scroll observer pattern as the legacy gallery (kept inline
+// here — one consumer, low cost).
 
 export interface FeedAuthor {
   username: string;
-  avatar_drawing_id: string | null;
+  profile_picture_drawing_id: string | null;
 }
 
 export interface FeedItem {
@@ -41,16 +40,22 @@ export interface HomeView {
 }
 
 export function renderFeedCard(item: FeedItem): string {
-  const authorInner = item.author
-    ? `<a class="feed-card-author-link" href="/u/${esc(item.author.username)}">${renderAvatar(item.author.avatar_drawing_id, item.author.username, 36)}<span>${esc(item.author.username)}</span></a>`
-    : `<span class="feed-card-author-link feed-card-author-anon">anonymous</span>`;
   const date = formatItemDate(item.created_at);
+  const pp = renderFeedProfilePicture(item.author);
+  const ppBlock = item.author
+    ? `<a class="feed-card-pp" href="/u/${esc(item.author.username)}" aria-label="${esc(item.author.username)}'s profile">${pp}</a>`
+    : `<span class="feed-card-pp">${pp}</span>`;
+  const author = item.author
+    ? `<a class="feed-card-author-link" href="/u/${esc(item.author.username)}">${esc(item.author.username)}</a>`
+    : `<span class="feed-card-author-link feed-card-author-anon">anonymous</span>`;
   return `<li><article class="feed-card">
-  <div class="feed-card-author">
-    ${authorInner}
-    <time class="feed-card-time" datetime="${esc(item.created_at)}">${esc(date)}</time>
-  </div>
+  ${ppBlock}
   <div class="feed-card-main">
+    <header class="feed-card-author">
+      ${author}
+      <span class="feed-card-sep" aria-hidden="true">·</span>
+      <time class="feed-card-time" datetime="${esc(item.created_at)}">${esc(date)}</time>
+    </header>
     <a class="feed-card-art" href="${esc(item.href)}" aria-label="Open drawing ${esc(item.id_short)}">
       <img src="${esc(item.thumb)}" alt="" width="256" height="256" loading="lazy" />
     </a>
@@ -61,6 +66,19 @@ export function renderFeedCard(item: FeedItem): string {
     </div>
   </div>
 </article></li>`;
+}
+
+// Profile picture for the feed-card left rail. Falls back to a monogram
+// placeholder when the author hasn't set one (or the row is anonymous)
+// so the column width stays consistent across cards.
+function renderFeedProfilePicture(author: FeedAuthor | null): string {
+  const size = 44;
+  const pic = author?.profile_picture_drawing_id;
+  if (pic && /^[0-9a-f]{64}$/.test(pic)) {
+    return `<img class="profile-picture" src="/tiles/${esc(pic)}.gif" alt="${esc(author!.username)}" width="${size}" height="${size}" loading="lazy" />`;
+  }
+  const letter = author?.username ? author.username.charAt(0).toUpperCase() : "?";
+  return `<span class="profile-picture profile-picture-placeholder" aria-hidden="true">${esc(letter)}</span>`;
 }
 
 // Heart button shared by the feed cards + the drawing page. Filled state is

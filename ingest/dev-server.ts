@@ -21,9 +21,9 @@ import {
   handleRegister,
   handleForgotPassword,
   handleResetPassword,
-  handleSetAvatar,
+  handleSetProfilePicture,
   type AuthHandlerConfig,
-  type SetAvatarAuth,
+  type SetProfilePictureAuth,
 } from "./auth-handler.js";
 import {
   renderDrawingPageHandler,
@@ -200,17 +200,17 @@ const server = http.createServer(async (req, res) => {
         case "/auth/password/reset":
           result = await handleResetPassword(parsed, authConfig);
           break;
-        case "/auth/avatar": {
+        case "/auth/profile-picture": {
           const auth = extractAuth(req);
           if (!auth) {
             json(res, 401, { error: "authentication required" });
             return;
           }
-          const setAvatarAuth: SetAvatarAuth = {
+          const setPpAuth: SetProfilePictureAuth = {
             user_id: auth.user_id,
             username: auth.username,
           };
-          result = await handleSetAvatar(parsed, setAvatarAuth, authConfig);
+          result = await handleSetProfilePicture(parsed, setPpAuth, authConfig);
           break;
         }
         default:

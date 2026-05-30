@@ -90,9 +90,14 @@ export async function handleMyLikes(
 
 // Public — no auth. Returns the fresh denormalised like_count for each
 // id so the feed JS can overwrite the SSR'd value that's been edge-cached
-// for up to a few minutes. Browser/CF cache is intentionally short
-// (max-age=15) so a like fired by anyone is visible to anyone else within
-// the same window, while still amortising repeated visits.
+// for up to a few minutes.
+//
+// Cache-Control is `no-store` — explicitly NOT cached at the browser or
+// the edge. A previous version used max-age=15 to amortise bursts, but
+// that meant: user A likes drawing X, reloads within 15s, and gets back
+// the pre-like count their own browser had cached. Counts only ever
+// move by ±1 per write so no-store is safe at our volume; the Lambda +
+// BatchGetItem round-trip is cheap.
 export async function handleLikeCounts(
   rawIds: string | null,
   cfg: LikesHandlerConfig,
@@ -106,7 +111,7 @@ export async function handleLikeCounts(
   return {
     status: 200,
     body: { counts },
-    headers: { "Cache-Control": "public, max-age=15" },
+    headers: { "Cache-Control": "no-store" },
   };
 }
 

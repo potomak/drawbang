@@ -11,7 +11,7 @@ function item(overrides: Partial<FeedItem> = {}): FeedItem {
   // `?? defaultAuthor` would collapse an intentional `null` (anonymous),
   // since `??` also short-circuits on null. Use an explicit presence
   // check so the caller can opt out.
-  const defaultAuthor = { username: "alice", avatar_drawing_id: null };
+  const defaultAuthor = { username: "alice", profile_picture_drawing_id: null };
   const author = "author" in overrides
     ? (overrides.author ?? null)
     : defaultAuthor;
@@ -29,14 +29,13 @@ function item(overrides: Partial<FeedItem> = {}): FeedItem {
 describe("renderHome", () => {
   test("renders a card per item with a /u/<username> author link", () => {
     const html = renderHome({
-      items: [item({ author: { username: "alice", avatar_drawing_id: null } })],
+      items: [item({ author: { username: "alice", profile_picture_drawing_id: null } })],
       repo_url: "https://github.com/test/test",
     });
     assert.match(html, /<main>/);
     assert.match(html, /<ul class="feed-list" data-feed-list>/);
     assert.match(html, /<article class="feed-card">/);
-    assert.match(html, /<a class="feed-card-author-link" href="\/u\/alice">/);
-    assert.match(html, /<span>alice<\/span>/);
+    assert.match(html, /<a class="feed-card-author-link" href="\/u\/alice">alice<\/a>/);
     assert.doesNotMatch(html, /@alice/);
     assert.match(html, new RegExp(`<a class="feed-card-art" href="/d/${"a".repeat(64)}"`));
   });
@@ -50,18 +49,31 @@ describe("renderHome", () => {
     assert.doesNotMatch(html, /<a class="feed-card-author-link"/);
   });
 
-  test("renders the avatar img inline next to the username when set", () => {
-    const avatarId = "b".repeat(64);
+  test("renders the profile picture in the left rail when set", () => {
+    const pictureId = "b".repeat(64);
     const html = renderHome({
       items: [
-        item({ author: { username: "alice", avatar_drawing_id: avatarId } }),
+        item({ author: { username: "alice", profile_picture_drawing_id: pictureId } }),
       ],
       repo_url: "https://github.com/test/test",
     });
+    // The pp link wraps the img and sits in the left rail (.feed-card-pp).
+    assert.match(html, /<a class="feed-card-pp" href="\/u\/alice"/);
     assert.match(
       html,
-      new RegExp(`<img class="avatar" src="/tiles/${avatarId}\\.gif"`),
+      new RegExp(`<img class="profile-picture" src="/tiles/${pictureId}\\.gif"`),
     );
+  });
+
+  test("renders a monogram placeholder in the left rail when no picture is set", () => {
+    const html = renderHome({
+      items: [
+        item({ author: { username: "alice", profile_picture_drawing_id: null } }),
+      ],
+      repo_url: "https://github.com/test/test",
+    });
+    assert.match(html, /<a class="feed-card-pp" href="\/u\/alice"/);
+    assert.match(html, /class="profile-picture profile-picture-placeholder"[^>]*>A</);
   });
 
   test("emits an infinite-scroll sentinel + observer script when paginated", () => {
@@ -139,8 +151,11 @@ describe("renderFeedCard", () => {
 
   test("layout is horizontal: profile column + main column siblings", () => {
     const html = renderFeedCard(item());
-    assert.match(html, /<div class="feed-card-author">/);
+    // shipordie.club layout: pp left rail + main column on right; author
+    // moved out of its own left column and into the main column's header.
+    assert.match(html, /<a class="feed-card-pp"/);
     assert.match(html, /<div class="feed-card-main">/);
+    assert.match(html, /<header class="feed-card-author">/);
   });
 
   test("drawing has no rectangle around it (no border-ish wrapper class kept)", () => {

@@ -24,9 +24,9 @@
     window.gtag("event", name, params);
   }
 
-  // -- Set-as-avatar -------------------------------------------------------
-  function wireSetAvatar(main) {
-    var btn = document.getElementById("dr-set-avatar");
+  // -- Set-as-profile-picture ----------------------------------------------
+  function wireSetProfilePicture(main) {
+    var btn = document.getElementById("dr-set-profile-picture");
     if (!btn) return;
     var author = main.dataset.authorUsername || "";
     var drawingId = main.dataset.drawingId || "";
@@ -45,7 +45,7 @@
     btn.hidden = false;
     btn.addEventListener("click", function () {
       btn.disabled = true;
-      fetch("/auth/avatar", {
+      fetch("/auth/profile-picture", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
         body: JSON.stringify({ drawing_id: drawingId }),
@@ -53,7 +53,7 @@
         .then(function (res) {
           if (!res.ok) {
             return res.text().then(function (text) {
-              var msg = "Failed to set avatar";
+              var msg = "Failed to set profile picture";
               try {
                 var j = JSON.parse(text);
                 if (j && j.error) msg = j.error;
@@ -63,14 +63,14 @@
           }
         })
         .then(function () {
-          btn.textContent = "Avatar set";
+          btn.textContent = "Profile picture set";
           // Leave disabled — the page is cached so a refresh would show
           // the old state for up to its s-maxage TTL anyway.
-          flash("success", "Avatar updated. Visit your profile to see it.", 4000);
+          flash("success", "Profile picture updated. Visit your profile to see it.", 4000);
         })
         .catch(function (e) {
           btn.disabled = false;
-          flash("error", (e && e.message) ? e.message : "Could not set avatar");
+          flash("error", (e && e.message) ? e.message : "Could not set profile picture");
         });
     });
   }
@@ -163,7 +163,7 @@
   function init() {
     var main = root();
     if (!main) return;
-    wireSetAvatar(main);
+    wireSetProfilePicture(main);
     wireCopyLink();
     wireWebShare(main);
     wireAnchorTracking(main);

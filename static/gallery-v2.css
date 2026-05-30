@@ -28,43 +28,36 @@
 .feed-card {
   display: flex;
   align-items: flex-start;
-  gap: 16px;
+  gap: 12px;
   padding: 16px 4px;
   border: 0;
   background: transparent;
   border-bottom: var(--border) solid var(--border-c);
 }
 .feed-list > li:last-child .feed-card { border-bottom: 0; }
-.feed-card-author {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  flex: 0 0 140px;
-  min-width: 0;
-  font-size: var(--t-sm);
+/* Left column: profile picture only. Username + date now live in the
+   .feed-card-author header inside .feed-card-main. */
+.feed-card-pp {
+  flex: 0 0 44px;
+  display: block;
+  text-decoration: none;
+  line-height: 0;
 }
-.feed-card-author-link {
+.feed-card-pp .profile-picture {
+  display: block;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+}
+.feed-card-pp .profile-picture-placeholder {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  color: var(--fg);
-  text-decoration: none;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.feed-card-author-link:hover { color: var(--accent); }
-.feed-card-author-link img.avatar { margin-right: 0; flex: 0 0 auto; }
-.feed-card-author-link > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.feed-card-author-anon { color: var(--fg-muted); }
-.feed-card-time {
+  justify-content: center;
+  background: var(--bg-elev);
   color: var(--fg-muted);
-  font-size: var(--t-xs);
+  font: 600 16px/1 var(--font);
+  text-transform: uppercase;
+  letter-spacing: 0;
 }
 .feed-card-main {
   flex: 1 1 auto;
@@ -72,6 +65,28 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+.feed-card-author {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: var(--t-sm);
+}
+.feed-card-author-link {
+  color: var(--fg);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.feed-card-author-link:hover { color: var(--accent); }
+.feed-card-author-anon { color: var(--fg-muted); }
+.feed-card-sep { color: var(--fg-muted); }
+.feed-card-time {
+  color: var(--fg-muted);
+  font-size: var(--t-xs);
 }
 .feed-card-art {
   display: block;
@@ -217,12 +232,13 @@
 .dr-meta dd { margin: 0; word-break: break-all; }
 .mono-trunc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 
-/* Avatar — small pixel-perfect square next to a username link or page
-   title. Sized inline via width/height; this rule pins the rendering
-   primitives so the gif doesn't get smoothed by the browser scaler.
-   crisp-edges first as the broader-supported fallback; pixelated last
-   so it wins the cascade where supported (Chromium, Firefox). */
-img.avatar {
+/* Profile picture — small pixel-perfect square next to a username link
+   or page title. Sized inline via width/height; this rule pins the
+   rendering primitives so the gif doesn't get smoothed by the browser
+   scaler. crisp-edges first as the broader-supported fallback;
+   pixelated last so it wins the cascade where supported (Chromium,
+   Firefox). */
+img.profile-picture {
   display: inline-block;
   vertical-align: middle;
   margin-right: 8px;
@@ -231,16 +247,16 @@ img.avatar {
   image-rendering: crisp-edges;
   image-rendering: pixelated;
 }
-/* Author link on /d/<id>: vertical-align the avatar with the username
-   text and drop the inline-flex's default baseline jitter. */
+/* Author link on /d/<id>: vertical-align the profile picture with the
+   username text and drop the inline-flex's default baseline jitter. */
 .dr-author {
   display: inline-flex;
   align-items: center;
   gap: 0;
 }
-.dr-author img.avatar { margin-right: 6px; }
-/* Page title avatar (/u/<username>) sits inline with the h1 text. */
-.page-title img.avatar { width: 32px; height: 32px; margin-right: 10px; }
+.dr-author img.profile-picture { margin-right: 6px; }
+/* Page title profile picture (/u/<username>) sits inline with the h1 text. */
+.page-title img.profile-picture { width: 32px; height: 32px; margin-right: 10px; }
 .dr-actions { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
 .dr-action-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
