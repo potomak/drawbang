@@ -2,6 +2,7 @@
 // Pure: no DOM, no fetch, no module-level side effects. Consumed at build
 // time by the Vite plugin (#168) and the builder templates (#169).
 
+import { assetUrl } from "./asset-version.js";
 import { LOGO_SVG } from "./logo.js";
 
 export interface NavLink {
@@ -42,7 +43,6 @@ export const IDENTITY_FALLBACK_HREF = "/login";
  * Adding a new top-level section is a one-line change here.
  */
 export const NAV_LINKS: readonly NavLink[] = [
-  { href: "/", label: "Home", id: "home" },
   { href: "/products", label: "Products", id: "products" },
 ];
 
@@ -88,7 +88,12 @@ export function renderHeader(opts: ChromeOptions = {}): string {
 </header>`;
 }
 
-export function renderFooter(opts: FooterOptions): string {
+// Footer body — exported so the home feed can mirror the same content into
+// a left-side aside (`.feed-sidebar`) without duplicating markup. The
+// identity-link + logout markers live on the elements themselves, so the
+// chrome-identity.js patcher updates every copy regardless of where it
+// sits in the DOM.
+export function renderFooterMeta(opts: FooterOptions): string {
   const items = allLinks(opts)
     .map((l) => renderFooterLink(l, opts.active))
     .join("\n        ");
@@ -96,15 +101,7 @@ export function renderFooter(opts: FooterOptions): string {
     (s) =>
       `<a href="${esc(s.href)}" target="_blank" rel="noopener">${esc(s.label)}</a>`,
   ).join("\n        ");
-  // The hamburger toggle, identity-link patcher, and flash component all
-  // ship as plain JS at stable URLs so every surface — Vite-built or
-  // builder-rendered — loads them from the same place without bundle hash
-  // plumbing. flash.js loads first so its window.drawbang{Show,Hide}Flash
-  // (and pending-flash auto-consume) are ready by the time anything else
-  // on the page wants to fire a notification.
-  const fab = opts.fab === false ? "" : renderFab();
-  return `<footer class="ftr">
-  <div class="ftr-left">
+  return `<div class="ftr-left">
     <nav class="ftr-links" aria-label="Footer">
         ${items}
     </nav>
@@ -116,19 +113,32 @@ export function renderFooter(opts: FooterOptions): string {
     <a class="ftr-repo" href="${esc(opts.repoUrl)}" target="_blank" rel="noopener">Source on GitHub</a>
     <a class="ftr-privacy" href="/privacy">Privacy</a>
     <a class="ftr-feedback" href="${esc(FEEDBACK_URL)}" target="_blank" rel="noopener">${FEEDBACK_ICON_SVG}<span>Feedback</span></a>
-  </div>
-</footer>
-${fab}<script src="/flash.js"></script>
-<script src="/chrome-toggle.js"></script>
-<script src="/chrome-identity.js"></script>`;
+  </div>`;
 }
 
-// Fixed-position "+" button that takes the viewer to /draw from any
-// server-rendered page. Styled in chrome.css alongside the rest of the
-// shared chrome — see `.fab` there.
+export function renderFooter(opts: FooterOptions): string {
+  // The hamburger toggle, identity-link patcher, and flash component all
+  // ship as plain JS at stable URLs so every surface — Vite-built or
+  // builder-rendered — loads them from the same place without bundle hash
+  // plumbing. flash.js loads first so its window.drawbang{Show,Hide}Flash
+  // (and pending-flash auto-consume) are ready by the time anything else
+  // on the page wants to fire a notification.
+  const fab = opts.fab === false ? "" : renderFab();
+  return `<footer class="ftr">
+  ${renderFooterMeta(opts)}
+</footer>
+${fab}<script src="${assetUrl("/flash.js")}"></script>
+<script src="${assetUrl("/chrome-toggle.js")}"></script>
+<script src="${assetUrl("/chrome-identity.js")}"></script>`;
+}
+
+// Fixed-position "Draw" button that takes the viewer to /draw from any
+// server-rendered page. Square corners + hard-offset shadow match the
+// site's brutalist/pixel-art aesthetic; styled in chrome.css — see `.fab`.
 function renderFab(): string {
   return `<a class="fab" href="/draw" aria-label="New drawing" data-fab>
-  <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg>
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+  <span class="fab-label">Draw</span>
 </a>
 `;
 }

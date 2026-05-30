@@ -22,6 +22,7 @@ import { DynamoDrawingStore } from "./drawing-store.js";
 import { DynamoLikesStore } from "./likes-store.js";
 import {
   handleLike,
+  handleLikeCounts,
   handleMyLikes,
   handleUnlike,
   type LikesHandlerConfig,
@@ -168,6 +169,12 @@ export async function handler(
   // /me/likes?ids=<csv> — return the subset the caller has liked.
   if (method === "GET" && path === "/me/likes") {
     return handleMyLikesRoute(event);
+  }
+  // /likes/counts?ids=<csv> — public, fresh denormalised counts for
+  // hydration. No auth.
+  if (method === "GET" && path === "/likes/counts") {
+    const result = await handleLikeCounts(queryParam(event, "ids"), likesConfig);
+    return jsonWithHeaders(result.status, result.body, result.headers);
   }
   if (method === "POST" && path.startsWith("/auth/")) {
     return handleAuthRoute(event, path);

@@ -64,6 +64,7 @@ export default defineConfig({
       "^/u/.*": "http://localhost:8787",
       "^/drawings/.*/like$": "http://localhost:8787",
       "/me/likes": "http://localhost:8787",
+      "/likes/counts": "http://localhost:8787",
     },
   },
 });

@@ -88,6 +88,28 @@ export async function handleMyLikes(
   };
 }
 
+// Public — no auth. Returns the fresh denormalised like_count for each
+// id so the feed JS can overwrite the SSR'd value that's been edge-cached
+// for up to a few minutes. Browser/CF cache is intentionally short
+// (max-age=15) so a like fired by anyone is visible to anyone else within
+// the same window, while still amortising repeated visits.
+export async function handleLikeCounts(
+  rawIds: string | null,
+  cfg: LikesHandlerConfig,
+): Promise<LikesResult> {
+  const ids = parseIds(rawIds);
+  if (ids === null) return err(400, "invalid ids");
+  if (ids.length > MY_LIKES_MAX_IDS) {
+    return err(400, `too many ids (max ${MY_LIKES_MAX_IDS})`);
+  }
+  const counts = await cfg.likesStore.listLikeCounts(ids);
+  return {
+    status: 200,
+    body: { counts },
+    headers: { "Cache-Control": "public, max-age=15" },
+  };
+}
+
 function parseIds(raw: string | null): string[] | null {
   if (raw === null || raw === "") return [];
   const parts = raw.split(",");

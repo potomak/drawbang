@@ -1,3 +1,4 @@
+import { assetUrl } from "../../src/layout/asset-version.js";
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 
@@ -15,7 +16,7 @@ export default function renderNotFound(v: NotFoundView): string {
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Draw! · Not found</title>
     <meta name="robots" content="noindex" />
-    <link rel="stylesheet" href="/gallery-v2.css" />
+    <link rel="stylesheet" href="${assetUrl("/gallery-v2.css")}" />
   </head>
   <body>
     ${renderHeader({ active: "home" })}

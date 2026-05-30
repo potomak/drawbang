@@ -36,7 +36,8 @@ describe("renderHome", () => {
     assert.match(html, /<ul class="feed-list" data-feed-list>/);
     assert.match(html, /<article class="feed-card">/);
     assert.match(html, /<a class="feed-card-author-link" href="\/u\/alice">/);
-    assert.match(html, /@alice/);
+    assert.match(html, /<span>alice<\/span>/);
+    assert.doesNotMatch(html, /@alice/);
     assert.match(html, new RegExp(`<a class="feed-card-art" href="/d/${"a".repeat(64)}"`));
   });
 
@@ -84,12 +85,13 @@ describe("renderHome", () => {
     assert.match(html, /<a href="\/draw">open the editor<\/a>/);
   });
 
-  test("sets active='home' so the chrome marks the Home nav link", () => {
+  test("the Home nav link is gone — the logo is the home link", () => {
     const html = renderHome({
       items: [item()],
       repo_url: "https://github.com/test/test",
     });
-    assert.match(html, /data-nav="home"[^>]*aria-current="page"/);
+    assert.doesNotMatch(html, /data-nav="home"/);
+    assert.match(html, /<a class="hdr-logo" href="\/"/);
   });
 });
 

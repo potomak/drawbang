@@ -74,9 +74,15 @@
     if (el) el.textContent = String(Math.max(0, n));
   }
 
-  // -- Hydrate filled state ---------------------------------------------------
+  // -- Hydrate filled state + fresh counts -----------------------------------
+  // The SSR count is baked into edge-cached HTML and goes stale (up to
+  // the home page's s-maxage). Every page load fetches fresh counts from
+  // /likes/counts (public, short-cache) and rewrites the <span
+  // data-like-count> text so a liker who bumped the count anywhere sees
+  // the truth on next visit. Logged-in users additionally hit /me/likes
+  // (per-user, no-store) for the filled state.
   function hydrate(buttons, t) {
-    if (!t || buttons.length === 0) return;
+    if (buttons.length === 0) return;
     var ids = [];
     var seen = {};
     for (var i = 0; i < buttons.length; i++) {
@@ -87,11 +93,29 @@
       }
     }
     for (var off = 0; off < ids.length; off += BATCH_MAX) {
-      hydrateChunk(ids.slice(off, off + BATCH_MAX), t);
+      var chunk = ids.slice(off, off + BATCH_MAX);
+      hydrateCountsChunk(chunk);
+      if (t) hydrateLikedChunk(chunk, t);
     }
   }
 
-  function hydrateChunk(ids, t) {
+  function hydrateCountsChunk(ids) {
+    fetch("/likes/counts?ids=" + encodeURIComponent(ids.join(",")))
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (data) {
+        if (!data || !data.counts) return;
+        for (var id in data.counts) {
+          if (!Object.prototype.hasOwnProperty.call(data.counts, id)) continue;
+          var n = data.counts[id];
+          if (typeof n !== "number") continue;
+          var btns = document.querySelectorAll('[data-like-target="' + id + '"]');
+          for (var j = 0; j < btns.length; j++) writeCount(btns[j], n);
+        }
+      })
+      .catch(function () { /* network glitch — keep SSR'd values */ });
+  }
+
+  function hydrateLikedChunk(ids, t) {
     fetch("/me/likes?ids=" + encodeURIComponent(ids.join(",")), {
       headers: authHeaders(t),
     })
@@ -106,10 +130,7 @@
           if (likedSet[id]) setPressed(btns[j], true);
         }
       })
-      .catch(function () {
-        // Network glitch on hydrate: leave all buttons unfilled. The user
-        // can still click; the server is the source of truth.
-      });
+      .catch(function () { /* network glitch — keep outline state */ });
   }
 
   // -- Click handler ----------------------------------------------------------

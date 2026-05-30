@@ -1,3 +1,4 @@
+import { assetUrl } from "../../src/layout/asset-version.js";
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
@@ -94,7 +95,7 @@ ${forks.map(renderItem).join("\n")}
     <meta property="og:image:width" content="960" />
     <meta property="og:image:height" content="960" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="stylesheet" href="/gallery-v2.css" />
+    <link rel="stylesheet" href="${assetUrl("/gallery-v2.css")}" />
   </head>
   <body>
     ${renderHeader({ active: "home" })}
@@ -133,9 +134,9 @@ ${forks.map(renderItem).join("\n")}
 ${forksSection}
     </main>
     ${renderFooter({ active: "home", repoUrl: v.repo_url })}
-    <script src="/flash.js"></script>
-    <script src="/tile-page.js"></script>
-    <script src="/like.js"></script>
+    <script src="${assetUrl("/flash.js")}"></script>
+    <script src="${assetUrl("/tile-page.js")}"></script>
+    <script src="${assetUrl("/like.js")}"></script>
   </body>
 </html>
 `;

@@ -105,6 +105,7 @@ Auth-gated JSON endpoints (Bearer JWT in `Authorization` header, no caching at t
 |--------------------------------|---------------|---------|
 | `/drawings/<id>/like`          | POST / DELETE | `ingest/likes-handler.ts` — toggle a like. |
 | `/me/likes?ids=<csv>`          | GET           | `ingest/likes-handler.ts` — subset of the supplied ids the caller has liked. |
+| `/likes/counts?ids=<csv>`      | GET           | `ingest/likes-handler.ts` — **public**, fresh denormalised counts (max-age=15) for client-side hydration over the edge-cached SSR values. |
 | `/auth/*`                      | POST          | `ingest/auth-handler.ts` (register/login/forgot/reset/avatar). |
 | `/users/<user_id>/stats`       | GET           | `ingest/user-stats-handler.ts` — public, but on a short max-age. |
 
@@ -199,6 +200,13 @@ src/                  Vite + TypeScript editor + auth SPAs
   local.ts            IndexedDB "My drawings" store
   auth.ts             Client session: register / login / forgot / reset,
                       JWT in localStorage, authHeader() for publish.
+  layout/asset-version.ts
+                      Build-time `?v=<sha>` cache-buster appended to every
+                      reference to a non-hashed static asset (gallery-v2.css,
+                      like.js, share.js, flash.js, …). DRAWBANG_ASSET_VERSION
+                      is inlined into the Lambda bundle by esbuild's define
+                      and read by Vite's chrome plugin at build time. CI
+                      sets it from $GITHUB_SHA.
   login.ts/signup.ts/password-forgot.ts/password-reset.ts/account.ts
                       Auth page controllers (Vite entries)
   submit.ts           POST /ingest with the gif + Bearer auth.

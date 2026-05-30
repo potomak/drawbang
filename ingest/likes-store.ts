@@ -32,6 +32,11 @@ export interface LikesStore {
   // Returns the subset of `drawing_ids` the user has liked. Order is not
   // guaranteed. Caller batches at the call site if it has >100 ids.
   listLikedDrawingIds(user_id: string, drawing_ids: string[]): Promise<string[]>;
+  // Fresh like counts for a batch of drawings. Reads the denormalised
+  // `like_count` off DrawingRow so the feed can hydrate stale SSR counts
+  // (the home/drawing page is edge-cached for up to s-maxage and the
+  // liker who just bumped the count would otherwise be told 0).
+  listLikeCounts(drawing_ids: string[]): Promise<Record<string, number>>;
 }
 
 export class AlreadyLikedError extends Error {
@@ -158,6 +163,32 @@ export class DynamoLikesStore implements LikesStore {
     const items = r.Responses?.[this.likesTable] ?? [];
     return items.map((it) => String(it.drawing_id));
   }
+
+  async listLikeCounts(drawing_ids: string[]): Promise<Record<string, number>> {
+    if (drawing_ids.length === 0) return {};
+    const r = await this.doc.send(
+      new BatchGetCommand({
+        RequestItems: {
+          [this.drawingsTable]: {
+            Keys: drawing_ids.map((drawing_id) => ({ drawing_id })),
+            ProjectionExpression: "drawing_id, like_count",
+          },
+        },
+      }),
+    );
+    const items = r.Responses?.[this.drawingsTable] ?? [];
+    const out: Record<string, number> = {};
+    // Missing drawings simply don't appear in the response; the caller
+    // treats them as 0. Existing rows without a like_count attribute
+    // also default to 0.
+    for (const id of drawing_ids) out[id] = 0;
+    for (const it of items) {
+      const id = String(it.drawing_id);
+      const count = typeof it.like_count === "number" ? it.like_count : 0;
+      out[id] = count;
+    }
+    return out;
+  }
 }
 
 interface CancellationReason {
@@ -224,6 +255,15 @@ export class MemoryLikesStore implements LikesStore {
     const out: string[] = [];
     for (const id of drawing_ids) {
       if (this.byDrawing.get(id)?.has(user_id)) out.push(id);
+    }
+    return out;
+  }
+
+  async listLikeCounts(drawing_ids: string[]): Promise<Record<string, number>> {
+    const out: Record<string, number> = {};
+    for (const id of drawing_ids) {
+      const row = await this.drawingStore.get(id);
+      out[id] = row?.like_count ?? 0;
     }
     return out;
   }

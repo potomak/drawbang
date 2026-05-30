@@ -386,6 +386,16 @@ Resources:
             Compress: true
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          # /likes/counts?ids=… — public, short-cache. Uses the managed
+          # CachingOptimized policy so CF honours our origin's
+          # Cache-Control header (max-age=15) and amortises bursts.
+          - PathPattern: /likes/*
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref DynamicCachePolicy
         # Map S3 misses to the chrome'd /404.html the builder writes. Both
         # codes are routed because OAC returns 403 for keys outside the
         # public/* prefix and 404 for missing keys inside it. Short cache
@@ -737,6 +747,12 @@ Resources:
             ApiId: !Ref IngestApi
             Method: GET
             Path: /me/likes
+        LikeCounts:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /likes/counts
 
   IngestApi:
     Type: AWS::Serverless::HttpApi

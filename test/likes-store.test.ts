@@ -115,4 +115,26 @@ describe("MemoryLikesStore", () => {
     const liked = await likes.listLikedDrawingIds("u".repeat(64), []);
     assert.deepEqual(liked, []);
   });
+
+  test("listLikeCounts mirrors like_count from the drawing rows", async () => {
+    const drawingStore = new MemoryDrawingStore();
+    const idA = "a".repeat(64);
+    const idB = "b".repeat(64);
+    await drawingStore.put(row({ drawing_id: idA }));
+    await drawingStore.put(row({ drawing_id: idB }));
+    const likes = new MemoryLikesStore(drawingStore);
+    await likes.like({ drawing_id: idA, user_id: "u".repeat(64), created_at_ms: 1 });
+    await likes.like({ drawing_id: idA, user_id: "v".repeat(64), created_at_ms: 2 });
+    await likes.like({ drawing_id: idB, user_id: "u".repeat(64), created_at_ms: 3 });
+
+    const counts = await likes.listLikeCounts([idA, idB]);
+    assert.equal(counts[idA], 2);
+    assert.equal(counts[idB], 1);
+  });
+
+  test("listLikeCounts on missing drawings reports 0", async () => {
+    const likes = new MemoryLikesStore(new MemoryDrawingStore());
+    const counts = await likes.listLikeCounts(["a".repeat(64)]);
+    assert.deepEqual(counts, { ["a".repeat(64)]: 0 });
+  });
 });

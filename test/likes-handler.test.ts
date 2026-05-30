@@ -4,6 +4,7 @@ import { MemoryDrawingStore, type DrawingRow } from "../ingest/drawing-store.js"
 import { MemoryLikesStore } from "../ingest/likes-store.js";
 import {
   handleLike,
+  handleLikeCounts,
   handleMyLikes,
   handleUnlike,
   type LikesHandlerConfig,
@@ -141,6 +142,37 @@ describe("handleMyLikes", () => {
       i.toString(16).padStart(64, "0"),
     );
     const res = await handleMyLikes(ids.join(","), AUTH, cfg);
+    assert.equal(res.status, 400);
+  });
+});
+
+describe("handleLikeCounts (public, anonymous)", () => {
+  test("returns fresh counts for the requested ids", async () => {
+    const { cfg, drawingStore } = makeConfig();
+    await drawingStore.put(row({ drawing_id: DRAWING_ID }));
+    await drawingStore.put(row({ drawing_id: ALT_ID }));
+    await handleLike(DRAWING_ID, AUTH, cfg);
+    await handleLike(DRAWING_ID, { ...AUTH, user_id: "v".repeat(64) }, cfg);
+    await handleLike(ALT_ID, AUTH, cfg);
+
+    const res = await handleLikeCounts(`${DRAWING_ID},${ALT_ID}`, cfg);
+    assert.equal(res.status, 200);
+    const body = res.body as { counts: Record<string, number> };
+    assert.equal(body.counts[DRAWING_ID], 2);
+    assert.equal(body.counts[ALT_ID], 1);
+    assert.match(res.headers?.["Cache-Control"] ?? "", /max-age=15/);
+  });
+
+  test("missing ids param returns an empty map", async () => {
+    const { cfg } = makeConfig();
+    const res = await handleLikeCounts(null, cfg);
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { counts: {} });
+  });
+
+  test("invalid id returns 400", async () => {
+    const { cfg } = makeConfig();
+    const res = await handleLikeCounts("not-hex", cfg);
     assert.equal(res.status, 400);
   });
 });

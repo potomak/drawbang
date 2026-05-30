@@ -45,7 +45,15 @@ jobs:
           node-version: "22"
           cache: "npm"
       - run: npm ci
-      - run: npm run lambda:build
+      - name: Build Lambda bundle
+        # DRAWBANG_ASSET_VERSION is inlined into the bundle by esbuild's
+        # `define` (see infra/aws/build-lambda.mjs). assetUrl() then
+        # appends ?v=<sha> to every reference to a non-hashed static
+        # asset (gallery-v2.css, like.js, share.js, flash.js, etc.) so
+        # the browser refetches them immediately on each deploy.
+        env:
+          DRAWBANG_ASSET_VERSION: ${{ github.sha }}
+        run: npm run lambda:build
       - uses: aws-actions/setup-sam@v2
         with:
           use-installer: true
@@ -138,9 +146,13 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Build editor
+        # DRAWBANG_ASSET_VERSION is read by the chrome Vite plugin so the
+        # editor SPAs ship the same `?v=<sha>` cache-bust on their
+        # <link>/<script> tags as the Lambda templates do.
         env:
           VITE_INGEST_URL: ${{ steps.stack.outputs.ingest_endpoint }}
           VITE_DRAWING_BASE_URL: ${{ steps.stack.outputs.public_base_url }}/tiles
+          DRAWBANG_ASSET_VERSION: ${{ github.sha }}
         run: npm run build
 
       - name: Upload editor to S3 (public/)

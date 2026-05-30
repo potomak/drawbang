@@ -29,15 +29,16 @@ test("renderHeader nav order matches NAV_LINKS, then identity, then logout", () 
   assert.deepEqual(datas, expectedIds);
 });
 
-test("renderHeader: active='home' marks only the home link with aria-current='page'", () => {
-  const html = renderHeader({ active: "home" });
-  // Exactly one aria-current="page" attribute…
+test("renderHeader: no Home link in the nav (the logo is the home link)", () => {
+  const html = renderHeader();
+  assert.doesNotMatch(html, /data-nav="home"/);
+});
+
+test("renderHeader: active='products' marks the products link with aria-current='page'", () => {
+  const html = renderHeader({ active: "products" });
   const ariaMatches = [...html.matchAll(/aria-current="page"/g)];
   assert.equal(ariaMatches.length, 1);
-  // …and it sits on the home link.
-  assert.match(html, /data-nav="home"[^>]*aria-current="page"/);
-  // products and identity links are NOT marked active.
-  assert.doesNotMatch(html, /data-nav="products"[^>]*aria-current/);
+  assert.match(html, /data-nav="products"[^>]*aria-current="page"/);
   assert.doesNotMatch(html, /data-nav="identity"[^>]*aria-current/);
 });
 
@@ -154,11 +155,10 @@ test("identity link carries data-identity-link='1' so the patcher can find it", 
 
 test("non-identity links do NOT carry data-identity-link", () => {
   const header = renderHeader();
-  // Only the identity link should have the marker. The home + products
-  // links would be a footgun if they got rewritten by the patcher.
+  // Only the identity link should have the marker. The products link
+  // would be a footgun if it got rewritten by the patcher.
   const matches = [...header.matchAll(/data-identity-link="1"/g)];
   assert.equal(matches.length, 1);
-  assert.doesNotMatch(header, /data-nav="home"[^>]*data-identity-link/);
   assert.doesNotMatch(header, /data-nav="products"[^>]*data-identity-link/);
 });
 

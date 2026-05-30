@@ -1,3 +1,4 @@
+import { assetUrl } from "../../src/layout/asset-version.js";
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
@@ -77,7 +78,7 @@ ${archive}
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Draw! · Gallery</title>
-    <link rel="stylesheet" href="/gallery-v2.css" />
+    <link rel="stylesheet" href="${assetUrl("/gallery-v2.css")}" />
   </head>
   <body>
     ${renderHeader({ active: "gallery" })}

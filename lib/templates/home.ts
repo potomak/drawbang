@@ -1,4 +1,9 @@
-import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
+import { assetUrl } from "../../src/layout/asset-version.js";
+import {
+  renderFooter,
+  renderFooterMeta,
+  renderHeader,
+} from "../../src/layout/chrome.js";
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
 import { formatItemDate } from "./_time.js";
@@ -37,7 +42,7 @@ export interface HomeView {
 
 export function renderFeedCard(item: FeedItem): string {
   const authorInner = item.author
-    ? `<a class="feed-card-author-link" href="/u/${esc(item.author.username)}">${renderAvatar(item.author.avatar_drawing_id, item.author.username, 36)}<span>@${esc(item.author.username)}</span></a>`
+    ? `<a class="feed-card-author-link" href="/u/${esc(item.author.username)}">${renderAvatar(item.author.avatar_drawing_id, item.author.username, 36)}<span>${esc(item.author.username)}</span></a>`
     : `<span class="feed-card-author-link feed-card-author-anon">anonymous</span>`;
   const date = formatItemDate(item.created_at);
   return `<li><article class="feed-card">
@@ -110,6 +115,13 @@ ${cards}${v.next_fragment_url ? `
   // page renders, and keeps assertions that "the empty page contains
   // no data-feed-sentinel string anywhere" honest.
   const observerScript = v.next_fragment_url ? renderObserverScript() : "";
+  // Infinite scroll means the bottom footer is effectively unreachable.
+  // We mirror its content into a fixed-left aside on wide viewports (see
+  // .feed-sidebar / body.has-feed-sidebar in chrome.css) and hide the
+  // bottom footer there; on narrow viewports the bottom footer falls
+  // back through. The FAB lives outside <footer>, so it stays on every
+  // viewport regardless.
+  const footerOpts = { active: "home", repoUrl: v.repo_url };
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -118,16 +130,19 @@ ${cards}${v.next_fragment_url ? `
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Draw!</title>
-    <link rel="stylesheet" href="/gallery-v2.css" />
+    <link rel="stylesheet" href="${assetUrl("/gallery-v2.css")}" />
   </head>
-  <body>
+  <body class="has-feed-sidebar">
     ${renderHeader({ active: "home" })}
+    <aside class="feed-sidebar" aria-label="Site links">
+      ${renderFooterMeta(footerOpts)}
+    </aside>
     <main>
 ${body}
     </main>
-    ${renderFooter({ active: "home", repoUrl: v.repo_url })}
-${observerScript}    <script src="/like.js"></script>
-    <script src="/share.js"></script>
+    ${renderFooter(footerOpts)}
+${observerScript}    <script src="${assetUrl("/like.js")}"></script>
+    <script src="${assetUrl("/share.js")}"></script>
   </body>
 </html>
 `;

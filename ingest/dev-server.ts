@@ -8,6 +8,7 @@ import { MemoryDrawingStore } from "./drawing-store.js";
 import { MemoryLikesStore } from "./likes-store.js";
 import {
   handleLike,
+  handleLikeCounts,
   handleMyLikes,
   handleUnlike,
   type LikesHandlerConfig,
@@ -165,6 +166,12 @@ const server = http.createServer(async (req, res) => {
         }
         const ids = u.searchParams.get("ids");
         const result = await handleMyLikes(ids, auth, likesConfig);
+        jsonWithHeaders(res, result.status, result.body, result.headers);
+        return;
+      }
+      if (req.method === "GET" && u.pathname === "/likes/counts") {
+        const ids = u.searchParams.get("ids");
+        const result = await handleLikeCounts(ids, likesConfig);
         jsonWithHeaders(res, result.status, result.body, result.headers);
         return;
       }
