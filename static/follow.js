@@ -83,6 +83,33 @@
     }
   }
 
+  // -- Hydrate fresh follower/following counts --------------------------------
+  // The SSR'd counters on /u/<un> ride a 24h edge cache (CC_PROFILE), so
+  // until they expire the page can show pre-follow values. /follows/counts
+  // is `no-store` and returns fresh denormalised totals; we overwrite the
+  // SSR numbers on every page load. Same shape as /likes/counts.
+  function hydrateCounts() {
+    var social = document.querySelector("[data-profile-username]");
+    if (!social) return;
+    var un = social.getAttribute("data-profile-username") || "";
+    if (!un) return;
+    fetch("/follows/counts?targets=" + encodeURIComponent(un))
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (data) {
+        if (!data || !data.counts || !data.counts[un]) return;
+        var c = data.counts[un];
+        var followerEl = social.querySelector("[data-follower-count]");
+        var followingEl = social.querySelector("[data-following-count]");
+        if (followerEl && typeof c.followers === "number") {
+          followerEl.textContent = String(Math.max(0, c.followers));
+        }
+        if (followingEl && typeof c.following === "number") {
+          followingEl.textContent = String(Math.max(0, c.following));
+        }
+      })
+      .catch(function () { /* network glitch — keep SSR'd values */ });
+  }
+
   function hydrateChunk(targets, t) {
     fetch("/me/follows?targets=" + encodeURIComponent(targets.join(",")), {
       headers: authHeaders(t),
@@ -185,6 +212,7 @@
 
   function init() {
     wireAll();
+    hydrateCounts();
     startObserver();
   }
 

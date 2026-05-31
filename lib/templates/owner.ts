@@ -110,7 +110,7 @@ function renderSocialBlock(v: OwnerView): string {
   if (v.username === "anonymous") return "";
   const followers = v.follower_count ?? 0;
   const following = v.following_count ?? 0;
-  return `      <div class="ow-social">
+  return `      <div class="ow-social" data-profile-username="${esc(v.username)}">
         ${renderFollowButton({ target_username: v.username, target_user_id: v.user_id })}
         <a class="ow-count" href="/u/${esc(v.username)}/followers">
           <strong data-follower-count>${esc(followers)}</strong>

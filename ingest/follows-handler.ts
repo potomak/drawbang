@@ -158,6 +158,52 @@ export async function handleMyFollows(
   };
 }
 
+// Public — no auth. Returns the fresh denormalised follower_count +
+// following_count for each requested username so the profile-page JS can
+// overwrite the SSR'd values that have been edge-cached for up to
+// CC_PROFILE (1 day).
+//
+// `no-store` mirrors `/likes/counts`: at our volume the BatchGetItem
+// behind getByUsername is cheap, and any edge caching would defeat the
+// freshness point (the follower who just bumped the count would still
+// see the pre-follow value on reload).
+export async function handleFollowCounts(
+  rawTargets: string | null,
+  cfg: FollowsHandlerConfig,
+): Promise<FollowsResult> {
+  const targets = parseUsernames(rawTargets);
+  if (targets === null) return err(400, "invalid targets");
+  if (targets.length > MY_FOLLOWS_MAX_TARGETS) {
+    return err(400, `too many targets (max ${MY_FOLLOWS_MAX_TARGETS})`);
+  }
+  // Empty list → empty object. Treat as a no-op rather than 400 so the
+  // client can call this unconditionally on pages with no buttons.
+  if (targets.length === 0) {
+    return {
+      status: 200,
+      body: { counts: {} },
+      headers: { "Cache-Control": "no-store" },
+    };
+  }
+  const records = await Promise.all(
+    targets.map((un) => cfg.userStore.getByUsername(un)),
+  );
+  const counts: Record<string, { followers: number; following: number }> = {};
+  for (let i = 0; i < targets.length; i++) {
+    const rec = records[i];
+    // Missing users get 0/0 so the client can render them uniformly.
+    counts[targets[i]] = {
+      followers: rec?.follower_count ?? 0,
+      following: rec?.following_count ?? 0,
+    };
+  }
+  return {
+    status: 200,
+    body: { counts },
+    headers: { "Cache-Control": "no-store" },
+  };
+}
+
 function parseUsernames(raw: string | null): string[] | null {
   if (raw === null || raw === "") return [];
   const parts = raw.split(",");

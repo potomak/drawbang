@@ -23,6 +23,7 @@ import {
 import { MemoryFollowsStore } from "./follows-store.js";
 import {
   handleFollow,
+  handleFollowCounts,
   handleMyFollows,
   handleUnfollow,
   type FollowsHandlerConfig,
@@ -276,6 +277,12 @@ const server = http.createServer(async (req, res) => {
         }
         const targets = u.searchParams.get("targets");
         const result = await handleMyFollows(targets, auth, followsConfig);
+        jsonWithHeaders(res, result.status, result.body, result.headers);
+        return;
+      }
+      if (req.method === "GET" && u.pathname === "/follows/counts") {
+        const targets = u.searchParams.get("targets");
+        const result = await handleFollowCounts(targets, followsConfig);
         jsonWithHeaders(res, result.status, result.body, result.headers);
         return;
       }

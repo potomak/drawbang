@@ -37,6 +37,7 @@ import {
 import { DynamoFollowsStore } from "./follows-store.js";
 import {
   handleFollow,
+  handleFollowCounts,
   handleMyFollows,
   handleUnfollow,
   type FollowsHandlerConfig,
@@ -263,6 +264,13 @@ export async function handler(
   // /me/follows?targets=<csv> — subset of usernames the caller follows.
   if (method === "GET" && path === "/me/follows") {
     return handleMyFollowsRoute(event);
+  }
+  // /follows/counts?targets=<csv> — public, fresh denormalised
+  // follower/following counts for client-side hydration over the
+  // edge-cached SSR values. Mirrors /likes/counts.
+  if (method === "GET" && path === "/follows/counts") {
+    const result = await handleFollowCounts(queryParam(event, "targets"), followsConfig);
+    return jsonWithHeaders(result.status, result.body, result.headers);
   }
   // /likes/counts?ids=<csv> — public, fresh denormalised counts for
   // hydration. No auth.

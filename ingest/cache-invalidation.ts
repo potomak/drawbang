@@ -71,3 +71,11 @@ export function pathsToInvalidateOnProfilePictureChange(
 ): string[] {
   return [`/u/${username}*`];
 }
+
+// Note on follows: follower_count / following_count on the profile page
+// ride the same long CC_PROFILE TTL, but we DON'T invalidate on each
+// follow event. Instead `/follows/counts?targets=<csv>` ships fresh
+// per-user counts on every page load (no-store), and `/follow.js`
+// rewrites the SSR'd numbers from that response — same shape as the
+// `/likes/counts` hydration path. That avoids paying for an
+// invalidation on every follow click.

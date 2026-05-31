@@ -116,6 +116,7 @@ Auth-gated JSON endpoints (Bearer JWT in `Authorization` header, no caching at t
 | `/me/bookmarks/feed`           | GET           | HTML fragment of the caller's bookmarks (auth-gated). Loaded by the inline boot script on `/u/<un>/bookmarks`. |
 | `/users/<username>/follow`     | POST / DELETE | `ingest/follows-handler.ts` — follow/unfollow. Self-follow → 400, missing target → 404, duplicate → 409. Bumps `follower_count`/`following_count` on the users rows transactionally with the edge write. |
 | `/me/follows?targets=<csv>`    | GET           | `ingest/follows-handler.ts` — subset of the supplied usernames the caller follows (Follow-button hydration). |
+| `/follows/counts?targets=<csv>`| GET           | `ingest/follows-handler.ts` — **public**, fresh denormalised follower/following counts (no-store) for client-side hydration over the edge-cached SSR values on `/u/<un>`. |
 | `/auth/*`                      | POST          | `ingest/auth-handler.ts` (register/login/forgot/reset/avatar). |
 | `/users/<user_id>/stats`       | GET           | `ingest/user-stats-handler.ts` — public, but on a short max-age. |
 
