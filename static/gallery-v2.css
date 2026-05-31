@@ -155,6 +155,91 @@
 .bookmark-btn:hover { color: var(--accent); }
 .bookmark-btn[aria-pressed="true"] { color: var(--accent); }
 .bookmark-btn[aria-pressed="true"] .bookmark-icon { fill: currentColor; }
+
+/* =====================================================================
+   FOLLOWS (#202) — profile social row + follower/following list cards.
+   ===================================================================== */
+.ow-social {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin: 0 0 16px 0;
+  flex-wrap: wrap;
+}
+.ow-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--fg);
+  text-decoration: none;
+}
+.ow-count:hover { color: var(--accent); }
+.ow-count strong { font-variant-numeric: tabular-nums; }
+.ow-count span { color: var(--fg-muted); font-size: var(--t-sm); }
+.follow-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--fg);
+  color: var(--canvas-bg);
+  border: 0;
+  padding: 6px 14px;
+  margin: 0;
+  font: inherit;
+  font-size: var(--t-sm);
+  cursor: pointer;
+  line-height: 1.2;
+  border-radius: 4px;
+  transition: opacity 80ms, transform 80ms;
+}
+.follow-btn:hover { opacity: 0.85; }
+.follow-btn:active { transform: translate(1px, 1px); }
+.follow-btn:disabled { cursor: progress; opacity: 0.6; }
+.follow-btn[aria-pressed="true"] {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--fg);
+  padding: 5px 13px;
+}
+.follow-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 480px;
+}
+.follow-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+}
+.follow-card-pp { display: inline-flex; }
+.follow-card-pp .profile-picture-placeholder {
+  width: 44px;
+  height: 44px;
+  font-size: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--canvas-bg);
+  color: var(--fg-muted);
+  border-radius: 4px;
+}
+.follow-card-name {
+  flex: 1;
+  color: var(--fg);
+  text-decoration: none;
+  font-weight: 600;
+}
+.follow-card-name:hover { color: var(--accent); }
+.follow-sentinel {
+  display: block;
+  height: 1px;
+  list-style: none;
+}
 .feed-sentinel {
   display: block;
   height: 1px;

@@ -436,6 +436,25 @@ Resources:
             Compress: true
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          # /me/follows?targets=… — per-user "do I follow these?" hydration.
+          - PathPattern: /me/follows
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          # /users/<un>/follow (POST + DELETE) — toggle a follow edge.
+          # Same Authorization-forwarding pattern as /drawings/<id>/like.
+          - PathPattern: /users/*/follow
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
         # Map S3 misses to the chrome'd /404.html the builder writes. Both
         # codes are routed because OAC returns 403 for keys outside the
         # public/* prefix and 404 for missing keys inside it. Short cache
@@ -626,6 +645,38 @@ Resources:
             - { AttributeName: created_at_ms, KeyType: RANGE }
           Projection: { ProjectionType: KEYS_ONLY }
 
+  # Follow edges between accounts (#202). PK=follower_user_id,
+  # SK=followee_user_id (uniqueness on the pair). Two GSIs re-key on
+  # created_at_ms — one per direction — so /following and /followers
+  # both query newest-first without scanning. Usernames are denormalised
+  # onto each row at write time (CLAUDE.md: usernames are immutable in
+  # v1) so list-page renders don't need a second-table hop.
+  # follower_count + following_count live on drawbang-users; the
+  # follow/unfollow TransactWrite touches both tables atomically.
+  FollowsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: drawbang-follows
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: follower_user_id, AttributeType: S }
+        - { AttributeName: followee_user_id, AttributeType: S }
+        - { AttributeName: created_at_ms,    AttributeType: N }
+      KeySchema:
+        - { AttributeName: follower_user_id, KeyType: HASH }
+        - { AttributeName: followee_user_id, KeyType: RANGE }
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1-follower
+          KeySchema:
+            - { AttributeName: follower_user_id, KeyType: HASH }
+            - { AttributeName: created_at_ms,    KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+        - IndexName: GSI2-followee
+          KeySchema:
+            - { AttributeName: followee_user_id, KeyType: HASH }
+            - { AttributeName: created_at_ms,    KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+
   # Bookmarks: per-user list of saved drawings. PK=user_id (the saver),
   # SK=drawing_id; one row per (user, drawing) pair so "already
   # bookmarked?" is a cheap conditional Put on a known composite key.
@@ -673,6 +724,7 @@ Resources:
           DRAWBANG_DRAWINGS_TABLE: !Ref DrawingsTable
           DRAWBANG_LIKES_TABLE: !Ref LikesTable
           DRAWBANG_BOOKMARKS_TABLE: !Ref BookmarksTable
+          DRAWBANG_FOLLOWS_TABLE: !Ref FollowsTable
           CF_DISTRIBUTION_ID: !Ref CloudFrontDistributionIdOverride
           JWT_SECRET: !Ref JwtSecret
           SES_FROM_ADDRESS: !Ref SesFromAddress
@@ -686,6 +738,7 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref DrawingsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LikesTable }
         - DynamoDBCrudPolicy: { TableName: !Ref BookmarksTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref FollowsTable }
         # The /products handler queries the merch popularity counters (the
         # MerchFunction is the writer; ingest only reads here).
         - DynamoDBReadPolicy: { TableName: !Ref ProductCountersTable }
@@ -850,6 +903,48 @@ Resources:
             ApiId: !Ref IngestApi
             Method: GET
             Path: /u/{username}/bookmarks
+        FollowCreate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: POST
+            Path: /users/{username}/follow
+        FollowDelete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: DELETE
+            Path: /users/{username}/follow
+        MyFollows:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /me/follows
+        FollowersPage:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /u/{username}/followers
+        FollowersItems:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /u/{username}/followers/items
+        FollowingPage:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /u/{username}/following
+        FollowingItems:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /u/{username}/following/items
 
   IngestApi:
     Type: AWS::Serverless::HttpApi
@@ -969,6 +1064,9 @@ Outputs:
   BookmarksTableName:
     Description: DynamoDB table for per-user bookmarks (#201).
     Value: !Ref BookmarksTable
+  FollowsTableName:
+    Description: DynamoDB table for follow edges between accounts (#202).
+    Value: !Ref FollowsTable
   IngestEndpoint:
     Description: POST here with the IngestRequest body.
     Value: !Sub "https://${IngestApi}.execute-api.${AWS::Region}.amazonaws.com/ingest"

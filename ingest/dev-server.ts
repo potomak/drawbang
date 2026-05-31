@@ -20,6 +20,13 @@ import {
   handleUnbookmark,
   type BookmarksHandlerConfig,
 } from "./bookmarks-handler.js";
+import { MemoryFollowsStore } from "./follows-store.js";
+import {
+  handleFollow,
+  handleMyFollows,
+  handleUnfollow,
+  type FollowsHandlerConfig,
+} from "./follows-handler.js";
 import { ConsoleEmailSender } from "./email.js";
 import { JwtError, verifyJwt } from "./jwt.js";
 import type { AuthedUser } from "./handler.js";
@@ -37,6 +44,10 @@ import {
   renderDrawingPageHandler,
   renderFeedHandler,
   renderFeedItemsHandler,
+  renderFollowersItemsHandler,
+  renderFollowersPageHandler,
+  renderFollowingItemsHandler,
+  renderFollowingPageHandler,
   renderHomePageHandler,
   renderMyBookmarksFeedHandler,
   renderProductsPageHandler,
@@ -59,12 +70,15 @@ const likesStore = new MemoryLikesStore(drawingStore);
 const likesConfig: LikesHandlerConfig = { likesStore };
 const bookmarksStore = new MemoryBookmarksStore(drawingStore);
 const bookmarksConfig: BookmarksHandlerConfig = { bookmarksStore };
+const followsStore = new MemoryFollowsStore(userStore);
+const followsConfig: FollowsHandlerConfig = { followsStore, userStore };
 const renderConfig: RenderHandlersConfig = {
   drawingStore,
   publicBaseUrl: PUBLIC_BASE,
   repoUrl: "https://github.com/potomak/drawbang",
   userStore,
   bookmarksStore,
+  followsStore,
 };
 const authConfig: AuthHandlerConfig = {
   userStore,
@@ -145,6 +159,16 @@ const server = http.createServer(async (req, res) => {
         const ubm = pathOnly.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])\/bookmarks$/);
         if (ubm) {
           rendered = await renderBookmarksPageHandler(renderConfig, ubm[1]);
+        }
+        const ufl = pathOnly.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])\/(followers|following)$/);
+        if (ufl) {
+          const h = ufl[2] === "followers" ? renderFollowersPageHandler : renderFollowingPageHandler;
+          rendered = await h(renderConfig, ufl[1], cursor);
+        }
+        const ufi = pathOnly.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])\/(followers|following)\/items$/);
+        if (ufi) {
+          const h = ufi[2] === "followers" ? renderFollowersItemsHandler : renderFollowingItemsHandler;
+          rendered = await h(renderConfig, ufi[1], cursor);
         }
       }
       if (rendered) {
@@ -228,6 +252,31 @@ const server = http.createServer(async (req, res) => {
           "Cache-Control": rendered.cacheControl,
         });
         res.end(rendered.body);
+        return;
+      }
+      const followMatch = u.pathname.match(/^\/users\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])\/follow$/);
+      if (followMatch && (req.method === "POST" || req.method === "DELETE")) {
+        const auth = extractAuth(req);
+        if (!auth) {
+          json(res, 401, { error: "authentication required" });
+          return;
+        }
+        const result =
+          req.method === "POST"
+            ? await handleFollow(followMatch[1], auth, followsConfig)
+            : await handleUnfollow(followMatch[1], auth, followsConfig);
+        jsonWithHeaders(res, result.status, result.body, result.headers);
+        return;
+      }
+      if (req.method === "GET" && u.pathname === "/me/follows") {
+        const auth = extractAuth(req);
+        if (!auth) {
+          json(res, 401, { error: "authentication required" });
+          return;
+        }
+        const targets = u.searchParams.get("targets");
+        const result = await handleMyFollows(targets, auth, followsConfig);
+        jsonWithHeaders(res, result.status, result.body, result.headers);
         return;
       }
     }

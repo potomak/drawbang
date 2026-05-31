@@ -34,6 +34,13 @@ import {
   handleUnbookmark,
   type BookmarksHandlerConfig,
 } from "./bookmarks-handler.js";
+import { DynamoFollowsStore } from "./follows-store.js";
+import {
+  handleFollow,
+  handleMyFollows,
+  handleUnfollow,
+  type FollowsHandlerConfig,
+} from "./follows-handler.js";
 import { CloudFrontInvalidator } from "./cache-invalidation.js";
 import { SesEmailSender } from "./email.js";
 import {
@@ -41,6 +48,10 @@ import {
   renderDrawingPageHandler,
   renderFeedHandler,
   renderFeedItemsHandler,
+  renderFollowersItemsHandler,
+  renderFollowersPageHandler,
+  renderFollowingItemsHandler,
+  renderFollowingPageHandler,
   renderHomePageHandler,
   renderMyBookmarksFeedHandler,
   renderProductsPageHandler,
@@ -62,6 +73,7 @@ const usernamesTable = required("DRAWBANG_USERNAMES_TABLE");
 const drawingsTable = required("DRAWBANG_DRAWINGS_TABLE");
 const likesTable = required("DRAWBANG_LIKES_TABLE");
 const bookmarksTable = required("DRAWBANG_BOOKMARKS_TABLE");
+const followsTable = required("DRAWBANG_FOLLOWS_TABLE");
 // Optional: when unset (e.g. local dev), publish skips CF invalidation —
 // cached pages refresh at s-maxage instead.
 const cfDistributionId = process.env.CF_DISTRIBUTION_ID ?? "";
@@ -91,6 +103,11 @@ const bookmarksStore = new DynamoBookmarksStore({
   drawingStore,
 });
 const bookmarksConfig: BookmarksHandlerConfig = { bookmarksStore };
+const followsStore = new DynamoFollowsStore({
+  followsTable,
+  usersTable,
+});
+const followsConfig: FollowsHandlerConfig = { followsStore, userStore };
 const cacheInvalidator = cfDistributionId
   ? new CloudFrontInvalidator({ distributionId: cfDistributionId })
   : undefined;
@@ -105,6 +122,7 @@ const renderConfig: RenderHandlersConfig = {
   userStatsStore,
   userStore,
   bookmarksStore,
+  followsStore,
 };
 const authConfig: AuthHandlerConfig = {
   userStore,
@@ -180,6 +198,24 @@ export async function handler(
       return adaptRender(await renderBookmarksPageHandler(renderConfig, m[1]));
     }
   }
+  // /u/<username>/followers + /following — paginated lists.
+  {
+    const m = path.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])\/(followers|following)$/);
+    if (method === "GET" && m) {
+      const kind = m[2] as "followers" | "following";
+      const handler = kind === "followers" ? renderFollowersPageHandler : renderFollowingPageHandler;
+      return adaptRender(await handler(renderConfig, m[1], queryParam(event, "cursor")));
+    }
+  }
+  // /u/<username>/{followers,following}/items?cursor=… — infinite scroll fragments.
+  {
+    const m = path.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])\/(followers|following)\/items$/);
+    if (method === "GET" && m) {
+      const kind = m[2] as "followers" | "following";
+      const handler = kind === "followers" ? renderFollowersItemsHandler : renderFollowingItemsHandler;
+      return adaptRender(await handler(renderConfig, m[1], queryParam(event, "cursor")));
+    }
+  }
   // /users/{user_id}/stats — per-account streak / total counters (#115/#116).
   if (method === "GET" && /^\/users\/[^\/]+\/stats$/.test(path)) {
     return handleUserStatsRoute(event, path);
@@ -210,6 +246,17 @@ export async function handler(
   // the inline boot script on /u/<un>/bookmarks.
   if (method === "GET" && path === "/me/bookmarks/feed") {
     return handleMyBookmarksFeedRoute(event);
+  }
+  // /users/<username>/follow — toggle a follow edge.
+  {
+    const m = path.match(/^\/users\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])\/follow$/);
+    if (m && (method === "POST" || method === "DELETE")) {
+      return handleFollowToggleRoute(event, m[1], method);
+    }
+  }
+  // /me/follows?targets=<csv> — subset of usernames the caller follows.
+  if (method === "GET" && path === "/me/follows") {
+    return handleMyFollowsRoute(event);
   }
   // /likes/counts?ids=<csv> — public, fresh denormalised counts for
   // hydration. No auth.
@@ -372,6 +419,29 @@ async function handleMyBookmarksFeedRoute(
   const auth = extractAuth(event);
   if (!auth) return json(401, { error: "authentication required" });
   return adaptRender(await renderMyBookmarksFeedHandler(renderConfig, auth));
+}
+
+async function handleFollowToggleRoute(
+  event: APIGatewayProxyEventV2,
+  target_username: string,
+  method: "POST" | "DELETE",
+): Promise<APIGatewayProxyResultV2> {
+  const auth = extractAuth(event);
+  if (!auth) return json(401, { error: "authentication required" });
+  const result =
+    method === "POST"
+      ? await handleFollow(target_username, auth, followsConfig)
+      : await handleUnfollow(target_username, auth, followsConfig);
+  return jsonWithHeaders(result.status, result.body, result.headers);
+}
+
+async function handleMyFollowsRoute(
+  event: APIGatewayProxyEventV2,
+): Promise<APIGatewayProxyResultV2> {
+  const auth = extractAuth(event);
+  if (!auth) return json(401, { error: "authentication required" });
+  const result = await handleMyFollows(queryParam(event, "targets"), auth, followsConfig);
+  return jsonWithHeaders(result.status, result.body, result.headers);
 }
 
 async function handleUserStatsRoute(

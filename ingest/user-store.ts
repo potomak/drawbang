@@ -27,6 +27,11 @@ export interface UserRecord {
   // DrawingStore at write time so users can only pin their own drawings.
   // null/absent → use the default identicon (browsers see no avatar img).
   avatar_drawing_id?: string;
+  // Denormalised follow counts (#202). Maintained by FollowsStore via
+  // TransactWrite on follow/unfollow. Absent on rows pre-dating the
+  // follows table — readers treat absent as 0.
+  follower_count?: number;
+  following_count?: number;
 }
 
 export class EmailTakenError extends Error {
@@ -304,5 +309,20 @@ export class MemoryUserStore implements UserStore {
       : rest;
     this.byEmail.set(email, updated);
     return { ...updated };
+  }
+
+  // Test seam for MemoryFollowsStore. Adjusts the follower/following
+  // counters by `delta` on a single row, clamping at 0 to mirror the
+  // ADD-with-clamp behaviour MemoryLikesStore uses for like_count. Throws
+  // UserNotFoundError when the email isn't registered.
+  bumpFollowCounts(
+    email: string,
+    field: "follower_count" | "following_count",
+    delta: number,
+  ): void {
+    const r = this.byEmail.get(email);
+    if (!r) throw new UserNotFoundError();
+    const next = Math.max(0, (r[field] ?? 0) + delta);
+    this.byEmail.set(email, { ...r, [field]: next });
   }
 }

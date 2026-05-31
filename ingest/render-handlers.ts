@@ -14,6 +14,11 @@ import renderHome, {
 } from "../lib/templates/home.js";
 import renderOwner from "../lib/templates/owner.js";
 import renderBookmarksPage from "../lib/templates/bookmarks.js";
+import renderFollowList, {
+  renderFollowListFragment,
+  type FollowListItem,
+  type FollowListKind,
+} from "../lib/templates/follow-list.js";
 import renderNotFound from "../lib/templates/not-found.js";
 import renderProducts from "../lib/templates/products.js";
 import { productCardsFromCounters } from "../lib/products-cards.js";
@@ -25,6 +30,12 @@ import {
   type DrawingStore,
 } from "./drawing-store.js";
 import type { BookmarksStore } from "./bookmarks-store.js";
+import {
+  decodeFollowCursor,
+  encodeFollowCursor,
+  type FollowEdge,
+  type FollowsStore,
+} from "./follows-store.js";
 import type { MerchCatalog } from "../merch/lambda.js";
 import type { ProductCounter } from "../merch/product-counters.js";
 import type { UserStatsStore } from "./user-stats-store.js";
@@ -63,6 +74,9 @@ export interface RenderHandlersConfig {
   // /u/<username>/bookmarks page; otherwise that route 404s. Optional so
   // tests/dev paths that don't exercise bookmarks can omit it.
   bookmarksStore?: BookmarksStore;
+  // Per-user follows (#202). When wired, renderFollowers/Following handlers
+  // serve the /u/<un>/followers + /u/<un>/following pages. Optional.
+  followsStore?: FollowsStore;
   // Test seam for the recency label on product cards. Defaults to wall-clock.
   now?: () => Date;
 }
@@ -320,6 +334,8 @@ export async function renderProfilePageHandler(
     drawings: items,
     stats,
     profile_picture_drawing_id: profilePictureDrawingId,
+    follower_count: account?.follower_count,
+    following_count: account?.following_count,
     repo_url: cfg.repoUrl,
   });
   if (next) body = injectProfileSentinel(body, next);
@@ -415,6 +431,114 @@ export async function renderProfileItemsHandler(
     cacheControl: CC_PROFILE,
     body: renderGalleryFragment(page.items.map(itemFromRow), next),
   };
+}
+
+// -- /u/<username>/followers + /u/<username>/following ----------------------
+
+// Edge-cacheable but short s-maxage so the list reflects new follows
+// within minutes (the follower/followee sees their own change instantly
+// via optimistic JS; other viewers depend on the next miss).
+const CC_FOLLOW_LIST = "public, s-maxage=60, stale-while-revalidate=60";
+
+async function renderFollowListPage(
+  cfg: RenderHandlersConfig,
+  ownerUsername: string,
+  kind: FollowListKind,
+  rawCursor: string | null,
+): Promise<RenderResponse> {
+  if (!USERNAME_RE.test(ownerUsername)) return notFound(cfg);
+  if (!cfg.followsStore || !cfg.userStore) return notFound(cfg);
+  const owner = await cfg.userStore.getByUsername(ownerUsername);
+  if (!owner) return notFound(cfg);
+  const cursor = decodeFollowCursor(rawCursor) ?? undefined;
+  const perPage = cfg.perPage ?? PER_PAGE;
+  const page =
+    kind === "followers"
+      ? await cfg.followsStore.listFollowers(owner.user_id, { limit: perPage, cursor })
+      : await cfg.followsStore.listFollowing(owner.user_id, { limit: perPage, cursor });
+  const items = page.items.map((e) => followListItem(e, kind));
+  const next = page.next_cursor
+    ? `/u/${ownerUsername}/${kind}/items?cursor=${encodeFollowCursor(page.next_cursor)}`
+    : null;
+  const view = {
+    owner_username: ownerUsername,
+    kind,
+    items,
+    repo_url: cfg.repoUrl,
+    ...(next ? { next_fragment_url: next } : {}),
+  };
+  return {
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: CC_FOLLOW_LIST,
+    body: renderFollowList(view),
+  };
+}
+
+async function renderFollowListItems(
+  cfg: RenderHandlersConfig,
+  ownerUsername: string,
+  kind: FollowListKind,
+  rawCursor: string | null,
+): Promise<RenderResponse> {
+  if (!USERNAME_RE.test(ownerUsername)) return notFound(cfg);
+  if (!cfg.followsStore || !cfg.userStore) return notFound(cfg);
+  const owner = await cfg.userStore.getByUsername(ownerUsername);
+  if (!owner) return notFound(cfg);
+  const cursor = decodeFollowCursor(rawCursor) ?? undefined;
+  const perPage = cfg.perPage ?? PER_PAGE;
+  const page =
+    kind === "followers"
+      ? await cfg.followsStore.listFollowers(owner.user_id, { limit: perPage, cursor })
+      : await cfg.followsStore.listFollowing(owner.user_id, { limit: perPage, cursor });
+  const items = page.items.map((e) => followListItem(e, kind));
+  const next = page.next_cursor
+    ? `/u/${ownerUsername}/${kind}/items?cursor=${encodeFollowCursor(page.next_cursor)}`
+    : null;
+  return {
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: CC_FOLLOW_LIST,
+    body: renderFollowListFragment(items, next),
+  };
+}
+
+function followListItem(e: FollowEdge, kind: FollowListKind): FollowListItem {
+  return kind === "followers"
+    ? { username: e.follower_username, user_id: e.follower_user_id }
+    : { username: e.followee_username, user_id: e.followee_user_id };
+}
+
+export function renderFollowersPageHandler(
+  cfg: RenderHandlersConfig,
+  ownerUsername: string,
+  rawCursor: string | null = null,
+): Promise<RenderResponse> {
+  return renderFollowListPage(cfg, ownerUsername, "followers", rawCursor);
+}
+
+export function renderFollowingPageHandler(
+  cfg: RenderHandlersConfig,
+  ownerUsername: string,
+  rawCursor: string | null = null,
+): Promise<RenderResponse> {
+  return renderFollowListPage(cfg, ownerUsername, "following", rawCursor);
+}
+
+export function renderFollowersItemsHandler(
+  cfg: RenderHandlersConfig,
+  ownerUsername: string,
+  rawCursor: string | null,
+): Promise<RenderResponse> {
+  return renderFollowListItems(cfg, ownerUsername, "followers", rawCursor);
+}
+
+export function renderFollowingItemsHandler(
+  cfg: RenderHandlersConfig,
+  ownerUsername: string,
+  rawCursor: string | null,
+): Promise<RenderResponse> {
+  return renderFollowListItems(cfg, ownerUsername, "following", rawCursor);
 }
 
 async function ownerStatsView(
