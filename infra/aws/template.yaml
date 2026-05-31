@@ -805,49 +805,49 @@ Resources:
           Type: HttpApi
           Properties:
             ApiId: !Ref IngestApi
-            Method: GET
+            Method: ANY
             Path: /
         FeedItems:
           Type: HttpApi
           Properties:
             ApiId: !Ref IngestApi
-            Method: GET
+            Method: ANY
             Path: /feed/items
         Feed:
           Type: HttpApi
           Properties:
             ApiId: !Ref IngestApi
-            Method: GET
+            Method: ANY
             Path: /feed.rss
         DrawingPage:
           Type: HttpApi
           Properties:
             ApiId: !Ref IngestApi
-            Method: GET
+            Method: ANY
             Path: /d/{id}
         ProfilePage:
           Type: HttpApi
           Properties:
             ApiId: !Ref IngestApi
-            Method: GET
+            Method: ANY
             Path: /u/{username}
         ProfileItems:
           Type: HttpApi
           Properties:
             ApiId: !Ref IngestApi
-            Method: GET
+            Method: ANY
             Path: /u/{username}/items
         Products:
           Type: HttpApi
           Properties:
             ApiId: !Ref IngestApi
-            Method: GET
+            Method: ANY
             Path: /products
         ProductsPage:
           Type: HttpApi
           Properties:
             ApiId: !Ref IngestApi
-            Method: GET
+            Method: ANY
             Path: /products/p/{page}
         LikeCreate:
           Type: HttpApi
@@ -901,7 +901,7 @@ Resources:
           Type: HttpApi
           Properties:
             ApiId: !Ref IngestApi
-            Method: GET
+            Method: ANY
             Path: /u/{username}/bookmarks
         FollowCreate:
           Type: HttpApi
@@ -925,25 +925,25 @@ Resources:
           Type: HttpApi
           Properties:
             ApiId: !Ref IngestApi
-            Method: GET
+            Method: ANY
             Path: /u/{username}/followers
         FollowersItems:
           Type: HttpApi
           Properties:
             ApiId: !Ref IngestApi
-            Method: GET
+            Method: ANY
             Path: /u/{username}/followers/items
         FollowingPage:
           Type: HttpApi
           Properties:
             ApiId: !Ref IngestApi
-            Method: GET
+            Method: ANY
             Path: /u/{username}/following
         FollowingItems:
           Type: HttpApi
           Properties:
             ApiId: !Ref IngestApi
-            Method: GET
+            Method: ANY
             Path: /u/{username}/following/items
 
   IngestApi:

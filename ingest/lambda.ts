@@ -137,7 +137,13 @@ export async function handler(
   event: APIGatewayProxyEventV2,
   _context: Context,
 ): Promise<APIGatewayProxyResultV2> {
-  const method = event.requestContext.http.method;
+  // Normalise HEAD → GET so uptime monitors, link checkers, and the
+  // CDN-cache validators that issue HEAD requests don't 404. RFC says a
+  // HEAD response MAY include a body but the client MUST ignore it, so
+  // returning the GET body here is harmless — and CloudFront knows to
+  // strip it before forwarding to the viewer.
+  const rawMethod = event.requestContext.http.method;
+  const method = rawMethod === "HEAD" ? "GET" : rawMethod;
   const path = event.rawPath ?? event.requestContext.http.path ?? "";
 
   if (method === "POST" && path === "/ingest") {
