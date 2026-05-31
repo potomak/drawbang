@@ -27,13 +27,22 @@ import {
   handleUnlike,
   type LikesHandlerConfig,
 } from "./likes-handler.js";
+import { DynamoBookmarksStore } from "./bookmarks-store.js";
+import {
+  handleBookmark,
+  handleMyBookmarks,
+  handleUnbookmark,
+  type BookmarksHandlerConfig,
+} from "./bookmarks-handler.js";
 import { CloudFrontInvalidator } from "./cache-invalidation.js";
 import { SesEmailSender } from "./email.js";
 import {
+  renderBookmarksPageHandler,
   renderDrawingPageHandler,
   renderFeedHandler,
   renderFeedItemsHandler,
   renderHomePageHandler,
+  renderMyBookmarksFeedHandler,
   renderProductsPageHandler,
   renderProfileItemsHandler,
   renderProfilePageHandler,
@@ -52,6 +61,7 @@ const usersTable = required("DRAWBANG_USERS_TABLE");
 const usernamesTable = required("DRAWBANG_USERNAMES_TABLE");
 const drawingsTable = required("DRAWBANG_DRAWINGS_TABLE");
 const likesTable = required("DRAWBANG_LIKES_TABLE");
+const bookmarksTable = required("DRAWBANG_BOOKMARKS_TABLE");
 // Optional: when unset (e.g. local dev), publish skips CF invalidation —
 // cached pages refresh at s-maxage instead.
 const cfDistributionId = process.env.CF_DISTRIBUTION_ID ?? "";
@@ -76,6 +86,11 @@ const likesStore = new DynamoLikesStore({
   drawingsTable,
 });
 const likesConfig: LikesHandlerConfig = { likesStore };
+const bookmarksStore = new DynamoBookmarksStore({
+  bookmarksTable,
+  drawingStore,
+});
+const bookmarksConfig: BookmarksHandlerConfig = { bookmarksStore };
 const cacheInvalidator = cfDistributionId
   ? new CloudFrontInvalidator({ distributionId: cfDistributionId })
   : undefined;
@@ -89,6 +104,7 @@ const renderConfig: RenderHandlersConfig = {
   merchCatalog,
   userStatsStore,
   userStore,
+  bookmarksStore,
 };
 const authConfig: AuthHandlerConfig = {
   userStore,
@@ -155,6 +171,15 @@ export async function handler(
       );
     }
   }
+  // /u/<username>/bookmarks — the page shell. Per-user data lands via the
+  // client-side fetch to /me/bookmarks/feed below; the shell ships no
+  // auth-gated content so it's safe to render uncached for any caller.
+  {
+    const m = path.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])\/bookmarks$/);
+    if (method === "GET" && m) {
+      return adaptRender(await renderBookmarksPageHandler(renderConfig, m[1]));
+    }
+  }
   // /users/{user_id}/stats — per-account streak / total counters (#115/#116).
   if (method === "GET" && /^\/users\/[^\/]+\/stats$/.test(path)) {
     return handleUserStatsRoute(event, path);
@@ -169,6 +194,22 @@ export async function handler(
   // /me/likes?ids=<csv> — return the subset the caller has liked.
   if (method === "GET" && path === "/me/likes") {
     return handleMyLikesRoute(event);
+  }
+  // /drawings/{id}/bookmark — toggle a bookmark.
+  {
+    const m = path.match(/^\/drawings\/([0-9a-f]{64})\/bookmark$/);
+    if (m && (method === "POST" || method === "DELETE")) {
+      return handleBookmarksToggleRoute(event, m[1], method);
+    }
+  }
+  // /me/bookmarks?ids=<csv> — return the subset the caller has bookmarked.
+  if (method === "GET" && path === "/me/bookmarks") {
+    return handleMyBookmarksRoute(event);
+  }
+  // /me/bookmarks/feed — HTML fragment of the caller's bookmarks, used by
+  // the inline boot script on /u/<un>/bookmarks.
+  if (method === "GET" && path === "/me/bookmarks/feed") {
+    return handleMyBookmarksFeedRoute(event);
   }
   // /likes/counts?ids=<csv> — public, fresh denormalised counts for
   // hydration. No auth.
@@ -300,6 +341,37 @@ async function handleMyLikesRoute(
   if (!auth) return json(401, { error: "authentication required" });
   const result = await handleMyLikes(queryParam(event, "ids"), auth, likesConfig);
   return jsonWithHeaders(result.status, result.body, result.headers);
+}
+
+async function handleBookmarksToggleRoute(
+  event: APIGatewayProxyEventV2,
+  drawing_id: string,
+  method: "POST" | "DELETE",
+): Promise<APIGatewayProxyResultV2> {
+  const auth = extractAuth(event);
+  if (!auth) return json(401, { error: "authentication required" });
+  const result =
+    method === "POST"
+      ? await handleBookmark(drawing_id, auth, bookmarksConfig)
+      : await handleUnbookmark(drawing_id, auth, bookmarksConfig);
+  return jsonWithHeaders(result.status, result.body, result.headers);
+}
+
+async function handleMyBookmarksRoute(
+  event: APIGatewayProxyEventV2,
+): Promise<APIGatewayProxyResultV2> {
+  const auth = extractAuth(event);
+  if (!auth) return json(401, { error: "authentication required" });
+  const result = await handleMyBookmarks(queryParam(event, "ids"), auth, bookmarksConfig);
+  return jsonWithHeaders(result.status, result.body, result.headers);
+}
+
+async function handleMyBookmarksFeedRoute(
+  event: APIGatewayProxyEventV2,
+): Promise<APIGatewayProxyResultV2> {
+  const auth = extractAuth(event);
+  if (!auth) return json(401, { error: "authentication required" });
+  return adaptRender(await renderMyBookmarksFeedHandler(renderConfig, auth));
 }
 
 async function handleUserStatsRoute(

@@ -150,6 +150,11 @@
 .like-btn[aria-pressed="true"] { color: #e0245e; }
 .like-btn[aria-pressed="true"] .like-icon { fill: currentColor; }
 .like-count { font-variant-numeric: tabular-nums; }
+/* Bookmark button: same base as Like; filled (accent) when pressed. */
+.bookmark-btn { color: var(--fg-muted); cursor: pointer; }
+.bookmark-btn:hover { color: var(--accent); }
+.bookmark-btn[aria-pressed="true"] { color: var(--accent); }
+.bookmark-btn[aria-pressed="true"] .bookmark-icon { fill: currentColor; }
 .feed-sentinel {
   display: block;
   height: 1px;

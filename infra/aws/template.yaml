@@ -318,6 +318,18 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: !Ref DynamicCachePolicy
+          # /u/<username>/bookmarks — owner-only page. Must come before the
+          # generic /u/* behaviour (CloudFront picks the longest match) so
+          # we forward the Authorization header to Lambda; the page is
+          # private/no-store so caching is disabled too.
+          - PathPattern: /u/*/bookmarks
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
           # /u/<username> profile + /u/<username>/items fragments.
           - PathPattern: /u/*
             TargetOriginId: api
@@ -399,6 +411,27 @@ Resources:
             TargetOriginId: api
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          # /drawings/<id>/bookmark (POST + DELETE). Same JWT-auth pattern
+          # as /drawings/<id>/like; the trailing `/bookmark` keeps it
+          # disjoint from the gif rewrite.
+          - PathPattern: /drawings/*/bookmark
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          # /me/bookmarks?ids=… and /me/bookmarks/feed — per-user auth-gated
+          # lookups (subset + HTML fragment for the bookmarks page).
+          - PathPattern: /me/bookmarks*
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
@@ -593,6 +626,31 @@ Resources:
             - { AttributeName: created_at_ms, KeyType: RANGE }
           Projection: { ProjectionType: KEYS_ONLY }
 
+  # Bookmarks: per-user list of saved drawings. PK=user_id (the saver),
+  # SK=drawing_id; one row per (user, drawing) pair so "already
+  # bookmarked?" is a cheap conditional Put on a known composite key.
+  # GSI1-recent re-keys on (user_id, created_at_ms) for the newest-first
+  # listing on /u/<username>/bookmarks — KEYS_ONLY because
+  # render-handlers.ts re-fetches the DrawingRow per id anyway.
+  BookmarksTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: drawbang-bookmarks
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: user_id, AttributeType: S }
+        - { AttributeName: drawing_id, AttributeType: S }
+        - { AttributeName: created_at_ms, AttributeType: N }
+      KeySchema:
+        - { AttributeName: user_id, KeyType: HASH }
+        - { AttributeName: drawing_id, KeyType: RANGE }
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1-recent
+          KeySchema:
+            - { AttributeName: user_id, KeyType: HASH }
+            - { AttributeName: created_at_ms, KeyType: RANGE }
+          Projection: { ProjectionType: KEYS_ONLY }
+
   # -- Ingest Lambda + API Gateway --------------------------------------------
 
   IngestFunction:
@@ -614,6 +672,7 @@ Resources:
           DRAWBANG_USERNAMES_TABLE: !Ref UsernamesTable
           DRAWBANG_DRAWINGS_TABLE: !Ref DrawingsTable
           DRAWBANG_LIKES_TABLE: !Ref LikesTable
+          DRAWBANG_BOOKMARKS_TABLE: !Ref BookmarksTable
           CF_DISTRIBUTION_ID: !Ref CloudFrontDistributionIdOverride
           JWT_SECRET: !Ref JwtSecret
           SES_FROM_ADDRESS: !Ref SesFromAddress
@@ -626,6 +685,7 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref UsernamesTable }
         - DynamoDBCrudPolicy: { TableName: !Ref DrawingsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LikesTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref BookmarksTable }
         # The /products handler queries the merch popularity counters (the
         # MerchFunction is the writer; ingest only reads here).
         - DynamoDBReadPolicy: { TableName: !Ref ProductCountersTable }
@@ -760,6 +820,36 @@ Resources:
             ApiId: !Ref IngestApi
             Method: GET
             Path: /likes/counts
+        BookmarkCreate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: POST
+            Path: /drawings/{id}/bookmark
+        BookmarkDelete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: DELETE
+            Path: /drawings/{id}/bookmark
+        MyBookmarks:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /me/bookmarks
+        MyBookmarksFeed:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /me/bookmarks/feed
+        BookmarksPage:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /u/{username}/bookmarks
 
   IngestApi:
     Type: AWS::Serverless::HttpApi
@@ -876,6 +966,9 @@ Outputs:
   DrawingsTableName:
     Description: DynamoDB table backing the dynamic gallery/drawing/profile routes.
     Value: !Ref DrawingsTable
+  BookmarksTableName:
+    Description: DynamoDB table for per-user bookmarks (#201).
+    Value: !Ref BookmarksTable
   IngestEndpoint:
     Description: POST here with the IngestRequest body.
     Value: !Sub "https://${IngestApi}.execute-api.${AWS::Region}.amazonaws.com/ingest"

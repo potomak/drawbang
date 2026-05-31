@@ -174,6 +174,21 @@ describe("renderFeedCard", () => {
     assert.match(html, /<script src="\/like\.js"><\/script>/);
     assert.match(html, /<script src="\/share\.js"><\/script>/);
   });
+
+  test("renders a bookmark button with data-bookmark-target", () => {
+    const id = "d".repeat(64);
+    const html = renderFeedCard(item({ id }));
+    assert.match(html, new RegExp(`data-bookmark-target="${id}"`));
+    assert.match(html, /class="bookmark-btn feed-action"/);
+  });
+
+  test("renderHome loads /bookmark.js so the bookmark button gets wired", () => {
+    const html = renderHome({
+      items: [item()],
+      repo_url: "https://github.com/test/test",
+    });
+    assert.match(html, /<script src="\/bookmark\.js"><\/script>/);
+  });
 });
 
 describe("renderFeedFragment", () => {

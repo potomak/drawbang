@@ -7,11 +7,13 @@ import renderGallery, {
 import renderTilePage from "../lib/templates/tile-page.js";
 import renderFeed from "../lib/templates/feed.js";
 import renderHome, {
+  renderFeedCard,
   renderFeedFragment,
   type FeedItem,
   type HomeView,
 } from "../lib/templates/home.js";
 import renderOwner from "../lib/templates/owner.js";
+import renderBookmarksPage from "../lib/templates/bookmarks.js";
 import renderNotFound from "../lib/templates/not-found.js";
 import renderProducts from "../lib/templates/products.js";
 import { productCardsFromCounters } from "../lib/products-cards.js";
@@ -22,6 +24,7 @@ import {
   type DrawingRow,
   type DrawingStore,
 } from "./drawing-store.js";
+import type { BookmarksStore } from "./bookmarks-store.js";
 import type { MerchCatalog } from "../merch/lambda.js";
 import type { ProductCounter } from "../merch/product-counters.js";
 import type { UserStatsStore } from "./user-stats-store.js";
@@ -56,6 +59,10 @@ export interface RenderHandlersConfig {
   // page for accounts that exist but haven't published anything yet
   // (instead of 404'ing). Optional in dev/tests.
   userStore?: UserStore;
+  // Per-user bookmarks. When wired, renderBookmarksPageHandler serves the
+  // /u/<username>/bookmarks page; otherwise that route 404s. Optional so
+  // tests/dev paths that don't exercise bookmarks can omit it.
+  bookmarksStore?: BookmarksStore;
   // Test seam for the recency label on product cards. Defaults to wall-clock.
   now?: () => Date;
 }
@@ -321,6 +328,74 @@ export async function renderProfilePageHandler(
     contentType: "text/html; charset=utf-8",
     cacheControl: CC_PROFILE,
     body,
+  };
+}
+
+// -- /u/<username>/bookmarks (owner-only via client-side auth) ---------------
+
+// The page itself is an empty shell — no per-user data ever lands in the
+// SSR'd HTML, so the response is identical for every caller (signed in or
+// not, regardless of whose URL they're hitting). An inline script then:
+//   1. Reads the JWT from localStorage; redirects to /login if missing.
+//   2. Compares the JWT's `un` claim to the URL's username; redirects to
+//      the caller's own /u/<un>/bookmarks if they mismatch.
+//   3. Fetches /me/bookmarks/feed (Bearer JWT, no-store) and swaps the
+//      empty list for the rendered cards.
+//
+// This shape exists because browser navigations don't carry the
+// Authorization header — the page can't be SSR-gated against the JWT.
+// Going through the shell + fetch dance keeps the data path behind a
+// Bearer-auth'd endpoint while letting the canonical /u/<un>/bookmarks
+// URL still resolve from the address bar.
+export async function renderBookmarksPageHandler(
+  cfg: RenderHandlersConfig,
+  username: string,
+): Promise<RenderResponse> {
+  if (!USERNAME_RE.test(username)) return notFound(cfg);
+  return {
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    // No data on the page, but mark it uncacheable so future
+    // personalisation never leaks across viewers via the edge.
+    cacheControl: "private, no-store",
+    body: renderBookmarksPage({
+      username,
+      items: [],
+      repo_url: cfg.repoUrl,
+    }),
+  };
+}
+
+// HTML fragment of the caller's bookmarks, newest-first. Auth-gated; the
+// route is responsible for verifying the JWT and passing `auth` here.
+export async function renderMyBookmarksFeedHandler(
+  cfg: RenderHandlersConfig,
+  auth: { user_id: string; username: string },
+): Promise<RenderResponse> {
+  if (!cfg.bookmarksStore) {
+    return {
+      status: 200,
+      contentType: "text/html; charset=utf-8",
+      cacheControl: "private, no-store",
+      body: "",
+    };
+  }
+  const perPage = cfg.perPage ?? PER_PAGE;
+  const page = await cfg.bookmarksStore.listByUser(auth.user_id, {
+    limit: perPage,
+  });
+  const rows = await Promise.all(
+    page.items.map((b) => cfg.drawingStore.get(b.drawing_id)),
+  );
+  const present = rows.filter((r): r is DrawingRow => r !== null);
+  const items = await loadFeedItems(cfg, present);
+  // Empty list → empty body. The inline script on the bookmarks page
+  // renders an empty-state message in that case.
+  return {
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: "private, no-store",
+    body: items.map(renderFeedCard).join("\n"),
   };
 }
 

@@ -62,6 +62,7 @@ export function renderFeedCard(item: FeedItem): string {
     <div class="feed-card-actions">
       ${renderLikeButton(item.id, item.like_count)}
       ${renderForkAction(item.id)}
+      ${renderBookmarkButton(item.id)}
       ${renderShareAction(item.id, item.id_short)}
     </div>
   </div>
@@ -88,6 +89,15 @@ export function renderLikeButton(drawing_id: string, like_count: number): string
   return `<button class="like-btn feed-action" type="button" data-like-target="${esc(drawing_id)}" aria-pressed="false" aria-label="Like this drawing">
       <svg class="like-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 21s-7-4.35-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 11c0 5.65-7 10-7 10z"/></svg>
       <span class="like-count" data-like-count>${like_count}</span>
+    </button>`;
+}
+
+// Bookmark button shared by feed cards + the drawing page. Filled state
+// is hydrated client-side by `/bookmark.js` against
+// `GET /me/bookmarks?ids=…`; the SSR markup is always outline.
+export function renderBookmarkButton(drawing_id: string): string {
+  return `<button class="bookmark-btn feed-action" type="button" data-bookmark-target="${esc(drawing_id)}" aria-pressed="false" aria-label="Bookmark this drawing">
+      <svg class="bookmark-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg>
     </button>`;
 }
 
@@ -160,6 +170,7 @@ ${body}
     </main>
     ${renderFooter(footerOpts)}
 ${observerScript}    <script src="${assetUrl("/like.js")}"></script>
+    <script src="${assetUrl("/bookmark.js")}"></script>
     <script src="${assetUrl("/share.js")}"></script>
   </body>
 </html>

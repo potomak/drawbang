@@ -88,6 +88,7 @@ asset, new tracking script) must consider every entry below.
 | `/d/<64hex>`                   | `lib/templates/tile-page.ts` via Lambda           | Dynamic |
 | `/u/<username>`                | `lib/templates/owner.ts` via Lambda               | Dynamic |
 | `/u/<username>/items?cursor=…` | gallery fragment via Lambda                       | Dynamic (infinite scroll) |
+| `/u/<username>/bookmarks`      | `lib/templates/bookmarks.ts` via Lambda           | Dynamic — owner-only page shell. The body is hydrated client-side via `/me/bookmarks/feed` because browser navs don't carry the Bearer JWT. |
 | `/products`, `/products/p/<N>` | `lib/templates/products.ts` via Lambda            | Dynamic |
 | `/feed.rss`                    | `lib/templates/feed.ts` via Lambda                | Dynamic (RSS, no chrome) |
 | `/merch?d=<drawing>`           | `merch.html` + `src/merch.ts`                     | Picker (Vite) |
@@ -106,6 +107,9 @@ Auth-gated JSON endpoints (Bearer JWT in `Authorization` header, no caching at t
 | `/drawings/<id>/like`          | POST / DELETE | `ingest/likes-handler.ts` — toggle a like. |
 | `/me/likes?ids=<csv>`          | GET           | `ingest/likes-handler.ts` — subset of the supplied ids the caller has liked. |
 | `/likes/counts?ids=<csv>`      | GET           | `ingest/likes-handler.ts` — **public**, fresh denormalised counts (max-age=15) for client-side hydration over the edge-cached SSR values. |
+| `/drawings/<id>/bookmark`      | POST / DELETE | `ingest/bookmarks-handler.ts` — toggle a bookmark. |
+| `/me/bookmarks?ids=<csv>`      | GET           | `ingest/bookmarks-handler.ts` — subset of the supplied ids the caller has bookmarked. |
+| `/me/bookmarks/feed`           | GET           | HTML fragment of the caller's bookmarks (auth-gated). Loaded by the inline boot script on `/u/<un>/bookmarks`. |
 | `/auth/*`                      | POST          | `ingest/auth-handler.ts` (register/login/forgot/reset/avatar). |
 | `/users/<user_id>/stats`       | GET           | `ingest/user-stats-handler.ts` — public, but on a short max-age. |
 
@@ -441,6 +445,8 @@ Lambda (runtime, set via SAM):
   `drawbang-drawings`).
 - `DRAWBANG_LIKES_TABLE` — DDB table for ❤️ likes (default
   `drawbang-likes`).
+- `DRAWBANG_BOOKMARKS_TABLE` — DDB table for per-user bookmarks (default
+  `drawbang-bookmarks`).
 - `DRAWBANG_PRODUCT_COUNTERS_TABLE` — feeds `/products` (default
   `drawbang-product-counters`).
 - `CF_DISTRIBUTION_ID` — CloudFront distribution id for publish-time

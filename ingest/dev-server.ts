@@ -13,6 +13,13 @@ import {
   handleUnlike,
   type LikesHandlerConfig,
 } from "./likes-handler.js";
+import { MemoryBookmarksStore } from "./bookmarks-store.js";
+import {
+  handleBookmark,
+  handleMyBookmarks,
+  handleUnbookmark,
+  type BookmarksHandlerConfig,
+} from "./bookmarks-handler.js";
 import { ConsoleEmailSender } from "./email.js";
 import { JwtError, verifyJwt } from "./jwt.js";
 import type { AuthedUser } from "./handler.js";
@@ -26,10 +33,12 @@ import {
   type SetProfilePictureAuth,
 } from "./auth-handler.js";
 import {
+  renderBookmarksPageHandler,
   renderDrawingPageHandler,
   renderFeedHandler,
   renderFeedItemsHandler,
   renderHomePageHandler,
+  renderMyBookmarksFeedHandler,
   renderProductsPageHandler,
   renderProfileItemsHandler,
   renderProfilePageHandler,
@@ -48,11 +57,14 @@ const drawingStore = new MemoryDrawingStore();
 const userStore = new MemoryUserStore();
 const likesStore = new MemoryLikesStore(drawingStore);
 const likesConfig: LikesHandlerConfig = { likesStore };
+const bookmarksStore = new MemoryBookmarksStore(drawingStore);
+const bookmarksConfig: BookmarksHandlerConfig = { bookmarksStore };
 const renderConfig: RenderHandlersConfig = {
   drawingStore,
   publicBaseUrl: PUBLIC_BASE,
   repoUrl: "https://github.com/potomak/drawbang",
   userStore,
+  bookmarksStore,
 };
 const authConfig: AuthHandlerConfig = {
   userStore,
@@ -130,6 +142,10 @@ const server = http.createServer(async (req, res) => {
         if (um) rendered = await renderProfilePageHandler(renderConfig, um[1]);
         const uim = pathOnly.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])\/items$/);
         if (uim) rendered = await renderProfileItemsHandler(renderConfig, uim[1], cursor);
+        const ubm = pathOnly.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])\/bookmarks$/);
+        if (ubm) {
+          rendered = await renderBookmarksPageHandler(renderConfig, ubm[1]);
+        }
       }
       if (rendered) {
         res.writeHead(rendered.status, {
@@ -173,6 +189,45 @@ const server = http.createServer(async (req, res) => {
         const ids = u.searchParams.get("ids");
         const result = await handleLikeCounts(ids, likesConfig);
         jsonWithHeaders(res, result.status, result.body, result.headers);
+        return;
+      }
+      const bookmarkMatch = u.pathname.match(/^\/drawings\/([0-9a-f]{64})\/bookmark$/);
+      if (bookmarkMatch && (req.method === "POST" || req.method === "DELETE")) {
+        const auth = extractAuth(req);
+        if (!auth) {
+          json(res, 401, { error: "authentication required" });
+          return;
+        }
+        const result =
+          req.method === "POST"
+            ? await handleBookmark(bookmarkMatch[1], auth, bookmarksConfig)
+            : await handleUnbookmark(bookmarkMatch[1], auth, bookmarksConfig);
+        jsonWithHeaders(res, result.status, result.body, result.headers);
+        return;
+      }
+      if (req.method === "GET" && u.pathname === "/me/bookmarks") {
+        const auth = extractAuth(req);
+        if (!auth) {
+          json(res, 401, { error: "authentication required" });
+          return;
+        }
+        const ids = u.searchParams.get("ids");
+        const result = await handleMyBookmarks(ids, auth, bookmarksConfig);
+        jsonWithHeaders(res, result.status, result.body, result.headers);
+        return;
+      }
+      if (req.method === "GET" && u.pathname === "/me/bookmarks/feed") {
+        const auth = extractAuth(req);
+        if (!auth) {
+          json(res, 401, { error: "authentication required" });
+          return;
+        }
+        const rendered = await renderMyBookmarksFeedHandler(renderConfig, auth);
+        res.writeHead(rendered.status, {
+          "Content-Type": rendered.contentType,
+          "Cache-Control": rendered.cacheControl,
+        });
+        res.end(rendered.body);
         return;
       }
     }
