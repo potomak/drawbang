@@ -392,6 +392,9 @@ Resources:
           # "like → reload → see fresh count" UX: any edge cache means
           # the liker's own browser/edge could keep returning the
           # pre-like value for the cache TTL.
+          # OriginRequestPolicy = AllViewerExceptHostHeader so the `ids`
+          # query string actually reaches Lambda — CachingDisabled by
+          # itself doesn't forward query strings.
           - PathPattern: /likes/*
             TargetOriginId: api
             ViewerProtocolPolicy: redirect-to-https
@@ -399,6 +402,7 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
         # Map S3 misses to the chrome'd /404.html the builder writes. Both
         # codes are routed because OAC returns 403 for keys outside the
         # public/* prefix and 404 for missing keys inside it. Short cache
