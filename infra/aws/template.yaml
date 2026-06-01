@@ -389,15 +389,6 @@ Resources:
             Compress: true
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
-          # /me/likes?ids=… — per-user fetch of "did I like these?".
-          - PathPattern: /me/likes
-            TargetOriginId: api
-            ViewerProtocolPolicy: redirect-to-https
-            AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
-            CachedMethods: [GET, HEAD]
-            Compress: true
-            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
-            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
           # /hydrate?drawings=…&users=… — single hydration channel for
           # every cached SSR page. Public, no-store. Optional Bearer JWT
           # populates the viewer_* fields (forwarded via
@@ -849,18 +840,12 @@ Resources:
             ApiId: !Ref IngestApi
             Method: DELETE
             Path: /drawings/{id}/like
-        MyLikes:
+        Hydrate:
           Type: HttpApi
           Properties:
             ApiId: !Ref IngestApi
             Method: GET
-            Path: /me/likes
-        LikeCounts:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref IngestApi
-            Method: GET
-            Path: /likes/counts
+            Path: /hydrate
         BookmarkCreate:
           Type: HttpApi
           Properties:
@@ -873,12 +858,6 @@ Resources:
             ApiId: !Ref IngestApi
             Method: DELETE
             Path: /drawings/{id}/bookmark
-        MyBookmarks:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref IngestApi
-            Method: GET
-            Path: /me/bookmarks
         MyBookmarksFeed:
           Type: HttpApi
           Properties:
@@ -903,18 +882,6 @@ Resources:
             ApiId: !Ref IngestApi
             Method: DELETE
             Path: /users/{username}/follow
-        MyFollows:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref IngestApi
-            Method: GET
-            Path: /me/follows
-        FollowCounts:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref IngestApi
-            Method: GET
-            Path: /follows/counts
         FollowersPage:
           Type: HttpApi
           Properties:
