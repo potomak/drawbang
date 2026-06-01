@@ -60,6 +60,16 @@
       link.hidden = false;
       link.addEventListener("click", logout);
     }
+    // Owner-only affordances on cached SSR pages (e.g. the "Bookmarks" link
+    // on /u/<un>). The element ships hidden so non-owners — and the edge
+    // cache — never see it; we reveal it when the page's owner matches the
+    // signed-in viewer.
+    const ownerOnly = document.querySelectorAll("[data-owner-only-for]");
+    for (const el of ownerOnly) {
+      if (el.getAttribute("data-owner-only-for") === username) {
+        el.hidden = false;
+      }
+    }
   };
 
   if (document.readyState === "loading") {

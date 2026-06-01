@@ -97,6 +97,15 @@ describe("profile renders social block", () => {
     const res = await renderProfilePageHandler(cfg, "alice");
     assert.match(res.body, /<script src="\/follow\.js"><\/script>/);
   });
+
+  test("owner-only Bookmarks link is rendered hidden + tagged for chrome-identity.js", async () => {
+    const { cfg } = await makeConfig();
+    const res = await renderProfilePageHandler(cfg, "alice");
+    assert.match(
+      res.body,
+      /<a class="ow-owner-link" href="\/u\/alice\/bookmarks" data-owner-only-for="alice" hidden>Bookmarks<\/a>/,
+    );
+  });
 });
 
 describe("renderFollowersPageHandler", () => {

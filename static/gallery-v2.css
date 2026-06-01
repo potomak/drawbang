@@ -176,6 +176,13 @@
 .ow-count:hover { color: var(--accent); }
 .ow-count strong { font-variant-numeric: tabular-nums; }
 .ow-count span { color: var(--fg-muted); font-size: var(--t-sm); }
+.ow-owner-link {
+  color: var(--fg-muted);
+  text-decoration: none;
+  border-bottom: 1px dashed currentColor;
+  font-size: var(--t-sm);
+}
+.ow-owner-link:hover { color: var(--accent); }
 .follow-btn {
   display: inline-flex;
   align-items: center;
