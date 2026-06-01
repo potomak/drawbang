@@ -456,7 +456,7 @@ async function renderFollowListPage(
     kind === "followers"
       ? await cfg.followsStore.listFollowers(owner.user_id, { limit: perPage, cursor })
       : await cfg.followsStore.listFollowing(owner.user_id, { limit: perPage, cursor });
-  const items = page.items.map((e) => followListItem(e, kind));
+  const items = await hydrateFollowListAvatars(cfg, page.items.map((e) => followListItem(e, kind)));
   const next = page.next_cursor
     ? `/u/${ownerUsername}/${kind}/items?cursor=${encodeFollowCursor(page.next_cursor)}`
     : null;
@@ -491,7 +491,7 @@ async function renderFollowListItems(
     kind === "followers"
       ? await cfg.followsStore.listFollowers(owner.user_id, { limit: perPage, cursor })
       : await cfg.followsStore.listFollowing(owner.user_id, { limit: perPage, cursor });
-  const items = page.items.map((e) => followListItem(e, kind));
+  const items = await hydrateFollowListAvatars(cfg, page.items.map((e) => followListItem(e, kind)));
   const next = page.next_cursor
     ? `/u/${ownerUsername}/${kind}/items?cursor=${encodeFollowCursor(page.next_cursor)}`
     : null;
@@ -501,6 +501,29 @@ async function renderFollowListItems(
     cacheControl: CC_FOLLOW_LIST,
     body: renderFollowListFragment(items, next),
   };
+}
+
+// Batch the per-item avatar lookups: GetItem userStore once per unique
+// username, attach avatar_drawing_id to the matching items. Same shape
+// as loadFeedItems' picture batching on the home feed.
+async function hydrateFollowListAvatars(
+  cfg: RenderHandlersConfig,
+  items: FollowListItem[],
+): Promise<FollowListItem[]> {
+  if (!cfg.userStore || items.length === 0) return items;
+  const usernames = new Set<string>();
+  for (const it of items) usernames.add(it.username);
+  const pictures = new Map<string, string | null>();
+  await Promise.all(
+    [...usernames].map(async (un) => {
+      const acct = await cfg.userStore!.getByUsername(un);
+      pictures.set(un, acct?.avatar_drawing_id ?? null);
+    }),
+  );
+  return items.map((it) => ({
+    ...it,
+    profile_picture_drawing_id: pictures.get(it.username) ?? null,
+  }));
 }
 
 function followListItem(e: FollowEdge, kind: FollowListKind): FollowListItem {

@@ -223,7 +223,13 @@
   gap: 12px;
   padding: 8px 4px;
 }
-.follow-card-pp { display: inline-flex; }
+.follow-card-pp { display: inline-flex; line-height: 0; }
+.follow-card-pp .profile-picture {
+  display: block;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+}
 .follow-card-pp .profile-picture-placeholder {
   width: 44px;
   height: 44px;

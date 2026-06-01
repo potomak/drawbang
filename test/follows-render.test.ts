@@ -140,6 +140,37 @@ describe("renderFollowersPageHandler", () => {
     assert.ok(c > -1 && b > -1 && c < b, "carol's card must come before bob's");
   });
 
+  test("renders the avatar gif when the account has one, placeholder when not", async () => {
+    const { cfg, followsStore, userStore } = await makeConfig();
+    const alice = await userStore.getByEmail("alice@example.com");
+    const bob = await userStore.getByEmail("bob@example.com");
+    const carol = await userStore.getByEmail("carol@example.com");
+    const bobAvatar = "b".repeat(64);
+    await userStore.setAvatar(bob!.email, bobAvatar);
+    await followsStore.follow({
+      follower: { user_id: bob!.user_id, username: bob!.username, email: bob!.email },
+      followee: { user_id: alice!.user_id, username: alice!.username, email: alice!.email },
+      created_at_ms: 10,
+    });
+    await followsStore.follow({
+      follower: { user_id: carol!.user_id, username: carol!.username, email: carol!.email },
+      followee: { user_id: alice!.user_id, username: alice!.username, email: alice!.email },
+      created_at_ms: 20,
+    });
+    const res = await renderFollowersPageHandler(cfg, "alice");
+    assert.equal(res.status, 200);
+    // Bob has an avatar → real <img>, not the placeholder span.
+    assert.match(
+      res.body,
+      new RegExp(`<img class="profile-picture" src="/tiles/${bobAvatar}\\.gif"`),
+    );
+    // Carol has no avatar → placeholder with her initial.
+    assert.match(
+      res.body,
+      /<span class="profile-picture profile-picture-placeholder" aria-hidden="true">C<\/span>/,
+    );
+  });
+
   test("invalid username gets a 404", async () => {
     const { cfg } = await makeConfig();
     const res = await renderFollowersPageHandler(cfg, "BAD!user");

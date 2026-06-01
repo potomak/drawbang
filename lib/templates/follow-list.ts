@@ -5,10 +5,10 @@ import { esc } from "./_escape.js";
 import { renderFollowButton } from "./owner.js";
 
 // /u/<username>/followers and /u/<username>/following — paginated lists
-// of accounts. Each card carries the target's username + a Follow button
-// (so the viewer can follow/unfollow without navigating away). Avatars
-// are out of scope for v1; revisit once we have a user_id-keyed lookup
-// or a write-time avatar denormalisation on the follow row.
+// of accounts. Each card carries the target's username, avatar, and a
+// Follow button (so the viewer can follow/unfollow without navigating
+// away). Avatars are batched by the handler via userStore.getByUsername;
+// accounts without one fall back to a single-letter placeholder.
 //
 // Cards are server-rendered with the SSR'd outline state; `/follow.js`
 // hydrates the filled state for the signed-in viewer.
@@ -16,6 +16,7 @@ import { renderFollowButton } from "./owner.js";
 export interface FollowListItem {
   username: string;
   user_id: string;
+  profile_picture_drawing_id?: string | null;
 }
 
 export type FollowListKind = "followers" | "following";
@@ -32,12 +33,21 @@ export interface FollowListView {
 }
 
 export function renderFollowCard(item: FollowListItem): string {
-  const initial = esc(item.username.charAt(0).toUpperCase());
+  const pp = renderFollowCardPicture(item);
   return `<li><article class="follow-card">
-  <a class="follow-card-pp" href="/u/${esc(item.username)}" aria-label="${esc(item.username)}'s profile"><span class="profile-picture profile-picture-placeholder" aria-hidden="true">${initial}</span></a>
+  <a class="follow-card-pp" href="/u/${esc(item.username)}" aria-label="${esc(item.username)}'s profile">${pp}</a>
   <a class="follow-card-name" href="/u/${esc(item.username)}">${esc(item.username)}</a>
   ${renderFollowButton({ target_username: item.username, target_user_id: item.user_id })}
 </article></li>`;
+}
+
+function renderFollowCardPicture(item: FollowListItem): string {
+  const id = item.profile_picture_drawing_id;
+  if (id && /^[0-9a-f]{64}$/.test(id)) {
+    return `<img class="profile-picture" src="/tiles/${esc(id)}.gif" alt="${esc(item.username)}" width="44" height="44" loading="lazy" />`;
+  }
+  const initial = esc(item.username.charAt(0).toUpperCase());
+  return `<span class="profile-picture profile-picture-placeholder" aria-hidden="true">${initial}</span>`;
 }
 
 export function renderFollowListFragment(
