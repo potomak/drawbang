@@ -117,7 +117,7 @@ Auth-gated JSON endpoints (Bearer JWT in `Authorization` header, no caching at t
 | `/users/<username>/follow`     | POST / DELETE | `ingest/follows-handler.ts` — follow/unfollow. Self-follow → 400, missing target → 404, duplicate → 409. Bumps `follower_count`/`following_count` on the users rows transactionally with the edge write. |
 | `/me/follows?targets=<csv>`    | GET           | `ingest/follows-handler.ts` — subset of the supplied usernames the caller follows (Follow-button hydration). |
 | `/follows/counts?targets=<csv>`| GET           | `ingest/follows-handler.ts` — **public**, fresh denormalised follower/following counts (no-store) for client-side hydration over the edge-cached SSR values on `/u/<un>`. |
-| `/auth/*`                      | POST          | `ingest/auth-handler.ts` (register/login/forgot/reset/avatar). |
+| `/auth/*`                      | POST          | `ingest/auth-handler.ts` (register/login/forgot/reset/profile-picture). |
 | `/users/<user_id>/stats`       | GET           | `ingest/user-stats-handler.ts` — public, but on a short max-age. |
 
 Every page that renders the chrome ships a fixed-position **FAB** ("+")
@@ -158,17 +158,17 @@ is present.
   bumps `token_version`, making the link single-use. No signup email
   verification. Forgot-password requests always return 200 (no email
   enumeration).
-- **Avatar**: the user can pin one of their own drawings as their
-  avatar. `UserRecord.avatar_drawing_id` is a `drawing_id`;
-  `POST /auth/avatar` validates ownership (the drawing's `username`
-  must equal the caller's) and writes the row. Rendered as a small
-  `<img class="avatar">` next to the username on `/d/<id>` and
-  `/u/<username>`. Avatar changes invalidate `/u/<username>*` on
-  CloudFront; drawing pages absorb the change on their own short
-  s-maxage TTL.
+- **Profile picture**: the user can pin one of their own drawings as
+  their profile picture. `UserRecord.profile_picture_drawing_id` is a
+  `drawing_id`; `POST /auth/profile-picture` validates ownership (the
+  drawing's `username` must equal the caller's) and writes the row.
+  Rendered as a small `<img class="profile-picture">` next to the
+  username on `/d/<id>` and `/u/<username>`. Profile-picture changes
+  invalidate `/u/<username>*` on CloudFront; drawing pages absorb the
+  change on their own short s-maxage TTL.
 - **Auth surface**: `src/auth.ts` (client),
   `ingest/auth-handler.ts` (server), routes
-  `POST /auth/{register,login,password/forgot,password/reset,avatar}`.
+  `POST /auth/{register,login,password/forgot,password/reset,profile-picture}`.
 - Drawing rows store `user_id` + `username` (denormalized). Legacy
   pre-account-system drawings were migrated under the sentinel
   username `anonymous`, reserved both in the users table and in
@@ -183,7 +183,7 @@ across them.**
 |----------------------------|-------------------------------------------------------------------|--------------------------------------------------------|
 | `static/chrome.css`        | Design tokens (`:root`), base body/typography, header (`.hdr`+nav), footer (`.ftr`), `main` slot, page chrome (`.page-title`, `.divider`, ...), base `.btn` + `.primary` + `.ghost` + `.btn[hidden]`. Flash slot. | Both — `src/style.css` and `static/gallery-v2.css` each `@import url("/chrome.css")` at the top. |
 | `src/style.css`            | Editor-surface extensions to the base reset (touch-first `user-select: none`, etc.), `.canvas-banner`, `.btn` variants (`.icon`/`.sm`/`.xs`/`[disabled]`/...), and every Vite-served page (editor `.ed-*`, merch `.mc-*`, order, identity). | Vite-served pages only.                                |
-| `static/gallery-v2.css`    | Lambda-rendered classes: `.img-grid`, `.dr-*`, `.pr-*`, `.ow-*`, `.feed-card-*`, `.feed-action`, `.like-btn`, `.mono-trunc`, `img.avatar`.  | Lambda templates (`/gallery-v2.css` link tag).         |
+| `static/gallery-v2.css`    | Lambda-rendered classes: `.img-grid`, `.dr-*`, `.pr-*`, `.ow-*`, `.feed-card-*`, `.feed-action`, `.like-btn`, `.mono-trunc`, `img.profile-picture`.  | Lambda templates (`/gallery-v2.css` link tag).         |
 
 Rule of thumb when adding a class:
 1. If `src/layout/chrome.ts` renders it → `chrome.css`.
@@ -243,7 +243,7 @@ ingest/               Lambda + dev-server: ingest, render, auth
                       for dev/tests.
   user-store.ts       DDB wrapper for accounts (register via
                       TransactWriteItems, getByEmail, getByUsername,
-                      updatePassword, setAvatar) + MemoryUserStore.
+                      updatePassword, setProfilePicture) + MemoryUserStore.
                       Tables: drawbang-users (PK email),
                       drawbang-usernames (PK username).
   user-stats-store.ts DDB wrapper for per-account streak + total counters
@@ -259,7 +259,8 @@ ingest/               Lambda + dev-server: ingest, render, auth
   likes-handler.ts    POST /drawings/{id}/like, DELETE /drawings/{id}/like,
                       GET /me/likes?ids=<csv>.
   cache-invalidation.ts CloudFrontInvalidator + path generators
-                      (pathsToInvalidateOnPublish, …OnAvatarChange).
+                      (pathsToInvalidateOnPublish,
+                      pathsToInvalidateOnProfilePictureChange).
                       NoopInvalidator for tests. Likes deliberately do NOT
                       invalidate — counts catch up at the next s-maxage
                       expiry (5 min on / and /d/<id>).
@@ -269,7 +270,7 @@ ingest/               Lambda + dev-server: ingest, render, auth
   email.ts            SES password-reset sender + ConsoleEmailSender
                       (dev stub).
   auth-handler.ts     POST /auth/{register,login,password/forgot,
-                      password/reset,avatar}.
+                      password/reset,profile-picture}.
   gif-validate.ts     GIF89a header check, ≤16 frames, DRAWBANG ext.
   storage.ts          Storage interface + FsStorage (dev/tests).
   s3-storage.ts       S3Storage (Lambda + scripts).
@@ -277,7 +278,8 @@ ingest/               Lambda + dev-server: ingest, render, auth
                       /gallery*, /d/*, /u/*, /feed.rss, /products*,
                       /users/{id}/stats, /auth/*, /drawings/{id}/like
                       (POST + DELETE), /me/likes. Verifies the Bearer JWT
-                      for /ingest, /auth/avatar, and every likes route.
+                      for /ingest, /auth/profile-picture, and every likes
+                      route.
   dev-server.ts       Node HTTP shim for `npm run ingest:dev` —
                       Memory* stores + ConsoleEmailSender (reset link
                       logged). Mirrors lambda.ts route table.
@@ -289,11 +291,11 @@ lib/templates/        Server-renderer (tagged-literal HTML)
                       formatItemDate for the tile-page forks section.
                       /gallery itself 301s to / in production.
   tile-page.ts        /d/<id> (drawing detail with author, parent,
-                      forks, action buttons, avatar). Behaviour lives
-                      in static/tile-page.js.
+                      forks, action buttons, profile picture). Behaviour
+                      lives in static/tile-page.js.
   owner.ts            /u/<username> (profile gallery, streak/badges,
-                      avatar). Exports renderAvatar() shared with
-                      tile-page.ts + home.ts.
+                      profile picture). Exports renderProfilePicture()
+                      shared with tile-page.ts + home.ts.
   products.ts         /products (merch catalog, ranked by popularity).
   feed.ts             /feed.rss.
   not-found.ts        /404.html shell.
@@ -318,8 +320,8 @@ static/               Plain JS + CSS shipped as edge assets
   flash.js            Toast/flash UI exposed as window.drawbangShowFlash.
   chrome-identity.js  Identity link rewrite for the chrome.
   chrome-toggle.js    Hamburger toggle for narrow viewports.
-  tile-page.js        Drawing-page client behaviour (avatar, copy-link,
-                      Web Share, GA tracking).
+  tile-page.js        Drawing-page client behaviour (profile picture,
+                      copy-link, Web Share, GA tracking).
   like.js             Heart-button wirer for feed cards + /d/<id>: batch
                       GET /me/likes for filled state, optimistic POST/DELETE
                       /drawings/<id>/like, redirect to /login on no/expired
@@ -368,12 +370,12 @@ legacy/               Archived Ruby app; read-only reference, never imported
 - **Identity comes from the verified session JWT, never the request body.**
   The route (`ingest/lambda.ts` / `ingest/dev-server.ts`) verifies the
   Bearer JWT and passes `{ user_id, username }` into `handleIngest` /
-  `handleSetAvatar` via `cfg.auth`. A missing/invalid token is a 401
-  before the handler runs.
-- **Avatars only point at drawings the caller owns.** `handleSetAvatar`
-  requires `drawing.username === auth.username`. Anonymous-bucketed
-  drawings can't be claimed by anyone since `anonymous` is reserved
-  and no real account holds it.
+  `handleSetProfilePicture` via `cfg.auth`. A missing/invalid token is
+  a 401 before the handler runs.
+- **Profile pictures only point at drawings the caller owns.**
+  `handleSetProfilePicture` requires `drawing.username === auth.username`.
+  Anonymous-bucketed drawings can't be claimed by anyone since `anonymous`
+  is reserved and no real account holds it.
 - **DrawingStore is the source of truth for the dynamic routes.** The
   ingest handler dual-writes a row before returning success; the
   render handlers query the store directly, so a newly-published
@@ -407,7 +409,8 @@ npm run og:backfill    # generate missing public/tiles/<id>-large.gif sidecars
 
 `npm run dev:all` starts Vite on :5173 and the ingest dev server on
 :8787 in one shell. Together they let you exercise the publish + auth
-+ avatar paths end-to-end against the filesystem + in-memory stores:
++ profile-picture paths end-to-end against the filesystem + in-memory
+stores:
 
 1. Open http://localhost:5173 — visit `/signup` and create an account
    (the dev server uses `MemoryUserStore` + `MemoryDrawingStore`, so
@@ -416,9 +419,9 @@ npm run og:backfill    # generate missing public/tiles/<id>-large.gif sidecars
    to `/login`). The ingest server writes the gif to `./dev-bucket/`,
    adds the row to `MemoryDrawingStore`, and the next `/gallery` /
    `/d/<id>` / `/u/<username>` GET picks it up.
-3. Visit `/d/<id>` while logged in — the **Set as avatar** button
-   appears next to the other actions and POSTs `/auth/avatar`. Visit
-   your profile to confirm.
+3. Visit `/d/<id>` while logged in — the **Set as profile picture**
+   button appears next to the other actions and POSTs
+   `/auth/profile-picture`. Visit your profile to confirm.
 4. **Forgot password**: `/password/forgot` → the ingest dev server
    logs the reset link (which lands you on `/password/reset?token=…`)
    to its console (`[email] password reset for …`).
@@ -549,7 +552,7 @@ slightly bigger refactor.
 - **Types / Interfaces**: PascalCase (`UserRecord`, `DrawingRow`).
   Suffix with `Config`, `View`, `Options` when appropriate.
 - **Functions / Variables**: camelCase (`activePalette`,
-  `handleSetAvatar`). Booleans start with `is/has/can/should`.
+  `handleSetProfilePicture`). Booleans start with `is/has/can/should`.
 - **Constants**: `UPPER_SNAKE_CASE` for true compile-time constants
   (`MAX_FRAMES`, `WIDTH`). Config objects exported from `config/`
   use `PascalCase` export names.

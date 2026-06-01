@@ -90,10 +90,11 @@ export interface RenderResponse {
 
 // Cache headers. CloudFront's `s-maxage` controls edge cache; the per-row
 // `max-age` controls browser cache. Profile rides a long edge cache that
-// the publish + avatar paths invalidate on write. Feed home (/) and the
-// per-drawing page carry a short edge TTL so stale like counts refresh
-// within minutes instead of a day — the liker sees their own change
-// instantly via optimistic JS, but non-likers depend on the next miss.
+// the publish + profile-picture paths invalidate on write. Feed home (/)
+// and the per-drawing page carry a short edge TTL so stale like counts
+// refresh within minutes instead of a day — the liker sees their own
+// change instantly via optimistic JS, but non-likers depend on the next
+// miss.
 const CC_GALLERY = "public, s-maxage=300, stale-while-revalidate=60";
 const CC_DRAWING_PAGE = "public, max-age=60, s-maxage=300, stale-while-revalidate=60";
 const CC_PROFILE = "public, s-maxage=86400, stale-while-revalidate=60";
@@ -145,7 +146,7 @@ async function loadFeedItems(
     await Promise.all(
       [...usernames].map(async (un) => {
         const acct = await cfg.userStore!.getByUsername(un);
-        pictures.set(un, acct?.avatar_drawing_id ?? null);
+        pictures.set(un, acct?.profile_picture_drawing_id ?? null);
       }),
     );
   }
@@ -276,7 +277,7 @@ export async function renderDrawingPageHandler(
     author: {
       user_id: row.user_id,
       username: row.username,
-      profile_picture_drawing_id: authorAccount?.avatar_drawing_id ?? null,
+      profile_picture_drawing_id: authorAccount?.profile_picture_drawing_id ?? null,
     },
     forks: forks.items.map(itemFromRow),
     like_count: row.like_count ?? 0,
@@ -317,7 +318,7 @@ export async function renderProfilePageHandler(
   } else {
     userId = page.items[0].user_id;
   }
-  const profilePictureDrawingId = account?.avatar_drawing_id ?? null;
+  const profilePictureDrawingId = account?.profile_picture_drawing_id ?? null;
   const next = buildFragmentUrl(`/u/${username}/items`, page.next_cursor);
   const items = page.items.map(itemFromRow);
   const stats = cfg.userStatsStore
@@ -456,7 +457,7 @@ async function renderFollowListPage(
     kind === "followers"
       ? await cfg.followsStore.listFollowers(owner.user_id, { limit: perPage, cursor })
       : await cfg.followsStore.listFollowing(owner.user_id, { limit: perPage, cursor });
-  const items = await hydrateFollowListAvatars(cfg, page.items.map((e) => followListItem(e, kind)));
+  const items = await hydrateFollowListProfilePictures(cfg, page.items.map((e) => followListItem(e, kind)));
   const next = page.next_cursor
     ? `/u/${ownerUsername}/${kind}/items?cursor=${encodeFollowCursor(page.next_cursor)}`
     : null;
@@ -491,7 +492,7 @@ async function renderFollowListItems(
     kind === "followers"
       ? await cfg.followsStore.listFollowers(owner.user_id, { limit: perPage, cursor })
       : await cfg.followsStore.listFollowing(owner.user_id, { limit: perPage, cursor });
-  const items = await hydrateFollowListAvatars(cfg, page.items.map((e) => followListItem(e, kind)));
+  const items = await hydrateFollowListProfilePictures(cfg, page.items.map((e) => followListItem(e, kind)));
   const next = page.next_cursor
     ? `/u/${ownerUsername}/${kind}/items?cursor=${encodeFollowCursor(page.next_cursor)}`
     : null;
@@ -503,10 +504,10 @@ async function renderFollowListItems(
   };
 }
 
-// Batch the per-item avatar lookups: GetItem userStore once per unique
-// username, attach avatar_drawing_id to the matching items. Same shape
-// as loadFeedItems' picture batching on the home feed.
-async function hydrateFollowListAvatars(
+// Batch the per-item profile-picture lookups: GetItem userStore once per
+// unique username, attach profile_picture_drawing_id to the matching items.
+// Same shape as loadFeedItems' picture batching on the home feed.
+async function hydrateFollowListProfilePictures(
   cfg: RenderHandlersConfig,
   items: FollowListItem[],
 ): Promise<FollowListItem[]> {
@@ -517,7 +518,7 @@ async function hydrateFollowListAvatars(
   await Promise.all(
     [...usernames].map(async (un) => {
       const acct = await cfg.userStore!.getByUsername(un);
-      pictures.set(un, acct?.avatar_drawing_id ?? null);
+      pictures.set(un, acct?.profile_picture_drawing_id ?? null);
     }),
   );
   return items.map((it) => ({

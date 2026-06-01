@@ -184,7 +184,7 @@ describe("handleSetProfilePicture", () => {
     const body = cleared.body as { profile_picture_drawing_id: string | null };
     assert.equal(body.profile_picture_drawing_id, null);
     const account = await h.userStore.getByEmail("a@b.com");
-    assert.equal(account?.avatar_drawing_id, undefined);
+    assert.equal(account?.profile_picture_drawing_id, undefined);
   });
 });
 
@@ -222,7 +222,7 @@ describe("renderProfilePageHandler — profile picture plumbing", () => {
     // would make the profile non-empty).
     await registerAccount(h.authCfg, "a@b.com", "alice");
     const account = await h.userStore.getByEmail("a@b.com");
-    await h.userStore.setAvatar(account!.email, "a".repeat(64));
+    await h.userStore.setProfilePicture(account!.email, "a".repeat(64));
     const res = await renderProfilePageHandler(h.renderCfg, "alice");
     assert.equal(res.status, 200);
     assert.match(res.body, /No drawings published by this account yet/);

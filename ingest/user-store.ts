@@ -23,10 +23,10 @@ export interface UserRecord {
   password_hash: string;
   token_version: number; // bumped on password reset → invalidates reset links
   created_at: string; // ISO-8601
-  // drawing_id of the gif the account chose as its avatar. Validated against
-  // DrawingStore at write time so users can only pin their own drawings.
-  // null/absent → use the default identicon (browsers see no avatar img).
-  avatar_drawing_id?: string;
+  // drawing_id of the gif the account chose as its profile picture. Validated
+  // against DrawingStore at write time so users can only pin their own
+  // drawings. null/absent → no profile picture rendered (placeholder used).
+  profile_picture_drawing_id?: string;
   // Denormalised follow counts (#202). Maintained by FollowsStore via
   // TransactWrite on follow/unfollow. Absent on rows pre-dating the
   // follows table — readers treat absent as 0.
@@ -81,10 +81,10 @@ export interface UserStore {
     expectedTokenVersion: number,
     nowIso: string,
   ): Promise<UserRecord>;
-  // Sets the user's avatar to the given drawing id. Caller is responsible
-  // for validating ownership BEFORE invoking this — the store just writes.
-  // Pass null to clear.
-  setAvatar(email: string, drawing_id: string | null): Promise<UserRecord>;
+  // Sets the user's profile picture to the given drawing id. Caller is
+  // responsible for validating ownership BEFORE invoking this — the store
+  // just writes. Pass null to clear.
+  setProfilePicture(email: string, drawing_id: string | null): Promise<UserRecord>;
 }
 
 // -- DynamoDB -----------------------------------------------------------------
@@ -222,7 +222,7 @@ export class DynamoUserStore implements UserStore {
     }
   }
 
-  async setAvatar(
+  async setProfilePicture(
     email: string,
     drawing_id: string | null,
   ): Promise<UserRecord> {
@@ -232,11 +232,11 @@ export class DynamoUserStore implements UserStore {
           TableName: this.usersTable,
           Key: { email },
           UpdateExpression: drawing_id
-            ? "SET avatar_drawing_id = :a"
-            : "REMOVE avatar_drawing_id",
+            ? "SET profile_picture_drawing_id = :p"
+            : "REMOVE profile_picture_drawing_id",
           ConditionExpression: "attribute_exists(email)",
           ExpressionAttributeValues: drawing_id
-            ? { ":a": drawing_id }
+            ? { ":p": drawing_id }
             : undefined,
           ReturnValues: "ALL_NEW",
         }),
@@ -297,15 +297,15 @@ export class MemoryUserStore implements UserStore {
     return { ...updated };
   }
 
-  async setAvatar(
+  async setProfilePicture(
     email: string,
     drawing_id: string | null,
   ): Promise<UserRecord> {
     const r = this.byEmail.get(email);
     if (!r) throw new UserNotFoundError();
-    const { avatar_drawing_id: _drop, ...rest } = r;
+    const { profile_picture_drawing_id: _drop, ...rest } = r;
     const updated: UserRecord = drawing_id
-      ? { ...rest, avatar_drawing_id: drawing_id }
+      ? { ...rest, profile_picture_drawing_id: drawing_id }
       : rest;
     this.byEmail.set(email, updated);
     return { ...updated };

@@ -5,10 +5,11 @@ import { esc } from "./_escape.js";
 import { renderFollowButton } from "./owner.js";
 
 // /u/<username>/followers and /u/<username>/following — paginated lists
-// of accounts. Each card carries the target's username, avatar, and a
-// Follow button (so the viewer can follow/unfollow without navigating
-// away). Avatars are batched by the handler via userStore.getByUsername;
-// accounts without one fall back to a single-letter placeholder.
+// of accounts. Each card carries the target's username, profile picture,
+// and a Follow button (so the viewer can follow/unfollow without
+// navigating away). Profile pictures are batched by the handler via
+// userStore.getByUsername; accounts without one fall back to a
+// single-letter placeholder.
 //
 // Cards are server-rendered with the SSR'd outline state; `/follow.js`
 // hydrates the filled state for the signed-in viewer.

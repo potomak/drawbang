@@ -312,7 +312,7 @@ export async function handleSetProfilePicture(
 
   let updated;
   try {
-    updated = await cfg.userStore.setAvatar(account.email, drawing_id);
+    updated = await cfg.userStore.setProfilePicture(account.email, drawing_id);
   } catch (e) {
     // Account was deleted between the getByUsername above and the write.
     // Surface as 401 so the client re-authenticates.
@@ -333,7 +333,7 @@ export async function handleSetProfilePicture(
     status: 200,
     body: {
       username: updated.username,
-      profile_picture_drawing_id: updated.avatar_drawing_id ?? null,
+      profile_picture_drawing_id: updated.profile_picture_drawing_id ?? null,
     },
   };
 }
