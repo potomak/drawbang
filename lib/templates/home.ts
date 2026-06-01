@@ -75,11 +75,17 @@ export function renderFeedCard(item: FeedItem): string {
 function renderFeedProfilePicture(author: FeedAuthor | null): string {
   const size = 44;
   const pic = author?.profile_picture_drawing_id;
-  if (pic && /^[0-9a-f]{64}$/.test(pic)) {
-    return `<img class="profile-picture" src="/tiles/${esc(pic)}.gif" alt="${esc(author!.username)}" width="${size}" height="${size}" loading="lazy" />`;
+  // Anonymous cards (no author) emit an untagged placeholder — there's no
+  // username to hydrate against.
+  if (!author?.username) {
+    return `<span class="profile-picture profile-picture-placeholder" aria-hidden="true">?</span>`;
   }
-  const letter = author?.username ? author.username.charAt(0).toUpperCase() : "?";
-  return `<span class="profile-picture profile-picture-placeholder" aria-hidden="true">${esc(letter)}</span>`;
+  const dataAttrs = `data-profile-picture-username="${esc(author.username)}" data-profile-picture-size="${size}"`;
+  if (pic && /^[0-9a-f]{64}$/.test(pic)) {
+    return `<img class="profile-picture" src="/tiles/${esc(pic)}.gif" alt="${esc(author.username)}" width="${size}" height="${size}" loading="lazy" ${dataAttrs} />`;
+  }
+  const letter = author.username.charAt(0).toUpperCase();
+  return `<span class="profile-picture profile-picture-placeholder" aria-hidden="true" ${dataAttrs}>${esc(letter)}</span>`;
 }
 
 // Heart button shared by the feed cards + the drawing page. Filled state is

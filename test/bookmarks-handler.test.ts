@@ -4,13 +4,11 @@ import { MemoryDrawingStore, type DrawingRow } from "../ingest/drawing-store.js"
 import { MemoryBookmarksStore } from "../ingest/bookmarks-store.js";
 import {
   handleBookmark,
-  handleMyBookmarks,
   handleUnbookmark,
   type BookmarksHandlerConfig,
 } from "../ingest/bookmarks-handler.js";
 
 const DRAWING_ID = "a".repeat(64);
-const ALT_ID = "b".repeat(64);
 const AUTH = { user_id: "u".repeat(64), username: "alice" };
 
 function row(overrides: Partial<DrawingRow> = {}): DrawingRow {
@@ -98,45 +96,5 @@ describe("handleUnbookmark", () => {
   });
 });
 
-describe("handleMyBookmarks", () => {
-  test("returns only the ids the caller bookmarked", async () => {
-    const { cfg, drawingStore } = makeConfig();
-    await drawingStore.put(row({ drawing_id: DRAWING_ID }));
-    await drawingStore.put(row({ drawing_id: ALT_ID }));
-    await handleBookmark(DRAWING_ID, AUTH, cfg);
-
-    const res = await handleMyBookmarks(`${DRAWING_ID},${ALT_ID}`, AUTH, cfg);
-    assert.equal(res.status, 200);
-    assert.deepEqual(res.body, { bookmarked: [DRAWING_ID] });
-    assert.match(res.headers?.["Cache-Control"] ?? "", /no-store/);
-  });
-
-  test("empty ids list returns empty array", async () => {
-    const { cfg } = makeConfig();
-    const res = await handleMyBookmarks("", AUTH, cfg);
-    assert.equal(res.status, 200);
-    assert.deepEqual(res.body, { bookmarked: [] });
-  });
-
-  test("missing ids param returns empty array", async () => {
-    const { cfg } = makeConfig();
-    const res = await handleMyBookmarks(null, AUTH, cfg);
-    assert.equal(res.status, 200);
-    assert.deepEqual(res.body, { bookmarked: [] });
-  });
-
-  test("invalid id in csv returns 400", async () => {
-    const { cfg } = makeConfig();
-    const res = await handleMyBookmarks(`${DRAWING_ID},not-hex`, AUTH, cfg);
-    assert.equal(res.status, 400);
-  });
-
-  test(">100 ids returns 400 (BatchGetItem cap)", async () => {
-    const { cfg } = makeConfig();
-    const ids = Array.from({ length: 101 }, (_, i) =>
-      i.toString(16).padStart(64, "0"),
-    );
-    const res = await handleMyBookmarks(ids.join(","), AUTH, cfg);
-    assert.equal(res.status, 400);
-  });
-});
+// Read-side hydration (handleMyBookmarks) moved to hydrate-handler.ts.
+// See test/hydrate-handler.test.ts.

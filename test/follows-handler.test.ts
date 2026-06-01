@@ -4,8 +4,6 @@ import { MemoryUserStore, type UserRecord } from "../ingest/user-store.js";
 import { MemoryFollowsStore } from "../ingest/follows-store.js";
 import {
   handleFollow,
-  handleFollowCounts,
-  handleMyFollows,
   handleUnfollow,
   type FollowsHandlerConfig,
 } from "../ingest/follows-handler.js";
@@ -129,94 +127,5 @@ describe("handleUnfollow", () => {
   });
 });
 
-describe("handleMyFollows", () => {
-  test("returns only the targets the caller follows", async () => {
-    const { cfg } = await makeConfig();
-    await handleFollow("bob", AUTH_ALICE, cfg);
-    const res = await handleMyFollows("bob,carol", AUTH_ALICE, cfg);
-    assert.equal(res.status, 200);
-    assert.deepEqual(res.body, { following: ["bob"] });
-    assert.match(res.headers?.["Cache-Control"] ?? "", /no-store/);
-  });
-
-  test("empty targets returns empty array", async () => {
-    const { cfg } = await makeConfig();
-    const res = await handleMyFollows("", AUTH_ALICE, cfg);
-    assert.equal(res.status, 200);
-    assert.deepEqual(res.body, { following: [] });
-  });
-
-  test("missing targets returns empty array", async () => {
-    const { cfg } = await makeConfig();
-    const res = await handleMyFollows(null, AUTH_ALICE, cfg);
-    assert.equal(res.status, 200);
-    assert.deepEqual(res.body, { following: [] });
-  });
-
-  test("invalid username in csv returns 400", async () => {
-    const { cfg } = await makeConfig();
-    const res = await handleMyFollows("bob,BAD!user", AUTH_ALICE, cfg);
-    assert.equal(res.status, 400);
-  });
-
-  test("unknown usernames are silently dropped from the response", async () => {
-    const { cfg } = await makeConfig();
-    await handleFollow("bob", AUTH_ALICE, cfg);
-    const res = await handleMyFollows("bob,nobody", AUTH_ALICE, cfg);
-    assert.equal(res.status, 200);
-    assert.deepEqual(res.body, { following: ["bob"] });
-  });
-
-  test(">100 targets returns 400 (BatchGet cap)", async () => {
-    const { cfg } = await makeConfig();
-    const targets = Array.from({ length: 101 }, (_, i) => `user${i}`);
-    const res = await handleMyFollows(targets.join(","), AUTH_ALICE, cfg);
-    assert.equal(res.status, 400);
-  });
-});
-
-describe("handleFollowCounts (public, anonymous)", () => {
-  test("returns fresh counts per requested username", async () => {
-    const { cfg } = await makeConfig();
-    await handleFollow("bob", AUTH_ALICE, cfg);
-
-    const res = await handleFollowCounts("alice,bob,carol", cfg);
-    assert.equal(res.status, 200);
-    const body = res.body as { counts: Record<string, { followers: number; following: number }> };
-    assert.equal(body.counts.alice.following, 1);
-    assert.equal(body.counts.alice.followers, 0);
-    assert.equal(body.counts.bob.followers, 1);
-    assert.equal(body.counts.bob.following, 0);
-    assert.equal(body.counts.carol.followers, 0);
-    assert.equal(body.counts.carol.following, 0);
-    assert.match(res.headers?.["Cache-Control"] ?? "", /no-store/);
-  });
-
-  test("unknown username gets 0/0 so the client renders uniformly", async () => {
-    const { cfg } = await makeConfig();
-    const res = await handleFollowCounts("nobody", cfg);
-    assert.equal(res.status, 200);
-    const body = res.body as { counts: Record<string, { followers: number; following: number }> };
-    assert.deepEqual(body.counts.nobody, { followers: 0, following: 0 });
-  });
-
-  test("empty targets returns an empty map (not a 400)", async () => {
-    const { cfg } = await makeConfig();
-    const res = await handleFollowCounts("", cfg);
-    assert.equal(res.status, 200);
-    assert.deepEqual(res.body, { counts: {} });
-  });
-
-  test("invalid username in csv returns 400", async () => {
-    const { cfg } = await makeConfig();
-    const res = await handleFollowCounts("alice,BAD!user", cfg);
-    assert.equal(res.status, 400);
-  });
-
-  test(">100 targets returns 400 (BatchGet cap)", async () => {
-    const { cfg } = await makeConfig();
-    const targets = Array.from({ length: 101 }, (_, i) => `user${i}`);
-    const res = await handleFollowCounts(targets.join(","), cfg);
-    assert.equal(res.status, 400);
-  });
-});
+// Read-side hydration (handleMyFollows, handleFollowCounts) moved to
+// hydrate-handler.ts. See test/hydrate-handler.test.ts.

@@ -37,6 +37,9 @@ export interface OwnerView {
 
 // Inline profile picture next to a username. Returns "" when drawing_id
 // is missing or malformed so callers can splice it in unconditionally.
+// The data-profile-picture-* attrs are how /hydrate.js finds + refreshes
+// this element with the live picture (the SSR markup rides an edge cache
+// up to 24h on /u/<un>, much shorter elsewhere).
 export function renderProfilePicture(
   drawing_id: string | null | undefined,
   username: string,
@@ -44,7 +47,7 @@ export function renderProfilePicture(
 ): string {
   if (!drawing_id || !/^[0-9a-f]{64}$/.test(drawing_id)) return "";
   const px = Math.max(8, Math.floor(size));
-  return `<img class="profile-picture" src="/tiles/${esc(drawing_id)}.gif" alt="${esc(username)}" width="${px}" height="${px}" loading="lazy" />`;
+  return `<img class="profile-picture" src="/tiles/${esc(drawing_id)}.gif" alt="${esc(username)}" width="${px}" height="${px}" loading="lazy" data-profile-picture-username="${esc(username)}" data-profile-picture-size="${px}" />`;
 }
 
 // Follow button. Filled state + self-hiding are handled client-side by

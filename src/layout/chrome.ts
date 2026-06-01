@@ -129,7 +129,8 @@ export function renderFooter(opts: FooterOptions): string {
 </footer>
 ${fab}<script src="${assetUrl("/flash.js")}"></script>
 <script src="${assetUrl("/chrome-toggle.js")}"></script>
-<script src="${assetUrl("/chrome-identity.js")}"></script>`;
+<script src="${assetUrl("/chrome-identity.js")}"></script>
+<script src="${assetUrl("/hydrate.js")}"></script>`;
 }
 
 // Fixed-position "Draw" button that takes the viewer to /draw from any

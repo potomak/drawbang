@@ -164,10 +164,11 @@ describe("renderFollowersPageHandler", () => {
       res.body,
       new RegExp(`<img class="profile-picture" src="/tiles/${bobProfilePicture}\\.gif"`),
     );
-    // Carol has no profile picture → placeholder with her initial.
+    // Carol has no profile picture → placeholder with her initial, tagged
+    // for /hydrate.js so it can swap in a real <img> if she sets one later.
     assert.match(
       res.body,
-      /<span class="profile-picture profile-picture-placeholder" aria-hidden="true">C<\/span>/,
+      /<span class="profile-picture profile-picture-placeholder" aria-hidden="true" data-profile-picture-username="carol" data-profile-picture-size="44">C<\/span>/,
     );
   });
 

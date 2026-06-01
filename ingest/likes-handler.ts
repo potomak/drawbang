@@ -6,15 +6,12 @@ import {
 } from "./likes-store.js";
 
 // POST   /drawings/{id}/like     | DELETE /drawings/{id}/like
-// GET    /me/likes?ids=<csv>
 //
 // Identity comes from the verified session JWT (route extracts and passes
-// `auth` in). Anonymous viewers get 401 before reaching here.
+// `auth` in). Anonymous viewers get 401 before reaching here. Read-side
+// hydration (counts + viewer_liked) lives in /hydrate (hydrate-handler.ts).
 
 const DRAWING_ID_RE = /^[0-9a-f]{64}$/;
-// BatchGetItem cap is 100; matches DynamoDB's limit so the route never
-// surprises a caller that passed exactly 100 ids.
-const MY_LIKES_MAX_IDS = 100;
 
 export interface LikesAuth {
   user_id: string;
@@ -67,63 +64,6 @@ export async function handleUnlike(
     throw e;
   }
   return ok();
-}
-
-export async function handleMyLikes(
-  rawIds: string | null,
-  auth: LikesAuth,
-  cfg: LikesHandlerConfig,
-): Promise<LikesResult> {
-  const ids = parseIds(rawIds);
-  if (ids === null) return err(400, "invalid ids");
-  if (ids.length > MY_LIKES_MAX_IDS) {
-    return err(400, `too many ids (max ${MY_LIKES_MAX_IDS})`);
-  }
-  const liked = await cfg.likesStore.listLikedDrawingIds(auth.user_id, ids);
-  return {
-    status: 200,
-    body: { liked },
-    // Per-user, ephemeral. Don't let CloudFront or the browser cache it.
-    headers: { "Cache-Control": "no-store, private" },
-  };
-}
-
-// Public — no auth. Returns the fresh denormalised like_count for each
-// id so the feed JS can overwrite the SSR'd value that's been edge-cached
-// for up to a few minutes.
-//
-// Cache-Control is `no-store` — explicitly NOT cached at the browser or
-// the edge. A previous version used max-age=15 to amortise bursts, but
-// that meant: user A likes drawing X, reloads within 15s, and gets back
-// the pre-like count their own browser had cached. Counts only ever
-// move by ±1 per write so no-store is safe at our volume; the Lambda +
-// BatchGetItem round-trip is cheap.
-export async function handleLikeCounts(
-  rawIds: string | null,
-  cfg: LikesHandlerConfig,
-): Promise<LikesResult> {
-  const ids = parseIds(rawIds);
-  if (ids === null) return err(400, "invalid ids");
-  if (ids.length > MY_LIKES_MAX_IDS) {
-    return err(400, `too many ids (max ${MY_LIKES_MAX_IDS})`);
-  }
-  const counts = await cfg.likesStore.listLikeCounts(ids);
-  return {
-    status: 200,
-    body: { counts },
-    headers: { "Cache-Control": "no-store" },
-  };
-}
-
-function parseIds(raw: string | null): string[] | null {
-  if (raw === null || raw === "") return [];
-  const parts = raw.split(",");
-  const out: string[] = [];
-  for (const p of parts) {
-    if (!DRAWING_ID_RE.test(p)) return null;
-    out.push(p);
-  }
-  return out;
 }
 
 function ok(): LikesResult {

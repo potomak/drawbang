@@ -55,7 +55,7 @@ that gated it is replaced by login.
   /gallery, /d/<id>, /u/<username>, /feed.rss →  Lambda render handlers
   /products, /products/p/<N>                  →     (same Lambda)
   POST /ingest, POST /auth/*                  →     (same Lambda)
-  POST|DELETE /drawings/<id>/like, /me/likes  →     (same Lambda)
+  POST|DELETE /drawings/<id>/like, GET /hydrate →   (same Lambda)
   POST /merch/*, GET /merch/order/{id}        →  Separate merch Lambda
 ```
 
@@ -104,21 +104,19 @@ asset, new tracking script) must consider every entry below.
 | `/account`                     | `account.html` + `src/account.ts`                 | Logged-in account (Vite) |
 | `/privacy`                     | `privacy.html` + `src/privacy.ts`                 | Static-ish (Vite) |
 
-Auth-gated JSON endpoints (Bearer JWT in `Authorization` header, no caching at the edge):
+JSON endpoints (no caching at the edge — `Cache-Control: no-store`):
 
-| URL                            | Method        | Handler |
-|--------------------------------|---------------|---------|
-| `/drawings/<id>/like`          | POST / DELETE | `ingest/likes-handler.ts` — toggle a like. |
-| `/me/likes?ids=<csv>`          | GET           | `ingest/likes-handler.ts` — subset of the supplied ids the caller has liked. |
-| `/likes/counts?ids=<csv>`      | GET           | `ingest/likes-handler.ts` — **public**, fresh denormalised counts (max-age=15) for client-side hydration over the edge-cached SSR values. |
-| `/drawings/<id>/bookmark`      | POST / DELETE | `ingest/bookmarks-handler.ts` — toggle a bookmark. |
-| `/me/bookmarks?ids=<csv>`      | GET           | `ingest/bookmarks-handler.ts` — subset of the supplied ids the caller has bookmarked. |
-| `/me/bookmarks/feed`           | GET           | HTML fragment of the caller's bookmarks (auth-gated). Loaded by the inline boot script on `/u/<un>/bookmarks`. |
-| `/users/<username>/follow`     | POST / DELETE | `ingest/follows-handler.ts` — follow/unfollow. Self-follow → 400, missing target → 404, duplicate → 409. Bumps `follower_count`/`following_count` on the users rows transactionally with the edge write. |
-| `/me/follows?targets=<csv>`    | GET           | `ingest/follows-handler.ts` — subset of the supplied usernames the caller follows (Follow-button hydration). |
-| `/follows/counts?targets=<csv>`| GET           | `ingest/follows-handler.ts` — **public**, fresh denormalised follower/following counts (no-store) for client-side hydration over the edge-cached SSR values on `/u/<un>`. |
-| `/auth/*`                      | POST          | `ingest/auth-handler.ts` (register/login/forgot/reset/profile-picture). |
-| `/users/<user_id>/stats`       | GET           | `ingest/user-stats-handler.ts` — public, but on a short max-age. |
+| URL                            | Method        | Auth | Handler |
+|--------------------------------|---------------|------|---------|
+| `/hydrate?drawings=<csv>&users=<csv>` | GET    | optional | `ingest/hydrate-handler.ts` — **the** read-side hydration channel. Returns `{drawings: {<id>: {like_count, viewer_liked, viewer_bookmarked}}, users: {<un>: {profile_picture_drawing_id, follower_count, following_count, viewer_follows}}}`. `viewer_*` fields populate when a Bearer JWT is sent, otherwise they're `null`. Every Lambda-rendered page fires one of these via `/hydrate.js` to overlay fresh values on the edge-cached SSR markup. |
+| `/drawings/<id>/like`          | POST / DELETE | required | `ingest/likes-handler.ts` — toggle a like (write only). |
+| `/drawings/<id>/bookmark`      | POST / DELETE | required | `ingest/bookmarks-handler.ts` — toggle a bookmark (write only). |
+| `/me/bookmarks/feed`           | GET           | required | HTML fragment of the caller's bookmarks. Loaded by the inline boot script on `/u/<un>/bookmarks`. |
+| `/users/<username>/follow`     | POST / DELETE | required | `ingest/follows-handler.ts` — follow/unfollow. Self-follow → 400, missing target → 404, duplicate → 409. Bumps `follower_count`/`following_count` on the users rows transactionally with the edge write. |
+| `/auth/*`                      | POST          | mixed | `ingest/auth-handler.ts` (register/login/forgot/reset/profile-picture). |
+| `/users/<user_id>/stats`       | GET           | none | `ingest/user-stats-handler.ts` — public, short max-age. |
+
+**Adding a new "X is stale on the cached feed" field is a one-liner.** Don't invent another endpoint or another client script. Add the field to `HydrateBody` (in `ingest/hydrate-handler.ts`), populate it in the handler, add a case to the `apply` step in `static/hydrate.js` that updates the right DOM nodes. The SSR templates carry `data-*` attributes the hydrator reads; click handlers stay in their per-action scripts (`like.js`, `bookmark.js`, `follow.js`).
 
 Every page that renders the chrome ships a fixed-position **FAB** ("+")
 linking to `/draw` so the editor is always one tap away. Vite pages opt
@@ -256,8 +254,12 @@ ingest/               Lambda + dev-server: ingest, render, auth
                       `like_count` on DrawingRow stays consistent. Memory
                       variant for dev/tests; AlreadyLikedError /
                       NotLikedError / DrawingNotFoundError surface as 409/404.
-  likes-handler.ts    POST /drawings/{id}/like, DELETE /drawings/{id}/like,
-                      GET /me/likes?ids=<csv>.
+  likes-handler.ts    POST /drawings/{id}/like, DELETE /drawings/{id}/like.
+                      (Read-side hydration lives in hydrate-handler.ts.)
+  hydrate-handler.ts  GET /hydrate?drawings=<csv>&users=<csv> — the single
+                      read-side hydration channel. Public, no-store; optional
+                      Bearer JWT populates viewer_* fields. See the JSON
+                      endpoints table above.
   cache-invalidation.ts CloudFrontInvalidator + path generators
                       (pathsToInvalidateOnPublish,
                       pathsToInvalidateOnProfilePictureChange).
@@ -276,10 +278,13 @@ ingest/               Lambda + dev-server: ingest, render, auth
   s3-storage.ts       S3Storage (Lambda + scripts).
   lambda.ts           API Gateway v2 entry point — routes /ingest,
                       /gallery*, /d/*, /u/*, /feed.rss, /products*,
-                      /users/{id}/stats, /auth/*, /drawings/{id}/like
-                      (POST + DELETE), /me/likes. Verifies the Bearer JWT
-                      for /ingest, /auth/profile-picture, and every likes
-                      route.
+                      /users/{id}/stats, /auth/*, /hydrate,
+                      /drawings/{id}/{like,bookmark} (POST + DELETE),
+                      /users/{un}/follow (POST + DELETE),
+                      /me/bookmarks/feed. Verifies the Bearer JWT for
+                      every write route + /me/bookmarks/feed. /hydrate
+                      treats the Bearer JWT as optional (viewer_* fields
+                      go null when absent).
   dev-server.ts       Node HTTP shim for `npm run ingest:dev` —
                       Memory* stores + ConsoleEmailSender (reset link
                       logged). Mirrors lambda.ts route table.
@@ -318,15 +323,30 @@ static/               Plain JS + CSS shipped as edge assets
   chrome.css          Tokens + chrome + base .btn (see "Shared CSS").
   gallery-v2.css      Classes for Lambda-rendered pages.
   flash.js            Toast/flash UI exposed as window.drawbangShowFlash.
-  chrome-identity.js  Identity link rewrite for the chrome.
+  chrome-identity.js  Identity link rewrite for the chrome + reveals any
+                      [data-owner-only-for="<un>"] when the viewer matches.
   chrome-toggle.js    Hamburger toggle for narrow viewports.
-  tile-page.js        Drawing-page client behaviour (profile picture,
-                      copy-link, Web Share, GA tracking).
-  like.js             Heart-button wirer for feed cards + /d/<id>: batch
-                      GET /me/likes for filled state, optimistic POST/DELETE
-                      /drawings/<id>/like, redirect to /login on no/expired
-                      session. MutationObserver picks up infinite-scroll
-                      appends without coupling to the feed observer.
+  tile-page.js        Drawing-page client behaviour (copy-link, Web Share,
+                      GA tracking).
+  hydrate.js          **Single read-side hydration channel.** On load (and
+                      MutationObserver tick) walks the DOM once to collect
+                      [data-like-target] / [data-bookmark-target] (drawing
+                      ids) and [data-follow-target] / [data-profile-username]
+                      / [data-profile-picture-username] (usernames), fires
+                      ONE GET /hydrate?drawings=…&users=… with optional
+                      Bearer JWT, then stamps each element: like counts,
+                      filled states, follow counts, follow button labels +
+                      reveal, profile-picture <img>↔placeholder swaps.
+  like.js             Click handler for `[data-like-target]` — optimistic
+                      POST/DELETE /drawings/<id>/like, redirect to /login on
+                      no/expired session, MutationObserver re-wires
+                      infinite-scroll appends. Read-side state lives in
+                      hydrate.js.
+  bookmark.js         Same shape as like.js for `[data-bookmark-target]`.
+  follow.js           Click handler for `[data-follow-target]` — POST/DELETE
+                      /users/<un>/follow + optimistic follower-counter bump
+                      on the profile page. Hides self-targeted buttons. Same
+                      shape as like.js / bookmark.js.
   share.js            Web Share wirer for `[data-share-button]` controls
                       on the feed. navigator.share when supported, falls
                       back to clipboard copy + flash. Loaded by home.ts.

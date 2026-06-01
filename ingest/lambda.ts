@@ -22,26 +22,25 @@ import { DynamoDrawingStore } from "./drawing-store.js";
 import { DynamoLikesStore } from "./likes-store.js";
 import {
   handleLike,
-  handleLikeCounts,
-  handleMyLikes,
   handleUnlike,
   type LikesHandlerConfig,
 } from "./likes-handler.js";
 import { DynamoBookmarksStore } from "./bookmarks-store.js";
 import {
   handleBookmark,
-  handleMyBookmarks,
   handleUnbookmark,
   type BookmarksHandlerConfig,
 } from "./bookmarks-handler.js";
 import { DynamoFollowsStore } from "./follows-store.js";
 import {
   handleFollow,
-  handleFollowCounts,
-  handleMyFollows,
   handleUnfollow,
   type FollowsHandlerConfig,
 } from "./follows-handler.js";
+import {
+  handleHydrate,
+  type HydrateHandlerConfig,
+} from "./hydrate-handler.js";
 import { CloudFrontInvalidator } from "./cache-invalidation.js";
 import { SesEmailSender } from "./email.js";
 import {
@@ -109,6 +108,12 @@ const followsStore = new DynamoFollowsStore({
   usersTable,
 });
 const followsConfig: FollowsHandlerConfig = { followsStore, userStore };
+const hydrateConfig: HydrateHandlerConfig = {
+  likesStore,
+  bookmarksStore,
+  followsStore,
+  userStore,
+};
 const cacheInvalidator = cfDistributionId
   ? new CloudFrontInvalidator({ distributionId: cfDistributionId })
   : undefined;
@@ -234,20 +239,12 @@ export async function handler(
       return handleLikesToggleRoute(event, m[1], method);
     }
   }
-  // /me/likes?ids=<csv> — return the subset the caller has liked.
-  if (method === "GET" && path === "/me/likes") {
-    return handleMyLikesRoute(event);
-  }
   // /drawings/{id}/bookmark — toggle a bookmark.
   {
     const m = path.match(/^\/drawings\/([0-9a-f]{64})\/bookmark$/);
     if (m && (method === "POST" || method === "DELETE")) {
       return handleBookmarksToggleRoute(event, m[1], method);
     }
-  }
-  // /me/bookmarks?ids=<csv> — return the subset the caller has bookmarked.
-  if (method === "GET" && path === "/me/bookmarks") {
-    return handleMyBookmarksRoute(event);
   }
   // /me/bookmarks/feed — HTML fragment of the caller's bookmarks, used by
   // the inline boot script on /u/<un>/bookmarks.
@@ -261,21 +258,17 @@ export async function handler(
       return handleFollowToggleRoute(event, m[1], method);
     }
   }
-  // /me/follows?targets=<csv> — subset of usernames the caller follows.
-  if (method === "GET" && path === "/me/follows") {
-    return handleMyFollowsRoute(event);
-  }
-  // /follows/counts?targets=<csv> — public, fresh denormalised
-  // follower/following counts for client-side hydration over the
-  // edge-cached SSR values. Mirrors /likes/counts.
-  if (method === "GET" && path === "/follows/counts") {
-    const result = await handleFollowCounts(queryParam(event, "targets"), followsConfig);
-    return jsonWithHeaders(result.status, result.body, result.headers);
-  }
-  // /likes/counts?ids=<csv> — public, fresh denormalised counts for
-  // hydration. No auth.
-  if (method === "GET" && path === "/likes/counts") {
-    const result = await handleLikeCounts(queryParam(event, "ids"), likesConfig);
+  // /hydrate?drawings=<csv>&users=<csv> — single hydration channel. Public,
+  // no-store. Optional Bearer JWT populates the viewer_* fields. Every
+  // Lambda-rendered page hits this on load to overlay fresh values on the
+  // edge-cached SSR markup (likes, bookmarks, follows, profile pictures).
+  if (method === "GET" && path === "/hydrate") {
+    const result = await handleHydrate(
+      queryParam(event, "drawings"),
+      queryParam(event, "users"),
+      extractAuth(event),
+      hydrateConfig,
+    );
     return jsonWithHeaders(result.status, result.body, result.headers);
   }
   if (method === "POST" && path.startsWith("/auth/")) {
@@ -395,15 +388,6 @@ async function handleLikesToggleRoute(
   return jsonWithHeaders(result.status, result.body, result.headers);
 }
 
-async function handleMyLikesRoute(
-  event: APIGatewayProxyEventV2,
-): Promise<APIGatewayProxyResultV2> {
-  const auth = extractAuth(event);
-  if (!auth) return json(401, { error: "authentication required" });
-  const result = await handleMyLikes(queryParam(event, "ids"), auth, likesConfig);
-  return jsonWithHeaders(result.status, result.body, result.headers);
-}
-
 async function handleBookmarksToggleRoute(
   event: APIGatewayProxyEventV2,
   drawing_id: string,
@@ -415,15 +399,6 @@ async function handleBookmarksToggleRoute(
     method === "POST"
       ? await handleBookmark(drawing_id, auth, bookmarksConfig)
       : await handleUnbookmark(drawing_id, auth, bookmarksConfig);
-  return jsonWithHeaders(result.status, result.body, result.headers);
-}
-
-async function handleMyBookmarksRoute(
-  event: APIGatewayProxyEventV2,
-): Promise<APIGatewayProxyResultV2> {
-  const auth = extractAuth(event);
-  if (!auth) return json(401, { error: "authentication required" });
-  const result = await handleMyBookmarks(queryParam(event, "ids"), auth, bookmarksConfig);
   return jsonWithHeaders(result.status, result.body, result.headers);
 }
 
@@ -446,15 +421,6 @@ async function handleFollowToggleRoute(
     method === "POST"
       ? await handleFollow(target_username, auth, followsConfig)
       : await handleUnfollow(target_username, auth, followsConfig);
-  return jsonWithHeaders(result.status, result.body, result.headers);
-}
-
-async function handleMyFollowsRoute(
-  event: APIGatewayProxyEventV2,
-): Promise<APIGatewayProxyResultV2> {
-  const auth = extractAuth(event);
-  if (!auth) return json(401, { error: "authentication required" });
-  const result = await handleMyFollows(queryParam(event, "targets"), auth, followsConfig);
   return jsonWithHeaders(result.status, result.body, result.headers);
 }
 

@@ -398,16 +398,12 @@ Resources:
             Compress: true
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
-          # /likes/counts?ids=… — public but NOT cached. The origin
-          # returns Cache-Control: no-store; CachingDisabled here so
-          # CloudFront doesn't second-guess that. Required for the
-          # "like → reload → see fresh count" UX: any edge cache means
-          # the liker's own browser/edge could keep returning the
-          # pre-like value for the cache TTL.
-          # OriginRequestPolicy = AllViewerExceptHostHeader so the `ids`
-          # query string actually reaches Lambda — CachingDisabled by
-          # itself doesn't forward query strings.
-          - PathPattern: /likes/*
+          # /hydrate?drawings=…&users=… — single hydration channel for
+          # every cached SSR page. Public, no-store. Optional Bearer JWT
+          # populates the viewer_* fields (forwarded via
+          # AllViewerExceptHostHeader). Any future "X is stale on the
+          # cached feed" bug folds into this endpoint — no new behaviour.
+          - PathPattern: /hydrate
             TargetOriginId: api
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD, OPTIONS]
@@ -426,21 +422,13 @@ Resources:
             Compress: true
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
-          # /me/bookmarks?ids=… and /me/bookmarks/feed — per-user auth-gated
-          # lookups (subset + HTML fragment for the bookmarks page).
-          - PathPattern: /me/bookmarks*
+          # /me/bookmarks/feed — auth-gated HTML fragment of the caller's
+          # bookmarks, loaded by the inline boot script on /u/<un>/bookmarks.
+          # (The hydration subset that used to live here moved into /hydrate.)
+          - PathPattern: /me/bookmarks/feed
             TargetOriginId: api
             ViewerProtocolPolicy: redirect-to-https
-            AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
-            CachedMethods: [GET, HEAD]
-            Compress: true
-            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
-            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
-          # /me/follows?targets=… — per-user "do I follow these?" hydration.
-          - PathPattern: /me/follows
-            TargetOriginId: api
-            ViewerProtocolPolicy: redirect-to-https
-            AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
+            AllowedMethods: [GET, HEAD, OPTIONS]
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
@@ -451,19 +439,6 @@ Resources:
             TargetOriginId: api
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
-            CachedMethods: [GET, HEAD]
-            Compress: true
-            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
-            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
-          # /follows/counts?targets=… — public, fresh denormalised
-          # follower/following counts for client-side hydration over the
-          # edge-cached SSR values on /u/<username>. Same NOT-cached
-          # pattern as /likes/counts; AllViewerExceptHostHeader so the
-          # `targets` query string reaches Lambda.
-          - PathPattern: /follows/*
-            TargetOriginId: api
-            ViewerProtocolPolicy: redirect-to-https
-            AllowedMethods: [GET, HEAD, OPTIONS]
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad

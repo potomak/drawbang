@@ -8,26 +8,25 @@ import { MemoryDrawingStore } from "./drawing-store.js";
 import { MemoryLikesStore } from "./likes-store.js";
 import {
   handleLike,
-  handleLikeCounts,
-  handleMyLikes,
   handleUnlike,
   type LikesHandlerConfig,
 } from "./likes-handler.js";
 import { MemoryBookmarksStore } from "./bookmarks-store.js";
 import {
   handleBookmark,
-  handleMyBookmarks,
   handleUnbookmark,
   type BookmarksHandlerConfig,
 } from "./bookmarks-handler.js";
 import { MemoryFollowsStore } from "./follows-store.js";
 import {
   handleFollow,
-  handleFollowCounts,
-  handleMyFollows,
   handleUnfollow,
   type FollowsHandlerConfig,
 } from "./follows-handler.js";
+import {
+  handleHydrate,
+  type HydrateHandlerConfig,
+} from "./hydrate-handler.js";
 import { ConsoleEmailSender } from "./email.js";
 import { JwtError, verifyJwt } from "./jwt.js";
 import type { AuthedUser } from "./handler.js";
@@ -73,6 +72,12 @@ const bookmarksStore = new MemoryBookmarksStore(drawingStore);
 const bookmarksConfig: BookmarksHandlerConfig = { bookmarksStore };
 const followsStore = new MemoryFollowsStore(userStore);
 const followsConfig: FollowsHandlerConfig = { followsStore, userStore };
+const hydrateConfig: HydrateHandlerConfig = {
+  likesStore,
+  bookmarksStore,
+  followsStore,
+  userStore,
+};
 const renderConfig: RenderHandlersConfig = {
   drawingStore,
   publicBaseUrl: PUBLIC_BASE,
@@ -199,23 +204,6 @@ const server = http.createServer(async (req, res) => {
         jsonWithHeaders(res, result.status, result.body, result.headers);
         return;
       }
-      if (req.method === "GET" && u.pathname === "/me/likes") {
-        const auth = extractAuth(req);
-        if (!auth) {
-          json(res, 401, { error: "authentication required" });
-          return;
-        }
-        const ids = u.searchParams.get("ids");
-        const result = await handleMyLikes(ids, auth, likesConfig);
-        jsonWithHeaders(res, result.status, result.body, result.headers);
-        return;
-      }
-      if (req.method === "GET" && u.pathname === "/likes/counts") {
-        const ids = u.searchParams.get("ids");
-        const result = await handleLikeCounts(ids, likesConfig);
-        jsonWithHeaders(res, result.status, result.body, result.headers);
-        return;
-      }
       const bookmarkMatch = u.pathname.match(/^\/drawings\/([0-9a-f]{64})\/bookmark$/);
       if (bookmarkMatch && (req.method === "POST" || req.method === "DELETE")) {
         const auth = extractAuth(req);
@@ -227,17 +215,6 @@ const server = http.createServer(async (req, res) => {
           req.method === "POST"
             ? await handleBookmark(bookmarkMatch[1], auth, bookmarksConfig)
             : await handleUnbookmark(bookmarkMatch[1], auth, bookmarksConfig);
-        jsonWithHeaders(res, result.status, result.body, result.headers);
-        return;
-      }
-      if (req.method === "GET" && u.pathname === "/me/bookmarks") {
-        const auth = extractAuth(req);
-        if (!auth) {
-          json(res, 401, { error: "authentication required" });
-          return;
-        }
-        const ids = u.searchParams.get("ids");
-        const result = await handleMyBookmarks(ids, auth, bookmarksConfig);
         jsonWithHeaders(res, result.status, result.body, result.headers);
         return;
       }
@@ -269,20 +246,12 @@ const server = http.createServer(async (req, res) => {
         jsonWithHeaders(res, result.status, result.body, result.headers);
         return;
       }
-      if (req.method === "GET" && u.pathname === "/me/follows") {
-        const auth = extractAuth(req);
-        if (!auth) {
-          json(res, 401, { error: "authentication required" });
-          return;
-        }
-        const targets = u.searchParams.get("targets");
-        const result = await handleMyFollows(targets, auth, followsConfig);
-        jsonWithHeaders(res, result.status, result.body, result.headers);
-        return;
-      }
-      if (req.method === "GET" && u.pathname === "/follows/counts") {
-        const targets = u.searchParams.get("targets");
-        const result = await handleFollowCounts(targets, followsConfig);
+      // Single hydration channel. Optional Bearer JWT populates viewer_*
+      // fields; otherwise they're null. See ingest/hydrate-handler.ts.
+      if (req.method === "GET" && u.pathname === "/hydrate") {
+        const drawings = u.searchParams.get("drawings");
+        const users = u.searchParams.get("users");
+        const result = await handleHydrate(drawings, users, extractAuth(req), hydrateConfig);
         jsonWithHeaders(res, result.status, result.body, result.headers);
         return;
       }

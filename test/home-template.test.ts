@@ -63,6 +63,9 @@ describe("renderHome", () => {
       html,
       new RegExp(`<img class="profile-picture" src="/tiles/${pictureId}\\.gif"`),
     );
+    // /hydrate.js reads these to swap the image in/out without a page reload.
+    assert.match(html, /data-profile-picture-username="alice"/);
+    assert.match(html, /data-profile-picture-size="44"/);
   });
 
   test("renders a monogram placeholder in the left rail when no picture is set", () => {
@@ -74,6 +77,9 @@ describe("renderHome", () => {
     });
     assert.match(html, /<a class="feed-card-pp" href="\/u\/alice"/);
     assert.match(html, /class="profile-picture profile-picture-placeholder"[^>]*>A</);
+    // Placeholder still carries the hydration attrs so /hydrate.js can
+    // upgrade it to an <img> when alice sets a picture later.
+    assert.match(html, /class="profile-picture profile-picture-placeholder"[^>]*data-profile-picture-username="alice"/);
   });
 
   test("emits an infinite-scroll sentinel + observer script when paginated", () => {
