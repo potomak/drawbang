@@ -117,6 +117,11 @@ const elapsedHours = Math.max(1, (now.getTime() - start.getTime()) / 3600_000);
 const elapsedDays = elapsedHours / 24;
 
 // ── Metric helper ───────────────────────────────────────────────────────────
+// One GetMetricStatistics call per metric. Deliberately NOT GetMetricData,
+// even though it could batch all ~25 reads into a single call: the AWS free
+// tier of 1M API requests/month covers GetMetricStatistics but explicitly
+// excludes GetMetricData, which is always billed. ~750 calls/month here
+// stays free; the equivalent GetMetricData usage would not.
 async function metric(
   namespace: string,
   name: string,
