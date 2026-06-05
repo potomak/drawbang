@@ -169,6 +169,46 @@ describe("renderStreakPageHandler", () => {
     }
   });
 
+  test("months with no drawings between months that have them still render", async () => {
+    const { cfg, drawingStore, userStore } = makeCfg({
+      now: new Date("2026-06-05T12:00:00.000Z"),
+    });
+    await userStore.register(rec());
+    const marchId = "5".repeat(64);
+    const juneId = "6".repeat(64);
+    await drawingStore.put(
+      row({
+        drawing_id: marchId,
+        created_at_ms: Date.parse("2026-03-15T10:00:00.000Z"),
+      }),
+    );
+    await drawingStore.put(
+      row({
+        drawing_id: juneId,
+        created_at_ms: Date.parse("2026-06-01T10:00:00.000Z"),
+      }),
+    );
+    const res = await renderStreakPageHandler(cfg, "alice");
+    assert.equal(res.status, 200);
+
+    // Every month from June back through March must render — including
+    // the gap months (April + May) where the user drew nothing.
+    const labels = ["June 2026", "May 2026", "April 2026", "March 2026"];
+    let cursor = -1;
+    for (const label of labels) {
+      const idx = res.body.indexOf(label);
+      assert.ok(idx > cursor, `expected "${label}" after the previous label`);
+      cursor = idx;
+    }
+
+    // The two known thumbs land in their months.
+    assert.match(res.body, new RegExp(`href="/d/${marchId}"`));
+    assert.match(res.body, new RegExp(`href="/d/${juneId}"`));
+
+    // Summary counts unique days with drawings, not months touched.
+    assert.match(res.body, /2 days with drawings/);
+  });
+
   test("stats counters from userStatsStore land in the summary line", async () => {
     const { cfg, drawingStore, userStore, userStatsStore } = makeCfg({
       now: new Date("2026-05-15T12:00:00.000Z"),
