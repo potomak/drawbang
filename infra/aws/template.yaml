@@ -906,6 +906,12 @@ Resources:
             ApiId: !Ref IngestApi
             Method: ANY
             Path: /u/{username}/following/items
+        StreakPage:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: ANY
+            Path: /u/{username}/streak
 
   IngestApi:
     Type: AWS::Serverless::HttpApi

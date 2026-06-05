@@ -73,6 +73,38 @@ Cloudflare.** The daily-builder cron was removed when the gallery /
 drawing / profile / feed routes flipped to be Lambda-rendered (see
 Phase 3 commits in the git log).
 
+### Adding a new Lambda-rendered route (checklist — easy to miss)
+
+A new dynamic URL only works once it's wired into **all** of these.
+Skipping any one of them gives a hard-to-debug 404 (API Gateway 404s
+before Lambda runs; CloudFront 404s before API Gateway runs).
+
+1. **Handler** in `ingest/render-handlers.ts` (or a sibling handler
+   file) returning `{ status, contentType, cacheControl, body }`.
+2. **Lambda route table** in `ingest/lambda.ts` — add the regex match
+   block and call `adaptRender(...)`.
+3. **Dev mirror** in `ingest/dev-server.ts` — keep the dev `:8787`
+   server in sync so `npm run dev:all` exercises the path.
+4. **API Gateway event** in `infra/aws/template.yaml` under the
+   ingest function's `Events:` block — every path is registered
+   explicitly (`Type: HttpApi`, `Path: /your/{param}/path`). Without
+   this, the API returns 404 before Lambda is ever invoked.
+5. **CloudFront cache behavior** in `infra/aws/template.yaml` under
+   `CacheBehaviors:` — only needed if the new path doesn't already
+   match an existing wildcard (`/u/*`, `/products/*`, `/d/*`, etc.).
+   When it does match, you get the parent's cache policy "for free";
+   add a longer-pattern behavior (and place it **above** the parent
+   in the list) only if the new route needs a different policy
+   (e.g. auth-forwarded vs public).
+6. **Cache invalidation** in `ingest/cache-invalidation.ts` — usually
+   covered by an existing `/u/${username}*` / `/d/${id}*` wildcard;
+   only extend if the new path needs publish-time invalidation outside
+   those.
+
+Quick mental check before pushing: grep the new path in
+`ingest/lambda.ts`, `ingest/dev-server.ts`, and `infra/aws/template.yaml`
+— it must appear in all three.
+
 ## Pages of the app
 
 Single source of truth. Any cross-page change (new nav link, new shared
