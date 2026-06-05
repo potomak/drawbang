@@ -57,6 +57,7 @@ import {
   renderProductsPageHandler,
   renderProfileItemsHandler,
   renderProfilePageHandler,
+  renderStreakPageHandler,
   type RenderHandlersConfig,
   type RenderResponse,
 } from "./render-handlers.js";
@@ -226,6 +227,14 @@ export async function handler(
       const kind = m[2] as "followers" | "following";
       const handler = kind === "followers" ? renderFollowersItemsHandler : renderFollowingItemsHandler;
       return adaptRender(await handler(renderConfig, m[1], queryParam(event, "cursor")));
+    }
+  }
+  // /u/<username>/streak — month-stacked calendar of the user's daily
+  // publishes. Public read, edge-cached via CC_PROFILE.
+  {
+    const m = path.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])\/streak$/);
+    if (method === "GET" && m) {
+      return adaptRender(await renderStreakPageHandler(renderConfig, m[1]));
     }
   }
   // /users/{user_id}/stats — per-account streak / total counters (#115/#116).

@@ -53,6 +53,7 @@ import {
   renderProductsPageHandler,
   renderProfileItemsHandler,
   renderProfilePageHandler,
+  renderStreakPageHandler,
   type RenderHandlersConfig,
   type RenderResponse,
 } from "./render-handlers.js";
@@ -176,6 +177,8 @@ const server = http.createServer(async (req, res) => {
           const h = ufi[2] === "followers" ? renderFollowersItemsHandler : renderFollowingItemsHandler;
           rendered = await h(renderConfig, ufi[1], cursor);
         }
+        const usm = pathOnly.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])\/streak$/);
+        if (usm) rendered = await renderStreakPageHandler(renderConfig, usm[1]);
       }
       if (rendered) {
         res.writeHead(rendered.status, {

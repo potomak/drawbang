@@ -82,6 +82,10 @@ ${items}
       </ul>`
     : `      <p class="muted">No drawings published by this account yet.</p>`;
   const stats = v.stats ? renderStats(v.stats) : "";
+  const streakLink =
+    v.stats && v.stats.daily_total > 0
+      ? `      <p class="ow-streak-link"><a href="/u/${esc(v.username)}/streak">View streak calendar →</a></p>\n`
+      : "";
   const social = renderSocialBlock(v);
   return `<!doctype html>
 <html lang="en">
@@ -97,7 +101,7 @@ ${items}
     ${renderHeader({ active: "identity" })}
     <main>
       <h1 class="page-title">${renderProfilePicture(v.profile_picture_drawing_id, v.username, 32)}Drawings by ${esc(v.username)}</h1>
-${social}${stats}${body}
+${social}${stats}${streakLink}${body}
     </main>
     ${renderFooter({ active: "identity", repoUrl: v.repo_url })}
     <script src="${assetUrl("/follow.js")}"></script>
