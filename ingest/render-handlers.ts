@@ -462,7 +462,7 @@ function buildMonthBlocks(
   let y = todayY;
   let m = todayM;
   while (y > firstY || (y === firstY && m >= firstM)) {
-    months.push(buildMonthBlock(y, m, firstKey, todayKey, byDay));
+    months.push(buildMonthBlock(y, m, byDay));
     m -= 1;
     if (m === 0) {
       m = 12;
@@ -475,8 +475,6 @@ function buildMonthBlocks(
 function buildMonthBlock(
   year: number,
   month: number,
-  firstKey: string,
-  todayKey: string,
   byDay: Map<string, DrawingRow>,
 ): MonthBlock {
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -485,26 +483,21 @@ function buildMonthBlock(
   // ISO Monday-first padding: shift Sunday (0) to the end of the row.
   const leadingPad = (firstWeekday + 6) % 7;
   const cells: DayCell[] = [];
+  // Leading pad cells: not real days, just blank squares to push day 1
+  // to the right weekday column. Only these stay out-of-range so the
+  // grid still aligns.
   for (let i = 0; i < leadingPad; i += 1) {
     cells.push({ date: "", day: 0, kind: "out-of-range" });
   }
   for (let day = 1; day <= daysInMonth; day += 1) {
     const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    let kind: DayCell["kind"];
-    let drawing_id: string | undefined;
-    if (dateKey < firstKey || dateKey > todayKey) {
-      kind = "out-of-range";
-    } else {
-      const row = byDay.get(dateKey);
-      if (row) {
-        kind = "thumb";
-        drawing_id = row.drawing_id;
-      } else {
-        kind = "empty";
-      }
-    }
-    const cell: DayCell = { date: dateKey, day, kind };
-    if (drawing_id) cell.drawing_id = drawing_id;
+    const row = byDay.get(dateKey);
+    const cell: DayCell = {
+      date: dateKey,
+      day,
+      kind: row ? "thumb" : "empty",
+    };
+    if (row) cell.drawing_id = row.drawing_id;
     cells.push(cell);
   }
   return {

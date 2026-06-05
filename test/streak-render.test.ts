@@ -122,11 +122,23 @@ describe("renderStreakPageHandler", () => {
     assert.match(res.body, new RegExp(`href="/d/${aprMorningId}"`));
     assert.doesNotMatch(res.body, new RegExp(`href="/d/${aprEveningId}"`));
 
-    // April 29 and 30 should be empty (in-range, no drawing).
+    // April 29 and 30 should be empty (no drawing, in-month).
     const apr29Empty = />29</.test(res.body) && /st-day-empty/.test(res.body);
     assert.ok(apr29Empty, "expected at least one empty in-range cell");
 
-    // April 27 (before first drawing) must be out-of-range.
+    // Every day of April (1..27 too) must render with a day number now —
+    // the calendar shows the full month even when a single day has a
+    // drawing in it.
+    for (const day of [1, 14, 27]) {
+      assert.match(
+        res.body,
+        new RegExp(`<span class="st-day-num">${day}</span>`),
+        `expected day ${day} to render as an empty in-month cell`,
+      );
+    }
+
+    // The only out-of-range cells should be leading Monday-padding (no
+    // day number on those).
     assert.match(res.body, /class="st-day st-day-out"/);
 
     // Counts: 3 drawings across 2 days.
