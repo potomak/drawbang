@@ -48,6 +48,7 @@ import { CloudFrontInvalidator } from "./cache-invalidation.js";
 import { SesEmailSender } from "./email.js";
 import {
   renderBookmarksPageHandler,
+  renderDesignPageHandler,
   renderDrawingPageHandler,
   renderFeedHandler,
   renderFeedItemsHandler,
@@ -175,6 +176,9 @@ export async function handler(
   }
   if (method === "GET" && path === "/feed.rss") {
     return adaptRender(await renderFeedHandler(renderConfig));
+  }
+  if (method === "GET" && path === "/design") {
+    return adaptRender(await renderDesignPageHandler(renderConfig));
   }
   if (method === "GET" && path === "/products") {
     return adaptRender(await renderProductsPageHandler(renderConfig, "1"));

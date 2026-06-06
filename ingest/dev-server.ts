@@ -44,6 +44,7 @@ import {
 } from "./auth-handler.js";
 import {
   renderBookmarksPageHandler,
+  renderDesignPageHandler,
   renderDrawingPageHandler,
   renderFeedHandler,
   renderFeedItemsHandler,
@@ -155,6 +156,8 @@ const server = http.createServer(async (req, res) => {
         rendered = await renderFeedItemsHandler(renderConfig, cursor);
       } else if (pathOnly === "/feed.rss") {
         rendered = await renderFeedHandler(renderConfig);
+      } else if (pathOnly === "/design") {
+        rendered = await renderDesignPageHandler(renderConfig);
       } else if (pathOnly === "/products") {
         rendered = await renderProductsPageHandler(renderConfig, "1");
       } else {

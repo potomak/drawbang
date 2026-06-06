@@ -345,6 +345,16 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: !Ref DynamicCachePolicy
+          # /design — visual reference for the design system (see
+          # docs/design-system.md). Short s-maxage so token swaps land
+          # quickly when iterating.
+          - PathPattern: /design
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref DynamicCachePolicy
           # /products (exact) + /products/p/<N>. Split for the same reason
           # /gallery is — keep wildcards off the asset-prefix space.
           - PathPattern: /products
@@ -810,6 +820,12 @@ Resources:
             ApiId: !Ref IngestApi
             Method: ANY
             Path: /feed.rss
+        DesignPage:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: ANY
+            Path: /design
         DrawingPage:
           Type: HttpApi
           Properties:

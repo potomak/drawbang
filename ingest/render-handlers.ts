@@ -26,6 +26,7 @@ import renderFollowList, {
 } from "../lib/templates/follow-list.js";
 import renderNotFound from "../lib/templates/not-found.js";
 import renderProducts from "../lib/templates/products.js";
+import renderDesign from "../lib/templates/design.js";
 import { productCardsFromCounters } from "../lib/products-cards.js";
 import {
   decodeCursor,
@@ -820,6 +821,22 @@ export async function renderProductsPageHandler(
     status: 200,
     contentType: "text/html; charset=utf-8",
     cacheControl: CC_PRODUCTS,
+    body,
+  };
+}
+
+// -- /design -----------------------------------------------------------------
+
+const CC_DESIGN = "public, s-maxage=300, stale-while-revalidate=60";
+
+export async function renderDesignPageHandler(
+  cfg: RenderHandlersConfig,
+): Promise<RenderResponse> {
+  const body = renderDesign({ repo_url: cfg.repoUrl });
+  return {
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: CC_DESIGN,
     body,
   };
 }

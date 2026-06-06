@@ -127,6 +127,7 @@ asset, new tracking script) must consider every entry below.
 | `/u/<username>/following/items?cursor=…` | follow-list fragment via Lambda          | Dynamic (infinite scroll) |
 | `/products`, `/products/p/<N>` | `lib/templates/products.ts` via Lambda            | Dynamic |
 | `/feed.rss`                    | `lib/templates/feed.ts` via Lambda                | Dynamic (RSS, no chrome) |
+| `/design`                      | `lib/templates/design.ts` via Lambda              | Dynamic — design-system kitchen-sink, paired with `docs/design-system.md` |
 | `/merch?d=<drawing>`           | `merch.html` + `src/merch.ts`                     | Picker (Vite) |
 | `/merch/order/<uuid>`          | `order.html` + `src/order.ts`                     | Order status (Vite) |
 | `/login`                       | `login.html` + `src/login.ts`                     | Auth (Vite) |
