@@ -134,6 +134,7 @@ function renderSocialBlock(v: OwnerView): string {
           <span>following</span>
         </a>
         <a class="ow-owner-link" href="/u/${esc(v.username)}/bookmarks" data-owner-only-for="${esc(v.username)}" hidden>Bookmarks</a>
+        <a class="ow-owner-link" href="/account" data-owner-only-for="${esc(v.username)}" hidden>Edit profile</a>
       </div>
 `;
 }
