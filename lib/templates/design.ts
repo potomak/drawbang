@@ -28,19 +28,6 @@ const COLOR_TOKENS: ReadonlyArray<{ name: string; role: string }> = [
   { name: "--accent-dim", role: "tinted accent bg" },
 ];
 
-// Phase 0 reads these from the current --bg/--fg ramp; Phase 1
-// swaps the tokens to the light palette and the same swatches keep
-// rendering. The role labels reflect the target system.
-const LEGACY_COLOR_FALLBACKS: Record<string, string> = {
-  "--paper": "var(--bg, #ffffff)",
-  "--paper-2": "var(--bg-elev, #f7f7f5)",
-  "--ink": "var(--fg, #0a0a0a)",
-  "--line": "var(--border-c, #e6e6e3)",
-  "--line-strong": "var(--border-strong, #cfccbf)",
-  "--accent-on": "var(--accent-on, #001218)",
-  "--accent-dim": "var(--accent-dim, rgba(0,204,255,0.12))",
-};
-
 const TYPE_SCALE: ReadonlyArray<{ token: string; sample: string }> = [
   { token: "--t-2xl", sample: "28 — hero numerals" },
   { token: "--t-xl", sample: "20 — section landmark" },
@@ -71,13 +58,13 @@ export default function renderDesign(v: DesignView): string {
       .ds-grid { display: grid; gap: 40px; }
       .ds-row { display: grid; gap: 16px; }
       .ds-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
-      .ds-swatch { border: var(--border) solid var(--border-c, var(--line, #e6e6e3)); padding: 12px; display: grid; gap: 8px; }
-      .ds-swatch-chip { height: 40px; border: var(--border) solid var(--border-c, var(--line, #e6e6e3)); }
+      .ds-swatch { border: var(--border) solid var(--line); padding: 12px; display: grid; gap: 8px; }
+      .ds-swatch-chip { height: 40px; border: var(--border) solid var(--line); }
       .ds-swatch-name { font-family: var(--font); font-size: var(--t-xs); color: var(--fg-muted); }
-      .ds-swatch-role { font-size: var(--t-xs); color: var(--fg-dim, var(--fg-muted)); }
-      .ds-type-row { display: flex; align-items: baseline; gap: 16px; padding: 6px 0; border-bottom: var(--border) solid var(--border-c, var(--line, #e6e6e3)); }
+      .ds-swatch-role { font-size: var(--t-xs); color: var(--fg-dim); }
+      .ds-type-row { display: flex; align-items: baseline; gap: 16px; padding: 6px 0; border-bottom: var(--border) solid var(--line); }
       .ds-type-token { font-family: var(--font); font-size: var(--t-xs); color: var(--fg-muted); min-width: 90px; }
-      .ds-spacing-row { display: flex; align-items: center; gap: 16px; padding: 6px 0; border-bottom: var(--border) solid var(--border-c, var(--line, #e6e6e3)); }
+      .ds-spacing-row { display: flex; align-items: center; gap: 16px; padding: 6px 0; border-bottom: var(--border) solid var(--line); }
       .ds-spacing-bar { height: 10px; background: var(--accent); }
       .ds-buttons { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
       .ds-section-head { display: flex; align-items: baseline; gap: 16px; }
@@ -85,7 +72,7 @@ export default function renderDesign(v: DesignView): string {
       .ds-section-head small { color: var(--fg-muted); font-size: var(--t-xs); }
       .ds-sample-card {
         display: grid; gap: 16px;
-        border: var(--border) solid var(--border-c, var(--line, #e6e6e3));
+        border: var(--border) solid var(--line);
         padding: 16px;
         max-width: 480px;
       }
@@ -184,10 +171,8 @@ function section(title: string, lede: string, body: string): string {
 }
 
 function renderColorSwatch(t: { name: string; role: string }): string {
-  const fallback = LEGACY_COLOR_FALLBACKS[t.name];
-  const chip = fallback ? `${fallback}` : `var(${t.name})`;
   return `<div class="ds-swatch">
-    <div class="ds-swatch-chip" style="background: ${chip};"></div>
+    <div class="ds-swatch-chip" style="background: var(${t.name});"></div>
     <div class="ds-swatch-name">${esc(t.name)}</div>
     <div class="ds-swatch-role">${esc(t.role)}</div>
   </div>`;

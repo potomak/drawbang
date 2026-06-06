@@ -14,7 +14,16 @@
    ===================================================================== */
 
 :root {
-  --font: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  /* Source of truth: see docs/design-system.md. Semantic names
+     (--paper / --ink / --line / --accent) are canonical. The old
+     names (--bg / --fg / --border-c / --bg-elev / --panel) are
+     backward-compat aliases — existing consumers keep working;
+     new code should use the semantic names. Typography flip from
+     mono body → sans body lands with the Phase 2 chrome surgery. */
+
+  --font-sans: "Inter", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font: var(--font-mono);
 
   --tap: 40px;
   --pad: 16px;
@@ -28,21 +37,28 @@
   --t-xl: 20px;
   --t-2xl: 28px;
 
-  --bg: #0a0a0a;
-  --bg-elev: #141414;
-  --bg-sunk: #050505;
-  --fg: #f0ece4;
-  --fg-muted: #8a857c;
-  --fg-dim: #b8b3a8;
-  --border-c: #3a3833;
-  --border-strong: #5a5650;
-  --accent: oklch(0.74 0.22 340);
-  --accent-on: #0a0a0a;
+  --paper: #ffffff;
+  --paper-2: #f7f7f5;
+  --ink: #0a0a0a;
+  --fg-muted: #6b6b6b;
+  --fg-dim: #9c9c9c;
+  --line: #e6e6e3;
+  --line-strong: #cfccbf;
+  --accent: #00ccff;
+  --accent-on: #001218;
+  --accent-dim: rgba(0, 204, 255, 0.12);
+
   --canvas-bg: #0a0a0a;
   --canvas-grid: #1f1d1a;
 
-  /* legacy aliases — older modules still reference --panel directly. */
-  --panel: var(--bg-elev);
+  /* Backward-compat aliases. */
+  --bg: var(--paper);
+  --bg-elev: var(--paper-2);
+  --bg-sunk: var(--paper-2);
+  --fg: var(--ink);
+  --border-c: var(--line);
+  --border-strong: var(--line-strong);
+  --panel: var(--paper-2);
 }
 
 * { box-sizing: border-box; }
@@ -308,7 +324,7 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
   background: var(--bg-elev);
   border-bottom: var(--border) solid var(--border-c);
   border-left: 3px solid var(--border-strong);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   animation: flash-in 140ms ease-out;
 }
 .flash[hidden] { display: none; }
