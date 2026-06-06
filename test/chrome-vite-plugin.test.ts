@@ -13,22 +13,24 @@ test("injectChrome: replaces <!--CHROME:HEADER--> with the rendered header marku
   assert.doesNotMatch(out, /CHROME:HEADER/);
 });
 
-test("injectChrome: replaces <!--CHROME:FOOTER--> with the rendered footer + repoUrl", () => {
+test("injectChrome: replaces <!--CHROME:FOOTER--> with the rail-right + closing app-shell + scripts", () => {
   const input = `<!doctype html><html><body><main>x</main><!--CHROME:FOOTER--></body></html>`;
   const out = injectChrome(input, REPO);
-  assert.match(out, /<footer class="ftr">/);
-  assert.match(out, new RegExp(`href="${REPO.replace(/\//g, "\\/")}"`));
+  // The footer closes the app-shell wrapper opened by renderHeader and
+  // emits the chrome scripts.
+  assert.match(out, /<aside class="rail-right" data-rail-right><\/aside>/);
+  assert.match(out, /<script src="\/chrome-toggle\.js"/);
   assert.doesNotMatch(out, /CHROME:FOOTER/);
 });
 
 test("injectChrome: <meta name='drawbang:active'> drives the active link AND is stripped from output", () => {
   const input = `<!doctype html><html><head><meta name="drawbang:active" content="products" /></head><body><!--CHROME:HEADER--><!--CHROME:FOOTER--></body></html>`;
   const out = injectChrome(input, REPO);
-  // products link is marked active in both surfaces.
+  // The products link is marked active in the left rail (the only place
+  // primary nav lives now).
   const hits = [...out.matchAll(/data-nav="products"[^>]*aria-current="page"/g)];
-  assert.equal(hits.length, 2, "active link in header AND footer");
-  // No other link is active.
-  assert.equal((out.match(/aria-current="page"/g) ?? []).length, 2);
+  assert.equal(hits.length, 1, "active link in left rail");
+  assert.equal((out.match(/aria-current="page"/g) ?? []).length, 1);
   // Meta tag is stripped — it's a build-time hint only.
   assert.doesNotMatch(out, /drawbang:active/);
 });
@@ -40,8 +42,9 @@ test("injectChrome: no meta tag → no active state, no errors", () => {
 });
 
 test("injectChrome: no markers → input is returned essentially unchanged (still strips active meta)", () => {
-  // A page that opts out of the chrome — e.g. an iframe-only landing — just
-  // omits both markers. The plugin shouldn't crash or inject anything.
+  // A page that opts out of the chrome — e.g. an iframe-only landing —
+  // just omits both markers. The plugin shouldn't crash or inject
+  // anything.
   const input = `<!doctype html><html><body><h1>hello</h1></body></html>`;
   const out = injectChrome(input, REPO);
   assert.equal(out, input);
@@ -54,14 +57,20 @@ test("injectChrome: handles unquoted meta + extra whitespace", () => {
   assert.match(out, /data-nav="products"[^>]*aria-current="page"/);
 });
 
-test("injectChrome: <meta name='drawbang:fab' content='off'> suppresses the FAB", () => {
-  const inputWith = `<!doctype html><html><head></head><body><!--CHROME:FOOTER--></body></html>`;
+test("injectChrome: <meta name='drawbang:rails' content='off'> suppresses the app-shell wrapper + rails", () => {
+  // Default: rails on. .app-shell opens, .rail-left ships inline.
+  const inputWith = `<!doctype html><html><head></head><body><!--CHROME:HEADER--><!--CHROME:FOOTER--></body></html>`;
   const outWith = injectChrome(inputWith, REPO);
-  assert.match(outWith, /<a class="fab"/);
+  assert.match(outWith, /<div class="app-shell">/);
+  assert.match(outWith, /<aside class="rail-left"/);
+  assert.match(outWith, /<aside class="rail-right"/);
 
-  const inputWithout = `<!doctype html><html><head><meta name="drawbang:fab" content="off" /></head><body><!--CHROME:FOOTER--></body></html>`;
+  // Opt-out: the editor uses this so the canvas gets the full viewport.
+  const inputWithout = `<!doctype html><html><head><meta name="drawbang:rails" content="off" /></head><body><!--CHROME:HEADER--><!--CHROME:FOOTER--></body></html>`;
   const outWithout = injectChrome(inputWithout, REPO);
-  assert.doesNotMatch(outWithout, /class="fab"/);
+  assert.doesNotMatch(outWithout, /class="app-shell"/);
+  assert.doesNotMatch(outWithout, /class="rail-left"/);
+  assert.doesNotMatch(outWithout, /class="rail-right"/);
   // The meta tag itself is stripped from the output.
-  assert.doesNotMatch(outWithout, /drawbang:fab/);
+  assert.doesNotMatch(outWithout, /drawbang:rails/);
 });

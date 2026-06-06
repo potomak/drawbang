@@ -1,16 +1,19 @@
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap");
 
 /* =====================================================================
-   Drawbang chrome — design tokens + header/footer + base typography
-   shared between every surface. Single source of truth for everything
-   in the chrome rendered by src/layout/chrome.ts.
+   Drawbang chrome — design tokens + header + app-shell + rails + base
+   typography, shared between every surface. Single source of truth for
+   everything rendered by src/layout/chrome.ts.
 
    Linked from:
-     - src/style.css     (Vite-served pages: editor, merch, share, ...)
-     - static/gallery-v2.css (builder-rendered pages: gallery, drawing, ...)
+     - src/style.css     (Vite-served pages: editor, merch, auth, ...)
+     - static/gallery-v2.css (Lambda-rendered pages: feed, drawing, ...)
 
    Surface-specific files extend on top of this one. Do NOT mirror rules
    from here into either consumer — both pull this file at runtime.
+
+   See docs/design-system.md for the written rules and /design for the
+   live visual reference.
    ===================================================================== */
 
 :root {
@@ -18,12 +21,11 @@
      (--paper / --ink / --line / --accent) are canonical. The old
      names (--bg / --fg / --border-c / --bg-elev / --panel) are
      backward-compat aliases — existing consumers keep working;
-     new code should use the semantic names. Typography flip from
-     mono body → sans body lands with the Phase 2 chrome surgery. */
+     new code should use the semantic names. */
 
   --font-sans: "Inter", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  --font: var(--font-mono);
+  --font: var(--font-sans);
 
   --tap: 40px;
   --pad: 16px;
@@ -51,6 +53,12 @@
   --canvas-bg: #0a0a0a;
   --canvas-grid: #1f1d1a;
 
+  /* Layout */
+  --hdr-h: 56px;
+  --rail-w: clamp(220px, 18vw, 260px);
+  --rail-right-w: clamp(280px, 22vw, 344px);
+  --shell-max: 1380px;
+
   /* Backward-compat aliases. */
   --bg: var(--paper);
   --bg-elev: var(--paper-2);
@@ -64,161 +72,260 @@
 * { box-sizing: border-box; }
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--fg);
-  font: 400 var(--t-md)/1.5 var(--font);
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 var(--t-md)/1.5 var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 img { image-rendering: pixelated; image-rendering: crisp-edges; }
 button { font: inherit; color: inherit; }
 
-a { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
-a:hover { text-decoration-thickness: 2px; }
+a { color: var(--ink); text-decoration: none; }
+a:hover { color: var(--accent); }
 
-/* ===== Header ===== */
-.hdr {
-  border-bottom: var(--border) solid var(--border-c);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 24px;
-  gap: 24px;
-  position: sticky;
-  top: 0;
-  background: var(--bg);
-  z-index: 30;
-}
-.hdr-logo { color: var(--fg); display: block; height: 24px; text-decoration: none; flex: 0 0 auto; }
-.hdr-logo svg { display: block; height: 24px; width: auto; }
-.hdr-right { display: flex; align-items: center; gap: 12px; position: relative; }
-.hdr-nav { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
-
-.navlink {
-  font: 500 var(--t-sm)/1 var(--font);
-  background: transparent;
-  color: var(--fg);
-  text-decoration: none;
-  padding: 8px 10px;
-  border: var(--border) solid transparent;
-  cursor: pointer;
-  letter-spacing: 0.02em;
-}
-.navlink:hover { color: var(--accent); text-decoration: none; }
-.navlink[aria-current="page"] {
-  color: var(--accent);
-  border-color: var(--border-c);
-  background: var(--bg-elev);
-}
-
-/* Mobile hamburger — kept from v1 chrome so narrow viewports still
-   collapse the nav. Hidden on wide; chrome-toggle.js flips aria. */
-.chrome-menu-toggle {
-  background: var(--bg-elev);
-  color: var(--fg);
-  border: var(--border) solid var(--border-c);
-  padding: 0 12px;
-  height: 36px;
-  min-height: 36px;
-  font: 500 var(--t-sm) var(--font);
-  cursor: pointer;
-  letter-spacing: 0.02em;
-}
-
-@media (max-width: 767px) {
-  .chrome-menu-toggle { display: inline-flex; align-items: center; }
-  .hdr { padding: 10px 14px; gap: 12px; }
-  .hdr-logo, .hdr-logo svg { height: 16px; }
-  .hdr-nav {
-    display: none;
-    position: absolute;
-    top: calc(100% + 4px);
-    right: 0;
-    background: var(--bg-elev);
-    border: var(--border) solid var(--border-c);
-    padding: 6px;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 2px;
-    z-index: 10;
-  }
-  .hdr-nav.chrome-nav-open { display: flex; }
-  .hdr-nav .navlink {
-    padding: 6px 10px;
-    text-align: left;
-    border-color: transparent;
-    background: transparent;
-  }
-  .hdr-nav .navlink[aria-current="page"] {
-    color: var(--accent);
-    background: transparent;
-    border-color: transparent;
-  }
-}
-@media (min-width: 768px) {
-  .chrome-menu-toggle { display: none; }
-}
-
-/* ===== Footer ===== */
-.ftr {
-  border-top: var(--border) solid var(--border-c);
-  padding: 16px 24px;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 16px;
+/* The single label voice. Use for nav micro-labels, counts, captions. */
+.lab {
+  font-family: var(--font-mono);
   font-size: var(--t-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--fg-muted);
 }
-.ftr a { color: var(--fg-muted); }
-.ftr-left { display: flex; flex-direction: column; gap: 8px; }
-.ftr-right { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; margin-left: auto; }
-.ftr-links { display: flex; gap: 16px; flex-wrap: wrap; }
-.ftr-social { display: flex; gap: 12px; flex-wrap: wrap; }
-.ftr-repo { color: var(--fg-muted); }
-.ftr-feedback { display: inline-flex; align-items: center; gap: 6px; color: var(--fg-muted); }
-.ftr-feedback svg { display: block; }
-@media (max-width: 640px) { .ftr { padding: 12px 14px; } }
 
-/* ===== Feed sidebar =====
-   Mirror of the bottom footer's content, fixed to the left of the feed
-   so site links stay reachable during infinite scroll. Activated by
-   `body.has-feed-sidebar` (set only by the home template). Hidden on
-   narrow viewports where the bottom footer is still the only nav. */
-.feed-sidebar { display: none; }
-@media (min-width: 1024px) {
-  body.has-feed-sidebar > .ftr { display: none; }
-  .feed-sidebar {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-    position: fixed;
-    left: 24px;
-    top: 80px;
-    width: 200px;
-    font-size: var(--t-xs);
-    color: var(--fg-muted);
-    z-index: 1;
-  }
-  .feed-sidebar a { color: var(--fg-muted); text-decoration: none; }
-  .feed-sidebar a:hover { color: var(--accent); }
-  /* Inside the sidebar, stack everything vertically — override the
-     footer's horizontal flex. */
-  .feed-sidebar .ftr-left,
-  .feed-sidebar .ftr-right { gap: 10px; align-items: flex-start; margin: 0; }
-  .feed-sidebar .ftr-links,
-  .feed-sidebar .ftr-social { flex-direction: column; gap: 6px; }
+/* ===== Header =====
+   Brand + auth slot only. Primary nav moves to the left rail. */
+.hdr {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: var(--hdr-h);
+  padding: 0 var(--pad);
+  border-bottom: var(--border) solid var(--line);
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+.hdr-menu {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  color: var(--ink);
+  border: var(--border) solid var(--line);
+  cursor: pointer;
+  padding: 0;
+}
+.hdr-menu:hover { border-color: var(--ink); }
+.hdr-menu svg { display: block; }
+.hdr-logo {
+  color: var(--ink);
+  display: block;
+  height: 22px;
+  flex: 0 0 auto;
+  margin-right: auto;
+}
+.hdr-logo svg { display: block; height: 22px; width: auto; }
+.hdr-auth { display: flex; align-items: center; gap: 8px; }
+.hdr-signin {
+  font: 500 var(--t-sm)/1 var(--font-sans);
+  color: var(--ink);
+  padding: 8px 12px;
+  border: var(--border) solid var(--line);
+  background: transparent;
+}
+.hdr-signin:hover { border-color: var(--ink); color: var(--ink); }
+.hdr-profile {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 4px;
+  border: var(--border) solid var(--line);
+  font: 500 var(--t-sm)/1 var(--font-sans);
+  color: var(--ink);
+}
+.hdr-profile:hover { border-color: var(--ink); color: var(--ink); }
+.hdr-profile-pic {
+  width: 24px;
+  height: 24px;
+  display: block;
+  background: var(--canvas-bg);
+}
+.hdr-profile-name { white-space: nowrap; }
+.hdr-profile[hidden] { display: none; }
+
+/* ===== App shell =====
+   3-column grid wrapper. Center column hosts each template's <main>;
+   left and right rails come from src/layout/chrome.ts. */
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--rail-w) minmax(0, 1fr) var(--rail-right-w);
+  max-width: var(--shell-max);
+  margin: 0 auto;
+  min-height: calc(100vh - var(--hdr-h));
 }
 
-/* ===== Main slot ===== */
-main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; }
-@media (max-width: 640px) { main { padding: 12px 14px 80px; } }
+.rail-left {
+  position: sticky;
+  top: var(--hdr-h);
+  align-self: start;
+  height: calc(100vh - var(--hdr-h));
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px 14px 16px;
+  border-right: var(--border) solid var(--line);
+  overflow-y: auto;
+}
+
+.rail-right {
+  position: sticky;
+  top: var(--hdr-h);
+  align-self: start;
+  height: calc(100vh - var(--hdr-h));
+  padding: 20px 14px;
+  border-left: var(--border) solid var(--line);
+  overflow-y: auto;
+}
+
+/* Primary CTA — the only filled accent button in the chrome. */
+.rail-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0 14px;
+  height: 44px;
+  background: var(--accent);
+  color: var(--accent-on);
+  font: 700 var(--t-sm)/1 var(--font-sans);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 0;
+  transition: filter 80ms;
+}
+.rail-cta:hover { filter: brightness(0.95); color: var(--accent-on); }
+.rail-cta svg { flex: 0 0 auto; }
+
+.rail-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.rail-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  color: var(--ink);
+  font: 500 var(--t-sm)/1.2 var(--font-sans);
+  border: var(--border) solid transparent;
+}
+.rail-link:hover { color: var(--accent); background: var(--paper-2); }
+.rail-link[aria-current="page"] {
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+.rail-follow { display: block; }
+.rail-follow[hidden] { display: none; }
+
+.rail-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: var(--border) solid var(--line);
+}
+.rail-social {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font: 500 var(--t-xs)/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.rail-social-link {
+  color: var(--fg-muted);
+  padding: 2px 0;
+}
+.rail-social-link:hover { color: var(--accent); }
+.rail-foot-links {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: var(--t-xs);
+}
+.rail-foot-link {
+  color: var(--fg-muted);
+  padding: 2px 0;
+}
+.rail-foot-link:hover { color: var(--accent); }
+
+/* ===== Responsive =====
+   3-col grid → 2-col (right hidden) → 1-col (left as drawer). */
+@media (max-width: 1179px) {
+  .app-shell {
+    grid-template-columns: var(--rail-w) minmax(0, 1fr);
+    max-width: calc(var(--shell-max) - var(--rail-right-w));
+  }
+  .rail-right { display: none; }
+}
+@media (max-width: 859px) {
+  .app-shell {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 100%;
+  }
+  .rail-left {
+    position: fixed;
+    left: 0;
+    top: var(--hdr-h);
+    bottom: 0;
+    width: min(82vw, 320px);
+    background: var(--paper);
+    border-right: var(--border) solid var(--line);
+    transform: translateX(-100%);
+    transition: transform 160ms ease;
+    z-index: 35;
+  }
+  .rail-left.is-open { transform: translateX(0); }
+  .hdr-menu { display: inline-flex; }
+}
+
+/* Scrim under the open drawer. Inserted by chrome-toggle.js when the
+   drawer opens; removed on close. */
+.rail-scrim {
+  position: fixed;
+  inset: var(--hdr-h) 0 0 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 34;
+  animation: fade-in 140ms ease;
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ===== Main slot =====
+   Center column of the app-shell (or full-width when the shell is
+   suppressed by `rails: false`). */
+main {
+  padding: 24px clamp(16px, 3vw, 40px) 80px;
+  max-width: 1100px;
+  width: 100%;
+}
+@media (max-width: 859px) { main { padding: 16px 14px 64px; } }
+/* When the shell is suppressed (editor, full-bleed Vite pages), the
+   <main> tag isn't inside .app-shell — center it in the body. */
+body > main { margin: 0 auto; }
 
 /* ===== Page chrome ===== */
 .page-title { font-size: var(--t-lg); font-weight: 700; margin: 0 0 16px; letter-spacing: 0; }
 .page-sub { font-size: var(--t-sm); color: var(--fg-muted); margin: -16px 0 24px; }
-.divider { height: var(--border); background: var(--border-c); margin: 24px 0; border: 0; }
+.divider { height: var(--border); background: var(--line); margin: 24px 0; border: 0; }
 .panel-h {
+  font-family: var(--font-mono);
   font-size: var(--t-xs);
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -229,14 +336,13 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
 
 /* ===== Button (base) =====
    Surface-specific variants (.btn.icon / .sm / .xs / [aria-pressed] / ...)
-   live in src/style.css since builder pages only use the base + .primary
-   + .ghost set. */
+   live in src/style.css; Lambda pages only use base + .primary + .ghost. */
 .btn {
-  font: 500 var(--t-sm)/1 var(--font);
-  background: var(--bg-elev);
-  color: var(--fg);
-  border: var(--border) solid var(--border-c);
-  padding: 0 8px;
+  font: 500 var(--t-sm)/1 var(--font-sans);
+  background: var(--paper-2);
+  color: var(--ink);
+  border: var(--border) solid var(--line);
+  padding: 0 12px;
   height: var(--tap);
   min-width: var(--tap);
   cursor: pointer;
@@ -246,74 +352,31 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
   gap: 8px;
   text-decoration: none;
   letter-spacing: 0.02em;
-  transition: transform 60ms;
+  transition: border-color 80ms, transform 60ms;
 }
-.btn:hover { border-color: var(--border-strong); text-decoration: none; }
-.btn:active { transform: translate(2px, 2px); }
+.btn:hover { border-color: var(--ink); color: var(--ink); text-decoration: none; }
+.btn:active { transform: translate(1px, 1px); }
 .btn.primary { background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
-.btn.primary:hover { filter: brightness(0.95); }
+.btn.primary:hover { filter: brightness(0.95); color: var(--accent-on); }
 .btn.ghost { background: transparent; }
-/* .btn sets display:inline-flex which would otherwise override the UA
-   [hidden] { display: none } rule. Pin it back so server-rendered
-   hidden buttons (e.g. dr-set-profile-picture, dr-share) actually stay hidden
-   until the client script reveals them. */
 .btn[hidden] { display: none; }
 
-/* ===== FAB =====
-   Fixed "Draw" entry point to the editor. Square corners + a hard-offset
-   shadow match the site's brutalist/pixel-art aesthetic — no round soft
-   shadows here. Pressed state "snaps" into the shadow (transform +
-   shadow collapse) which feels like a stamped key. Lives in the chrome
-   so every server-rendered surface gets it for free; suppressed on the
-   editor page itself via FooterOptions.fab = false. Safe-area insets
-   keep it off the iOS home-bar / right-edge gestures. */
-.fab {
-  position: fixed;
-  right: calc(var(--pad) + env(safe-area-inset-right, 0px) + 3px);
-  bottom: calc(var(--pad) + env(safe-area-inset-bottom, 0px) + 3px);
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 48px;
-  padding: 0 16px;
-  background: var(--accent);
-  color: var(--accent-on);
-  border: var(--border) solid var(--fg);
-  font: 600 var(--t-sm)/1 var(--font);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  text-decoration: none;
-  z-index: 100;
-  box-shadow: 3px 3px 0 0 var(--fg);
-  transition: transform 60ms, box-shadow 60ms, filter 60ms;
+/* Legacy .navlink — Vite pages may still emit this class. Keep it
+   harmless until each surface migrates. */
+.navlink {
+  font: 500 var(--t-sm)/1 var(--font-sans);
+  color: var(--ink);
+  padding: 8px 10px;
+  letter-spacing: 0.02em;
 }
-.fab:hover { filter: brightness(1.05); text-decoration: none; }
-.fab:active {
-  transform: translate(3px, 3px);
-  box-shadow: 0 0 0 0 var(--fg);
-}
-.fab svg {
-  display: block;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.5;
-  stroke-linecap: square;
-  flex: 0 0 auto;
-}
-.fab-label { display: inline-block; }
-@media (max-width: 480px) {
-  .fab { padding: 0; width: 48px; justify-content: center; gap: 0; }
-  .fab-label { display: none; }
-}
+.navlink:hover { color: var(--accent); }
+.navlink[aria-current="page"] { color: var(--accent); }
 
 /* ===== Flash slot =====
-   Singleton notification overlay pinned below the sticky header (src/layout/
-   flash.ts on Vite surfaces, static/flash.js on builder-rendered surfaces).
-   Position is fixed so the message stays visible during scroll. Top offset
-   matches the computed .hdr height (14+14+24+1 desktop, 10+10+16+1 mobile). */
+   Singleton notification overlay pinned below the sticky header. */
 .flash {
   position: fixed;
-  top: 53px;
+  top: calc(var(--hdr-h) + 1px);
   left: 0;
   right: 0;
   z-index: 40;
@@ -321,9 +384,9 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
   align-items: center;
   gap: 8px;
   padding: 8px 24px 8px 21px;
-  background: var(--bg-elev);
-  border-bottom: var(--border) solid var(--border-c);
-  border-left: 3px solid var(--border-strong);
+  background: var(--paper);
+  border-bottom: var(--border) solid var(--line);
+  border-left: 3px solid var(--line-strong);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   animation: flash-in 140ms ease-out;
 }
@@ -337,10 +400,10 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
   align-items: center;
   gap: 12px;
   font-size: var(--t-sm);
-  color: var(--fg);
+  color: var(--ink);
 }
 .flash-msg { word-break: break-word; }
-.flash-msg a { color: var(--fg); text-decoration: underline; user-select: text; -webkit-user-select: text; }
+.flash-msg a { color: var(--ink); text-decoration: underline; user-select: text; -webkit-user-select: text; }
 .flash-action { color: var(--accent); white-space: nowrap; }
 .flash-close {
   flex: 0 0 auto;
@@ -353,13 +416,13 @@ main { padding: 20px 24px 64px; max-width: 1400px; width: 100%; margin: 0 auto; 
   line-height: 1;
   cursor: pointer;
 }
-.flash-close:hover { color: var(--fg); }
+.flash-close:hover { color: var(--ink); }
 @keyframes flash-in {
   from { transform: translateY(-6px); opacity: 0; }
   to { transform: none; opacity: 1; }
 }
 @media (max-width: 640px) {
-  .flash { top: 37px; padding: 10px 14px; }
+  .flash { padding: 10px 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .flash { animation: none; }

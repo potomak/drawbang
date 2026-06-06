@@ -85,9 +85,9 @@ describe("privacy disclosure (#163 ported to GA / Pixel reality)", () => {
     assert.match(html, /id="pv-reload-note"/);
   });
 
-  test("renderFooter() links to /privacy on every page that uses the chrome", async () => {
-    const { renderFooter } = await import("../src/layout/chrome.js");
-    const html = renderFooter({ repoUrl: "https://example.test" });
-    assert.match(html, /<a class="ftr-privacy" href="\/privacy">Privacy<\/a>/);
+  test("renderLeftRail() links to /privacy on every page that uses the chrome", async () => {
+    const { renderLeftRail } = await import("../src/layout/chrome.js");
+    const html = renderLeftRail({});
+    assert.match(html, /href="\/privacy"[^>]*>Privacy</);
   });
 });

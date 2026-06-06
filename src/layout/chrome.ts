@@ -1,6 +1,24 @@
-// Single source of truth for the site's header + footer chrome (#102).
+// Single source of truth for the site's header + left/right rails (#102).
 // Pure: no DOM, no fetch, no module-level side effects. Consumed at build
-// time by the Vite plugin (#168) and the builder templates (#169).
+// time by the Vite plugin (#168) and the Lambda-rendered templates.
+//
+// Layout target (see docs/design-system.md):
+//
+//   <header class="hdr">                  logo · auth slot
+//   <div class="app-shell">
+//     <aside class="rail-left">           CTA · primary nav · secondary
+//     {template renders <main> here}
+//     <aside class="rail-right">          discover modules (Phase 3)
+//   </div>
+//   <scripts>
+//
+// renderHeader() emits the header + opens the shell + emits rail-left.
+// renderFooter() emits rail-right + closes the shell + ships the scripts.
+// Templates render their own <main> in between, unchanged.
+//
+// Surfaces that need the full viewport (e.g. the editor /draw) opt out
+// of the rails with `rails: false`; the page then sits directly in the
+// body without the grid wrapper.
 
 import { assetUrl } from "./asset-version.js";
 import { LOGO_SVG } from "./logo.js";
@@ -14,134 +32,110 @@ export interface NavLink {
 export interface ChromeOptions {
   /** id of the link to mark active (aria-current="page"). */
   active?: NavLink["id"];
-  /** True when the viewer has a known account (logged in). */
-  hasIdentity?: boolean;
-  /** Username for the profile deep-link. Pair with hasIdentity = true. */
-  identityUsername?: string | null;
+  /**
+   * Wrap the page in the .app-shell grid + emit the rails. Default true.
+   * Surfaces that need the full viewport (e.g. the editor) pass false.
+   */
+  rails?: boolean;
 }
 
 export interface FooterOptions extends ChromeOptions {
   repoUrl: string;
-  /**
-   * Show the fixed-position "+" FAB (links to /draw). Default true.
-   * The editor's chrome plugin call passes `false` so the FAB doesn't
-   * appear on the page where it would link back to itself.
-   */
-  fab?: boolean;
 }
 
 /**
  * Canonical href the identity link falls back to for logged-out viewers.
- * The client patcher (/chrome-identity.js) rewrites it to /u/<username>
- * once a session is present in localStorage.
+ * The client patcher (/chrome-identity.js) swaps the slot to a
+ * profile-picture + username link once a session is present in
+ * localStorage.
  */
 export const IDENTITY_FALLBACK_HREF = "/login";
 
 /**
- * Fixed nav entries. The identity link is dynamic (its href depends on
- * whether the viewer is logged in), so it's appended at render time.
- * Adding a new top-level section is a one-line change here.
+ * Primary nav rendered in the left rail. Adding a new top-level section
+ * is a one-line change here.
  */
 export const NAV_LINKS: readonly NavLink[] = [
   { href: "/products", label: "Products", id: "products" },
 ];
 
-function identityLink(opts: ChromeOptions): NavLink {
-  const loggedIn = Boolean(opts.hasIdentity && opts.identityUsername);
-  const href = loggedIn ? `/u/${opts.identityUsername}` : IDENTITY_FALLBACK_HREF;
-  return { href, label: loggedIn ? "Profile" : "Sign in", id: "identity" };
-}
-
-/**
- * Account sign-out. Rendered `hidden` on every surface (build-time chrome is
- * always logged-out) and revealed by the client patcher (/chrome-identity.js)
- * when a session is present, mirroring how the identity link is rewritten.
- * The patcher also wires the click → clear localStorage → redirect.
- */
-const LOGOUT_LINK: NavLink = { href: "/", label: "Sign out", id: "logout" };
-
-function allLinks(opts: ChromeOptions): readonly NavLink[] {
-  return [...NAV_LINKS, identityLink(opts), LOGOUT_LINK];
-}
-
-function renderLink(link: NavLink, active: NavLink["id"] | undefined): string {
-  const ariaCurrent = link.id === active ? ' aria-current="page"' : "";
-  // The identity link is rewritten on the client by /chrome-identity.js
-  // when the viewer has a username in localStorage. The marker
-  // attribute lets the patcher find it without depending on label or
-  // href shape.
-  const identityFlag = link.id === "identity" ? ' data-identity-link="1"' : "";
-  const logoutFlag = link.id === "logout" ? ' data-logout-link="1" hidden' : "";
-  return `<a class="navlink" href="${esc(link.href)}" data-nav="${esc(link.id)}"${ariaCurrent}${identityFlag}${logoutFlag}>${esc(link.label)}</a>`;
-}
-
 export function renderHeader(opts: ChromeOptions = {}): string {
-  const items = allLinks(opts).map((l) => renderLink(l, opts.active)).join("\n      ");
+  const rails = opts.rails !== false;
+  const shell = rails
+    ? `\n<div class="app-shell">\n  <aside class="rail-left" id="rail-left">\n    ${renderLeftRail(opts)}\n  </aside>`
+    : "";
   return `<header class="hdr">
+  <button class="hdr-menu" aria-controls="rail-left" aria-expanded="false" aria-label="Menu" hidden>${MENU_ICON_SVG}</button>
   <a class="hdr-logo" href="/" aria-label="Draw! home">${LOGO_SVG}</a>
-  <div class="hdr-right">
-    <button class="chrome-menu-toggle" aria-controls="chrome-nav" aria-expanded="false" hidden>Menu</button>
-    <nav id="chrome-nav" class="hdr-nav" aria-label="Primary">
-      ${items}
-    </nav>
+  <div class="hdr-auth">
+    <a class="hdr-signin" href="${IDENTITY_FALLBACK_HREF}" data-identity-link="1" data-auth-state="signed-out">Sign in</a>
+    <a class="hdr-profile" href="#" data-identity-link="1" data-auth-state="signed-in" hidden>
+      <img class="profile-picture hdr-profile-pic" alt="" width="24" height="24" />
+      <span class="hdr-profile-name"></span>
+    </a>
   </div>
-</header>`;
-}
-
-// Footer body — exported so the home feed can mirror the same content into
-// a left-side aside (`.feed-sidebar`) without duplicating markup. The
-// identity-link + logout markers live on the elements themselves, so the
-// chrome-identity.js patcher updates every copy regardless of where it
-// sits in the DOM.
-export function renderFooterMeta(opts: FooterOptions): string {
-  const items = allLinks(opts)
-    .map((l) => renderFooterLink(l, opts.active))
-    .join("\n        ");
-  const social = SOCIAL_LINKS.map(
-    (s) =>
-      `<a href="${esc(s.href)}" target="_blank" rel="noopener">${esc(s.label)}</a>`,
-  ).join("\n        ");
-  return `<div class="ftr-left">
-    <nav class="ftr-links" aria-label="Footer">
-        ${items}
-    </nav>
-    <nav class="ftr-social" aria-label="Social">
-        ${social}
-    </nav>
-  </div>
-  <div class="ftr-right">
-    <a class="ftr-repo" href="${esc(opts.repoUrl)}" target="_blank" rel="noopener">Source on GitHub</a>
-    <a class="ftr-privacy" href="/privacy">Privacy</a>
-    <a class="ftr-feedback" href="${esc(FEEDBACK_URL)}" target="_blank" rel="noopener">${FEEDBACK_ICON_SVG}<span>Feedback</span></a>
-  </div>`;
+</header>${shell}`;
 }
 
 export function renderFooter(opts: FooterOptions): string {
-  // The hamburger toggle, identity-link patcher, and flash component all
-  // ship as plain JS at stable URLs so every surface — Vite-built or
-  // builder-rendered — loads them from the same place without bundle hash
-  // plumbing. flash.js loads first so its window.drawbang{Show,Hide}Flash
-  // (and pending-flash auto-consume) are ready by the time anything else
-  // on the page wants to fire a notification.
-  const fab = opts.fab === false ? "" : renderFab();
-  return `<footer class="ftr">
-  ${renderFooterMeta(opts)}
-</footer>
-${fab}<script src="${assetUrl("/flash.js")}"></script>
+  const rails = opts.rails !== false;
+  const shellClose = rails
+    ? `  <aside class="rail-right" data-rail-right></aside>\n</div>\n`
+    : "";
+  return `${shellClose}<script src="${assetUrl("/flash.js")}"></script>
 <script src="${assetUrl("/chrome-toggle.js")}"></script>
 <script src="${assetUrl("/chrome-identity.js")}"></script>
 <script src="${assetUrl("/hydrate.js")}"></script>`;
 }
 
-// Fixed-position "Draw" button that takes the viewer to /draw from any
-// server-rendered page. Square corners + hard-offset shadow match the
-// site's brutalist/pixel-art aesthetic; styled in chrome.css — see `.fab`.
-function renderFab(): string {
-  return `<a class="fab" href="/draw" aria-label="New drawing" data-fab>
-  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-  <span class="fab-label">Draw</span>
-</a>
-`;
+// Left rail markup. Two groups stacked vertically: the primary group
+// (CTA + nav, top) and the secondary group (social + privacy + feedback,
+// bottom; pushed down by `.rail-foot { margin-top: auto }`). Owner-only
+// blocks ship hidden and are revealed client-side by chrome-identity.js
+// once a session is present.
+export function renderLeftRail(opts: ChromeOptions): string {
+  const active = opts.active;
+  const isActive = (id: NavLink["id"]) =>
+    id === active ? ' aria-current="page"' : "";
+
+  const primary = NAV_LINKS.map(
+    (l) => `<a class="rail-link" href="${esc(l.href)}" data-nav="${esc(l.id)}"${isActive(l.id)}>${esc(l.label)}</a>`,
+  ).join("\n      ");
+
+  const social = SOCIAL_LINKS.map(
+    (s) =>
+      `<a class="rail-social-link" href="${esc(s.href)}" target="_blank" rel="noopener" aria-label="${esc(s.label)}">${esc(s.label)}</a>`,
+  ).join("\n        ");
+
+  return `<a class="rail-cta" href="/draw" data-nav="draw">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square"/></svg>
+      <span>New drawing</span>
+    </a>
+    <nav class="rail-nav" aria-label="Primary">
+      ${primary}
+      <div class="rail-follow" data-profile-username="" data-rail-follow="followers" hidden>
+        <a class="rail-link rail-follow-link" data-rail-follow-link="followers" href="#">
+          Followers · <span data-follower-count>0</span>
+        </a>
+      </div>
+      <div class="rail-follow" data-profile-username="" data-rail-follow="following" hidden>
+        <a class="rail-link rail-follow-link" data-rail-follow-link="following" href="#">
+          Following · <span data-following-count>0</span>
+        </a>
+      </div>
+      <a class="rail-link" data-rail-bookmarks href="#" hidden>Bookmarks</a>
+      <a class="rail-link" data-rail-account href="/account" hidden>Account</a>
+      <a class="rail-link rail-logout" href="/" data-logout-link="1" hidden>Sign out</a>
+    </nav>
+    <div class="rail-foot">
+      <div class="rail-social" aria-label="Social">
+        ${social}
+      </div>
+      <nav class="rail-foot-links" aria-label="Secondary">
+        <a class="rail-link rail-foot-link" href="/privacy">Privacy</a>
+        <a class="rail-link rail-foot-link" href="${esc(FEEDBACK_URL)}" target="_blank" rel="noopener">Feedback</a>
+      </nav>
+    </div>`;
 }
 
 const SOCIAL_LINKS: ReadonlyArray<{ label: string; href: string }> = [
@@ -155,17 +149,7 @@ const SOCIAL_LINKS: ReadonlyArray<{ label: string; href: string }> = [
 const FEEDBACK_URL =
   "https://github.com/potomak/drawbang/issues/new?labels=feedback";
 
-// Extracted from a 16×16 Drawbang drawing via scripts/share-to-svg.ts
-// with --mono currentColor, so the footer link's text color drives the
-// fill.
-const FEEDBACK_ICON_SVG = `<svg viewBox="0 0 16 16" width="16" height="16" shape-rendering="crispEdges" aria-hidden="true"><g fill="currentColor"><rect x="4" y="1" width="1" height="1"/><rect x="10" y="1" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="9" y="2" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/><rect x="7" y="3" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="5" y="4" width="1" height="1"/><rect x="6" y="4" width="1" height="1"/><rect x="7" y="4" width="1" height="1"/><rect x="8" y="4" width="1" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="4" y="5" width="1" height="1"/><rect x="5" y="5" width="1" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="7" y="5" width="1" height="1"/><rect x="8" y="5" width="1" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="10" y="5" width="1" height="1"/><rect x="12" y="5" width="1" height="1"/><rect x="3" y="6" width="1" height="1"/><rect x="4" y="6" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="7" y="6" width="1" height="1"/><rect x="8" y="6" width="1" height="1"/><rect x="9" y="6" width="1" height="1"/><rect x="10" y="6" width="1" height="1"/><rect x="11" y="6" width="1" height="1"/><rect x="4" y="7" width="1" height="1"/><rect x="5" y="7" width="1" height="1"/><rect x="6" y="7" width="1" height="1"/><rect x="7" y="7" width="1" height="1"/><rect x="8" y="7" width="1" height="1"/><rect x="9" y="7" width="1" height="1"/><rect x="10" y="7" width="1" height="1"/><rect x="3" y="8" width="1" height="1"/><rect x="4" y="8" width="1" height="1"/><rect x="5" y="8" width="1" height="1"/><rect x="6" y="8" width="1" height="1"/><rect x="7" y="8" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/><rect x="9" y="8" width="1" height="1"/><rect x="10" y="8" width="1" height="1"/><rect x="11" y="8" width="1" height="1"/><rect x="2" y="9" width="1" height="1"/><rect x="4" y="9" width="1" height="1"/><rect x="5" y="9" width="1" height="1"/><rect x="6" y="9" width="1" height="1"/><rect x="7" y="9" width="1" height="1"/><rect x="8" y="9" width="1" height="1"/><rect x="9" y="9" width="1" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="12" y="9" width="1" height="1"/><rect x="4" y="10" width="1" height="1"/><rect x="5" y="10" width="1" height="1"/><rect x="6" y="10" width="1" height="1"/><rect x="7" y="10" width="1" height="1"/><rect x="8" y="10" width="1" height="1"/><rect x="9" y="10" width="1" height="1"/><rect x="10" y="10" width="1" height="1"/><rect x="3" y="11" width="1" height="1"/><rect x="5" y="11" width="1" height="1"/><rect x="6" y="11" width="1" height="1"/><rect x="7" y="11" width="1" height="1"/><rect x="8" y="11" width="1" height="1"/><rect x="9" y="11" width="1" height="1"/><rect x="11" y="11" width="1" height="1"/><rect x="2" y="12" width="1" height="1"/><rect x="6" y="12" width="1" height="1"/><rect x="7" y="12" width="1" height="1"/><rect x="8" y="12" width="1" height="1"/><rect x="12" y="12" width="1" height="1"/></g></svg>`;
-
-function renderFooterLink(link: NavLink, active: NavLink["id"] | undefined): string {
-  const ariaCurrent = link.id === active ? ' aria-current="page"' : "";
-  const identityFlag = link.id === "identity" ? ' data-identity-link="1"' : "";
-  const logoutFlag = link.id === "logout" ? ' data-logout-link="1" hidden' : "";
-  return `<a href="${esc(link.href)}" data-nav="${esc(link.id)}"${ariaCurrent}${identityFlag}${logoutFlag}>${esc(link.label)}</a>`;
-}
+const MENU_ICON_SVG = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 6h18M3 12h18M3 18h18"/></svg>`;
 
 const ESC: Record<string, string> = {
   "&": "&amp;",

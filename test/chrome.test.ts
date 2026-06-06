@@ -10,196 +10,186 @@ import {
   NAV_LINKS,
   renderFooter,
   renderHeader,
+  renderLeftRail,
 } from "../src/layout/chrome.js";
 
 const REPO = "https://github.com/potomak/drawbang";
+
+// ===== Header =====
 
 test("renderHeader contains the logo link to /", () => {
   const html = renderHeader();
   assert.match(html, /<a class="hdr-logo" href="\/"/);
 });
 
-test("renderHeader nav order matches NAV_LINKS, then identity, then logout", () => {
+test("renderHeader: header has no primary nav — that moves to the left rail", () => {
+  const html = renderHeader({ rails: false });
+  // No <nav> inside the header — the primary nav lives in the rail.
+  // (When rails are on, the rail's nav follows, so scope the assertion
+  // to the header-only render.)
+  assert.doesNotMatch(html, /<nav/);
+});
+
+test("renderHeader: auth slot ships both states, signed-in hidden by default", () => {
   const html = renderHeader();
-  const fixedIds = NAV_LINKS.map((l) => l.id);
-  // identity + logout are computed at render time; not in NAV_LINKS but must
-  // follow, in that order.
-  const expectedIds = [...fixedIds, "identity", "logout"];
-  const datas = [...html.matchAll(/data-nav="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(datas, expectedIds);
+  // Signed-out fallback (the build-time default).
+  assert.match(html, /<a class="hdr-signin" href="\/login" data-identity-link="1" data-auth-state="signed-out">Sign in<\/a>/);
+  // Signed-in slot ships hidden — chrome-identity.js reveals it client-side
+  // when localStorage has a username.
+  assert.match(html, /<a class="hdr-profile" href="#" data-identity-link="1" data-auth-state="signed-in" hidden>/);
+  assert.match(html, /<img class="profile-picture hdr-profile-pic"/);
+  assert.match(html, /<span class="hdr-profile-name"><\/span>/);
 });
 
-test("renderHeader: no Home link in the nav (the logo is the home link)", () => {
+test("renderHeader: identity fallback href is /login (constant)", () => {
   const html = renderHeader();
-  assert.doesNotMatch(html, /data-nav="home"/);
+  assert.match(html, new RegExp(`href="${IDENTITY_FALLBACK_HREF}"`));
 });
 
-test("renderHeader: active='products' marks the products link with aria-current='page'", () => {
-  const html = renderHeader({ active: "products" });
-  const ariaMatches = [...html.matchAll(/aria-current="page"/g)];
-  assert.equal(ariaMatches.length, 1);
-  assert.match(html, /data-nav="products"[^>]*aria-current="page"/);
-  assert.doesNotMatch(html, /data-nav="identity"[^>]*aria-current/);
+test("renderHeader: opens .app-shell + emits .rail-left when rails=true (default)", () => {
+  const html = renderHeader({ active: "home" });
+  assert.match(html, /<div class="app-shell">/);
+  assert.match(html, /<aside class="rail-left" id="rail-left">/);
+  // The rail-left content (CTA, nav, foot) is emitted by renderLeftRail
+  // and embedded inline.
+  assert.match(html, /class="rail-cta"/);
 });
 
-test("renderFooter exposes X, Discord, Facebook, Instagram, and Threads social links in a nav", () => {
-  const footer = renderFooter({ repoUrl: REPO });
-  assert.match(footer, /<nav class="ftr-social" aria-label="Social">/);
-  assert.match(footer, /href="https:\/\/x\.com\/drawbang"[^>]*>X</);
-  assert.match(footer, /href="https:\/\/discord\.gg\/mXA4NQjcxg"[^>]*>Discord</);
-  assert.match(footer, /href="https:\/\/facebook\.com\/drawbang"[^>]*>Facebook</);
-  assert.match(footer, /href="https:\/\/instagram\.com\/drawbang256"[^>]*>Instagram</);
-  assert.match(footer, /href="https:\/\/www\.threads\.net\/@drawbang256"[^>]*>Threads</);
+test("renderHeader: rails=false suppresses the app-shell wrapper", () => {
+  const html = renderHeader({ rails: false });
+  assert.doesNotMatch(html, /class="app-shell"/);
+  assert.doesNotMatch(html, /class="rail-left"/);
 });
 
-test("renderFooter groups nav + social on the left, repo + feedback on the right", () => {
-  const footer = renderFooter({ repoUrl: REPO });
-  // Left column wraps the nav links and the social nav.
-  assert.match(
-    footer,
-    /<div class="ftr-left">[\s\S]*<nav class="ftr-links"[\s\S]*<nav class="ftr-social"[\s\S]*<\/div>/,
-  );
-  // Right column wraps the repo link and the new feedback link in that order.
-  assert.match(
-    footer,
-    /<div class="ftr-right">[\s\S]*ftr-repo[\s\S]*ftr-feedback[\s\S]*<\/div>/,
-  );
+test("renderHeader: menu button is rendered hidden so chrome-toggle.js can wire it on mobile", () => {
+  const html = renderHeader();
+  assert.match(html, /<button class="hdr-menu" aria-controls="rail-left" aria-expanded="false" aria-label="Menu" hidden>/);
 });
 
-test("renderFooter exposes a Feedback link to the labelled GitHub issue form", () => {
-  const footer = renderFooter({ repoUrl: REPO });
-  assert.match(
-    footer,
-    /<a class="ftr-feedback" href="https:\/\/github\.com\/potomak\/drawbang\/issues\/new\?labels=feedback" target="_blank" rel="noopener">/,
-  );
-  assert.match(footer, /<span>Feedback<\/span>/);
-  // Placeholder icon present and marked aria-hidden so screen readers don't
-  // announce "image" before the label.
-  assert.match(footer, /<svg[^>]*aria-hidden="true"/);
+// ===== Footer =====
+
+test("renderFooter: closes .app-shell + emits .rail-right when rails=true", () => {
+  const html = renderFooter({ repoUrl: REPO });
+  assert.match(html, /<aside class="rail-right" data-rail-right><\/aside>/);
+  assert.match(html, /<\/div>/);
 });
 
-test("renderFooter contains the repo link and the same nav as the header", () => {
-  const footer = renderFooter({ repoUrl: REPO });
-  assert.match(footer, /<a class="ftr-repo" href="https:\/\/github\.com\/potomak\/drawbang"/);
-  // Footer mirrors the header's nav now that the editor lives at /
-  // (reachable via the logo).
-  const fixedIds = NAV_LINKS.map((l) => l.id);
-  const expectedIds = [...fixedIds, "identity", "logout"];
-  const datas = [...footer.matchAll(/data-nav="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(datas, expectedIds);
-});
-
-test("identity link: hasIdentity + username → /u/<username>", () => {
-  const header = renderHeader({ hasIdentity: true, identityUsername: "alice" });
-  assert.match(header, /href="\/u\/alice" data-nav="identity"/);
-  assert.match(header, />Profile</);
-  const footer = renderFooter({ hasIdentity: true, identityUsername: "alice", repoUrl: REPO });
-  assert.match(footer, /href="\/u\/alice" data-nav="identity"/);
-});
-
-test("identity link: no username falls back to the sign-in href", () => {
-  const header = renderHeader();
-  assert.match(header, new RegExp(`href="${IDENTITY_FALLBACK_HREF}" data-nav="identity"`));
-  assert.match(header, />Sign in</);
-  // hasIdentity=true alone (no username) also falls back.
-  const header2 = renderHeader({ hasIdentity: true });
-  assert.match(header2, new RegExp(`href="${IDENTITY_FALLBACK_HREF}" data-nav="identity"`));
-});
-
-test("chrome module gzips under 1.5 KB", async () => {
-  // Measure what would ship after bundling: esbuild minifies the TS the
-  // same way Vite does for prod builds, then gzip. JSDoc + whitespace
-  // are stripped before the size check, so the budget is about the
-  // actual browser payload, not the source-with-comments.
-  // Budget bumps: 1024 → 1536 once social links + feedback + placeholder
-  // bug icon SVG landed; 1536 → 1664 once the FAB landed with its inline
-  // "+" SVG. Leaves a bit of headroom for the next small chrome addition.
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  const src = await fs.readFile(path.join(here, "../src/layout/chrome.ts"), "utf8");
-  const { code } = await transform(src, { loader: "ts", minify: true });
-  const gz = gzipSync(code);
-  assert.ok(gz.length < 1664, `chrome.ts minified+gzipped to ${gz.length} bytes, expected < 1664`);
+test("renderFooter: rails=false suppresses the rail-right + closing wrapper", () => {
+  const html = renderFooter({ repoUrl: REPO, rails: false });
+  assert.doesNotMatch(html, /class="rail-right"/);
 });
 
 test("renderFooter references the chrome-toggle.js at a stable URL", () => {
-  // #170 ships the hamburger toggle as a single static asset
-  // (`static/chrome-toggle.js`) loaded by every surface. The script tag
-  // attaches in the footer so the page parser has the markup before
-  // executing.
   const html = renderFooter({ repoUrl: REPO });
-  assert.match(html, /<script src="\/chrome-toggle\.js"><\/script>/);
+  assert.match(html, /<script src="\/chrome-toggle\.js"[^>]*><\/script>/);
 });
 
-test("renderFooter references the chrome-identity.js patcher (#171)", () => {
+test("renderFooter references the chrome-identity.js patcher", () => {
   const html = renderFooter({ repoUrl: REPO });
-  assert.match(html, /<script src="\/chrome-identity\.js"><\/script>/);
+  assert.match(html, /<script src="\/chrome-identity\.js"[^>]*><\/script>/);
 });
 
 test("renderFooter references /flash.js so window.drawbang{Show,Hide}Flash + pending-flash auto-consume are wired on every surface", () => {
   const html = renderFooter({ repoUrl: REPO });
-  assert.match(html, /<script src="\/flash\.js"><\/script>/);
-  // flash.js must load before chrome-identity.js — the latter's logout path
-  // queues a pending flash, and we want the consumer wired by the time any
-  // page interaction can trigger it.
-  const flashIdx = html.indexOf('src="/flash.js"');
-  const identityIdx = html.indexOf('src="/chrome-identity.js"');
+  assert.match(html, /<script src="\/flash\.js"[^>]*><\/script>/);
+  // flash.js must load before chrome-identity.js — the latter's logout
+  // path queues a pending flash, and we want the consumer wired by the
+  // time any page interaction can trigger it.
+  const flashIdx = html.indexOf("flash.js");
+  const identityIdx = html.indexOf("chrome-identity.js");
   assert.ok(flashIdx >= 0 && identityIdx >= 0 && flashIdx < identityIdx);
 });
 
-test("identity link carries data-identity-link='1' so the patcher can find it", () => {
-  const header = renderHeader();
-  assert.match(header, /data-nav="identity"[^>]*data-identity-link="1"/);
-  const footer = renderFooter({ repoUrl: REPO });
-  assert.match(footer, /data-nav="identity"[^>]*data-identity-link="1"/);
+// ===== Left rail =====
+
+test("renderLeftRail: NEW DRAWING CTA links to /draw", () => {
+  const html = renderLeftRail({});
+  assert.match(html, /<a class="rail-cta" href="\/draw"/);
+  assert.match(html, /New drawing/);
 });
 
-test("non-identity links do NOT carry data-identity-link", () => {
-  const header = renderHeader();
-  // Only the identity link should have the marker. The products link
-  // would be a footgun if it got rewritten by the patcher.
-  const matches = [...header.matchAll(/data-identity-link="1"/g)];
-  assert.equal(matches.length, 1);
-  assert.doesNotMatch(header, /data-nav="products"[^>]*data-identity-link/);
-});
-
-test("logout link: rendered hidden with data-logout-link='1' so the patcher reveals it when logged in", () => {
-  // Build-time chrome is always logged-out, so the sign-out link ships
-  // hidden; /chrome-identity.js unhides it + wires the click when a session
-  // is present. It lives in both the header and footer nav.
-  for (const html of [renderHeader(), renderFooter({ repoUrl: REPO })]) {
-    assert.match(html, /data-nav="logout"[^>]*data-logout-link="1"[^>]*hidden/);
-    assert.match(html, /href="\/"[^>]*data-nav="logout"[^>]*>Sign out</);
+test("renderLeftRail: primary nav contains every NAV_LINKS entry", () => {
+  const html = renderLeftRail({});
+  for (const l of NAV_LINKS) {
+    assert.match(html, new RegExp(`href="${l.href}" data-nav="${l.id}"`));
   }
 });
 
-test("logout link does NOT carry the identity-link marker (patcher must not rewrite it to a profile href)", () => {
+test("renderLeftRail: active='products' marks the products link with aria-current='page'", () => {
+  const html = renderLeftRail({ active: "products" });
+  const ariaMatches = [...html.matchAll(/aria-current="page"/g)];
+  assert.equal(ariaMatches.length, 1);
+  assert.match(html, /data-nav="products"[^>]*aria-current="page"/);
+});
+
+test("renderLeftRail: followers + following blocks ship hidden so chrome-identity.js can reveal them when signed-in", () => {
+  const html = renderLeftRail({});
+  assert.match(html, /<div class="rail-follow" data-profile-username="" data-rail-follow="followers" hidden>/);
+  assert.match(html, /<div class="rail-follow" data-profile-username="" data-rail-follow="following" hidden>/);
+  // The link inside each block has the per-kind marker chrome-identity.js
+  // looks for to set the href.
+  assert.match(html, /data-rail-follow-link="followers"/);
+  assert.match(html, /data-rail-follow-link="following"/);
+});
+
+test("renderLeftRail: follower/following counts ship as 0 and live behind hydrate.js's [data-follower-count]/[data-following-count] hooks", () => {
+  const html = renderLeftRail({});
+  assert.match(html, /<span data-follower-count>0<\/span>/);
+  assert.match(html, /<span data-following-count>0<\/span>/);
+});
+
+test("renderLeftRail: bookmarks/account/sign-out rows ship hidden and wire to chrome-identity.js markers", () => {
+  const html = renderLeftRail({});
+  assert.match(html, /<a class="rail-link" data-rail-bookmarks href="#" hidden>Bookmarks<\/a>/);
+  assert.match(html, /<a class="rail-link" data-rail-account href="\/account" hidden>Account<\/a>/);
+  assert.match(html, /<a class="rail-link rail-logout" href="\/" data-logout-link="1" hidden>Sign out<\/a>/);
+});
+
+test("renderLeftRail: secondary group has the social row + Privacy + Feedback, anchored via .rail-foot", () => {
+  const html = renderLeftRail({});
+  assert.match(html, /<div class="rail-foot">/);
+  // Social links (kept identical to the previous footer's order).
+  assert.match(html, /href="https:\/\/x\.com\/drawbang"[^>]*aria-label="X"/);
+  assert.match(html, /href="https:\/\/discord\.gg\/mXA4NQjcxg"/);
+  assert.match(html, /href="https:\/\/facebook\.com\/drawbang"/);
+  assert.match(html, /href="https:\/\/instagram\.com\/drawbang256"/);
+  assert.match(html, /href="https:\/\/www\.threads\.net\/@drawbang256"/);
+  // Privacy + Feedback live in a nav below the social row.
+  assert.match(html, /href="\/privacy"[^>]*>Privacy</);
+  assert.match(html, /href="https:\/\/github\.com\/potomak\/drawbang\/issues\/new\?labels=feedback"/);
+});
+
+test("renderLeftRail: identity-link marker present on the only element the patcher should rewrite (= no false matches)", () => {
+  // chrome-identity.js uses data-identity-link="1" to find the auth
+  // anchor. The rail must not introduce another match; otherwise the
+  // patcher rewrites the wrong link.
+  const html = renderLeftRail({});
+  assert.doesNotMatch(html, /data-identity-link/);
+});
+
+test("renderLeftRail: logout link does NOT carry the identity-link marker", () => {
+  const html = renderLeftRail({});
+  assert.doesNotMatch(html, /data-logout-link[^>]*data-identity-link/);
+});
+
+// ===== FAB is gone =====
+
+test("chrome no longer ships a FAB (the CTA lives in the rail now)", () => {
   const header = renderHeader();
-  assert.doesNotMatch(header, /data-nav="logout"[^>]*data-identity-link/);
+  const footer = renderFooter({ repoUrl: REPO });
+  assert.doesNotMatch(header, /class="fab"/);
+  assert.doesNotMatch(footer, /class="fab"/);
 });
 
-test("renderHeader exposes the menu toggle button + nav id linkage for #170's responsive JS", () => {
-  // The hamburger toggle and the nav share aria-controls / id="chrome-nav".
-  // #170 wires the JS, but the markup contract lives here so the JS can
-  // assume it.
-  const html = renderHeader();
-  assert.match(html, /<button class="chrome-menu-toggle" aria-controls="chrome-nav" aria-expanded="false" hidden>/);
-  assert.match(html, /<nav id="chrome-nav"/);
-});
+// ===== Bundle budget =====
 
-test("renderFooter renders the FAB linking to /draw by default", () => {
-  const html = renderFooter({ repoUrl: REPO });
-  assert.match(html, /<a class="fab" href="\/draw" aria-label="New drawing"/);
-});
-
-test("renderFooter suppresses the FAB when fab: false (editor page)", () => {
-  const html = renderFooter({ repoUrl: REPO, fab: false });
-  assert.doesNotMatch(html, /class="fab"/);
-});
-
-test("renderHeader escapes user-controlled identityUsername defensively", () => {
-  // identityUsername is callsite-supplied — guard against an injection
-  // even though real usernames are always [a-z0-9_-]{3,20}.
-  const html = renderHeader({ hasIdentity: true, identityUsername: '"><script>x()</script>' });
-  assert.ok(!html.includes("<script>x()"));
-  assert.match(html, /&quot;&gt;&lt;script&gt;/);
+test("chrome module gzips under 2.5 KB", async () => {
+  // The left-rail content (CTA + nav + social row + secondary nav) is
+  // ~1KB heavier than the v2 chrome was; bumped budget covers it with
+  // a small headroom for the next addition.
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const src = await fs.readFile(path.join(here, "../src/layout/chrome.ts"), "utf8");
+  const { code } = await transform(src, { loader: "ts", minify: true });
+  const gz = gzipSync(code);
+  assert.ok(gz.length < 2560, `chrome.ts minified+gzipped to ${gz.length} bytes, expected < 2560`);
 });

@@ -1,7 +1,19 @@
-// Runtime patcher for the chrome's identity link. Vanilla JS, served at a
-// stable URL like /chrome-toggle.js. The editor mirrors the logged-in
-// account's username to localStorage on login/logout so this script can read
-// it synchronously and rewrite the link before first paint.
+// Runtime patcher for the chrome's identity affordances. Vanilla JS,
+// served at a stable URL. The editor mirrors the logged-in account's
+// username to localStorage on login/logout so this script can read it
+// synchronously and re-shape the markup before first paint.
+//
+// Responsibilities (all SSR ships logged-out; we patch when a session
+// exists):
+//   1. Header auth slot — swap "Sign in" for the profile-picture + name
+//      link pointing at /u/<username>.
+//   2. Left-rail follow blocks — fill in the username so hydrate.js
+//      picks them up and stamps follower/following counts.
+//   3. Bookmarks / Account / Sign-out left-rail rows — set the href
+//      and reveal.
+//   4. Owner-only affordances on cached SSR pages — reveal
+//      [data-owner-only-for="<un>"] when the viewer matches.
+//   5. Sign-out click handler — clear storage + queue a flash + redirect.
 
 (() => {
   if (window.__drawbangChromeIdentityInit) return;
@@ -25,12 +37,9 @@
       localStorage.removeItem(JWT_KEY);
       localStorage.removeItem(USERNAME_KEY);
     } catch {
-      // ignore storage errors — worst case the next page load still sees a
-      // session, but the JWT removal above almost always succeeds.
+      // ignore storage errors — worst case the next page load still sees
+      // a session, but the JWT removal almost always succeeds.
     }
-    // Queue a flash so the destination page can surface it after the redirect.
-    // /flash.js (loaded by the chrome footer) consumes drawbang:pending-flash
-    // on init.
     try {
       sessionStorage.setItem(
         "drawbang:pending-flash",
@@ -43,27 +52,61 @@
   };
 
   const apply = () => {
-    const links = document.querySelectorAll('[data-identity-link="1"]');
-    for (const link of links) {
-      if (!(link instanceof HTMLAnchorElement)) continue;
-      link.href = "/u/" + username;
-      // Only rewrite the default logged-out label.
-      if (link.textContent === "Sign in" || link.textContent === "Identity") {
-        link.textContent = "Profile";
+    // 1. Header auth slot — hide "Sign in", reveal "profile pic + name".
+    const signedOut = document.querySelectorAll('[data-auth-state="signed-out"]');
+    for (const el of signedOut) {
+      if (el instanceof HTMLElement) el.hidden = true;
+    }
+    const signedIn = document.querySelectorAll('[data-auth-state="signed-in"]');
+    for (const el of signedIn) {
+      if (!(el instanceof HTMLAnchorElement)) continue;
+      el.href = "/u/" + username;
+      el.hidden = false;
+      const img = el.querySelector(".hdr-profile-pic");
+      if (img instanceof HTMLImageElement) {
+        img.setAttribute("data-profile-picture-username", username);
+        img.setAttribute("data-profile-picture-size", "24");
+        img.alt = username;
+      }
+      const name = el.querySelector(".hdr-profile-name");
+      if (name) name.textContent = username;
+    }
+
+    // 2. Left-rail follow blocks — fill in the viewer's username so
+    //    hydrate.js picks them up and stamps the counts.
+    const followBlocks = document.querySelectorAll('[data-rail-follow]');
+    for (const block of followBlocks) {
+      if (!(block instanceof HTMLElement)) continue;
+      block.setAttribute("data-profile-username", username);
+      block.hidden = false;
+      const kind = block.getAttribute("data-rail-follow");
+      const link = block.querySelector('[data-rail-follow-link]');
+      if (link instanceof HTMLAnchorElement && kind) {
+        link.href = "/u/" + username + "/" + kind;
       }
     }
-    // The logout link ships hidden (build-time chrome is logged-out); reveal
-    // it now that a session is present and wire the sign-out action.
+
+    // 3. Bookmarks / Account / Sign-out rows in the left rail.
+    const bookmark = document.querySelector('[data-rail-bookmarks]');
+    if (bookmark instanceof HTMLAnchorElement) {
+      bookmark.href = "/u/" + username + "/bookmarks";
+      bookmark.hidden = false;
+    }
+    const account = document.querySelector('[data-rail-account]');
+    if (account instanceof HTMLAnchorElement) {
+      account.hidden = false;
+    }
     const logoutLinks = document.querySelectorAll('[data-logout-link="1"]');
     for (const link of logoutLinks) {
       if (!(link instanceof HTMLAnchorElement)) continue;
       link.hidden = false;
       link.addEventListener("click", logout);
     }
-    // Owner-only affordances on cached SSR pages (e.g. the "Bookmarks" link
-    // on /u/<un>). The element ships hidden so non-owners — and the edge
-    // cache — never see it; we reveal it when the page's owner matches the
-    // signed-in viewer.
+
+    // 4. Owner-only affordances on cached SSR pages (e.g. the "Bookmarks"
+    //    link on /u/<un>). Element ships hidden so non-owners — and the
+    //    edge cache — never see it; we reveal when the page's owner
+    //    matches the signed-in viewer.
     const ownerOnly = document.querySelectorAll("[data-owner-only-for]");
     for (const el of ownerOnly) {
       if (el.getAttribute("data-owner-only-for") === username) {

@@ -16,10 +16,11 @@ export interface ChromePluginOptions {
 }
 
 const ACTIVE_META = /<meta\s+name="drawbang:active"\s+content="([^"]*)"\s*\/?>\s*\n?/i;
-// Pages opt out of the chrome's "+" FAB with <meta name="drawbang:fab"
-// content="off">. Only the editor uses this today (linking to itself
-// would be redundant); other Vite SPAs leave it unset so the FAB shows.
-const FAB_META = /<meta\s+name="drawbang:fab"\s+content="([^"]*)"\s*\/?>\s*\n?/i;
+// Pages opt out of the .app-shell wrapper + rails with
+// <meta name="drawbang:rails" content="off">. The editor uses this so
+// the canvas gets the full viewport; smaller surfaces (auth pages,
+// merch picker) leave it set so the rails carry the site nav.
+const RAILS_META = /<meta\s+name="drawbang:rails"\s+content="([^"]*)"\s*\/?>\s*\n?/i;
 const HEADER_MARKER = "<!--CHROME:HEADER-->";
 const FOOTER_MARKER = "<!--CHROME:FOOTER-->";
 const ANALYTICS_MARKER = "<!--CHROME:ANALYTICS-->";
@@ -43,12 +44,12 @@ export function injectChrome(html: string, repoUrl: string): string {
   const active = activeMatch?.[1]
     ? (activeMatch[1] as NavLink["id"])
     : undefined;
-  const fabMatch = html.match(FAB_META);
-  const fab = fabMatch?.[1] === "off" ? false : true;
+  const railsMatch = html.match(RAILS_META);
+  const rails = railsMatch?.[1] === "off" ? false : true;
   let out = activeMatch ? html.replace(ACTIVE_META, "") : html;
-  if (fabMatch) out = out.replace(FAB_META, "");
-  out = out.replace(HEADER_MARKER, renderHeader({ active }));
-  out = out.replace(FOOTER_MARKER, renderFooter({ active, repoUrl, fab }));
+  if (railsMatch) out = out.replace(RAILS_META, "");
+  out = out.replace(HEADER_MARKER, renderHeader({ active, rails }));
+  out = out.replace(FOOTER_MARKER, renderFooter({ active, repoUrl, rails }));
   out = out.replace(ANALYTICS_MARKER, renderAnalytics());
   out = out.replace(META_PIXEL_MARKER, renderMetaPixel());
   return out;

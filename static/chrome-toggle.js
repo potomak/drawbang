@@ -1,10 +1,17 @@
-// Hamburger toggle for the shared chrome (#170). Vanilla JS, served at
-// a stable URL (/chrome-toggle.js) so every surface — Vite-built or
-// builder-rendered — can load the same script without a hashed bundle.
+// Left-rail drawer toggle for narrow viewports. Vanilla JS, served at a
+// stable URL so every surface — Vite-built or Lambda-rendered — can
+// load the same script.
+//
+// On <860px the .rail-left is a drawer hidden off-screen
+// (transform: translateX(-100%)). The .hdr-menu button (and the .hdr-logo
+// when tapped on mobile) toggle it via the .is-open class. Esc, the
+// backdrop scrim, and clicking outside all close it.
 
 (() => {
   if (window.__drawbangChromeToggleInit) return;
   window.__drawbangChromeToggleInit = true;
+
+  const MOBILE_MQ = "(max-width: 859px)";
 
   const ready = (fn) =>
     document.readyState === "loading"
@@ -12,60 +19,84 @@
       : fn();
 
   ready(() => {
-    const toggle = document.querySelector(".chrome-menu-toggle");
-    const nav = document.getElementById("chrome-nav");
-    if (!(toggle instanceof HTMLButtonElement) || !nav) return;
-    // The v2 header places the toggle inside the .hdr-left flex row right
-    // after the logo; move it next to the nav so CSS can keep it visible
-    // only on narrow viewports.
+    const menu = document.querySelector(".hdr-menu");
+    const rail = document.getElementById("rail-left");
+    const logo = document.querySelector(".hdr-logo");
+    if (!(menu instanceof HTMLButtonElement) || !rail) return;
+    // The chrome ships the toggle with `hidden` so screen readers see it
+    // but the visual layer hides it. CSS reveals it on narrow viewports;
+    // flipping hidden here lets aria-expanded stay reliable.
+    menu.hidden = false;
 
-    // The chrome module emits the toggle with `hidden` so screen readers
-    // see it but the visual layer hides it. CSS reveals it on narrow
-    // viewports; promoting it here lets us flip aria-expanded reliably.
-    toggle.hidden = false;
+    const mq = window.matchMedia(MOBILE_MQ);
+    let scrim = null;
 
-    const closeMenu = () => {
-      if (toggle.getAttribute("aria-expanded") !== "true") return;
-      toggle.setAttribute("aria-expanded", "false");
-      nav.classList.remove("chrome-nav-open");
-      toggle.focus();
+    const closeDrawer = () => {
+      if (!rail.classList.contains("is-open")) return;
+      rail.classList.remove("is-open");
+      menu.setAttribute("aria-expanded", "false");
+      if (scrim) {
+        scrim.remove();
+        scrim = null;
+      }
     };
 
-    const openMenu = () => {
-      toggle.setAttribute("aria-expanded", "true");
-      nav.classList.add("chrome-nav-open");
-      const first = nav.querySelector("a");
-      if (first instanceof HTMLAnchorElement) first.focus();
+    const openDrawer = () => {
+      rail.classList.add("is-open");
+      menu.setAttribute("aria-expanded", "true");
+      scrim = document.createElement("div");
+      scrim.className = "rail-scrim";
+      scrim.addEventListener("click", closeDrawer);
+      document.body.appendChild(scrim);
+      const first = rail.querySelector("a, button");
+      if (first instanceof HTMLElement) first.focus();
     };
 
-    toggle.addEventListener("click", (e) => {
+    const toggle = () => {
+      if (rail.classList.contains("is-open")) closeDrawer();
+      else openDrawer();
+    };
+
+    menu.addEventListener("click", (e) => {
       e.stopPropagation();
-      const open = toggle.getAttribute("aria-expanded") === "true";
-      if (open) closeMenu();
-      else openMenu();
+      toggle();
     });
+
+    // Logo doubles as a drawer trigger on mobile (the wall-of-text plan
+    // had this — "appears only upon clicking on the logo"). On wider
+    // viewports the logo behaves as a normal home link.
+    if (logo instanceof HTMLAnchorElement) {
+      logo.addEventListener("click", (e) => {
+        if (!mq.matches) return;
+        // Only intercept the first tap when the drawer is closed; the
+        // second tap (drawer open) lets the link navigate home.
+        if (!rail.classList.contains("is-open")) {
+          e.preventDefault();
+          openDrawer();
+        } else {
+          closeDrawer();
+        }
+      });
+    }
 
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeMenu();
+      if (e.key === "Escape") closeDrawer();
     });
 
-    document.addEventListener("click", (e) => {
-      const t = e.target;
-      if (!(t instanceof Node)) return;
-      if (toggle.contains(t) || nav.contains(t)) return;
-      closeMenu();
-    });
-
-    // Close on viewport widen — the nav becomes visible inline at the
-    // breakpoint, so an explicit "open" state would just look weird.
-    const mq = window.matchMedia("(min-width: 768px)");
+    // Close on viewport widen — the drawer becomes irrelevant when the
+    // rail is visible inline.
     const onChange = (e) => {
-      if (e.matches) {
-        toggle.setAttribute("aria-expanded", "false");
-        nav.classList.remove("chrome-nav-open");
-      }
+      if (!e.matches) closeDrawer();
     };
     if (mq.addEventListener) mq.addEventListener("change", onChange);
     else mq.addListener(onChange);
+
+    // Close the drawer when the viewer taps a link inside it — they're
+    // navigating away anyway, and leaving it open looks weird while the
+    // next page loads.
+    rail.addEventListener("click", (e) => {
+      const t = e.target;
+      if (t instanceof HTMLAnchorElement) closeDrawer();
+    });
   });
 })();
