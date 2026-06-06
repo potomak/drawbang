@@ -98,12 +98,22 @@ describe("profile renders social block", () => {
     assert.match(res.body, /<script src="\/follow\.js"><\/script>/);
   });
 
-  test("owner-only Bookmarks link is rendered hidden + tagged for chrome-identity.js", async () => {
+  test("owner-only Bookmarks + Edit profile links live in a single row tagged for chrome-identity.js", async () => {
     const { cfg } = await makeConfig();
     const res = await renderProfilePageHandler(cfg, "alice");
+    // Both owner-only links now share one wrapper so they wrap as a
+    // unit on narrow viewports and ship/reveal together.
     assert.match(
       res.body,
-      /<a class="ow-owner-link" href="\/u\/alice\/bookmarks" data-owner-only-for="alice" hidden>Bookmarks<\/a>/,
+      /<div class="ow-owner-actions" data-owner-only-for="alice" hidden>/,
+    );
+    assert.match(
+      res.body,
+      /<a class="ow-owner-link" href="\/u\/alice\/bookmarks">Bookmarks<\/a>/,
+    );
+    assert.match(
+      res.body,
+      /<a class="ow-owner-link" href="\/account">Edit profile<\/a>/,
     );
   });
 });

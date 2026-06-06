@@ -145,7 +145,9 @@ ${cards}${v.next_fragment_url ? `
   // page renders, and keeps assertions that "the empty page contains
   // no data-feed-sentinel string anywhere" honest.
   const observerScript = v.next_fragment_url ? renderObserverScript() : "";
-  const footerOpts = { active: "home", repoUrl: v.repo_url };
+  // Only the feed shows the right "discover" rail. Other surfaces
+  // (drawing, profile, products, design) inherit the default and stay 2-col.
+  const footerOpts = { active: "home", repoUrl: v.repo_url, rightRail: true };
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -157,7 +159,7 @@ ${cards}${v.next_fragment_url ? `
     <link rel="stylesheet" href="${assetUrl("/gallery-v2.css")}" />
   </head>
   <body>
-    ${renderHeader({ active: "home" })}
+    ${renderHeader({ active: "home", rightRail: true })}
     <main>
 ${body}
     </main>

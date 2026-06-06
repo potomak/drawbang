@@ -158,14 +158,21 @@ a:hover { color: var(--accent); }
 .hdr-profile[hidden] { display: none; }
 
 /* ===== App shell =====
-   3-column grid wrapper. Center column hosts each template's <main>;
-   left and right rails come from src/layout/chrome.ts. */
+   Default: 2-column (rail-left + main). The feed opts in to a 3rd
+   "discover" column via `.has-rail-right`. The shell is left-anchored
+   (no margin: auto) so the rail-left edge sits at the same x as the
+   header logo, and the main content reads as a left-aligned column
+   rather than a centered strip inside an empty page. */
 .app-shell {
   display: grid;
+  grid-template-columns: var(--rail-w) minmax(0, 1fr);
+  max-width: calc(var(--shell-max) - var(--rail-right-w));
+  margin: 0;
+  min-height: calc(100vh - var(--hdr-h));
+}
+.app-shell.has-rail-right {
   grid-template-columns: var(--rail-w) minmax(0, 1fr) var(--rail-right-w);
   max-width: var(--shell-max);
-  margin: 0 auto;
-  min-height: calc(100vh - var(--hdr-h));
 }
 
 .rail-left {
@@ -176,7 +183,7 @@ a:hover { color: var(--accent); }
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 20px 14px 16px;
+  padding: 20px var(--pad) 16px;
   border-right: var(--border) solid var(--line);
   overflow-y: auto;
 }
@@ -186,7 +193,7 @@ a:hover { color: var(--accent); }
   top: var(--hdr-h);
   align-self: start;
   height: calc(100vh - var(--hdr-h));
-  padding: 20px 14px;
+  padding: 20px var(--pad);
   border-left: var(--border) solid var(--line);
   overflow-y: auto;
 }
@@ -309,16 +316,19 @@ a:hover { color: var(--accent); }
 
 /* ===== Main slot =====
    Center column of the app-shell (or full-width when the shell is
-   suppressed by `rails: false`). */
+   suppressed by `rails: false`). Left-anchored inside the shell so
+   content reads as a column, not as a centered strip. */
 main {
   padding: 24px clamp(16px, 3vw, 40px) 80px;
-  max-width: 1100px;
   width: 100%;
 }
-@media (max-width: 859px) { main { padding: 16px 14px 64px; } }
+@media (max-width: 859px) { main { padding: 16px var(--pad) 64px; } }
 /* When the shell is suppressed (editor, full-bleed Vite pages), the
    <main> tag isn't inside .app-shell — center it in the body. */
-body > main { margin: 0 auto; }
+body > main {
+  margin: 0 auto;
+  max-width: 1100px;
+}
 
 /* ===== Page chrome ===== */
 .page-title { font-size: var(--t-lg); font-weight: 700; margin: 0 0 16px; letter-spacing: 0; }
@@ -360,6 +370,28 @@ body > main { margin: 0 auto; }
 .btn.primary:hover { filter: brightness(0.95); color: var(--accent-on); }
 .btn.ghost { background: transparent; }
 .btn[hidden] { display: none; }
+
+/* ===== Badge =====
+   Small inline label for accomplishments, statuses, counts. Hairline
+   border + mono micro-label, paper-2 fill so it sits visibly on the
+   light wall. Reused by .ow-badges on the profile, the streak page,
+   and the /design kitchen-sink. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: var(--border) solid var(--line-strong);
+  background: var(--paper-2);
+  color: var(--ink);
+  font: 500 var(--t-xs)/1.4 var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.badge.accent {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--ink);
+}
 
 /* Legacy .navlink — Vite pages may still emit this class. Keep it
    harmless until each surface migrates. */

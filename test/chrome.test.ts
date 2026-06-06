@@ -68,15 +68,29 @@ test("renderHeader: menu button is rendered hidden so chrome-toggle.js can wire 
 
 // ===== Footer =====
 
-test("renderFooter: closes .app-shell + emits .rail-right when rails=true", () => {
+test("renderFooter: closes .app-shell when rails=true (default 2-col, no right rail)", () => {
   const html = renderFooter({ repoUrl: REPO });
-  assert.match(html, /<aside class="rail-right" data-rail-right><\/aside>/);
   assert.match(html, /<\/div>/);
+  // Right rail is opt-in (only the feed turns it on). Default is 2-col.
+  assert.doesNotMatch(html, /class="rail-right"/);
+});
+
+test("renderFooter: rightRail=true adds the right discover rail", () => {
+  const html = renderFooter({ repoUrl: REPO, rightRail: true });
+  assert.match(html, /<aside class="rail-right" data-rail-right><\/aside>/);
 });
 
 test("renderFooter: rails=false suppresses the rail-right + closing wrapper", () => {
   const html = renderFooter({ repoUrl: REPO, rails: false });
   assert.doesNotMatch(html, /class="rail-right"/);
+});
+
+test("renderHeader: rightRail=true marks the shell with .has-rail-right", () => {
+  const html = renderHeader({ rightRail: true });
+  assert.match(html, /class="app-shell has-rail-right"/);
+  const html2 = renderHeader();
+  assert.match(html2, /class="app-shell"/);
+  assert.doesNotMatch(html2, /has-rail-right/);
 });
 
 test("renderFooter references the chrome-toggle.js at a stable URL", () => {

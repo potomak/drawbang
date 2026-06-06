@@ -37,6 +37,11 @@ export interface ChromeOptions {
    * Surfaces that need the full viewport (e.g. the editor) pass false.
    */
   rails?: boolean;
+  /**
+   * Render the right "discover" rail. Default false — only the feed
+   * (`/`) opts in. Other pages stay 2-column (rail-left + main).
+   */
+  rightRail?: boolean;
 }
 
 export interface FooterOptions extends ChromeOptions {
@@ -61,8 +66,10 @@ export const NAV_LINKS: readonly NavLink[] = [
 
 export function renderHeader(opts: ChromeOptions = {}): string {
   const rails = opts.rails !== false;
+  const right = opts.rightRail === true;
+  const shellClass = right ? "app-shell has-rail-right" : "app-shell";
   const shell = rails
-    ? `\n<div class="app-shell">\n  <aside class="rail-left" id="rail-left">\n    ${renderLeftRail(opts)}\n  </aside>`
+    ? `\n<div class="${shellClass}">\n  <aside class="rail-left" id="rail-left">\n    ${renderLeftRail(opts)}\n  </aside>`
     : "";
   return `${FONT_PREVIEW_SCRIPT}<header class="hdr">
   <button class="hdr-menu" aria-controls="rail-left" aria-expanded="false" aria-label="Menu" hidden>${MENU_ICON_SVG}</button>
@@ -79,8 +86,11 @@ export function renderHeader(opts: ChromeOptions = {}): string {
 
 export function renderFooter(opts: FooterOptions): string {
   const rails = opts.rails !== false;
+  const right = opts.rightRail === true;
   const shellClose = rails
-    ? `  <aside class="rail-right" data-rail-right></aside>\n</div>\n`
+    ? (right
+        ? `  <aside class="rail-right" data-rail-right></aside>\n</div>\n`
+        : `</div>\n`)
     : "";
   return `${shellClose}<script src="${assetUrl("/flash.js")}"></script>
 <script src="${assetUrl("/chrome-toggle.js")}"></script>

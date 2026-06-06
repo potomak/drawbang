@@ -13,12 +13,13 @@ test("injectChrome: replaces <!--CHROME:HEADER--> with the rendered header marku
   assert.doesNotMatch(out, /CHROME:HEADER/);
 });
 
-test("injectChrome: replaces <!--CHROME:FOOTER--> with the rail-right + closing app-shell + scripts", () => {
+test("injectChrome: replaces <!--CHROME:FOOTER--> with the closing app-shell + scripts (2-col default, no right rail)", () => {
   const input = `<!doctype html><html><body><main>x</main><!--CHROME:FOOTER--></body></html>`;
   const out = injectChrome(input, REPO);
   // The footer closes the app-shell wrapper opened by renderHeader and
-  // emits the chrome scripts.
-  assert.match(out, /<aside class="rail-right" data-rail-right><\/aside>/);
+  // emits the chrome scripts. Right rail is opt-in (only the feed turns
+  // it on) so Vite pages stay 2-col by default.
+  assert.doesNotMatch(out, /class="rail-right"/);
   assert.match(out, /<script src="\/chrome-toggle\.js"/);
   assert.doesNotMatch(out, /CHROME:FOOTER/);
 });
@@ -63,7 +64,9 @@ test("injectChrome: <meta name='drawbang:rails' content='off'> suppresses the ap
   const outWith = injectChrome(inputWith, REPO);
   assert.match(outWith, /<div class="app-shell">/);
   assert.match(outWith, /<aside class="rail-left"/);
-  assert.match(outWith, /<aside class="rail-right"/);
+  // Vite pages don't pass rightRail, so the discover rail is absent
+  // by default.
+  assert.doesNotMatch(outWith, /<aside class="rail-right"/);
 
   // Opt-out: the editor uses this so the canvas gets the full viewport.
   const inputWithout = `<!doctype html><html><head><meta name="drawbang:rails" content="off" /></head><body><!--CHROME:HEADER--><!--CHROME:FOOTER--></body></html>`;

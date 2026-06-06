@@ -238,6 +238,25 @@ export default function renderDesign(v: DesignView): string {
           </div>
         `)}
 
+        ${section("Follow button", ".follow-btn — filled accent when unfollowed (the action), outlined when followed (the state).", `
+          <div class="ds-buttons">
+            <button class="follow-btn" type="button" aria-pressed="false">
+              <span class="follow-label">Follow</span>
+            </button>
+            <button class="follow-btn" type="button" aria-pressed="true">
+              <span class="follow-label">Following</span>
+            </button>
+          </div>
+        `)}
+
+        ${section("Badge", ".badge — small inline label for accomplishments, statuses, counts. Hairline border + mono micro-label on paper-2 fill. Use .badge.accent for highlighted variants.", `
+          <div class="ds-buttons">
+            <span class="badge">Beta</span>
+            <span class="badge">Daily streak</span>
+            <span class="badge accent">New</span>
+          </div>
+        `)}
+
         ${section("Page chrome", ".page-title, .page-sub, .divider, .panel-h, .muted.", `
           <h2 class="page-title">Page title</h2>
           <p class="page-sub">Page subtitle — small muted note under the title.</p>

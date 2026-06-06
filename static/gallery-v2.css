@@ -19,9 +19,9 @@
 .feed-list {
   display: flex;
   flex-direction: column;
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 0 12px 96px;
+  max-width: 720px;
+  margin: 0;
+  padding: 0 0 96px;
   list-style: none;
 }
 .feed-list > li { display: block; }
@@ -88,16 +88,21 @@
   color: var(--fg-muted);
   font-size: var(--t-xs);
 }
+/* Drawing well — see docs/design-system.md "Drawings on the wall".
+   Hairline frame + paper-2 backing makes transparent-pixel drawings
+   visible against the white page. Applied identically on feed cards,
+   img-grid thumbs, drawing-detail art wrap, and streak thumbs. */
 .feed-card-art {
   display: block;
-  border: 0;
-  background: transparent;
+  max-width: 320px;
+  width: 100%;
+  border: var(--border) solid var(--line);
+  background: var(--paper-2);
   text-decoration: none;
 }
 .feed-card-art img {
   display: block;
   width: 100%;
-  max-width: 320px;
   height: auto;
   image-rendering: crisp-edges;
   image-rendering: pixelated;
@@ -176,6 +181,13 @@
 .ow-count:hover { color: var(--accent); }
 .ow-count strong { font-variant-numeric: tabular-nums; }
 .ow-count span { color: var(--fg-muted); font-size: var(--t-sm); }
+.ow-owner-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0 0 16px 0;
+  flex-wrap: wrap;
+}
 .ow-owner-link {
   color: var(--fg-muted);
   text-decoration: none;
@@ -214,30 +226,36 @@
   vertical-align: bottom;
 }
 .ow-link a:hover { text-decoration: underline; }
+/* Follow button. Filled accent when unfollowed (the action), outlined
+   when followed (the state). Sits in the .ow-social row + on each
+   .follow-card; styled in light-theme tokens so it reads against the
+   paper background. */
 .follow-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--fg);
-  color: var(--canvas-bg);
-  border: 0;
-  padding: 6px 14px;
+  background: var(--accent);
+  color: var(--accent-on);
+  border: var(--border) solid var(--accent);
+  padding: 7px 14px;
   margin: 0;
-  font: inherit;
-  font-size: var(--t-sm);
+  font: 600 var(--t-sm)/1 var(--font-sans);
+  letter-spacing: 0.02em;
   cursor: pointer;
-  line-height: 1.2;
-  border-radius: 4px;
-  transition: opacity 80ms, transform 80ms;
+  transition: filter 80ms, transform 80ms;
 }
-.follow-btn:hover { opacity: 0.85; }
+.follow-btn:hover { filter: brightness(0.95); }
 .follow-btn:active { transform: translate(1px, 1px); }
 .follow-btn:disabled { cursor: progress; opacity: 0.6; }
 .follow-btn[aria-pressed="true"] {
   background: transparent;
-  color: var(--fg);
-  border: 1px solid var(--fg);
-  padding: 5px 13px;
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+.follow-btn[aria-pressed="true"]:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+  filter: none;
 }
 .follow-list {
   list-style: none;
@@ -268,9 +286,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--canvas-bg);
+  background: var(--paper-2);
+  border: var(--border) solid var(--line);
   color: var(--fg-muted);
-  border-radius: 4px;
 }
 .follow-card-name {
   flex: 1;
@@ -301,18 +319,26 @@
 .img-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  gap: 0;
+  gap: 8px;
   list-style: none;
   padding: 0;
   margin: 0;
   max-width: calc(6 * 320px);
 }
-.img-grid li { display: block; aspect-ratio: 1; background: var(--canvas-bg); overflow: hidden; position: relative; }
+.img-grid li {
+  display: block;
+  aspect-ratio: 1;
+  background: var(--paper-2);
+  border: var(--border) solid var(--line);
+  overflow: hidden;
+  position: relative;
+}
 .img-grid a { display: block; height: 100%; }
 /* object-fit: contain keeps non-square canvas thumbnails (e.g. a 2×1
-   composite) from stretching to fill the square cell — they letterbox against
-   the canvas-bg instead. Square thumbnails fill the cell exactly, unchanged. */
-.img-grid img { display: block; width: 100%; height: 100%; object-fit: contain; background: var(--canvas-bg); image-rendering: pixelated; }
+   composite) from stretching to fill the square cell — they letterbox
+   against the paper-2 wall instead. Square thumbnails fill the cell
+   exactly, unchanged. */
+.img-grid img { display: block; width: 100%; height: 100%; object-fit: contain; background: var(--paper-2); image-rendering: pixelated; }
 @media (max-width: 900px) { .img-grid { grid-template-columns: repeat(4, 1fr); } }
 @media (max-width: 520px) { .img-grid { grid-template-columns: repeat(3, 1fr); } }
 
@@ -350,8 +376,8 @@
   max-width: 320px;
   height: auto;
   display: block;
-  background: var(--canvas-bg);
-  border: var(--border) solid var(--border-c);
+  background: var(--paper-2);
+  border: var(--border) solid var(--line);
   aspect-ratio: 1;
   image-rendering: pixelated;
 }
@@ -376,8 +402,8 @@ img.profile-picture {
   display: inline-block;
   vertical-align: middle;
   margin-right: 8px;
-  border: var(--border) solid var(--border-c);
-  background: var(--canvas-bg);
+  border: var(--border) solid var(--line);
+  background: var(--paper-2);
   image-rendering: crisp-edges;
   image-rendering: pixelated;
 }
@@ -413,14 +439,19 @@ img.profile-picture {
   flex-wrap: wrap;
   gap: 6px;
 }
+/* Inherit the shared .badge style. The element is a <li> so the rule
+   below extends .badge defaults; ow-badges-specific overrides go here
+   if they ever diverge. */
 .ow-badges li {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--canvas-bg);
-  color: var(--fg);
-  font-size: var(--t-xs);
-  border: 1px solid var(--fg-muted);
+  border: var(--border) solid var(--line-strong);
+  background: var(--paper-2);
+  color: var(--ink);
+  font: 500 var(--t-xs)/1.4 var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 /* =====================================================================
@@ -539,11 +570,12 @@ img.profile-picture {
   display: block;
   aspect-ratio: 1;
   position: relative;
-  background: var(--bg-elev);
+  background: var(--paper-2);
+  border: var(--border) solid var(--line);
   overflow: hidden;
 }
-.st-day-out { background: transparent; }
-.st-day-thumb { background: var(--canvas-bg); }
+.st-day-out { background: transparent; border-color: transparent; }
+.st-day-thumb { background: var(--paper-2); }
 .st-day-thumb a {
   display: block;
   width: 100%;
@@ -566,8 +598,8 @@ img.profile-picture {
   pointer-events: none;
 }
 .st-day-thumb .st-day-num {
-  color: #fff;
-  text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+  color: var(--ink);
+  text-shadow: 0 0 2px var(--paper);
 }
 @media (max-width: 520px) {
   .st-week-head, .st-months { max-width: 100%; }
