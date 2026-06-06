@@ -31,12 +31,15 @@ import { ConsoleEmailSender } from "./email.js";
 import { JwtError, verifyJwt } from "./jwt.js";
 import type { AuthedUser } from "./handler.js";
 import {
+  handleGetProfile,
   handleLogin,
   handleRegister,
   handleForgotPassword,
   handleResetPassword,
   handleSetProfilePicture,
+  handleUpdateProfile,
   type AuthHandlerConfig,
+  type ProfileAuth,
   type SetProfilePictureAuth,
 } from "./auth-handler.js";
 import {
@@ -258,6 +261,18 @@ const server = http.createServer(async (req, res) => {
         jsonWithHeaders(res, result.status, result.body, result.headers);
         return;
       }
+      // GET /auth/profile — prefill for the edit-profile form on /account.
+      if (req.method === "GET" && u.pathname === "/auth/profile") {
+        const auth = extractAuth(req);
+        if (!auth) {
+          json(res, 401, { error: "authentication required" });
+          return;
+        }
+        const profileAuth: ProfileAuth = { user_id: auth.user_id, username: auth.username };
+        const result = await handleGetProfile(profileAuth, authConfig);
+        jsonWithHeaders(res, result.status, result.body, result.headers);
+        return;
+      }
     }
 
     if (req.method === "POST" && req.url && req.url.startsWith("/auth/")) {
@@ -294,6 +309,19 @@ const server = http.createServer(async (req, res) => {
             username: auth.username,
           };
           result = await handleSetProfilePicture(parsed, setPpAuth, authConfig);
+          break;
+        }
+        case "/auth/profile": {
+          const auth = extractAuth(req);
+          if (!auth) {
+            json(res, 401, { error: "authentication required" });
+            return;
+          }
+          const profileAuth: ProfileAuth = {
+            user_id: auth.user_id,
+            username: auth.username,
+          };
+          result = await handleUpdateProfile(parsed, profileAuth, authConfig);
           break;
         }
         default:

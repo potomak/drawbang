@@ -6,12 +6,13 @@ import {
   TokenVersionMismatchError,
   UsernameTakenError,
   UserNotFoundError,
+  type UserRecord,
   type UserStore,
 } from "./user-store.js";
 import type { EmailSender } from "./email.js";
 import type { DrawingStore } from "./drawing-store.js";
 import {
-  pathsToInvalidateOnProfilePictureChange,
+  pathsToInvalidateOnProfileChange,
   type CacheInvalidator,
 } from "./cache-invalidation.js";
 
@@ -325,7 +326,7 @@ export async function handleSetProfilePicture(
   // short s-maxage TTL (CC_DRAWING_PAGE in render-handlers.ts).
   if (cfg.cacheInvalidator) {
     void cfg.cacheInvalidator.invalidate(
-      pathsToInvalidateOnProfilePictureChange(updated.username),
+      pathsToInvalidateOnProfileChange(updated.username),
     );
   }
 
@@ -334,6 +335,121 @@ export async function handleSetProfilePicture(
     body: {
       username: updated.username,
       profile_picture_drawing_id: updated.profile_picture_drawing_id ?? null,
+    },
+  };
+}
+
+// POST /auth/profile (write) and GET /auth/profile (read) — public bio
+// + link the user controls. Same auth shape as setProfilePicture: identity
+// comes from the verified JWT, never the body.
+export interface ProfileAuth {
+  user_id: string;
+  username: string;
+}
+
+const MAX_BIO_LEN = 256;
+const MAX_LINK_LEN = 200;
+
+interface UpdateProfileRequest {
+  bio?: unknown;
+  link?: unknown;
+}
+
+interface ProfileFields {
+  bio: string | null;
+  link: string | null;
+}
+
+function normalizeBio(value: unknown): { ok: true; value: string | null } | { ok: false } {
+  if (typeof value !== "string") return { ok: false };
+  const cleaned = value.replace(/\r\n/g, "\n").replace(/[ \t]+$/gm, "");
+  // Reject control chars other than newline + tab so a bio can't smuggle
+  // formatting or zero-width tricks into the public render.
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x08\x0b-\x1f\x7f]/.test(cleaned)) return { ok: false };
+  if (cleaned.length > MAX_BIO_LEN) return { ok: false };
+  return { ok: true, value: cleaned.length === 0 ? null : cleaned };
+}
+
+function normalizeLink(value: unknown): { ok: true; value: string | null } | { ok: false } {
+  if (typeof value !== "string") return { ok: false };
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return { ok: true, value: null };
+  if (trimmed.length > MAX_LINK_LEN) return { ok: false };
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return { ok: false };
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return { ok: false };
+  return { ok: true, value: url.toString() };
+}
+
+async function resolveSelf(
+  auth: ProfileAuth,
+  cfg: AuthHandlerConfig,
+): Promise<{ ok: true; account: UserRecord } | { ok: false }> {
+  const account = await cfg.userStore.getByUsername(auth.username);
+  if (!account || account.user_id !== auth.user_id) return { ok: false };
+  return { ok: true, account };
+}
+
+export async function handleGetProfile(
+  auth: ProfileAuth,
+  cfg: AuthHandlerConfig,
+): Promise<AuthResult> {
+  const resolved = await resolveSelf(auth, cfg);
+  if (!resolved.ok) return err(401, "authentication required");
+  const account = resolved.account;
+  return {
+    status: 200,
+    body: {
+      username: account.username,
+      bio: account.bio ?? null,
+      link: account.link ?? null,
+    },
+  };
+}
+
+export async function handleUpdateProfile(
+  req: UpdateProfileRequest,
+  auth: ProfileAuth,
+  cfg: AuthHandlerConfig,
+): Promise<AuthResult> {
+  // Same "explicit clear" rule as setProfilePicture — omitting a field
+  // is a 400 so a client bug can't silently wipe an existing value.
+  if (req.bio === undefined) return err(400, "missing bio (send empty string to clear)");
+  if (req.link === undefined) return err(400, "missing link (send empty string to clear)");
+  const bio = normalizeBio(req.bio);
+  if (!bio.ok) return err(400, `invalid bio (plain text, max ${MAX_BIO_LEN} chars)`);
+  const link = normalizeLink(req.link);
+  if (!link.ok) return err(400, "invalid link (must be an http(s) URL)");
+
+  const resolved = await resolveSelf(auth, cfg);
+  if (!resolved.ok) return err(401, "authentication required");
+
+  const fields: ProfileFields = { bio: bio.value, link: link.value };
+  let updated;
+  try {
+    updated = await cfg.userStore.updateProfile(resolved.account.email, fields);
+  } catch (e) {
+    if (e instanceof UserNotFoundError) return err(401, "authentication required");
+    throw e;
+  }
+
+  if (cfg.cacheInvalidator) {
+    void cfg.cacheInvalidator.invalidate(
+      pathsToInvalidateOnProfileChange(updated.username),
+    );
+  }
+
+  return {
+    status: 200,
+    body: {
+      username: updated.username,
+      bio: updated.bio ?? null,
+      link: updated.link ?? null,
     },
   };
 }

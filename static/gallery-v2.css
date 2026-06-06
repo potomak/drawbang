@@ -183,6 +183,37 @@
   font-size: var(--t-sm);
 }
 .ow-owner-link:hover { color: var(--accent); }
+.ow-about {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 60ch;
+  margin: 0 0 16px 0;
+}
+.ow-bio {
+  margin: 0;
+  color: var(--fg);
+  font-size: var(--t-sm);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ow-link {
+  margin: 0;
+  font-size: var(--t-sm);
+  min-width: 0;
+}
+.ow-link a {
+  display: inline-block;
+  max-width: 100%;
+  color: var(--accent);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.ow-link a:hover { text-decoration: underline; }
 .follow-btn {
   display: inline-flex;
   align-items: center;

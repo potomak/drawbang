@@ -8,11 +8,14 @@ import { JwtError, verifyJwt } from "./jwt.js";
 import { handleUserStats } from "./user-stats-handler.js";
 import {
   handleForgotPassword,
+  handleGetProfile,
   handleLogin,
   handleRegister,
   handleResetPassword,
   handleSetProfilePicture,
+  handleUpdateProfile,
   type AuthHandlerConfig,
+  type ProfileAuth,
   type SetProfilePictureAuth,
 } from "./auth-handler.js";
 import { S3Storage } from "./s3-storage.js";
@@ -280,6 +283,15 @@ export async function handler(
     );
     return jsonWithHeaders(result.status, result.body, result.headers);
   }
+  // GET /auth/profile — prefill for the edit-profile form on /account.
+  // Requires a valid session; returns the caller's current bio/link.
+  if (method === "GET" && path === "/auth/profile") {
+    const auth = extractAuth(event);
+    if (!auth) return json(401, { error: "authentication required" });
+    const profileAuth: ProfileAuth = { user_id: auth.user_id, username: auth.username };
+    const result = await handleGetProfile(profileAuth, authConfig);
+    return jsonWithHeaders(result.status, result.body, result.headers);
+  }
   if (method === "POST" && path.startsWith("/auth/")) {
     return handleAuthRoute(event, path);
   }
@@ -333,6 +345,16 @@ async function handleAuthRoute(
         username: auth.username,
       };
       result = await handleSetProfilePicture(body, setPpAuth, authConfig);
+      break;
+    }
+    case "/auth/profile": {
+      const auth = extractAuth(event);
+      if (!auth) return json(401, { error: "authentication required" });
+      const profileAuth: ProfileAuth = {
+        user_id: auth.user_id,
+        username: auth.username,
+      };
+      result = await handleUpdateProfile(body, profileAuth, authConfig);
       break;
     }
     default:

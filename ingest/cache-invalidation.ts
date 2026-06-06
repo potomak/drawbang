@@ -63,10 +63,10 @@ export function pathsToInvalidateOnPublish(username: string): string[] {
   ];
 }
 
-// Invalidates the profile so the new profile picture appears immediately.
-// Drawing pages absorb the change on their own s-maxage TTL (we keep
-// that short for the same reason).
-export function pathsToInvalidateOnProfilePictureChange(
+// Invalidates the profile so an edit (profile picture, bio, link, …)
+// appears immediately. Drawing pages absorb profile-picture changes on
+// their own s-maxage TTL (we keep that short for the same reason).
+export function pathsToInvalidateOnProfileChange(
   username: string,
 ): string[] {
   return [`/u/${username}*`];

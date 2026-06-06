@@ -19,6 +19,20 @@
           <a class="btn" id="account-profile" href="/">View your profile</a>
           <button class="btn ghost" id="account-logout" type="button">Sign out</button>
         </p>
+        <form class="auth-form" id="edit-profile-form" novalidate>
+          <h3>Edit profile</h3>
+          <label class="auth-field">
+            <span>Bio</span>
+            <textarea id="edit-bio" name="bio" maxlength="256" rows="3"></textarea>
+            <small class="muted">Up to 256 characters. Visible on your profile.</small>
+          </label>
+          <label class="auth-field">
+            <span>Link</span>
+            <input type="url" id="edit-link" name="link" maxlength="200" placeholder="https://" />
+            <small class="muted">Optional. Must start with http:// or https://.</small>
+          </label>
+          <button class="btn primary" id="edit-profile-submit" type="submit">Save profile</button>
+        </form>
       </div>
     </main>
     <!--CHROME:FOOTER-->

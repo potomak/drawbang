@@ -584,5 +584,15 @@ dialog form menu button:hover { border-color: var(--border-strong); }
   font: 400 var(--t-sm) var(--font);
 }
 .auth-field input:focus { outline: none; border-color: var(--border-strong); }
+.auth-field textarea {
+  min-height: calc(var(--tap) * 2);
+  padding: 8px 10px;
+  background: var(--bg);
+  border: var(--border) solid var(--border-c);
+  color: var(--fg);
+  font: 400 var(--t-sm) var(--font);
+  resize: vertical;
+}
+.auth-field textarea:focus { outline: none; border-color: var(--border-strong); }
 .auth-field small { font-size: var(--t-xs); }
 

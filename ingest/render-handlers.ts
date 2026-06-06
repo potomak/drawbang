@@ -342,6 +342,8 @@ export async function renderProfilePageHandler(
     profile_picture_drawing_id: profilePictureDrawingId,
     follower_count: account?.follower_count,
     following_count: account?.following_count,
+    bio: account?.bio ?? null,
+    link: account?.link ?? null,
     repo_url: cfg.repoUrl,
   });
   if (next) body = injectProfileSentinel(body, next);

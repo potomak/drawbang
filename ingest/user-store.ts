@@ -32,6 +32,12 @@ export interface UserRecord {
   // follows table — readers treat absent as 0.
   follower_count?: number;
   following_count?: number;
+  // Public profile fields editable via POST /auth/profile. Both are
+  // optional; absent → nothing rendered on /u/<username>. The handler
+  // validates lengths + protocol before write, so readers can treat
+  // these as pre-sanitised plain text + http(s) URL.
+  bio?: string;
+  link?: string;
 }
 
 export class EmailTakenError extends Error {
@@ -85,6 +91,14 @@ export interface UserStore {
   // responsible for validating ownership BEFORE invoking this — the store
   // just writes. Pass null to clear.
   setProfilePicture(email: string, drawing_id: string | null): Promise<UserRecord>;
+  // Sets the public profile fields. Each field is independently set
+  // (non-null string) or removed (null). Caller is responsible for
+  // validation (length, URL scheme) before invoking. Throws
+  // UserNotFoundError when the email isn't registered.
+  updateProfile(
+    email: string,
+    fields: { bio: string | null; link: string | null },
+  ): Promise<UserRecord>;
 }
 
 // -- DynamoDB -----------------------------------------------------------------
@@ -249,6 +263,48 @@ export class DynamoUserStore implements UserStore {
       throw e;
     }
   }
+
+  async updateProfile(
+    email: string,
+    fields: { bio: string | null; link: string | null },
+  ): Promise<UserRecord> {
+    const sets: string[] = [];
+    const removes: string[] = [];
+    const values: Record<string, unknown> = {};
+    if (fields.bio === null) {
+      removes.push("bio");
+    } else {
+      sets.push("bio = :bio");
+      values[":bio"] = fields.bio;
+    }
+    if (fields.link === null) {
+      removes.push("link");
+    } else {
+      sets.push("link = :link");
+      values[":link"] = fields.link;
+    }
+    const parts: string[] = [];
+    if (sets.length) parts.push(`SET ${sets.join(", ")}`);
+    if (removes.length) parts.push(`REMOVE ${removes.join(", ")}`);
+    try {
+      const r = await this.doc.send(
+        new UpdateCommand({
+          TableName: this.usersTable,
+          Key: { email },
+          UpdateExpression: parts.join(" "),
+          ConditionExpression: "attribute_exists(email)",
+          ExpressionAttributeValues: Object.keys(values).length ? values : undefined,
+          ReturnValues: "ALL_NEW",
+        }),
+      );
+      return r.Attributes as UserRecord;
+    } catch (e) {
+      if ((e as { name?: string }).name === "ConditionalCheckFailedException") {
+        throw new UserNotFoundError();
+      }
+      throw e;
+    }
+  }
 }
 
 // -- In-memory (tests + dev) --------------------------------------------------
@@ -307,6 +363,20 @@ export class MemoryUserStore implements UserStore {
     const updated: UserRecord = drawing_id
       ? { ...rest, profile_picture_drawing_id: drawing_id }
       : rest;
+    this.byEmail.set(email, updated);
+    return { ...updated };
+  }
+
+  async updateProfile(
+    email: string,
+    fields: { bio: string | null; link: string | null },
+  ): Promise<UserRecord> {
+    const r = this.byEmail.get(email);
+    if (!r) throw new UserNotFoundError();
+    const { bio: _bio, link: _link, ...rest } = r;
+    const updated: UserRecord = { ...rest };
+    if (fields.bio !== null) updated.bio = fields.bio;
+    if (fields.link !== null) updated.link = fields.link;
     this.byEmail.set(email, updated);
     return { ...updated };
   }

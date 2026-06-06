@@ -90,6 +90,65 @@ export async function resetPassword(
   return sessionPost("/auth/password/reset", { token, password });
 }
 
+export interface ProfileFields {
+  bio: string | null;
+  link: string | null;
+}
+
+export type ProfileOutcome =
+  | { ok: true; profile: ProfileFields }
+  | { ok: false; status: number; error: string };
+
+export async function getProfile(): Promise<ProfileOutcome> {
+  try {
+    const res = await fetch(`${AUTH_BASE}/auth/profile`, {
+      method: "GET",
+      headers: { ...authHeader() },
+    });
+    const data = await safeJson(res);
+    if (!res.ok) {
+      return { ok: false, status: res.status, error: data?.error ?? "request failed" };
+    }
+    const payload = data as unknown as Partial<ProfileFields> | null;
+    return {
+      ok: true,
+      profile: {
+        bio: typeof payload?.bio === "string" ? payload.bio : null,
+        link: typeof payload?.link === "string" ? payload.link : null,
+      },
+    };
+  } catch {
+    return { ok: false, status: 0, error: "network error" };
+  }
+}
+
+export async function updateProfile(fields: ProfileFields): Promise<ProfileOutcome> {
+  try {
+    const res = await fetch(`${AUTH_BASE}/auth/profile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeader() },
+      body: JSON.stringify({
+        bio: fields.bio ?? "",
+        link: fields.link ?? "",
+      }),
+    });
+    const data = await safeJson(res);
+    if (!res.ok) {
+      return { ok: false, status: res.status, error: data?.error ?? "request failed" };
+    }
+    const payload = data as unknown as Partial<ProfileFields> | null;
+    return {
+      ok: true,
+      profile: {
+        bio: typeof payload?.bio === "string" ? payload.bio : null,
+        link: typeof payload?.link === "string" ? payload.link : null,
+      },
+    };
+  } catch {
+    return { ok: false, status: 0, error: "network error" };
+  }
+}
+
 export async function forgotPassword(email: string): Promise<ForgotPasswordOutcome> {
   try {
     const res = await fetch(`${AUTH_BASE}/auth/password/forgot`, {

@@ -780,6 +780,18 @@ Resources:
             ApiId: !Ref IngestApi
             Method: POST
             Path: /auth/profile-picture
+        AuthGetProfile:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /auth/profile
+        AuthUpdateProfile:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: POST
+            Path: /auth/profile
         HomePage:
           Type: HttpApi
           Properties:

@@ -32,6 +32,11 @@ export interface OwnerView {
   // up the truth on the next edge-cache miss).
   follower_count?: number;
   following_count?: number;
+  // Editable via POST /auth/profile. Both are optional; absent → the
+  // about block is omitted entirely. Bio is plain text (newlines
+  // preserved). Link is a pre-validated http(s) URL.
+  bio?: string | null;
+  link?: string | null;
   repo_url: string;
 }
 
@@ -87,6 +92,7 @@ ${items}
       ? `      <p class="ow-streak-link"><a href="/u/${esc(v.username)}/streak">View streak calendar →</a></p>\n`
       : "";
   const social = renderSocialBlock(v);
+  const about = renderAboutBlock(v);
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -101,7 +107,7 @@ ${items}
     ${renderHeader({ active: "identity" })}
     <main>
       <h1 class="page-title">${renderProfilePicture(v.profile_picture_drawing_id, v.username, 32)}Drawings by ${esc(v.username)}</h1>
-${social}${stats}${streakLink}${body}
+${social}${about}${stats}${streakLink}${body}
     </main>
     ${renderFooter({ active: "identity", repoUrl: v.repo_url })}
     <script src="${assetUrl("/follow.js")}"></script>
@@ -130,6 +136,30 @@ function renderSocialBlock(v: OwnerView): string {
         <a class="ow-owner-link" href="/u/${esc(v.username)}/bookmarks" data-owner-only-for="${esc(v.username)}" hidden>Bookmarks</a>
       </div>
 `;
+}
+
+function renderAboutBlock(v: OwnerView): string {
+  // Same defensive bail-out as renderSocialBlock — the "anonymous"
+  // sentinel bucket can't own a real profile.
+  if (v.username === "anonymous") return "";
+  const bio = typeof v.bio === "string" && v.bio.length > 0 ? v.bio : null;
+  const link = typeof v.link === "string" && v.link.length > 0 ? v.link : null;
+  if (!bio && !link) return "";
+  const parts: string[] = [];
+  if (bio) parts.push(`        <p class="ow-bio">${esc(bio)}</p>`);
+  if (link) {
+    parts.push(
+      `        <p class="ow-link"><a href="${esc(link)}" rel="nofollow noopener noreferrer" target="_blank">${esc(displayLink(link))}</a></p>`,
+    );
+  }
+  return `      <div class="ow-about">
+${parts.join("\n")}
+      </div>
+`;
+}
+
+function displayLink(url: string): string {
+  return url.replace(/^https?:\/\//, "");
 }
 
 function renderStats(s: OwnerStats): string {
