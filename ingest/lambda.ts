@@ -383,6 +383,10 @@ async function handleIngestRoute(
   if (!auth) return json(401, { error: "authentication required" });
   let body: IngestRequest;
   try {
+    // TODO (#type-safety): `parseJson(event) as IngestRequest` trusts the
+    // shape of any well-formed JSON. Validate the keys (gif_b64, palette,
+    // etc.) before passing to handleIngest. Same gap on the register /
+    // login / set-profile-picture routes.
     body = parseJson(event) as IngestRequest;
   } catch {
     return json(400, { error: "bad json body" });

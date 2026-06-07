@@ -1,3 +1,7 @@
+// TODO (#shared-toggle-utils): like.js / bookmark.js / follow.js share the
+// same shape — extract a createToggleHandler() factory in
+// static/toggle-handler.js and call it from each.
+
 // Follow-button click handler for /u/<un>, /u/<un>/followers, and
 // /u/<un>/following. Read-side state (filled state + counts) is owned
 // by /hydrate.js — this script only handles writes.
@@ -21,6 +25,9 @@
   var USERNAME_KEY = "drawbang:username";
   var WIRED_ATTR = "data-follow-wired";
 
+  // TODO (#shared-localstorage): same localStorage try/catch wrapper as
+  // like.js, bookmark.js, and the TS surfaces. Extract safeGet() into
+  // static/storage-utils.js.
   function token() {
     try { return localStorage.getItem(JWT_KEY) || null; } catch (e) { return null; }
   }

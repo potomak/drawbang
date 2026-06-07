@@ -1,3 +1,11 @@
+// TODO (#shared-template-utils): the HTML head/shell (doctype, lang,
+// charset, viewport, title, asset link, analytics, header/footer wrap) is
+// duplicated across every template here. Extract renderHtmlShell({title,
+// description, body, ...}) into lib/templates/_html-shell.ts. The inline
+// infinite-scroll <script> below is also repeated in gallery.ts /
+// follow-list.ts / bookmarks.ts — move to static/infinite-scroll.js or
+// a shared _infinite-scroll.ts renderer.
+
 import { assetUrl } from "../../src/layout/asset-version.js";
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";

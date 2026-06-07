@@ -47,6 +47,8 @@ export function productCardsFromCounters(
 // Coarse "N units ago" label, server-rendered so the products page is
 // deterministic + cacheable for the s-maxage window. Returns null for
 // invalid timestamps; "just now" for clock-skew futures.
+// TODO (#dead-code): only used by productCardsFromCounters above — drop the
+// export and make this a file-local helper.
 export function relativeTimeLabel(iso: string, now: Date): string | null {
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return null;

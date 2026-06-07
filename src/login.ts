@@ -1,3 +1,9 @@
+// TODO (#shared-form-utils): this controller shares the same shape with
+// signup.ts, password-forgot.ts, password-reset.ts, account.ts — get
+// element refs, addEventListener("submit"), setBusy() toggle on submit
+// disabled, flash on result. Extract createFormSubmitter() into
+// src/form-utils.ts and reuse.
+
 import "./style.css";
 import { login } from "./auth.js";
 import { safeNext } from "./auth-redirect.js";

@@ -1,3 +1,8 @@
+// TODO (#shared-localstorage): the try/catch localStorage wrappers below
+// duplicate the same pattern in auth.ts, order.ts, main.ts, and the three
+// static/ JS files. Extract safeGet/safeSet/safeRemove into
+// src/storage-utils.ts.
+
 // /privacy page: opt-out toggle that flips the same localStorage key the
 // pre-snippet gate in src/layout/tracking.ts reads on every page load.
 // Status indicator reflects the current state; the toggle button writes

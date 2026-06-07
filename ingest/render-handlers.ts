@@ -1,3 +1,11 @@
+// TODO (#split-render-handlers): this module is ~900 lines and handles
+// every dynamic route (home/feed, tile, profile, follow-list, bookmarks,
+// products, design, feed.rss, not-found). Split by domain:
+// render-home.ts, render-tile.ts, render-profile.ts, render-follow-list.ts,
+// render-products.ts, render-feed.ts, render-design.ts. Keep
+// RenderHandlersConfig + the shared helpers (notFound, etc.) in a
+// render-shared.ts and have lambda.ts route to per-domain modules.
+
 import { PER_PAGE } from "../config/constants.js";
 import renderGallery, {
   renderGalleryFragment,
@@ -103,6 +111,10 @@ export interface RenderResponse {
 // refresh within minutes instead of a day — the liker sees their own
 // change instantly via optimistic JS, but non-likers depend on the next
 // miss.
+// TODO (#shared-handler-utils): the CC_* cache-control strings (here +
+// CC_FOLLOW_LIST / CC_FOLLOW_THUMBS / CC_PRODUCTS / CC_DESIGN further
+// down) belong in config/constants.ts so cache policies are visible in
+// one place and easy to tune without grepping render-handlers.
 const CC_GALLERY = "public, s-maxage=300, stale-while-revalidate=60";
 const CC_DRAWING_PAGE = "public, max-age=60, s-maxage=300, stale-while-revalidate=60";
 const CC_PROFILE = "public, s-maxage=86400, stale-while-revalidate=60";
@@ -314,6 +326,9 @@ export async function renderDrawingPageHandler(
 
 // -- /u/<username> + /u/<username>/items -------------------------------------
 
+// TODO (#shared-handler-utils): USERNAME_RE is duplicated across
+// auth-handler, hydrate-handler, and follows-handler. Centralize in
+// config/constants.ts.
 const USERNAME_RE = /^[a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_]$/;
 
 export async function renderProfilePageHandler(

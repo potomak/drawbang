@@ -168,6 +168,10 @@ app.innerHTML = /* html */ `
       <div class="ed-frames-head">
         <span class="panel-h" id="framesHeading">Frames — 1</span>
         <div class="ed-frames-meta">
+          <!-- TODO (#inline-styles): the icon+label "margin-left:6px" pattern
+               appears here, on the Paste/Play buttons below, and at the bottom
+               of this file when toggling Play↔Pause. Replace with a small
+               .btn-icon-label class in src/style.css. -->
           <button class="btn xs" data-action="copy-frame" title="Copy current frame">${ICON.copy}<span style="margin-left:6px">Copy</span></button>
           <button class="btn xs" data-action="paste-frame" id="pasteBtn" title="Paste copied frame as a new frame" disabled>${ICON.paste}<span style="margin-left:6px">Paste</span></button>
           <button class="btn xs" data-action="toggle-onion" id="onionBtn" aria-pressed="false" title="Onion skin (preview previous frame)">Onion</button>
@@ -234,6 +238,9 @@ function applyPalette(id: string, persist = true): void {
   currentPaletteId = palette.id;
   selectedSlot = 1;
   if (persist) {
+    // TODO (#shared-localstorage): this try/catch wraps the same shape used
+    // in auth.ts, order.ts, privacy.ts, and the static/ JS files. Extract
+    // safeSet() into src/storage-utils.ts.
     try {
       localStorage.setItem(PALETTE_LS_KEY, currentPaletteId);
     } catch {

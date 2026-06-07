@@ -44,6 +44,11 @@ let pollTimer: ReturnType<typeof setTimeout> | null = null;
 // the status hasn't actually changed (the poll fires every 30s).
 let lastTrackedStatus: string | null = null;
 
+// TODO (#shared-localstorage): hasPurchaseFired/markPurchaseFired wrap
+// localStorage with try/catch — the same shape lives in auth.ts,
+// main.ts, privacy.ts, and the three static/ JS files. Extract
+// safeGet/safeSet helpers into src/storage-utils.ts.
+
 // localStorage flag so `purchase` fires AT MOST ONCE per order across
 // refreshes / multiple tabs / link revisits. GA's Monetization funnel
 // double-counts purchases otherwise.

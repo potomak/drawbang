@@ -1,3 +1,8 @@
+// TODO (#shared-handler-utils): This module shares scaffolding with
+// likes-handler.ts and bookmarks-handler.ts (Auth/Config/Result shapes,
+// ok()/err() helpers, AlreadyXxx/NotXxx → 409 mapping). The USERNAME_RE
+// duplicated below also belongs in a shared validators module.
+
 import {
   AlreadyFollowingError,
   NotFollowingError,
@@ -15,6 +20,9 @@ import type { UserStore } from "./user-store.js";
 
 // Mirrors the username regex used by the rendering routes (USERNAME_RE in
 // render-handlers.ts). Kept inline to avoid a cross-module cycle.
+// TODO (#shared-handler-utils): USERNAME_RE is duplicated in
+// render-handlers.ts, auth-handler.ts, and hydrate-handler.ts. Centralize
+// in config/constants.ts to break the would-be cycle.
 const USERNAME_RE = /^[a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_]$/;
 
 export interface FollowsAuth {

@@ -1,3 +1,7 @@
+// TODO (#shared-template-utils): HTML head/shell duplication with the
+// other Lambda-rendered templates + inline infinite-scroll observer
+// block. Lift both to shared helpers (see home.ts for the full plan).
+
 import { assetUrl } from "../../src/layout/asset-version.js";
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";

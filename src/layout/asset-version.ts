@@ -16,6 +16,8 @@
 const VERSION: string =
   (typeof process !== "undefined" && process.env?.DRAWBANG_ASSET_VERSION) || "";
 
+// TODO (#dead-code): assetVersion() has no callers — assetUrl() is the only
+// consumer of VERSION. Delete this export.
 export function assetVersion(): string {
   return VERSION;
 }

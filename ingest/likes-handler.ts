@@ -1,3 +1,8 @@
+// TODO (#shared-handler-utils): This module shares scaffolding with
+// bookmarks-handler.ts and follows-handler.ts (Auth/Config/Result shapes,
+// ok()/err() helpers, AlreadyXxx/NotXxx → 409 mapping, DRAWING_ID_RE).
+// Extract into ingest/handler-utils.ts and import.
+
 import {
   AlreadyLikedError,
   DrawingNotFoundError,
@@ -11,6 +16,9 @@ import {
 // `auth` in). Anonymous viewers get 401 before reaching here. Read-side
 // hydration (counts + viewer_liked) lives in /hydrate (hydrate-handler.ts).
 
+// TODO (#shared-handler-utils): DRAWING_ID_RE is duplicated in
+// bookmarks-handler.ts and hydrate-handler.ts. Centralize in
+// config/constants.ts or ingest/validators.ts.
 const DRAWING_ID_RE = /^[0-9a-f]{64}$/;
 
 export interface LikesAuth {

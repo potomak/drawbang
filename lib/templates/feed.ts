@@ -1,3 +1,7 @@
+// TODO (#shared-template-utils): RSS-flavoured shell (no full HTML head)
+// but still has its own boilerplate worth tidying alongside the
+// _html-shell helper — at minimum, share the lang/base-url channel.
+
 import { esc } from "./_escape.js";
 
 export interface FeedItem {

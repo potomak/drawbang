@@ -1,3 +1,9 @@
+// TODO (#shared-toggle-utils): like.js / bookmark.js / follow.js share the
+// same shape — localStorage JWT guard, isPressed/setPressed, optimistic
+// toggle + revert-on-error, MutationObserver re-wire, 401 → /login?next=.
+// Extract a createToggleHandler({endpoint, targetAttr, wiredAttr, ...})
+// factory in static/toggle-handler.js and call it from each.
+
 // Heart-button click handler for feed cards (/) and the drawing page
 // (/d/<id>). Read-side state (filled state + counts) is owned by
 // /hydrate.js — this script only handles writes.
@@ -17,6 +23,9 @@
   var WIRED_ATTR = "data-like-wired";
 
   function token() {
+    // TODO (#shared-localstorage): localStorage try/catch wrapper is
+    // duplicated in bookmark.js, follow.js, and the TS auth/order/main
+    // surfaces. Extract safeGet() into static/storage-utils.js.
     try { return localStorage.getItem(JWT_KEY) || null; } catch (e) { return null; }
   }
 

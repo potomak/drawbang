@@ -1,3 +1,6 @@
+// TODO (#shared-template-utils): HTML head/shell duplication + inline
+// infinite-scroll observer — see home.ts for the lift plan.
+
 import { assetUrl } from "../../src/layout/asset-version.js";
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";

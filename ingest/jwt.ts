@@ -52,6 +52,11 @@ export function verifyJwt<T extends JwtClaims = JwtClaims>(
   }
   let claims: T;
   try {
+    // TODO (#type-safety): JSON.parse(...) as T trusts the payload shape.
+    // exp is checked below, but other consumer-specific claims (sub, un,
+    // purpose, tv) are read elsewhere without typeof guards. Add a
+    // runtime validator (typeof claims.sub === "string" etc.) at each
+    // verify site, or centralize per-purpose validators here.
     claims = JSON.parse(
       Buffer.from(payload, "base64url").toString("utf8"),
     ) as T;

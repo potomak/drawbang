@@ -1,3 +1,8 @@
+// TODO (#shared-handler-utils): This module shares scaffolding with
+// likes-handler.ts and follows-handler.ts (Auth/Config/Result shapes,
+// ok()/err() helpers, AlreadyXxx/NotXxx → 409 mapping, DRAWING_ID_RE).
+// Extract into ingest/handler-utils.ts and import.
+
 import {
   AlreadyBookmarkedError,
   BookmarkDrawingNotFoundError,
@@ -12,6 +17,9 @@ import {
 // hydration (viewer_bookmarked) lives in /hydrate (hydrate-handler.ts).
 // /u/<un>/bookmarks rendering lives in render-handlers.ts.
 
+// TODO (#shared-handler-utils): DRAWING_ID_RE is duplicated in
+// likes-handler.ts and hydrate-handler.ts. Centralize in
+// config/constants.ts or ingest/validators.ts.
 const DRAWING_ID_RE = /^[0-9a-f]{64}$/;
 
 export interface BookmarksAuth {

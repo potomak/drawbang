@@ -1,3 +1,7 @@
+// TODO (#shared-form-utils): the edit-profile form here repeats the same
+// pattern as login.ts / signup.ts / password-forgot.ts / password-reset.ts.
+// Extract a shared createFormSubmitter() into src/form-utils.ts.
+
 import "./style.css";
 import { getProfile, getSession, logout, updateProfile } from "./auth.js";
 import { showFlash } from "./layout/flash.js";

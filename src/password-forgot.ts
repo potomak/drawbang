@@ -1,3 +1,7 @@
+// TODO (#shared-form-utils): same boilerplate as login.ts / signup.ts /
+// password-reset.ts / account.ts. Extract a shared createFormSubmitter()
+// into src/form-utils.ts.
+
 import "./style.css";
 import { forgotPassword } from "./auth.js";
 import { showFlash } from "./layout/flash.js";

@@ -1,3 +1,7 @@
+// TODO (#shared-toggle-utils): like.js / bookmark.js / follow.js share the
+// same shape — extract a createToggleHandler() factory in
+// static/toggle-handler.js and call it from each.
+
 // Bookmark-button click handler for feed cards, the drawing page, and
 // the bookmarks page. Read-side state (aria-pressed) is owned by
 // /hydrate.js — this script only handles writes.
@@ -14,6 +18,9 @@
   var WIRED_ATTR = "data-bookmark-wired";
 
   function token() {
+    // TODO (#shared-localstorage): same localStorage try/catch wrapper as
+    // like.js, follow.js, and the TS surfaces. Extract safeGet() into
+    // static/storage-utils.js.
     try { return localStorage.getItem(JWT_KEY) || null; } catch (e) { return null; }
   }
 

@@ -25,6 +25,8 @@ export const DAILY_DRAWING_BADGES: readonly BadgeDef[] = [
   { id: "daily-365", dimension: "daily", threshold: 365, label: "1 year of drawings" },
 ];
 
+// TODO (#dead-code): ALL_BADGES is never imported — DAILY_DRAWING_BADGES is
+// the only set the renderer/handler use today. Delete this export.
 export const ALL_BADGES: readonly BadgeDef[] = [...DAILY_DRAWING_BADGES];
 
 export interface BadgeCounts {
