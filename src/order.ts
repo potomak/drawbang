@@ -1,4 +1,4 @@
-import { trackOrderStatusView, trackPurchase } from "./analytics.js";
+import { tracker } from "./analytics/analytics.js";
 
 interface OrderView {
   order_id?: string;
@@ -158,7 +158,7 @@ async function load(id: string): Promise<void> {
 function trackStatusEvents(order: OrderView): void {
   const status = order.status ?? "unknown";
   if (status !== lastTrackedStatus) {
-    trackOrderStatusView(status);
+    tracker.orderStatusView(status);
     lastTrackedStatus = status;
   }
   // GA4 Monetization `purchase` — fire once the order is paid. Idempotent
@@ -171,7 +171,7 @@ function trackStatusEvents(order: OrderView): void {
     typeof order.retail_cents === "number" &&
     !hasPurchaseFired(order.order_id)
   ) {
-    trackPurchase({
+    tracker.purchase({
       transaction_id: order.order_id,
       value: order.retail_cents / 100,
       items: [{

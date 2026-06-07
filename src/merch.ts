@@ -2,18 +2,7 @@ import { Bitmap } from "./editor/bitmap.js";
 import { PixelCanvas } from "./editor/canvas.js";
 import { decodeGif } from "./editor/gif.js";
 import { activePaletteToRgb, DEFAULT_ACTIVE_PALETTE } from "./editor/palette.js";
-import {
-  trackBeginCheckout,
-  trackMerchColorClick,
-  trackMerchPlacementClick,
-  trackMerchProductClick,
-  trackMerchSizeClick,
-  trackViewItem,
-} from "./analytics.js";
-import {
-  trackInitiateCheckout as trackPixelInitiateCheckout,
-  trackViewContent as trackPixelViewContent,
-} from "./meta-pixel.js";
+import { tracker } from "./analytics/analytics.js";
 import {
   loadMockupImage,
   paintMockupPreview,
@@ -295,19 +284,14 @@ function selectProduct(product: MerchProduct): void {
   // card. Variant isn't known yet at this stage, so price reports the
   // cheapest variant.
   const viewPrice = lowestPrice(product) / 100;
-  trackViewItem({
+  tracker.viewMerchItem({
     item_id: product.id,
     item_name: product.name,
     price: viewPrice,
   });
-  trackPixelViewContent({
-    content_id: product.id,
-    content_name: product.name,
-    value: viewPrice,
-  });
   // Buyer-funnel step: which product card was picked, separate from the
   // ecommerce view_item that GA's Monetization report aggregates against.
-  trackMerchProductClick(product.id);
+  tracker.merchProductClick(product.id);
 }
 
 function uniqueAxisValues(product: MerchProduct, axis: "size" | "color"): string[] {
@@ -376,7 +360,7 @@ function renderPlacementPicker(): void {
       });
       repaintCardPreviews();
       if (selectedProduct) {
-        trackMerchPlacementClick({ product_id: selectedProduct.id, placement: preset });
+        tracker.merchPlacementClick({ product_id: selectedProduct.id, placement: preset });
       }
     });
     placementPickerEl.appendChild(btn);
@@ -419,7 +403,7 @@ function renderSizePicker(): void {
   renderAxisPicker("size", sizePickerEl, stepSizeEl, selectedSize, (value) => {
     selectedSize = value;
     if (selectedProduct) {
-      trackMerchSizeClick({ product_id: selectedProduct.id, size: value });
+      tracker.merchSizeClick({ product_id: selectedProduct.id, size: value });
     }
     // Keep the existing color if a variant with this (size, color) exists;
     // otherwise clear it so the user explicitly re-picks.
@@ -448,7 +432,7 @@ function renderColorPicker(): void {
   renderAxisPicker("color", colorPickerEl, stepColorEl, selectedColor, (value) => {
     selectedColor = value;
     if (selectedProduct) {
-      trackMerchColorClick({ product_id: selectedProduct.id, color: value });
+      tracker.merchColorClick({ product_id: selectedProduct.id, color: value });
     }
     if (selectedSize && !variantExists(selectedSize, selectedColor)) {
       selectedSize = null;
@@ -518,7 +502,7 @@ async function handleCheckout(): Promise<void> {
   // by network errors on the /merch/checkout POST.
   const variantLabel = [variant.size, variant.color].filter(Boolean).join(" / ");
   const checkoutValue = (variant.retail_cents + selectedProduct.shipping_cents) / 100;
-  trackBeginCheckout({
+  tracker.beginMerchCheckout({
     value: checkoutValue,
     items: [
       {
@@ -529,15 +513,14 @@ async function handleCheckout(): Promise<void> {
         ...(variantLabel ? { item_variant: variantLabel } : {}),
       },
     ],
-  });
-  trackPixelInitiateCheckout({
-    content_ids: [selectedProduct.id],
-    content_name: selectedProduct.name,
-    value: checkoutValue,
-    num_items: 1,
-    contents: [
-      { id: selectedProduct.id, item_price: variant.retail_cents / 100, quantity: 1 },
-    ],
+    pixel: {
+      content_ids: [selectedProduct.id],
+      content_name: selectedProduct.name,
+      num_items: 1,
+      contents: [
+        { id: selectedProduct.id, item_price: variant.retail_cents / 100, quantity: 1 },
+      ],
+    },
   });
   checkoutInFlight = true;
   updateCheckoutButton();

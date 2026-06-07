@@ -14,26 +14,6 @@ with the commit SHA.
 
 ---
 
-## #analytics
-
-Consolidate the two parallel analytics modules behind a single tracker
-class. The vendor wrappers (`analytics.ts` for gtag, `meta-pixel.ts` for
-Meta Pixel fbq) duplicate structure (no-op guards, try/catch
-suppression, typed-event helpers) and force every caller to import both.
-
-**Files**
-- `src/analytics.ts` — rename to `src/analytics/google-analytics.ts`.
-- `src/meta-pixel.ts` — move to `src/analytics/meta-pixel.ts`.
-- `src/analytics/analytics.ts` — flesh out into the single entry-point
-  Tracker class.
-
-**Suggested fix.** Create `src/analytics/` with a public `Tracker` class
-(`trackEvent(name, props)`, `trackPageView()`, …) that fan-outs to each
-vendor sub-module under the hood. Callers import from `src/analytics/`
-only; vendor-specific helpers are internal.
-
----
-
 ## #dead-code
 
 Exported symbols with zero importers anywhere in the repo. Verified by

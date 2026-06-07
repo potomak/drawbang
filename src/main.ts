@@ -1,12 +1,5 @@
 import { MAX_FRAMES } from "../config/constants.js";
-import {
-  trackFrameAddClick,
-  trackFrameDeleteClick,
-  trackGifDownloadClick,
-  trackPublishClick,
-  trackPublishSuccess,
-  trackToolClick,
-} from "./analytics.js";
+import { tracker } from "./analytics/analytics.js";
 import { Bitmap, TRANSPARENT } from "./editor/bitmap.js";
 import { PixelCanvas } from "./editor/canvas.js";
 import { decodeGif, encodeGif } from "./editor/gif.js";
@@ -435,7 +428,7 @@ function addFrame(): void {
   });
   render();
   persist();
-  trackFrameAddClick(state.frames.length);
+  tracker.frameAddClick(state.frames.length);
 }
 
 function deleteFrameAt(idx: number): void {
@@ -454,7 +447,7 @@ function deleteFrameAt(idx: number): void {
   });
   render();
   persist();
-  trackFrameDeleteClick(state.frames.length);
+  tracker.frameDeleteClick(state.frames.length);
 }
 
 function copyFrame(): void {
@@ -641,7 +634,7 @@ async function handlePublish(): Promise<void> {
     redirectToLogin();
     return;
   }
-  trackPublishClick(state.frames.length);
+  tracker.publishClick(state.frames.length);
   showFlash({ kind: "info", message: "Publishing…" });
   try {
     const result = await submit({
@@ -650,7 +643,7 @@ async function handlePublish(): Promise<void> {
       parent: parentId ?? undefined,
     });
     flashPublished(result.share_url);
-    trackPublishSuccess({ frames: state.frames.length, solve_ms: 0 });
+    tracker.publishSuccess({ frames: state.frames.length, solve_ms: 0 });
     if (localId) {
       await local.save({ id: localId, frames: state.frames, activePalette, publishedId: result.id });
     }
@@ -688,7 +681,7 @@ function downloadGif(): void {
   a.download = "drawbang.gif";
   a.click();
   URL.revokeObjectURL(url);
-  trackGifDownloadClick({ source: "editor", frames: state.frames.length });
+  tracker.gifDownloadClick({ source: "editor", frames: state.frames.length });
 }
 
 // -- Size picker -----------------------------------------------------------
@@ -782,7 +775,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach((b) =>
   b.addEventListener("click", () => {
     const next = b.dataset.tool as typeof tool;
     if (next === tool) return; // No-op re-click — don't bother GA.
-    trackToolClick(next);
+    tracker.toolClick(next);
     setActiveTool(next);
   }),
 );
