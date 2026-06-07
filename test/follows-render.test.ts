@@ -6,6 +6,7 @@ import { MemoryDrawingStore } from "../ingest/drawing-store.js";
 import {
   renderFollowersPageHandler,
   renderFollowingPageHandler,
+  renderFollowThumbsHandler,
   renderProfilePageHandler,
   type RenderHandlersConfig,
 } from "../ingest/render-handlers.js";
@@ -236,5 +237,81 @@ describe("renderFollowingPageHandler", () => {
     const res = await renderFollowingPageHandler(cfg, "alice");
     assert.equal(res.status, 200);
     assert.match(res.body, /Not following anyone yet/);
+  });
+});
+
+describe("renderFollowThumbsHandler", () => {
+  test("returns JSON with followers + following usernames", async () => {
+    const { cfg, followsStore, userStore } = await makeConfig();
+    const alice = (await userStore.getByEmail("alice@example.com"))!;
+    const bob = (await userStore.getByEmail("bob@example.com"))!;
+    const carol = (await userStore.getByEmail("carol@example.com"))!;
+    await followsStore.follow({
+      follower: { user_id: bob.user_id, username: bob.username, email: bob.email },
+      followee: { user_id: alice.user_id, username: alice.username, email: alice.email },
+      created_at_ms: 10,
+    });
+    await followsStore.follow({
+      follower: { user_id: carol.user_id, username: carol.username, email: carol.email },
+      followee: { user_id: alice.user_id, username: alice.username, email: alice.email },
+      created_at_ms: 20,
+    });
+    await followsStore.follow({
+      follower: { user_id: alice.user_id, username: alice.username, email: alice.email },
+      followee: { user_id: bob.user_id, username: bob.username, email: bob.email },
+      created_at_ms: 30,
+    });
+    const res = await renderFollowThumbsHandler(cfg, "alice", "6");
+    assert.equal(res.status, 200);
+    assert.equal(res.contentType, "application/json; charset=utf-8");
+    const body = JSON.parse(res.body);
+    assert.deepEqual(body.followers.sort(), ["bob", "carol"]);
+    assert.deepEqual(body.following, ["bob"]);
+  });
+
+  test("limit caps the number of usernames per direction", async () => {
+    const { cfg, followsStore, userStore } = await makeConfig();
+    const alice = (await userStore.getByEmail("alice@example.com"))!;
+    for (let i = 0; i < 5; i++) {
+      const un = `user${i}`;
+      const email = `${un}@example.com`;
+      const uid = String(i).repeat(64).slice(0, 64);
+      await userStore.register(rec({ email, user_id: uid, username: un }));
+      const u = (await userStore.getByEmail(email))!;
+      await followsStore.follow({
+        follower: { user_id: u.user_id, username: u.username, email: u.email },
+        followee: { user_id: alice.user_id, username: alice.username, email: alice.email },
+        created_at_ms: 100 + i,
+      });
+    }
+    const res = await renderFollowThumbsHandler(cfg, "alice", "3");
+    const body = JSON.parse(res.body);
+    assert.equal(body.followers.length, 3);
+  });
+
+  test("404 for an unknown user", async () => {
+    const { cfg } = await makeConfig();
+    const res = await renderFollowThumbsHandler(cfg, "nobody", "6");
+    assert.equal(res.status, 404);
+  });
+
+  test("defaults to 6 when limit is missing", async () => {
+    const { cfg, followsStore, userStore } = await makeConfig();
+    const alice = (await userStore.getByEmail("alice@example.com"))!;
+    for (let i = 0; i < 10; i++) {
+      const un = `user${i}`;
+      const email = `${un}@example.com`;
+      const uid = String(i).repeat(64).slice(0, 64);
+      await userStore.register(rec({ email, user_id: uid, username: un }));
+      const u = (await userStore.getByEmail(email))!;
+      await followsStore.follow({
+        follower: { user_id: u.user_id, username: u.username, email: u.email },
+        followee: { user_id: alice.user_id, username: alice.username, email: alice.email },
+        created_at_ms: 100 + i,
+      });
+    }
+    const res = await renderFollowThumbsHandler(cfg, "alice", null);
+    const body = JSON.parse(res.body);
+    assert.equal(body.followers.length, 6);
   });
 });

@@ -135,11 +135,13 @@ export function renderLeftRail(opts: ChromeOptions): string {
         <a class="rail-link rail-follow-link" data-rail-follow-link="followers" href="#">
           Followers · <span data-follower-count>0</span>
         </a>
+        <div class="rail-thumbs" data-rail-thumbs="followers"></div>
       </div>
       <div class="rail-follow" data-profile-username="" data-rail-follow="following" hidden>
         <a class="rail-link rail-follow-link" data-rail-follow-link="following" href="#">
           Following · <span data-following-count>0</span>
         </a>
+        <div class="rail-thumbs" data-rail-thumbs="following"></div>
       </div>
       <a class="rail-link" data-rail-bookmarks href="#" hidden>Bookmarks</a>
       <a class="rail-link" data-rail-account href="/account" hidden>Account</a>

@@ -50,8 +50,12 @@
   --accent-on: #001218;
   --accent-dim: rgba(0, 204, 255, 0.12);
 
-  --canvas-bg: #0a0a0a;
-  --canvas-grid: #1f1d1a;
+  /* Drawing wells — light backing + visible-but-subtle grid. Used by
+     img-grid thumbs, feed-card-art, st-day cells, editor canvas wraps,
+     and the editor's runtime grid overlay (src/main.ts reads the
+     same value). */
+  --canvas-bg: var(--paper-2);
+  --canvas-grid: #cfccbf;
 
   /* Layout */
   --hdr-h: 56px;
@@ -239,6 +243,33 @@ a:hover { color: var(--accent); }
 }
 .rail-follow { display: block; }
 .rail-follow[hidden] { display: none; }
+/* Tiny avatar grid under the Followers / Following rail rows.
+   chrome-identity.js fetches /u/<me>/follow-thumbs?limit=6 and stamps
+   per-user <span data-profile-picture-username>s here; hydrate.js
+   then swaps in the actual avatars. Empty grid = no followers yet. */
+.rail-thumbs {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  padding: 4px 12px 0;
+}
+.rail-thumbs:empty { display: none; }
+.rail-thumb {
+  display: block;
+  aspect-ratio: 1;
+  background: var(--paper-2);
+  border: var(--border) solid var(--line);
+  overflow: hidden;
+  line-height: 0;
+}
+.rail-thumb:hover { border-color: var(--ink); }
+.rail-thumb .profile-picture {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--paper-2);
+  image-rendering: pixelated;
+}
 
 .rail-foot {
   margin-top: auto;

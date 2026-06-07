@@ -113,7 +113,47 @@
         el.hidden = false;
       }
     }
+
+    // 5. Populate the left-rail follower/following thumb grids. Fetch
+    //    the first N usernames per direction, stamp them as profile
+    //    pictures, and let hydrate.js (via its MutationObserver) swap
+    //    in the actual avatars. Tolerates failures — the rail still
+    //    renders without the grid.
+    populateThumbGrids(username);
   };
+
+  function populateThumbGrids(un) {
+    const grids = document.querySelectorAll("[data-rail-thumbs]");
+    if (grids.length === 0) return;
+    fetch("/u/" + encodeURIComponent(un) + "/follow-thumbs?limit=6")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data) return;
+        stampGrid("followers", data.followers);
+        stampGrid("following", data.following);
+      })
+      .catch(() => {});
+  }
+
+  function stampGrid(direction, usernames) {
+    if (!Array.isArray(usernames) || usernames.length === 0) return;
+    const grids = document.querySelectorAll('[data-rail-thumbs="' + direction + '"]');
+    grids.forEach((grid) => {
+      const html = usernames
+        .map(
+          (un) =>
+            `<a class="rail-thumb" href="/u/${encodeURIComponent(un)}" aria-label="${escapeAttr(un)}"><span class="profile-picture" data-profile-picture-username="${escapeAttr(un)}" data-profile-picture-size="28"></span></a>`,
+        )
+        .join("");
+      grid.innerHTML = html;
+    });
+  }
+
+  function escapeAttr(s) {
+    return String(s).replace(/[&<>"']/g, (c) =>
+      c === "&" ? "&amp;" : c === "<" ? "&lt;" : c === ">" ? "&gt;" : c === '"' ? "&quot;" : "&#39;",
+    );
+  }
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", apply, { once: true });

@@ -93,13 +93,16 @@ export class PixelCanvas {
         const v = bitmap.get(x, y);
         if (v === TRANSPARENT) {
           if (!showMarkers) continue;
-          // When onion is on, skip the dark transparent-cell fill so the
+          // When onion is on, skip the transparent-cell tint so the
           // faded underlay stays visible; keep the small grid dot.
+          // Colours track the light --canvas-bg: a slightly-darker
+          // tint of paper-2 for the cell, and a visible-but-soft dot
+          // on top.
           if (!onion) {
-            this.ctx.fillStyle = "#161616";
+            this.ctx.fillStyle = "#ededeb";
             this.ctx.fillRect(x * ps, y * ps, ps, ps);
           }
-          this.ctx.fillStyle = "#3a3a3a";
+          this.ctx.fillStyle = "#b8b3a8";
           this.ctx.fillRect(x * ps + dotOffset, y * ps + dotOffset, dot, dot);
         } else {
           const [r, g, b] = palette[v];

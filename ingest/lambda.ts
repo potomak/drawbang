@@ -56,6 +56,7 @@ import {
   renderFollowersPageHandler,
   renderFollowingItemsHandler,
   renderFollowingPageHandler,
+  renderFollowThumbsHandler,
   renderHomePageHandler,
   renderMyBookmarksFeedHandler,
   renderProductsPageHandler,
@@ -234,6 +235,14 @@ export async function handler(
       const kind = m[2] as "followers" | "following";
       const handler = kind === "followers" ? renderFollowersItemsHandler : renderFollowingItemsHandler;
       return adaptRender(await handler(renderConfig, m[1], queryParam(event, "cursor")));
+    }
+  }
+  // /u/<username>/follow-thumbs?limit=N — JSON. Feeds the left-rail
+  // follower/following thumb grids.
+  {
+    const m = path.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])\/follow-thumbs$/);
+    if (method === "GET" && m) {
+      return adaptRender(await renderFollowThumbsHandler(renderConfig, m[1], queryParam(event, "limit")));
     }
   }
   // /u/<username>/streak — month-stacked calendar of the user's daily

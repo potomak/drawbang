@@ -188,6 +188,12 @@
   margin: 0 0 16px 0;
   flex-wrap: wrap;
 }
+/* [hidden] defense: without this, the `display: flex` above overrides
+   the UA `[hidden] { display: none }` rule and the row stays visible
+   on other people's profiles. chrome-identity.js still wouldn't reveal
+   it (the data-owner-only-for value won't match the viewer's
+   username), but the row paints anyway because hidden is overridden. */
+.ow-owner-actions[hidden] { display: none; }
 .ow-owner-link {
   color: var(--fg-muted);
   text-decoration: none;
@@ -229,7 +235,11 @@
 /* Follow button. Filled accent when unfollowed (the action), outlined
    when followed (the state). Sits in the .ow-social row + on each
    .follow-card; styled in light-theme tokens so it reads against the
-   paper background. */
+   paper background. The [hidden] defense matters — follow.js leaves
+   self-targeted buttons hidden, but without this rule the
+   `display: inline-flex` below overrides the UA `[hidden]{display:none}`
+   and the viewer sees a Follow button on their own card. */
+.follow-btn[hidden] { display: none; }
 .follow-btn {
   display: inline-flex;
   align-items: center;

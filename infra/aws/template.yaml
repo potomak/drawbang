@@ -934,6 +934,12 @@ Resources:
             ApiId: !Ref IngestApi
             Method: ANY
             Path: /u/{username}/following/items
+        FollowThumbs:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: ANY
+            Path: /u/{username}/follow-thumbs
         StreakPage:
           Type: HttpApi
           Properties:

@@ -52,6 +52,7 @@ import {
   renderFollowersPageHandler,
   renderFollowingItemsHandler,
   renderFollowingPageHandler,
+  renderFollowThumbsHandler,
   renderHomePageHandler,
   renderMyBookmarksFeedHandler,
   renderProductsPageHandler,
@@ -182,6 +183,10 @@ const server = http.createServer(async (req, res) => {
         if (ufi) {
           const h = ufi[2] === "followers" ? renderFollowersItemsHandler : renderFollowingItemsHandler;
           rendered = await h(renderConfig, ufi[1], cursor);
+        }
+        const uft = pathOnly.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])\/follow-thumbs$/);
+        if (uft) {
+          rendered = await renderFollowThumbsHandler(renderConfig, uft[1], u.searchParams.get("limit"));
         }
         const usm = pathOnly.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])\/streak$/);
         if (usm) rendered = await renderStreakPageHandler(renderConfig, usm[1]);

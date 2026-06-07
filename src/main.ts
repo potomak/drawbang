@@ -195,7 +195,7 @@ const mainCanvas = new PixelCanvas(mainCanvasEl, {
   pixelSize: pixelSizeFor(currentSize),
   size: currentSize,
   showGrid: true,
-  gridColor: "#1f1d1a",
+  gridColor: "#cfccbf",
 });
 const frameListEl = document.getElementById("frameList")!;
 const paletteEl = document.getElementById("palette")!;

@@ -748,6 +748,39 @@ export function renderFollowingItemsHandler(
   return renderFollowListItems(cfg, ownerUsername, "following", rawCursor);
 }
 
+// JSON endpoint that returns the first N usernames in each direction
+// for a given user — feeds the left-rail follower/following thumb
+// grids on every page (chrome-identity.js fetches it once on init
+// for the signed-in viewer). Public read; viewer auth is unnecessary
+// because the follow graph is already public via /u/<un>/followers.
+const CC_FOLLOW_THUMBS = "public, s-maxage=60, stale-while-revalidate=30";
+
+export async function renderFollowThumbsHandler(
+  cfg: RenderHandlersConfig,
+  ownerUsername: string,
+  rawLimit: string | null,
+): Promise<RenderResponse> {
+  if (!USERNAME_RE.test(ownerUsername)) return notFound(cfg);
+  if (!cfg.followsStore || !cfg.userStore) return notFound(cfg);
+  const owner = await cfg.userStore.getByUsername(ownerUsername);
+  if (!owner) return notFound(cfg);
+  const limit = Math.min(20, Math.max(1, parseInt(rawLimit ?? "6", 10) || 6));
+  const [followers, following] = await Promise.all([
+    cfg.followsStore.listFollowers(owner.user_id, { limit }),
+    cfg.followsStore.listFollowing(owner.user_id, { limit }),
+  ]);
+  const body = JSON.stringify({
+    followers: followers.items.map((e) => e.follower_username),
+    following: following.items.map((e) => e.followee_username),
+  });
+  return {
+    status: 200,
+    contentType: "application/json; charset=utf-8",
+    cacheControl: CC_FOLLOW_THUMBS,
+    body,
+  };
+}
+
 async function ownerStatsView(
   store: UserStatsStore,
   user_id: string,
