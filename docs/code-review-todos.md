@@ -14,25 +14,6 @@ with the commit SHA.
 
 ---
 
-## #dead-code
-
-Exported symbols with zero importers anywhere in the repo. Verified by
-`grep -rn` excluding `legacy/`, `dist/`, `dist-lambda/`, `node_modules/`.
-
-**Files**
-- `src/format.ts` — `formatDuration()` is only referenced by its own
-  test file. Delete the helper (and its test).
-- `src/layout/asset-version.ts` — `assetVersion()` has no callers;
-  `assetUrl()` is the live API. Remove the export (and `VERSION` can
-  collapse into `assetUrl` if there's no other consumer).
-- `config/badges.ts` — `ALL_BADGES` is never imported; the renderer
-  uses `DAILY_DRAWING_BADGES` and `earnedBadges()`. Delete.
-- `lib/products-cards.ts` — `relativeTimeLabel` is exported but only
-  used by `productCardsFromCounters` in the same file. Drop the
-  `export` keyword.
-
----
-
 ## #shared-handler-utils
 
 The three toggle-style ingest handlers (likes, bookmarks, follows)
