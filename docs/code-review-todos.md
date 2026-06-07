@@ -14,28 +14,6 @@ with the commit SHA.
 
 ---
 
-## #shared-form-utils
-
-The five auth/account controllers each repeat ~30 LOC of form-submit
-boilerplate: `getElementById` + cast cluster, `addEventListener("submit")`
-with `e.preventDefault()`, `submitEl.disabled = true/false` busy toggle,
-and the flash-on-result flow.
-
-**Files**
-- `src/login.ts`
-- `src/signup.ts`
-- `src/password-forgot.ts`
-- `src/password-reset.ts`
-- `src/account.ts` (edit-profile form)
-
-**Suggested fix.** New `src/form-utils.ts` exporting
-`createFormSubmitter({ formId, submitId, fields, handler })` returning a
-wired submit listener that manages busy state, gathers values, and
-surfaces flash output. Each page is a 5-line call instead of a 30-line
-block.
-
----
-
 ## #shared-toggle-utils
 
 `static/like.js`, `static/bookmark.js`, `static/follow.js` are ~125 lines
