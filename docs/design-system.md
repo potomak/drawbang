@@ -133,25 +133,53 @@ concept — talk before forking.
 
 ### App shell (`.app-shell`, `.rail-left`, `.rail-right`)
 
-3-column grid wrapper rendered by `src/layout/chrome.ts`. Surfaces
-don't open this themselves; they live inside the `<main>` slot.
+Grid wrapper rendered by `src/layout/chrome.ts`. Default 2-col
+(`rail-left + main`). The shell wears `.has-rail-right` only when a
+template opts in via `rightRail: true` (only `/` does today).
+Surfaces don't open this themselves; they live inside the `<main>`
+slot.
 
 Left rail blocks:
 - `.rail-cta` — the primary "New drawing" button (1 per shell).
-- `.rail-nav` — primary links list (Products, Followers grid + count,
-  Following grid + count, Bookmarks).
-- `.rail-foot` — bottom-anchored secondary links (social, Privacy,
-  Feedback).
+- `.rail-nav` — primary links list (Products + owner-only:
+  `Followers · N`, `Following · N`, Bookmarks, Account, Sign out).
+- `.rail-foot` — bottom-anchored secondary group (social row +
+  Privacy + Feedback).
 
-Right rail blocks (Phase 3):
-- `.rail-module` — boxed list (Most Liked 30D, Trending Artists).
-  Hairline border, mono `.panel-h` header, ranked rows.
+Right rail blocks (`/` only):
+- `.rr-module` — Most Liked · 30D + Trending Artists.
+  `.rr-h` (mono uppercase header) + `.rr-list` of `.rr-row` ranked
+  rows (`.rr-rank` + `.rr-thumb` + `.rr-author` + `.rr-like-count`
+  or `.rr-meta`).
 
 ### Profile picture (`.profile-picture`)
 
 `<img class="profile-picture">`, square, `image-rendering: pixelated`,
 pulled from a drawing GIF. Stamped client-side by `hydrate.js` once
 the user's `profile_picture_drawing_id` is known.
+
+### Drawing well (cross-surface)
+
+Every surface that renders a drawing frames it identically: `border:
+1px solid var(--line)` on `background: var(--paper-2)`. Keeps
+transparent-pixel drawings visible against the light page. Applies
+to `.feed-card-art`, `.img-grid li`, `.dr-art-wrap img`, `.st-day` +
+`.st-day-thumb`, the `.follow-card-pp` placeholder, and the
+`.rr-thumb`. Don't revert any one of these to `--canvas-bg`.
+
+### Follow button (`.follow-btn`)
+
+Filled `--accent` when unfollowed (the action). Outlined (transparent
++ `--line-strong` border) when `aria-pressed="true"` (the state).
+The button ships hidden — `static/follow.js` reveals it once
+`hydrate.js` knows whether the viewer follows.
+
+### Badge (`.badge`)
+
+Inline label for accomplishments, statuses, counts. Hairline border
+on `--paper-2`, mono micro-label (uppercase, `.04em` tracking,
+`--t-xs`). `.badge.accent` for highlighted variants. `.ow-badges li`
+inherits this style.
 
 ### Flash (`.flash` in chrome.css)
 

@@ -151,22 +151,41 @@ JSON endpoints (no caching at the edge — `Cache-Control: no-store`):
 
 **Adding a new "X is stale on the cached feed" field is a one-liner.** Don't invent another endpoint or another client script. Add the field to `HydrateBody` (in `ingest/hydrate-handler.ts`), populate it in the handler, add a case to the `apply` step in `static/hydrate.js` that updates the right DOM nodes. The SSR templates carry `data-*` attributes the hydrator reads; click handlers stay in their per-action scripts (`like.js`, `bookmark.js`, `follow.js`).
 
-Every page that renders the chrome ships a fixed-position **FAB** ("+")
-linking to `/draw` so the editor is always one tap away. Vite pages opt
-out via `<meta name="drawbang:fab" content="off">` (only `draw.html` does
-this today, since linking to itself would be redundant). Lambda templates
-inherit the default. CSS lives in `static/chrome.css`.
+### Layout shell (`src/layout/chrome.ts` → `static/chrome.css`)
 
-The shared chrome (`src/layout/chrome.ts`) renders the header + footer
-for everything except `/feed.rss` (XML). Vite-served pages get the
-chrome via the `<!--CHROME:HEADER-->` / `<!--CHROME:FOOTER-->` markers
-+ `vite/plugins/chrome.ts`. Dynamic Lambda-rendered pages call
-`renderHeader` / `renderFooter` from the chrome module directly.
+Every page that renders the chrome is wrapped in a 3-column **`.app-shell`**:
 
-The chrome's identity link defaults to `/login` ("Sign in") and is
-rewritten client-side to `/u/<username>` ("Profile") by
-`static/chrome-identity.js` when `localStorage["drawbang:username"]`
-is present.
+| Column | Content | Source |
+|--------|---------|--------|
+| `.rail-left` | NEW DRAWING CTA, primary nav (Products, Followers/Following/Bookmarks/Account/Sign-out — last five owner-only, revealed by `chrome-identity.js`), bottom-anchored secondary group (social + Privacy + Feedback) | `renderLeftRail()` in `src/layout/chrome.ts` |
+| `<main>` | Page-specific content | Each template |
+| `.rail-right` | Discover modules — Most Liked · 30D + Trending Artists. **Opt-in:** only `/` passes `rightRail: true`. | `renderDiscover()` in `lib/templates/discover.ts`, fed by `loadDiscover()` in `ingest/discover-handler.ts` |
+
+Breakpoints (in `chrome.css`):
+- **≥ 1180px** — 3-col (left · main · right).
+- **860–1180px** — 2-col, right rail hidden.
+- **< 860px** — 1-col; left rail collapses to a drawer that slides in
+  on logo tap or hamburger click (`static/chrome-toggle.js`).
+
+The header (`.hdr`) carries the logo + an **auth slot** on the right:
+"Sign in" when logged out; profile picture + username link to
+`/u/<un>` when logged in. The signed-in branch is rendered hidden by
+default and revealed by `static/chrome-identity.js` when
+`localStorage["drawbang:username"]` is present. `hydrate.js` stamps the
+profile-picture `<img>` once the patcher has set
+`data-profile-picture-username`.
+
+Vite-served surfaces get the shell via the `<!--CHROME:HEADER-->` /
+`<!--CHROME:FOOTER-->` markers + `vite/plugins/chrome.ts`. Lambda
+templates call `renderHeader` / `renderFooter` directly. Pages that
+need the full viewport — the editor `/draw` — opt out of the shell
+wrapper with `<meta name="drawbang:rails" content="off">`; the
+header still renders but `.app-shell` and the rails are suppressed,
+so `<main>` (or `#app`) sits directly in the body. `/feed.rss` skips
+the chrome entirely (XML).
+
+There is **no `.fab` and no bottom `<footer>`** — both are gone; the
+left rail carries the New-drawing CTA and the secondary links.
 
 ## Identity model
 
@@ -205,6 +224,29 @@ is present.
   username `anonymous`, reserved both in the users table and in
   `RESERVED_USERNAMES` so no real account can claim it.
 
+## Design system
+
+The design system lives in three places, one source per surface:
+
+1. **`static/chrome.css` `:root`** — runtime source of truth for every
+   token. Light palette (`--paper`/`--ink`/`--line`/`--accent: #00ccff`),
+   sans + mono type stacks (`--font-sans` / `--font-mono`), spacing
+   (`--tap`/`--pad`/`--border`), type scale (`--t-xs` → `--t-2xl`),
+   layout (`--hdr-h`/`--rail-w`/`--rail-right-w`/`--shell-max`). The
+   old short names (`--bg`/`--fg`/`--border-c`/`--bg-elev`/`--panel`)
+   are kept as backward-compat aliases; new code uses the semantic
+   names.
+2. **`docs/design-system.md`** — written rules: aesthetic, tokens,
+   components, do/don't, breakpoints.
+3. **`/design`** (`lib/templates/design.ts`) — live kitchen-sink
+   page rendering every shared component (color swatches, type
+   scale, buttons, follow button, badge, page chrome). Iterating on
+   a token? Check it here first.
+
+**Rule when adding a visible element:** token → markdown →
+kitchen-sink, in that order. If the third step is impossible the
+component is one-off and probably shouldn't exist.
+
 ## Shared CSS (single source of truth)
 
 Three CSS files, each owning a disjoint slice. **Do not duplicate rules
@@ -212,19 +254,28 @@ across them.**
 
 | File                       | Owns                                                              | Loaded by                                              |
 |----------------------------|-------------------------------------------------------------------|--------------------------------------------------------|
-| `static/chrome.css`        | Design tokens (`:root`), base body/typography, header (`.hdr`+nav), footer (`.ftr`), `main` slot, page chrome (`.page-title`, `.divider`, ...), base `.btn` + `.primary` + `.ghost` + `.btn[hidden]`. Flash slot. | Both — `src/style.css` and `static/gallery-v2.css` each `@import url("/chrome.css")` at the top. |
+| `static/chrome.css`        | Design tokens (`:root`), base body/typography, header (`.hdr` + `.hdr-auth`), app-shell + rails (`.app-shell`, `.rail-left`, `.rail-right`, `.rail-cta`, `.rail-link`, `.rail-foot`, `.rail-social`, `.rail-scrim`), `main` slot, page chrome (`.page-title`, `.divider`, `.panel-h`, `.lab`, ...), base `.btn` + `.primary` + `.ghost` + `.btn[hidden]`, `.badge` + `.badge.accent`, flash slot. | Both — `src/style.css` and `static/gallery-v2.css` each `@import url("/chrome.css")` at the top. |
 | `src/style.css`            | Editor-surface extensions to the base reset (touch-first `user-select: none`, etc.), `.canvas-banner`, `.btn` variants (`.icon`/`.sm`/`.xs`/`[disabled]`/...), and every Vite-served page (editor `.ed-*`, merch `.mc-*`, order, identity). | Vite-served pages only.                                |
-| `static/gallery-v2.css`    | Lambda-rendered classes: `.img-grid`, `.dr-*`, `.pr-*`, `.ow-*`, `.feed-card-*`, `.feed-action`, `.like-btn`, `.mono-trunc`, `img.profile-picture`.  | Lambda templates (`/gallery-v2.css` link tag).         |
+| `static/gallery-v2.css`    | Lambda-rendered classes: `.img-grid`, `.dr-*`, `.pr-*`, `.ow-*`, `.feed-card-*`, `.feed-action`, `.like-btn`, `.bookmark-btn`, `.follow-btn`, `.follow-card-*`, `.rr-*` (discover rail), `.st-*` (streak calendar), `.mono-trunc`, `img.profile-picture`. | Lambda templates (`/gallery-v2.css` link tag).         |
 
 Rule of thumb when adding a class:
 1. If `src/layout/chrome.ts` renders it → `chrome.css`.
-2. If it's on a Vite-served HTML entry (index/merch/order/auth) → `src/style.css`.
+2. If it's on a Vite-served HTML entry (draw/merch/order/auth) → `src/style.css`.
 3. If it's only on a `lib/templates/*.ts` page → `static/gallery-v2.css`.
 
-A change that affects both editor and server-rendered surfaces (e.g.
-footer margins, header height, button hover) belongs in `chrome.css`.
-If you catch yourself editing `.hdr`/`.ftr`/`.btn` in `src/style.css`
-or `static/gallery-v2.css`, stop — it's the wrong file.
+A change that affects both editor and Lambda-rendered surfaces (e.g.
+rail width, header height, button hover, badge style) belongs in
+`chrome.css`. If you catch yourself editing `.hdr`/`.app-shell`/`.btn`/
+`.badge` in `src/style.css` or `static/gallery-v2.css`, stop — it's
+the wrong file.
+
+**Drawing well style.** Every surface that renders a drawing (feed
+card, profile gallery thumb, drawing detail, streak calendar,
+follow-card placeholder, discover rail thumb) frames it with
+`border: 1px solid var(--line)` on `background: var(--paper-2)` so
+transparent-pixel drawings stay visible against the light page. Don't
+revert any single surface to `--canvas-bg` — the dark plinth look
+was the pre-#00ccff era.
 
 ## Repo layout
 
