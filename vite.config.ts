@@ -59,7 +59,7 @@ export default defineConfig({
       "^/$": "http://localhost:8787",
       "/feed.rss": "http://localhost:8787",
       "/feed/items": "http://localhost:8787",
-      "/gallery": "http://localhost:8787",
+      "^/gallery(/items)?$": "http://localhost:8787",
       "^/d/.*": "http://localhost:8787",
       "^/u/.*": "http://localhost:8787",
       "^/drawings/.*/like$": "http://localhost:8787",

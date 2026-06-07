@@ -152,11 +152,11 @@ test("renderLeftRail: follower/following counts ship as 0 and live behind hydrat
   assert.match(html, /<span data-following-count>0<\/span>/);
 });
 
-test("renderLeftRail: bookmarks/account/sign-out rows ship hidden and wire to chrome-identity.js markers", () => {
+test("renderLeftRail: bookmarks/sign-out rows ship hidden and wire to chrome-identity.js markers", () => {
   const html = renderLeftRail({});
   assert.match(html, /<a class="rail-link" data-rail-bookmarks href="#" hidden>Bookmarks<\/a>/);
-  assert.match(html, /<a class="rail-link" data-rail-account href="\/account" hidden>Account<\/a>/);
   assert.match(html, /<a class="rail-link rail-logout" href="\/" data-logout-link="1" hidden>Sign out<\/a>/);
+  assert.doesNotMatch(html, /data-rail-account/);
 });
 
 test("renderLeftRail: secondary group has the social row + Privacy + Feedback, anchored via .rail-foot", () => {

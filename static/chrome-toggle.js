@@ -3,9 +3,9 @@
 // load the same script.
 //
 // On <860px the .rail-left is a drawer hidden off-screen
-// (transform: translateX(-100%)). The .hdr-menu button (and the .hdr-logo
-// when tapped on mobile) toggle it via the .is-open class. Esc, the
-// backdrop scrim, and clicking outside all close it.
+// (transform: translateX(-100%)). The .hdr-menu button toggles it via
+// the .is-open class. Esc and the backdrop scrim both close it. The
+// logo is always a home link — only the hamburger opens the drawer.
 
 (() => {
   if (window.__drawbangChromeToggleInit) return;
@@ -21,7 +21,6 @@
   ready(() => {
     const menu = document.querySelector(".hdr-menu");
     const rail = document.getElementById("rail-left");
-    const logo = document.querySelector(".hdr-logo");
     if (!(menu instanceof HTMLButtonElement) || !rail) return;
     // The chrome ships the toggle with `hidden` so screen readers see it
     // but the visual layer hides it. CSS reveals it on narrow viewports;
@@ -61,23 +60,6 @@
       e.stopPropagation();
       toggle();
     });
-
-    // Logo doubles as a drawer trigger on mobile (the wall-of-text plan
-    // had this — "appears only upon clicking on the logo"). On wider
-    // viewports the logo behaves as a normal home link.
-    if (logo instanceof HTMLAnchorElement) {
-      logo.addEventListener("click", (e) => {
-        if (!mq.matches) return;
-        // Only intercept the first tap when the drawer is closed; the
-        // second tap (drawer open) lets the link navigate home.
-        if (!rail.classList.contains("is-open")) {
-          e.preventDefault();
-          openDrawer();
-        } else {
-          closeDrawer();
-        }
-      });
-    }
 
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") closeDrawer();

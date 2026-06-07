@@ -9,8 +9,7 @@
 //      link pointing at /u/<username>.
 //   2. Left-rail follow blocks — fill in the username so hydrate.js
 //      picks them up and stamps follower/following counts.
-//   3. Bookmarks / Account / Sign-out left-rail rows — set the href
-//      and reveal.
+//   3. Bookmarks / Sign-out left-rail rows — set the href and reveal.
 //   4. Owner-only affordances on cached SSR pages — reveal
 //      [data-owner-only-for="<un>"] when the viewer matches.
 //   5. Sign-out click handler — clear storage + queue a flash + redirect.
@@ -86,15 +85,11 @@
       }
     }
 
-    // 3. Bookmarks / Account / Sign-out rows in the left rail.
+    // 3. Bookmarks / Sign-out rows in the left rail.
     const bookmark = document.querySelector('[data-rail-bookmarks]');
     if (bookmark instanceof HTMLAnchorElement) {
       bookmark.href = "/u/" + username + "/bookmarks";
       bookmark.hidden = false;
-    }
-    const account = document.querySelector('[data-rail-account]');
-    if (account instanceof HTMLAnchorElement) {
-      account.hidden = false;
     }
     const logoutLinks = document.querySelectorAll('[data-logout-link="1"]');
     for (const link of logoutLinks) {

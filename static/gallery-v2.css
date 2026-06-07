@@ -114,6 +114,30 @@
   flex-wrap: wrap;
 }
 
+@media (max-width: 859px) {
+  .feed-card {
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    grid-template-areas:
+      "pp      author"
+      "art     art"
+      "actions actions";
+    column-gap: 12px;
+    row-gap: 10px;
+    align-items: start;
+  }
+  .feed-card-pp     { grid-area: pp; }
+  .feed-card-main   { display: contents; }
+  .feed-card-author { grid-area: author; align-self: center; }
+  .feed-card-art {
+    grid-area: art;
+    width: 100%;
+    max-width: 320px;
+    margin: 0 auto;
+  }
+  .feed-card-actions { grid-area: actions; }
+}
+
 /* =====================================================================
    Shared action icon-buttons on Lambda-rendered surfaces. Outline by
    default; the Like variant fills (red) when aria-pressed="true".

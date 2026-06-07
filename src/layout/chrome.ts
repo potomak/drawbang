@@ -144,7 +144,6 @@ export function renderLeftRail(opts: ChromeOptions): string {
         <div class="rail-thumbs" data-rail-thumbs="following"></div>
       </div>
       <a class="rail-link" data-rail-bookmarks href="#" hidden>Bookmarks</a>
-      <a class="rail-link" data-rail-account href="/account" hidden>Account</a>
       <a class="rail-link rail-logout" href="/" data-logout-link="1" hidden>Sign out</a>
     </nav>
     <div class="rail-foot">
