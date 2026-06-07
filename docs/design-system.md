@@ -59,8 +59,14 @@ neutral against the drawings, not against the page.
 
 | Token         | Value | Use |
 |---------------|-------|-----|
-| `--font-sans` | `"Inter", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif` | body, buttons, form fields |
+| `--font-sans` | `"Akzidenz-Grotesk", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif` | body, buttons, form fields |
 | `--font-mono` | `"JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace` | labels, counts, code |
+
+Akzidenz-Grotesk is self-hosted from `static/fonts/` (Berthold BE cuts:
+Regular, Medium, Bold, Italic). `@font-face` declarations live at the top
+of `static/chrome.css`. To add another weight or italic, drop the `.ttf`
+into `static/fonts/` and append a `@font-face` block alongside the
+others — don't reach for a CDN.
 
 Scale:
 

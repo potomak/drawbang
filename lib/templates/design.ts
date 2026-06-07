@@ -47,77 +47,6 @@ const SPACING_TOKENS: ReadonlyArray<{ token: string; value: string }> = [
   { token: "--border", value: "1px — every visible rule" },
 ];
 
-// Temporary font picker — curated Google Fonts that fit the modern
-// art gallery aesthetic. Click a button to live-switch the body font;
-// the choice persists in localStorage so navigation across the site
-// keeps the trial font applied.
-//
-// Once a font is locked in, this picker block (and the GF <link>) gets
-// stripped from /design and the choice is baked into chrome.css.
-const FONT_OPTIONS: ReadonlyArray<{
-  label: string;
-  stack: string;
-  note: string;
-}> = [
-  {
-    label: "Inter",
-    stack: '"Inter", system-ui, sans-serif',
-    note: "current — clean grotesque",
-  },
-  {
-    label: "Space Grotesk",
-    stack: '"Space Grotesk", system-ui, sans-serif',
-    note: "geometric grotesque with character",
-  },
-  {
-    label: "DM Sans",
-    stack: '"DM Sans", system-ui, sans-serif',
-    note: "soft + clean, very gallery-y",
-  },
-  {
-    label: "Manrope",
-    stack: '"Manrope", system-ui, sans-serif',
-    note: "modern with gentle warmth",
-  },
-  {
-    label: "Work Sans",
-    stack: '"Work Sans", system-ui, sans-serif',
-    note: "humanist sans",
-  },
-  {
-    label: "Plus Jakarta Sans",
-    stack: '"Plus Jakarta Sans", system-ui, sans-serif',
-    note: "clean modern",
-  },
-  {
-    label: "EB Garamond",
-    stack: '"EB Garamond", Georgia, serif',
-    note: "classical serif — museum-label vibe",
-  },
-  {
-    label: "Cormorant Garamond",
-    stack: '"Cormorant Garamond", Georgia, serif',
-    note: "elegant serif",
-  },
-  {
-    label: "JetBrains Mono",
-    stack: '"JetBrains Mono", ui-monospace, monospace',
-    note: "the original mono — for comparison",
-  },
-];
-
-const FONT_GF_HREF =
-  "https://fonts.googleapis.com/css2?" +
-  "family=Inter:wght@400;500;600;700&" +
-  "family=Space+Grotesk:wght@400;500;600;700&" +
-  "family=DM+Sans:wght@400;500;600;700&" +
-  "family=Manrope:wght@400;500;600;700&" +
-  "family=Work+Sans:wght@400;500;600;700&" +
-  "family=Plus+Jakarta+Sans:wght@400;500;600;700&" +
-  "family=EB+Garamond:wght@400;500;600;700&" +
-  "family=Cormorant+Garamond:wght@400;500;600;700&" +
-  "display=swap";
-
 export default function renderDesign(v: DesignView): string {
   return `<!doctype html>
 <html lang="en">
@@ -128,48 +57,7 @@ export default function renderDesign(v: DesignView): string {
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Draw! · Design system</title>
     <link rel="stylesheet" href="${assetUrl("/gallery-v2.css")}" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="${FONT_GF_HREF}" />
     <style>
-      .ds-fonts {
-        position: sticky;
-        top: var(--hdr-h, 56px);
-        z-index: 20;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        padding: 12px 0;
-        background: var(--paper);
-        border-bottom: var(--border) solid var(--line);
-        margin-bottom: 24px;
-      }
-      .ds-font-btn {
-        padding: 8px 12px;
-        border: var(--border) solid var(--line);
-        background: var(--paper);
-        color: var(--ink);
-        cursor: pointer;
-        font-size: var(--t-sm);
-        display: inline-flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 4px;
-        text-align: left;
-        line-height: 1.2;
-      }
-      .ds-font-btn:hover { border-color: var(--ink); }
-      .ds-font-btn[aria-pressed="true"] {
-        border-color: var(--accent);
-        background: var(--accent-dim);
-      }
-      .ds-font-btn small {
-        font-family: var(--font-mono);
-        font-size: 10px;
-        color: var(--fg-muted);
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-      }
       .ds-grid { display: grid; gap: 40px; }
       .ds-row { display: grid; gap: 16px; }
       .ds-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
@@ -202,14 +90,6 @@ export default function renderDesign(v: DesignView): string {
     <main>
       <h1 class="page-title">Design system</h1>
       <p class="page-sub">Visual reference for tokens + components defined in <code>static/chrome.css</code> and described in <code>docs/design-system.md</code>.</p>
-
-      <div class="ds-fonts" role="toolbar" aria-label="Font preview">
-        ${FONT_OPTIONS.map(renderFontButton).join("\n        ")}
-        <button class="ds-font-btn" data-font-reset>
-          Reset
-          <small>back to chrome.css default</small>
-        </button>
-      </div>
 
       <div class="ds-grid">
 
@@ -297,86 +177,10 @@ export default function renderDesign(v: DesignView): string {
       </div>
     </main>
     ${renderFooter({ repoUrl: v.repo_url })}
-    <script>
-${FONT_PICKER_SCRIPT}
-    </script>
   </body>
 </html>
 `;
 }
-
-// Inline runtime for the font picker. Sets --font-sans (which both the
-// body and most components inherit from) on <html>, and persists the
-// pick to localStorage so navigating between /, /draw, /d/<id>, etc.
-// keeps the trial font applied. Loading the same GF link tag on every
-// surface would be wasteful; instead we stamp a <link> into <head> at
-// runtime when a trial stack is active.
-const FONT_PICKER_SCRIPT = `(function () {
-  var STORAGE_KEY = "drawbang:design:font";
-  var GF_HREF = "${FONT_GF_HREF}";
-
-  function load() {
-    try { return localStorage.getItem(STORAGE_KEY) || ""; } catch (e) { return ""; }
-  }
-  function save(stack) {
-    try {
-      if (stack) localStorage.setItem(STORAGE_KEY, stack);
-      else localStorage.removeItem(STORAGE_KEY);
-    } catch (e) {}
-  }
-  function ensureGoogleFonts() {
-    if (document.querySelector('link[data-design-fonts]')) return;
-    var link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = GF_HREF;
-    link.setAttribute("data-design-fonts", "1");
-    document.head.appendChild(link);
-  }
-  function apply(stack) {
-    if (stack) {
-      ensureGoogleFonts();
-      document.documentElement.style.setProperty("--font-sans", stack);
-      document.documentElement.style.setProperty("--font", stack);
-    } else {
-      document.documentElement.style.removeProperty("--font-sans");
-      document.documentElement.style.removeProperty("--font");
-    }
-    markActive(stack);
-  }
-  function markActive(stack) {
-    var btns = document.querySelectorAll("[data-font-stack]");
-    for (var i = 0; i < btns.length; i++) {
-      btns[i].setAttribute("aria-pressed", btns[i].getAttribute("data-font-stack") === stack ? "true" : "false");
-    }
-  }
-
-  // Apply persisted choice immediately (the picker page sees its own toolbar
-  // light up; other pages just inherit the font).
-  apply(load());
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", wire, { once: true });
-  } else {
-    wire();
-  }
-  function wire() {
-    var btns = document.querySelectorAll("[data-font-stack]");
-    for (var i = 0; i < btns.length; i++) {
-      btns[i].addEventListener("click", function (e) {
-        var stack = e.currentTarget.getAttribute("data-font-stack") || "";
-        save(stack);
-        apply(stack);
-      });
-    }
-    var reset = document.querySelector("[data-font-reset]");
-    if (reset) {
-      reset.addEventListener("click", function () {
-        save("");
-        apply("");
-      });
-    }
-  }
-})();`;
 
 function section(title: string, lede: string, body: string): string {
   return `<section class="ds-row">
@@ -386,13 +190,6 @@ function section(title: string, lede: string, body: string): string {
     </div>
     ${body}
   </section>`;
-}
-
-function renderFontButton(f: { label: string; stack: string; note: string }): string {
-  return `<button class="ds-font-btn" data-font-stack="${esc(f.stack)}" style="font-family: ${f.stack};">
-          ${esc(f.label)}
-          <small>${esc(f.note)}</small>
-        </button>`;
 }
 
 function renderColorSwatch(t: { name: string; role: string }): string {

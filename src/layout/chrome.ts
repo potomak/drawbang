@@ -78,7 +78,7 @@ export function renderHeader(opts: ChromeOptions = {}): string {
   const shell = rails
     ? `\n<div class="${shellClass}">\n  <aside class="rail-left" id="rail-left">\n    ${renderLeftRail(opts)}\n  </aside>`
     : "";
-  return `${FONT_PREVIEW_SCRIPT}<header class="hdr">
+  return `<header class="hdr">
   <button class="hdr-menu" aria-controls="rail-left" aria-expanded="false" aria-label="Menu" hidden>${MENU_ICON_SVG}</button>
   <a class="hdr-logo" href="/" aria-label="Draw! home">${LOGO_SVG}</a>
   <div class="hdr-auth">
@@ -170,13 +170,6 @@ const FEEDBACK_URL =
   "https://github.com/potomak/drawbang/issues/new?labels=feedback";
 
 const MENU_ICON_SVG = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 6h18M3 12h18M3 18h18"/></svg>`;
-
-// Temporary: applies the font picked on /design to every page so the
-// trial choice persists across navigation. Reads localStorage early
-// (before first paint), sets --font-sans + --font, and loads the GF
-// stylesheet only if a choice is active. Strip this and the design
-// page's picker once a font is locked in.
-const FONT_PREVIEW_SCRIPT = `<script>(function(){try{var s=localStorage.getItem("drawbang:design:font");if(!s)return;var d=document.documentElement;d.style.setProperty("--font-sans",s);d.style.setProperty("--font",s);var l=document.createElement("link");l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&family=Work+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=EB+Garamond:wght@400;500;600;700&family=Cormorant+Garamond:wght@400;500;600;700&display=swap";document.head.appendChild(l);}catch(e){}})();</script>`;
 
 const ESC: Record<string, string> = {
   "&": "&amp;",
