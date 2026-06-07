@@ -207,9 +207,15 @@ a:hover { color: var(--accent); }
   margin: 0;
   min-height: calc(100vh - var(--hdr-h));
 }
-.app-shell.has-rail-right {
-  grid-template-columns: var(--rail-w) minmax(0, 1fr) var(--rail-right-w);
-  max-width: var(--shell-max);
+/* 3-col only kicks in at the wide breakpoint. Below 1180 the right
+   rail is hidden anyway, and leaving its track in the template at
+   narrow widths squeezes <main> down to min-content (the home feed
+   went to ~220px because of this). */
+@media (min-width: 1180px) {
+  .app-shell.has-rail-right {
+    grid-template-columns: var(--rail-w) minmax(0, 1fr) var(--rail-right-w);
+    max-width: var(--shell-max);
+  }
 }
 
 .rail-left {
