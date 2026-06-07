@@ -1,3 +1,5 @@
+// TODO: This function is not used anywhere and I think it can be deleted...
+
 // Human-readable duration formatting for user-facing messages. Drops
 // seconds when hours are present (an "8 minute and 12 second" precision
 // tail next to "2 hours" reads as noise, not info).

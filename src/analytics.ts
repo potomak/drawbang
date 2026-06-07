@@ -1,3 +1,5 @@
+// TODO (#analytics): This should be renamed to google-analytics.ts and moved into an analytics directory
+
 // Thin typed wrapper around the gtag.js global injected by
 // renderAnalytics() in src/layout/chrome.ts. Centralises three things:
 //

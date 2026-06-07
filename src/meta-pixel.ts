@@ -1,3 +1,5 @@
+// TODO (#analytics): This should be moved into an analytics directory
+
 // Thin typed wrapper around the Meta (Facebook) Pixel fbq global injected
 // by renderMetaPixel() in src/layout/chrome.ts. Mirrors the structure of
 // src/analytics.ts (the gtag wrapper) — separate modules per vendor so a

@@ -1,0 +1,2 @@
+// TODO (#analytics): Create a new class that can be used as a single entry point for keeping track of events
+// The class should be used instead of using directly google-analytics.ts and meta-pixel.ts
