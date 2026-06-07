@@ -41,3 +41,36 @@ export const DRAWBANG_APP_IDENTIFIER = "DRAWBANG";
 // GIF89a requires exactly 3 bytes for the authentication code. "1.0"
 // identifies this as v1 of the Drawbang application extension.
 export const DRAWBANG_APP_AUTH_CODE = new Uint8Array([0x31, 0x2e, 0x30]);
+
+// =====================================================================
+// Shared request-validation regexes. Every handler that takes a drawing
+// id / username / email in the URL or body checks against one of these,
+// so they live here as a single source of truth.
+// =====================================================================
+
+// drawing_id = sha256(gif_bytes) rendered as lowercase 64-hex.
+export const DRAWING_ID_RE = /^[0-9a-f]{64}$/;
+// Public handle. Rules: 3–20 chars, lowercase alphanumeric + underscore
+// + hyphen, first/last char must be alphanumeric or underscore.
+export const USERNAME_RE = /^[a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_]$/;
+// Pragmatic "looks like an email" check — the real validation happens
+// at SES send time; this is just a quick reject for obvious garbage.
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// =====================================================================
+// Cache-Control strings for the Lambda-rendered surfaces. CloudFront's
+// `s-maxage` controls the edge cache; per-row `max-age` controls the
+// browser cache. Publish-time invalidations live in
+// ingest/cache-invalidation.ts; tweak the TTLs here.
+// =====================================================================
+
+export const CC_GALLERY = "public, s-maxage=300, stale-while-revalidate=60";
+export const CC_DRAWING_PAGE =
+  "public, max-age=60, s-maxage=300, stale-while-revalidate=60";
+export const CC_PROFILE = "public, s-maxage=86400, stale-while-revalidate=60";
+export const CC_FEED = "public, s-maxage=3600";
+export const CC_NOT_FOUND = "public, max-age=60";
+export const CC_FOLLOW_LIST = "public, s-maxage=60, stale-while-revalidate=60";
+export const CC_FOLLOW_THUMBS = "public, s-maxage=60, stale-while-revalidate=30";
+export const CC_PRODUCTS = "public, s-maxage=86400, stale-while-revalidate=60";
+export const CC_DESIGN = "public, s-maxage=300, stale-while-revalidate=60";

@@ -1,14 +1,17 @@
-// TODO (#shared-handler-utils): This module shares scaffolding with
-// likes-handler.ts and bookmarks-handler.ts (Auth/Config/Result shapes,
-// ok()/err() helpers, AlreadyXxx/NotXxx → 409 mapping). The USERNAME_RE
-// duplicated below also belongs in a shared validators module.
-
 import {
   AlreadyFollowingError,
   NotFollowingError,
   type FollowsStore,
 } from "./follows-store.js";
 import type { UserStore } from "./user-store.js";
+import {
+  type Auth,
+  type BaseHandlerConfig,
+  type Result,
+  err,
+  toggleAction,
+} from "./handler-utils.js";
+import { USERNAME_RE } from "../config/constants.js";
 
 // POST   /users/{username}/follow    | DELETE /users/{username}/follow
 //
@@ -18,28 +21,12 @@ import type { UserStore } from "./user-store.js";
 // Read-side hydration (viewer_follows + counts) lives in /hydrate
 // (hydrate-handler.ts).
 
-// Mirrors the username regex used by the rendering routes (USERNAME_RE in
-// render-handlers.ts). Kept inline to avoid a cross-module cycle.
-// TODO (#shared-handler-utils): USERNAME_RE is duplicated in
-// render-handlers.ts, auth-handler.ts, and hydrate-handler.ts. Centralize
-// in config/constants.ts to break the would-be cycle.
-const USERNAME_RE = /^[a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_]$/;
+export type FollowsAuth = Auth;
+export type FollowsResult = Result;
 
-export interface FollowsAuth {
-  user_id: string;
-  username: string;
-}
-
-export interface FollowsHandlerConfig {
+export interface FollowsHandlerConfig extends BaseHandlerConfig {
   followsStore: FollowsStore;
   userStore: UserStore;
-  now?: () => Date;
-}
-
-export interface FollowsResult {
-  status: number;
-  body: unknown;
-  headers?: Record<string, string>;
 }
 
 export async function handleFollow(
@@ -65,25 +52,23 @@ export async function handleFollow(
     return err(401, "stale session");
   }
   const now = cfg.now ? cfg.now() : new Date();
-  try {
-    await cfg.followsStore.follow({
-      follower: {
-        user_id: follower.user_id,
-        username: follower.username,
-        email: follower.email,
-      },
-      followee: {
-        user_id: followee.user_id,
-        username: followee.username,
-        email: followee.email,
-      },
-      created_at_ms: now.getTime(),
-    });
-  } catch (e) {
-    if (e instanceof AlreadyFollowingError) return err(409, "already following");
-    throw e;
-  }
-  return ok();
+  return toggleAction(
+    () =>
+      cfg.followsStore.follow({
+        follower: {
+          user_id: follower.user_id,
+          username: follower.username,
+          email: follower.email,
+        },
+        followee: {
+          user_id: followee.user_id,
+          username: followee.username,
+          email: followee.email,
+        },
+        created_at_ms: now.getTime(),
+      }),
+    [[AlreadyFollowingError, 409, "already following"]],
+  );
 }
 
 export async function handleUnfollow(
@@ -99,30 +84,20 @@ export async function handleUnfollow(
   if (!followee) return err(404, "user not found");
   const follower = await cfg.userStore.getByUsername(auth.username);
   if (!follower) return err(401, "stale session");
-  try {
-    await cfg.followsStore.unfollow({
-      follower: {
-        user_id: follower.user_id,
-        username: follower.username,
-        email: follower.email,
-      },
-      followee: {
-        user_id: followee.user_id,
-        username: followee.username,
-        email: followee.email,
-      },
-    });
-  } catch (e) {
-    if (e instanceof NotFollowingError) return err(409, "not following");
-    throw e;
-  }
-  return ok();
-}
-
-function ok(): FollowsResult {
-  return { status: 200, body: { ok: true } };
-}
-
-function err(status: number, message: string): FollowsResult {
-  return { status, body: { error: message } };
+  return toggleAction(
+    () =>
+      cfg.followsStore.unfollow({
+        follower: {
+          user_id: follower.user_id,
+          username: follower.username,
+          email: follower.email,
+        },
+        followee: {
+          user_id: followee.user_id,
+          username: followee.username,
+          email: followee.email,
+        },
+      }),
+    [[NotFollowingError, 409, "not following"]],
+  );
 }

@@ -2,6 +2,7 @@ import type { LikesStore } from "./likes-store.js";
 import type { BookmarksStore } from "./bookmarks-store.js";
 import type { FollowsStore } from "./follows-store.js";
 import type { UserStore } from "./user-store.js";
+import { DRAWING_ID_RE, USERNAME_RE } from "../config/constants.js";
 
 // GET /hydrate?drawings=<csv>&users=<csv>
 //
@@ -13,11 +14,6 @@ import type { UserStore } from "./user-store.js";
 // the viewer_* fields populate; otherwise they're null. Same response
 // shape either way so the client doesn't need branching.
 
-// TODO (#shared-handler-utils): DRAWING_ID_RE / USERNAME_RE are duplicated
-// across likes-handler, bookmarks-handler, follows-handler, auth-handler,
-// and render-handlers. Centralize in config/constants.ts.
-const DRAWING_ID_RE = /^[0-9a-f]{64}$/;
-const USERNAME_RE = /^[a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_]$/;
 const MAX_DRAWINGS = 100;
 const MAX_USERS = 100;
 

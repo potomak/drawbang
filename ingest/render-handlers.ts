@@ -6,7 +6,20 @@
 // RenderHandlersConfig + the shared helpers (notFound, etc.) in a
 // render-shared.ts and have lambda.ts route to per-domain modules.
 
-import { PER_PAGE } from "../config/constants.js";
+import {
+  PER_PAGE,
+  DRAWING_ID_RE,
+  USERNAME_RE,
+  CC_GALLERY,
+  CC_DRAWING_PAGE,
+  CC_PROFILE,
+  CC_FEED,
+  CC_NOT_FOUND,
+  CC_FOLLOW_LIST,
+  CC_FOLLOW_THUMBS,
+  CC_PRODUCTS,
+  CC_DESIGN,
+} from "../config/constants.js";
 import renderGallery, {
   renderGalleryFragment,
   type GalleryItem,
@@ -103,23 +116,6 @@ export interface RenderResponse {
   cacheControl: string;
   body: string;
 }
-
-// Cache headers. CloudFront's `s-maxage` controls edge cache; the per-row
-// `max-age` controls browser cache. Profile rides a long edge cache that
-// the publish + profile-picture paths invalidate on write. Feed home (/)
-// and the per-drawing page carry a short edge TTL so stale like counts
-// refresh within minutes instead of a day — the liker sees their own
-// change instantly via optimistic JS, but non-likers depend on the next
-// miss.
-// TODO (#shared-handler-utils): the CC_* cache-control strings (here +
-// CC_FOLLOW_LIST / CC_FOLLOW_THUMBS / CC_PRODUCTS / CC_DESIGN further
-// down) belong in config/constants.ts so cache policies are visible in
-// one place and easy to tune without grepping render-handlers.
-const CC_GALLERY = "public, s-maxage=300, stale-while-revalidate=60";
-const CC_DRAWING_PAGE = "public, max-age=60, s-maxage=300, stale-while-revalidate=60";
-const CC_PROFILE = "public, s-maxage=86400, stale-while-revalidate=60";
-const CC_FEED = "public, s-maxage=3600";
-const CC_NOT_FOUND = "public, max-age=60";
 
 function itemFromRow(r: DrawingRow): GalleryItem {
   return {
@@ -280,7 +276,7 @@ export async function renderDrawingPageHandler(
   cfg: RenderHandlersConfig,
   drawing_id: string,
 ): Promise<RenderResponse> {
-  if (!/^[0-9a-f]{64}$/.test(drawing_id)) return notFound(cfg);
+  if (!DRAWING_ID_RE.test(drawing_id)) return notFound(cfg);
   const row = await cfg.drawingStore.get(drawing_id);
   if (!row) return notFound(cfg);
 
@@ -325,11 +321,6 @@ export async function renderDrawingPageHandler(
 }
 
 // -- /u/<username> + /u/<username>/items -------------------------------------
-
-// TODO (#shared-handler-utils): USERNAME_RE is duplicated across
-// auth-handler, hydrate-handler, and follows-handler. Centralize in
-// config/constants.ts.
-const USERNAME_RE = /^[a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_]$/;
 
 export async function renderProfilePageHandler(
   cfg: RenderHandlersConfig,
@@ -634,10 +625,9 @@ export async function renderProfileItemsHandler(
 
 // -- /u/<username>/followers + /u/<username>/following ----------------------
 
-// Edge-cacheable but short s-maxage so the list reflects new follows
+// CC_FOLLOW_LIST: short edge cache so the list reflects new follows
 // within minutes (the follower/followee sees their own change instantly
 // via optimistic JS; other viewers depend on the next miss).
-const CC_FOLLOW_LIST = "public, s-maxage=60, stale-while-revalidate=60";
 
 async function renderFollowListPage(
   cfg: RenderHandlersConfig,
@@ -768,7 +758,6 @@ export function renderFollowingItemsHandler(
 // grids on every page (chrome-identity.js fetches it once on init
 // for the signed-in viewer). Public read; viewer auth is unnecessary
 // because the follow graph is already public via /u/<un>/followers.
-const CC_FOLLOW_THUMBS = "public, s-maxage=60, stale-while-revalidate=30";
 
 export async function renderFollowThumbsHandler(
   cfg: RenderHandlersConfig,
@@ -854,8 +843,6 @@ function injectProfileSentinel(html: string, nextUrl: string): string {
 
 // -- /products + /products/p/<N> --------------------------------------------
 
-const CC_PRODUCTS = "public, s-maxage=86400, stale-while-revalidate=60";
-
 export async function renderProductsPageHandler(
   cfg: RenderHandlersConfig,
   rawPage: string | null,
@@ -888,8 +875,6 @@ export async function renderProductsPageHandler(
 }
 
 // -- /design -----------------------------------------------------------------
-
-const CC_DESIGN = "public, s-maxage=300, stale-while-revalidate=60";
 
 export async function renderDesignPageHandler(
   cfg: RenderHandlersConfig,

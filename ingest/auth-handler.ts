@@ -15,6 +15,7 @@ import {
   pathsToInvalidateOnProfileChange,
   type CacheInvalidator,
 } from "./cache-invalidation.js";
+import { EMAIL_RE, USERNAME_RE } from "../config/constants.js";
 
 // POST /auth/register | /auth/login | /auth/password/forgot | /auth/password/reset.
 //
@@ -26,11 +27,6 @@ import {
 
 const SESSION_TTL_S = 60 * 60 * 24 * 30; // 30 days
 const PASSWORD_RESET_TTL_S = 60 * 60; // 1 hour
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-// TODO (#shared-handler-utils): USERNAME_RE is duplicated in
-// render-handlers.ts, hydrate-handler.ts, and follows-handler.ts.
-// Centralize in config/constants.ts.
-const USERNAME_RE = /^[a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_]$/;
 const MIN_PASSWORD = 8;
 const MAX_PASSWORD = 200;
 

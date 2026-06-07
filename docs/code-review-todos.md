@@ -14,33 +14,6 @@ with the commit SHA.
 
 ---
 
-## #shared-handler-utils
-
-The three toggle-style ingest handlers (likes, bookmarks, follows)
-reimplement the same scaffolding, and request validators are scattered.
-
-**Files**
-- `ingest/likes-handler.ts`
-- `ingest/bookmarks-handler.ts`
-- `ingest/follows-handler.ts`
-- `ingest/hydrate-handler.ts` (regex constants only)
-- `ingest/auth-handler.ts` (regex constants only)
-- `ingest/render-handlers.ts` (regex constants + `CC_*` cache strings)
-
-**Suggested fix.**
-1. Extract `ingest/handler-utils.ts` with `Auth`/`Config`/`Result` base
-   shapes, `ok()`/`err(status, message)` factories, and the
-   `AlreadyXxxError`/`NotXxxError` → 409 try/catch helper.
-2. Move `DRAWING_ID_RE`, `USERNAME_RE`, and `EMAIL_RE` into
-   `config/constants.ts` so every handler imports the same source of
-   truth.
-3. Move `CC_GALLERY` / `CC_DRAWING_PAGE` / `CC_PROFILE` / `CC_FEED` /
-   `CC_NOT_FOUND` / `CC_FOLLOW_LIST` / `CC_FOLLOW_THUMBS` / `CC_PRODUCTS`
-   / `CC_DESIGN` into `config/constants.ts` too; cache-control becomes a
-   single grep.
-
----
-
 ## #shared-form-utils
 
 The five auth/account controllers each repeat ~30 LOC of form-submit
