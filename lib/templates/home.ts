@@ -29,6 +29,10 @@ export interface FeedItem {
 
 export interface HomeView {
   items: FeedItem[];
+  // discover_rail_html: pre-rendered HTML for the right "discover"
+  // rail (lib/templates/discover.ts). Empty / undefined → the rail
+  // is rendered empty.
+  discover_rail_html?: string;
   // When present, the feed renders an infinite-scroll sentinel + observer
   // that GETs this URL to append the next page.
   next_fragment_url?: string;
@@ -147,7 +151,12 @@ ${cards}${v.next_fragment_url ? `
   const observerScript = v.next_fragment_url ? renderObserverScript() : "";
   // Only the feed shows the right "discover" rail. Other surfaces
   // (drawing, profile, products, design) inherit the default and stay 2-col.
-  const footerOpts = { active: "home", repoUrl: v.repo_url, rightRail: true };
+  const footerOpts = {
+    active: "home",
+    repoUrl: v.repo_url,
+    rightRail: true,
+    rightRailContent: v.discover_rail_html ?? "",
+  };
   return `<!doctype html>
 <html lang="en">
   <head>

@@ -98,6 +98,51 @@ describe("renderHomePageHandler", () => {
     const res = await renderHomePageHandler(cfg, null);
     assert.match(res.body, /<span class="like-count" data-like-count>0<\/span>/);
   });
+
+  test("discover rail: Most Liked module appears on the first page", async () => {
+    const { store, cfg } = makeConfig();
+    const now = Date.now();
+    await store.put(row({ drawing_id: "a".repeat(64), username: "alice", like_count: 12, created_at_ms: now - 1000 }));
+    await store.put(row({ drawing_id: "b".repeat(64), username: "bob", like_count: 5, created_at_ms: now - 2000 }));
+    const res = await renderHomePageHandler(cfg, null);
+    assert.match(res.body, /<aside class="rail-right"/);
+    assert.match(res.body, /Most Liked · 30D/);
+    // Highest like count appears first.
+    const aliceIdx = res.body.indexOf("a".repeat(64));
+    const bobIdx = res.body.indexOf("b".repeat(64));
+    assert.ok(aliceIdx > -1 && bobIdx > -1 && aliceIdx < bobIdx);
+  });
+
+  test("discover rail: drawings older than 30 days are excluded", async () => {
+    const { store, cfg } = makeConfig();
+    const now = Date.now();
+    const old = now - 40 * 24 * 60 * 60 * 1000;
+    await store.put(row({ drawing_id: "a".repeat(64), username: "alice", like_count: 99, created_at_ms: old }));
+    const res = await renderHomePageHandler(cfg, null);
+    // The drawing still appears in the feed (no window there) but the
+    // rail's Most Liked module skips it since it's outside the 30d
+    // window — module body therefore has no liked items.
+    assert.doesNotMatch(res.body, /Most Liked · 30D[\s\S]{0,400}♥ 99/);
+  });
+
+  test("discover rail: cursor pages omit the rail (avoid double-render)", async () => {
+    const { store, cfg } = makeConfig(2);
+    const now = Date.now();
+    for (let i = 0; i < 4; i++) {
+      await store.put(row({ drawing_id: String(i).padStart(64, "f"), username: "u" + i, like_count: 1, created_at_ms: now - i * 1000 }));
+    }
+    // Page 1 — discover should render
+    const first = await renderHomePageHandler(cfg, null);
+    assert.match(first.body, /<aside class="rail-right"[^>]*>[\s\S]*Most Liked/);
+    // Pull the cursor from the sentinel and request page 2
+    const match = first.body.match(/data-next="\/feed\/items\?cursor=([^"]+)"/);
+    assert.ok(match);
+    const second = await renderHomePageHandler(cfg, match![1]);
+    // Page 2 still ships the rail wrapper (we'd need a separate URL to
+    // skip the chrome entirely) but the discover module is absent —
+    // saving the DDB read on every paginated request.
+    assert.doesNotMatch(second.body, /Most Liked · 30D/);
+  });
 });
 
 describe("renderFeedItemsHandler (fragment endpoint)", () => {

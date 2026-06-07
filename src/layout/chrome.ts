@@ -46,6 +46,13 @@ export interface ChromeOptions {
 
 export interface FooterOptions extends ChromeOptions {
   repoUrl: string;
+  /**
+   * Pre-rendered HTML to inject into the .rail-right <aside>. Set when
+   * the calling template wants to SSR content into the discover rail
+   * (the feed passes the output of lib/templates/discover.ts here).
+   * Implies rightRail: true.
+   */
+  rightRailContent?: string;
 }
 
 /**
@@ -86,10 +93,11 @@ export function renderHeader(opts: ChromeOptions = {}): string {
 
 export function renderFooter(opts: FooterOptions): string {
   const rails = opts.rails !== false;
-  const right = opts.rightRail === true;
+  const right = opts.rightRail === true || typeof opts.rightRailContent === "string";
+  const railContent = opts.rightRailContent ?? "";
   const shellClose = rails
     ? (right
-        ? `  <aside class="rail-right" data-rail-right></aside>\n</div>\n`
+        ? `  <aside class="rail-right" data-rail-right>${railContent}</aside>\n</div>\n`
         : `</div>\n`)
     : "";
   return `${shellClose}<script src="${assetUrl("/flash.js")}"></script>

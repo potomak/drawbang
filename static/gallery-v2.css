@@ -606,3 +606,63 @@ img.profile-picture {
   .st-day-grid { gap: 1px; }
   .st-day-num { font-size: 10px; top: 1px; left: 2px; }
 }
+
+/* =====================================================================
+   DISCOVER RAIL (right rail on /) — Most Liked · Trending Artists.
+   Two stacked modules of ranked rows. Static SSR snapshot; the page's
+   5-min edge cache freshens the data alongside the cards.
+   ===================================================================== */
+.rr-module + .rr-module { margin-top: 24px; }
+.rr-h {
+  font: 600 var(--t-xs)/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  margin: 0 0 12px;
+}
+.rr-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rr-row {
+  display: grid;
+  grid-template-columns: 18px 32px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  text-decoration: none;
+  color: var(--ink);
+  border: var(--border) solid transparent;
+}
+.rr-row:hover { color: var(--accent); border-color: var(--line); background: var(--paper-2); }
+.rr-rank {
+  font: 500 var(--t-xs)/1 var(--font-mono);
+  color: var(--fg-dim);
+  text-align: right;
+}
+.rr-thumb {
+  display: block;
+  width: 32px;
+  height: 32px;
+  background: var(--paper-2);
+  border: var(--border) solid var(--line);
+  image-rendering: pixelated;
+}
+.rr-thumb--placeholder { display: inline-block; }
+.rr-author {
+  font-size: var(--t-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.rr-like-count, .rr-meta {
+  font: 500 var(--t-xs)/1 var(--font-mono);
+  color: var(--fg-muted);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}

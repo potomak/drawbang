@@ -27,6 +27,8 @@ import renderFollowList, {
 import renderNotFound from "../lib/templates/not-found.js";
 import renderProducts from "../lib/templates/products.js";
 import renderDesign from "../lib/templates/design.js";
+import { renderDiscover } from "../lib/templates/discover.js";
+import { loadDiscover } from "./discover-handler.js";
 import { productCardsFromCounters } from "../lib/products-cards.js";
 import {
   decodeCursor,
@@ -179,11 +181,23 @@ export async function renderHomePageHandler(
 ): Promise<RenderResponse> {
   const perPage = cfg.perPage ?? PER_PAGE;
   const cursor = decodeCursor(rawCursor) ?? undefined;
-  const page = await cfg.drawingStore.queryGallery({ limit: perPage, cursor });
+  // Load the feed page and the discover rail in parallel; both reads
+  // share the s-maxage=300 edge cache so this is the only time per
+  // 5-min window we hit DDB for either.
+  const [page, discover] = await Promise.all([
+    cfg.drawingStore.queryGallery({ limit: perPage, cursor }),
+    // Only render the discover rail on the first page — subsequent
+    // /feed/items fragments are appended below the existing rail and
+    // don't repaint it.
+    cursor
+      ? Promise.resolve(null)
+      : loadDiscover({ drawingStore: cfg.drawingStore, userStore: cfg.userStore, now: cfg.now }),
+  ]);
   const items = await loadFeedItems(cfg, page.items);
   const next = buildFragmentUrl("/feed/items", page.next_cursor);
   const view: HomeView = { items, repo_url: cfg.repoUrl };
   if (next) view.next_fragment_url = next;
+  if (discover) view.discover_rail_html = renderDiscover(discover);
   return {
     status: 200,
     contentType: "text/html; charset=utf-8",
