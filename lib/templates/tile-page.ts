@@ -140,6 +140,7 @@ ${forksSection}
     ${renderFooter({ active: "home", repoUrl: v.repo_url })}
     <script src="${assetUrl("/flash.js")}"></script>
     <script src="${assetUrl("/tile-page.js")}"></script>
+    <script src="${assetUrl("/toggle-handler.js")}"></script>
     <script src="${assetUrl("/like.js")}"></script>
     <script src="${assetUrl("/bookmark.js")}"></script>
   </body>

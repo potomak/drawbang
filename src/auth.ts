@@ -33,9 +33,9 @@ export type ForgotPasswordOutcome =
   | { ok: false; status: number; error: string };
 
 // TODO (#shared-localstorage): try/catch around localStorage is repeated
-// here and in order.ts, main.ts, privacy.ts, static/like.js,
-// static/bookmark.js, static/follow.js. Extract safeGet/safeSet/safeRemove
-// into src/storage-utils.ts (+ static/storage-utils.js for plain JS).
+// here and in order.ts, main.ts, privacy.ts, static/toggle-handler.js,
+// static/follow.js. Extract safeGet/safeSet/safeRemove into
+// src/storage-utils.ts (+ static/storage-utils.js for plain JS).
 export function getSession(): Session | null {
   let token: string | null = null;
   try {

@@ -100,7 +100,8 @@ ${cards}${v.next_fragment_url ? `
 ${body}
     </main>
     ${renderFooter({ active: "identity", repoUrl: v.repo_url })}
-${observer}    <script src="${assetUrl("/follow.js")}"></script>
+${observer}    <script src="${assetUrl("/toggle-handler.js")}"></script>
+    <script src="${assetUrl("/follow.js")}"></script>
   </body>
 </html>
 `;

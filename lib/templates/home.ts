@@ -181,7 +181,8 @@ ${cards}${v.next_fragment_url ? `
 ${body}
     </main>
     ${renderFooter(footerOpts)}
-${observerScript}    <script src="${assetUrl("/like.js")}"></script>
+${observerScript}    <script src="${assetUrl("/toggle-handler.js")}"></script>
+    <script src="${assetUrl("/like.js")}"></script>
     <script src="${assetUrl("/bookmark.js")}"></script>
     <script src="${assetUrl("/share.js")}"></script>
   </body>

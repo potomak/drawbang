@@ -51,6 +51,7 @@ ${cards}      </ul>
     </main>
     ${renderFooter({ active: "identity", repoUrl: v.repo_url })}
     ${renderBootScript()}
+    <script src="${assetUrl("/toggle-handler.js")}"></script>
     <script src="${assetUrl("/like.js")}"></script>
     <script src="${assetUrl("/share.js")}"></script>
     <script src="${assetUrl("/bookmark.js")}"></script>

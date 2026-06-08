@@ -14,25 +14,6 @@ with the commit SHA.
 
 ---
 
-## #shared-toggle-utils
-
-`static/like.js`, `static/bookmark.js`, `static/follow.js` are ~125 lines
-each of nearly identical vanilla JS — localStorage JWT guard,
-`isPressed`/`setPressed`, optimistic toggle + revert-on-error,
-MutationObserver re-wiring for infinite scroll, 401 → `/login?next=`
-redirect.
-
-**Files**
-- `static/like.js`
-- `static/bookmark.js`
-- `static/follow.js`
-
-**Suggested fix.** New `static/toggle-handler.js` exposing
-`createToggleHandler({ endpoint, targetAttr, wiredAttr, onSetPressed,
-onRevert })`. Each of the three becomes a thin config call.
-
----
-
 ## #shared-template-utils
 
 Every Lambda-rendered template duplicates: (1) the HTML head/shell
@@ -67,14 +48,12 @@ appears across seven surfaces — TS and plain JS.
 - `src/order.ts` (`hasPurchaseFired`/`markPurchaseFired`)
 - `src/main.ts` (palette persistence)
 - `src/privacy.ts`
-- `static/like.js`
-- `static/bookmark.js`
-- `static/follow.js`
+- `static/toggle-handler.js` (shared JWT read)
+- `static/follow.js` (viewer-username read)
 
 **Suggested fix.** `src/storage-utils.ts` with `safeGet(key)`,
 `safeSet(key, value)`, `safeRemove(key)`. Mirror as
-`static/storage-utils.js` (or fold into `static/toggle-handler.js` from
-#shared-toggle-utils) for plain-JS consumers. Quota/private-mode
+`static/storage-utils.js` for plain-JS consumers. Quota/private-mode
 behaviour stays the same; call sites collapse to one line.
 
 ---

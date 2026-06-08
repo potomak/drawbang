@@ -113,6 +113,7 @@ ${items}
 ${social}${about}${stats}${streakLink}${body}
     </main>
     ${renderFooter({ active: "identity", repoUrl: v.repo_url })}
+    <script src="${assetUrl("/toggle-handler.js")}"></script>
     <script src="${assetUrl("/follow.js")}"></script>
   </body>
 </html>
