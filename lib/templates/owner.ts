@@ -1,12 +1,9 @@
-// TODO (#shared-template-utils): HTML head/shell duplication — see
-// home.ts for the lift-to-_html-shell plan.
-
 import { assetUrl } from "../../src/layout/asset-version.js";
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
-import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import type { BadgeDef } from "../../config/badges.js";
 import type { GalleryItem } from "./gallery.js";
 import { esc } from "./_escape.js";
+import { renderHtmlShell } from "./_html-shell.js";
 
 export interface OwnerStats {
   daily_total: number;
@@ -96,28 +93,17 @@ ${items}
       : "";
   const social = renderSocialBlock(v);
   const about = renderAboutBlock(v);
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    ${renderAnalytics()}
-    ${renderMetaPixel()}
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Draw! · ${esc(v.username)}</title>
-    <link rel="stylesheet" href="${assetUrl("/gallery-v2.css")}" />
-  </head>
-  <body>
-    ${renderHeader({ active: "identity" })}
+  return renderHtmlShell({
+    title: `Draw! · ${esc(v.username)}`,
+    body: `    ${renderHeader({ active: "identity" })}
     <main>
       <h1 class="page-title">${renderProfilePicture(v.profile_picture_drawing_id, v.username, 32)}Drawings by ${esc(v.username)}</h1>
 ${social}${about}${stats}${streakLink}${body}
     </main>
     ${renderFooter({ active: "identity", repoUrl: v.repo_url })}
     <script src="${assetUrl("/toggle-handler.js")}"></script>
-    <script src="${assetUrl("/follow.js")}"></script>
-  </body>
-</html>
-`;
+    <script src="${assetUrl("/follow.js")}"></script>`,
+  });
 }
 
 function renderSocialBlock(v: OwnerView): string {

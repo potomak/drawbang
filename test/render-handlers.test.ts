@@ -49,7 +49,7 @@ describe("renderHomePageHandler", () => {
     const res = await renderHomePageHandler(cfg, null);
     assert.equal(res.status, 200);
     assert.match(res.body, /No drawings yet/);
-    assert.doesNotMatch(res.body, /data-feed-sentinel/);
+    assert.doesNotMatch(res.body, /data-infinite-sentinel/);
   });
 
   test("multiple drawings render newest-first as feed cards", async () => {
@@ -71,7 +71,7 @@ describe("renderHomePageHandler", () => {
       await store.put(row({ drawing_id: String(i).padStart(64, "f"), created_at_ms: 1000 + i }));
     }
     const res = await renderHomePageHandler(cfg, null);
-    assert.match(res.body, /data-feed-sentinel/);
+    assert.match(res.body, /data-infinite-sentinel/);
     assert.match(res.body, /data-next="\/feed\/items\?cursor=/);
   });
 
@@ -155,7 +155,7 @@ describe("renderFeedItemsHandler (fragment endpoint)", () => {
     assert.doesNotMatch(res.body, /<html/);
     assert.doesNotMatch(res.body, /class="hdr"/);
     assert.match(res.body, /<article class="feed-card">/);
-    assert.match(res.body, /data-feed-sentinel/);
+    assert.match(res.body, /data-infinite-sentinel/);
   });
 
   test("last page omits the sentinel", async () => {
@@ -168,7 +168,7 @@ describe("renderFeedItemsHandler (fragment endpoint)", () => {
     assert.ok(next, "expected next cursor in page 1");
     const cursor = new URL(next![1], "http://x").searchParams.get("cursor");
     const page2 = await renderFeedItemsHandler(cfg, cursor);
-    assert.doesNotMatch(page2.body, /data-feed-sentinel/);
+    assert.doesNotMatch(page2.body, /data-infinite-sentinel/);
   });
 });
 

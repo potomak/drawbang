@@ -1,10 +1,7 @@
-// TODO (#shared-template-utils): HTML head/shell duplication + inline
-// infinite-scroll observer — see home.ts for the lift plan.
-
 import { assetUrl } from "../../src/layout/asset-version.js";
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
-import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
+import { renderHtmlShell } from "./_html-shell.js";
 import { renderFollowButton } from "./owner.js";
 
 // /u/<username>/followers and /u/<username>/following — paginated lists
@@ -63,7 +60,11 @@ export function renderFollowListFragment(
   const cards = items.map(renderFollowCard).join("\n");
   if (!next_fragment_url) return cards;
   return `${cards}
-<li class="follow-sentinel" data-follow-sentinel data-next="${esc(next_fragment_url)}"></li>`;
+${renderFollowSentinel(next_fragment_url)}`;
+}
+
+function renderFollowSentinel(nextUrl: string): string {
+  return `<li class="follow-sentinel" data-infinite-sentinel data-infinite-target="[data-follow-list]" data-next="${esc(nextUrl)}"></li>`;
 }
 
 export default function renderFollowList(v: FollowListView): string {
@@ -79,62 +80,21 @@ export default function renderFollowList(v: FollowListView): string {
     ? `      <p class="muted">${esc(emptyMsg)}</p>`
     : `      <ul class="follow-list" data-follow-list>
 ${cards}${v.next_fragment_url ? `
-        <li class="follow-sentinel" data-follow-sentinel data-next="${esc(v.next_fragment_url)}"></li>` : ""}
+        ${renderFollowSentinel(v.next_fragment_url)}` : ""}
       </ul>`;
-  const observer = v.next_fragment_url ? renderObserverScript() : "";
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    ${renderAnalytics()}
-    ${renderMetaPixel()}
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Draw! · ${esc(heading)}</title>
-    <link rel="stylesheet" href="${assetUrl("/gallery-v2.css")}" />
-  </head>
-  <body>
-    ${renderHeader({ active: "identity" })}
+  const infiniteScript = v.next_fragment_url
+    ? `    <script src="${assetUrl("/infinite-scroll.js")}"></script>\n`
+    : "";
+  return renderHtmlShell({
+    title: `Draw! · ${esc(heading)}`,
+    body: `    ${renderHeader({ active: "identity" })}
     <main>
       <h1 class="page-title">${esc(heading)}</h1>
       <p class="page-sub"><a href="/u/${esc(v.owner_username)}">← back to profile</a></p>
 ${body}
     </main>
     ${renderFooter({ active: "identity", repoUrl: v.repo_url })}
-${observer}    <script src="${assetUrl("/toggle-handler.js")}"></script>
-    <script src="${assetUrl("/follow.js")}"></script>
-  </body>
-</html>
-`;
-}
-
-function renderObserverScript(): string {
-  return `    <script>
-(function () {
-  function wire(sentinel) {
-    if (!sentinel || sentinel.dataset.wired) return;
-    sentinel.dataset.wired = "1";
-    var next = sentinel.dataset.next;
-    if (!next) return;
-    var io = new IntersectionObserver(async function (entries) {
-      if (!entries.some(function (e) { return e.isIntersecting; })) return;
-      io.disconnect();
-      try {
-        var res = await fetch(next);
-        if (!res.ok) return;
-        var html = await res.text();
-        var list = document.querySelector("[data-follow-list]");
-        if (list) {
-          sentinel.remove();
-          list.insertAdjacentHTML("beforeend", html);
-        }
-        var nextSentinel = document.querySelector("[data-follow-sentinel]:not([data-wired])");
-        if (nextSentinel) wire(nextSentinel);
-      } catch (e) {}
-    }, { rootMargin: "200px" });
-    io.observe(sentinel);
-  }
-  document.querySelectorAll("[data-follow-sentinel]").forEach(wire);
-})();
-    </script>
-`;
+${infiniteScript}    <script src="${assetUrl("/toggle-handler.js")}"></script>
+    <script src="${assetUrl("/follow.js")}"></script>`,
+  });
 }

@@ -1,12 +1,9 @@
-// TODO (#shared-template-utils): HTML head/shell duplication — see
-// home.ts for the lift-to-_html-shell plan.
-
 import { assetUrl } from "../../src/layout/asset-version.js";
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
-import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
 import type { GalleryItem } from "./gallery.js";
 import { renderItem } from "./gallery.js";
+import { renderHtmlShell } from "./_html-shell.js";
 import { renderBookmarkButton, renderLikeButton } from "./home.js";
 import { renderProfilePicture } from "./owner.js";
 
@@ -78,15 +75,7 @@ ${forks.map(renderItem).join("\n")}
         </ul>
       </section>`
     : "";
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    ${renderAnalytics()}
-    ${renderMetaPixel()}
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Draw! · ${esc(v.id_short)}</title>
-    <meta name="description" content="Pixel art from Draw! · Create your own at https://pixel.drawbang.com" />
+  const ogMeta = `<meta name="description" content="Pixel art from Draw! · Create your own at https://pixel.drawbang.com" />
     <link rel="canonical" href="${esc(v.public_base_url)}/d/${esc(v.drawing_id)}" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Draw!" />
@@ -97,11 +86,11 @@ ${forks.map(renderItem).join("\n")}
     <meta property="og:image:type" content="image/gif" />
     <meta property="og:image:width" content="960" />
     <meta property="og:image:height" content="960" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <link rel="stylesheet" href="${assetUrl("/gallery-v2.css")}" />
-  </head>
-  <body>
-    ${renderHeader({ active: "home" })}
+    <meta name="twitter:card" content="summary_large_image" />`;
+  return renderHtmlShell({
+    title: `Draw! · ${esc(v.id_short)}`,
+    extraHead: ogMeta,
+    body: `    ${renderHeader({ active: "home" })}
     <main data-tile-page data-drawing-id="${esc(v.drawing_id)}" data-id-short="${esc(v.id_short)}" data-author-username="${esc(v.author?.username ?? "")}">
       <div class="dr-grid">
         <div class="dr-art-wrap">
@@ -142,8 +131,6 @@ ${forksSection}
     <script src="${assetUrl("/tile-page.js")}"></script>
     <script src="${assetUrl("/toggle-handler.js")}"></script>
     <script src="${assetUrl("/like.js")}"></script>
-    <script src="${assetUrl("/bookmark.js")}"></script>
-  </body>
-</html>
-`;
+    <script src="${assetUrl("/bookmark.js")}"></script>`,
+  });
 }

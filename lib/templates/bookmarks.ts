@@ -1,10 +1,7 @@
-// TODO (#shared-template-utils): HTML head/shell duplication + inline
-// infinite-scroll observer — see home.ts for the lift plan.
-
 import { assetUrl } from "../../src/layout/asset-version.js";
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
-import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
+import { renderHtmlShell } from "./_html-shell.js";
 import { renderFeedCard, type FeedItem } from "./home.js";
 
 // /u/<username>/bookmarks — the owner's saved drawings, newest-saved
@@ -29,19 +26,11 @@ export interface BookmarksView {
 
 export default function renderBookmarksPage(v: BookmarksView): string {
   const cards = v.items.map(renderFeedCard).join("\n");
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    ${renderAnalytics()}
-    ${renderMetaPixel()}
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="robots" content="noindex" />
-    <title>Draw! · Your bookmarks</title>
-    <link rel="stylesheet" href="${assetUrl("/gallery-v2.css")}" />
-  </head>
-  <body data-bookmarks-page data-bookmarks-username="${esc(v.username)}">
-    ${renderHeader({ active: "identity" })}
+  return renderHtmlShell({
+    title: "Draw! · Your bookmarks",
+    extraHead: `<meta name="robots" content="noindex" />`,
+    bodyAttrs: `data-bookmarks-page data-bookmarks-username="${esc(v.username)}"`,
+    body: `    ${renderHeader({ active: "identity" })}
     <main>
       <h1 class="page-title">Your bookmarks</h1>
       <p class="feed-empty" data-bookmarks-empty hidden>No bookmarks yet — tap the ribbon on any drawing to save it here.</p>
@@ -54,10 +43,8 @@ ${cards}      </ul>
     <script src="${assetUrl("/toggle-handler.js")}"></script>
     <script src="${assetUrl("/like.js")}"></script>
     <script src="${assetUrl("/share.js")}"></script>
-    <script src="${assetUrl("/bookmark.js")}"></script>
-  </body>
-</html>
-`;
+    <script src="${assetUrl("/bookmark.js")}"></script>`,
+  });
 }
 
 // Inline auth + fetch dance. Plain JS so the bookmarks page can ship as

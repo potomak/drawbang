@@ -1,10 +1,6 @@
-// TODO (#shared-template-utils): HTML head/shell duplication — see
-// home.ts for the lift-to-_html-shell plan.
-
-import { assetUrl } from "../../src/layout/asset-version.js";
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
-import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
+import { renderHtmlShell } from "./_html-shell.js";
 
 export interface ProductCard {
   drawing_id: string;
@@ -41,27 +37,16 @@ ${v.cards.map(renderCard).join("\n")}
         ${v.prev_page ? `<a href="${prevHref(v.prev_page.prev_page)}">← Prev</a>` : ""}
         ${v.next_page ? `<a href="/products/p/${esc(v.next_page.next_page)}">Next →</a>` : ""}
       </nav>`;
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    ${renderAnalytics()}
-    ${renderMetaPixel()}
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Draw! · Products · page ${esc(v.page)}</title>
-    <link rel="stylesheet" href="${assetUrl("/gallery-v2.css")}" />
-  </head>
-  <body>
-    ${renderHeader({ active: "products" })}
+  return renderHtmlShell({
+    title: `Draw! · Products · page ${esc(v.page)}`,
+    body: `    ${renderHeader({ active: "products" })}
     <main>
       <h1 class="page-title">Products</h1>
       ${sub}
 ${body}
     </main>
-    ${renderFooter({ active: "products", repoUrl: v.repo_url })}
-  </body>
-</html>
-`;
+    ${renderFooter({ active: "products", repoUrl: v.repo_url })}`,
+  });
 }
 
 function prevHref(n: number): string {

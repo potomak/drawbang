@@ -1,11 +1,7 @@
-// TODO (#shared-template-utils): HTML head/shell duplication with the
-// other Lambda-rendered templates + inline infinite-scroll observer
-// block. Lift both to shared helpers (see home.ts for the full plan).
-
 import { assetUrl } from "../../src/layout/asset-version.js";
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
-import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
+import { renderHtmlShell } from "./_html-shell.js";
 import { formatItemDate } from "./_time.js";
 
 export interface GalleryItem {
@@ -64,7 +60,7 @@ export default function renderGallery(v: GalleryView): string {
     ? `      <p class="panel-h">${heading}</p>
       <ul class="img-grid" data-gallery-items>
 ${items}
-      </ul>${v.next_fragment_url ? renderScrollSentinel(v.next_fragment_url) : ""}`
+      </ul>${v.next_fragment_url ? `\n      ${renderGallerySentinel(v.next_fragment_url)}` : ""}`
     : `      <p class="panel-h">${heading}</p>
       <p class="muted">No drawings published yet — open <a href="/draw">the editor</a> and mint the first one.</p>`;
   const archiveSection = (v.days ?? []).length
@@ -74,65 +70,27 @@ ${items}
 ${archive}
       </ul>`
     : "";
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    ${renderAnalytics()}
-    ${renderMetaPixel()}
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Draw! · Gallery</title>
-    <link rel="stylesheet" href="${assetUrl("/gallery-v2.css")}" />
-  </head>
-  <body>
-    ${renderHeader({ active: "gallery" })}
+  const infiniteScript = v.next_fragment_url
+    ? `    <script src="${assetUrl("/infinite-scroll.js")}"></script>\n`
+    : "";
+  return renderHtmlShell({
+    title: "Draw! · Gallery",
+    body: `    ${renderHeader({ active: "gallery" })}
     <main>
       <h1 class="page-title">Gallery</h1>
 ${latestSection}
 ${archiveSection}
     </main>
     ${renderFooter({ active: "gallery", repoUrl: v.repo_url })}
-  </body>
-</html>
-`;
+${infiniteScript}`,
+  });
 }
 
-// Sentinel + inline script wires up an IntersectionObserver that fetches
-// the next fragment, appends it under [data-gallery-items], and replaces
-// the sentinel with whatever cursor the server bakes into the fragment's
-// own sentinel. Keeps the loop self-perpetuating without client-side state.
-function renderScrollSentinel(nextUrl: string): string {
-  return `
-      <div class="gal-sentinel" data-gallery-sentinel data-next="${esc(nextUrl)}"></div>
-      <script>
-(function () {
-  function wire(sentinel) {
-    if (!sentinel || sentinel.dataset.wired) return;
-    sentinel.dataset.wired = "1";
-    var next = sentinel.dataset.next;
-    if (!next) return;
-    var io = new IntersectionObserver(async function (entries) {
-      if (!entries.some(function (e) { return e.isIntersecting; })) return;
-      io.disconnect();
-      try {
-        var res = await fetch(next);
-        if (!res.ok) return;
-        var html = await res.text();
-        var list = document.querySelector("[data-gallery-items]");
-        if (list) list.insertAdjacentHTML("beforeend", html);
-        sentinel.remove();
-        var nextSentinel = document.querySelector("[data-gallery-sentinel]:not([data-wired])");
-        if (nextSentinel) wire(nextSentinel);
-      } catch (e) {
-        // Network/decoding error: leave the sentinel removed; user can
-        // refresh to try again.
-      }
-    }, { rootMargin: "200px" });
-    io.observe(sentinel);
-  }
-  document.querySelectorAll("[data-gallery-sentinel]").forEach(wire);
-})();
-      </script>`;
+// Sentinel for the gallery's flat thumbnail grid. The sentinel is a
+// sibling of the list (not a child), so the shared infinite-scroll
+// script needs an explicit target selector.
+export function renderGallerySentinel(nextUrl: string): string {
+  return `<div class="gal-sentinel" data-gallery-sentinel data-infinite-sentinel data-infinite-target="[data-gallery-items]" data-next="${esc(nextUrl)}"></div>`;
 }
 
 // Items-only render (no chrome). Used by the fragment endpoint to return
@@ -141,5 +99,5 @@ export function renderGalleryFragment(items: GalleryItem[], next_fragment_url: s
   const body = items.map(renderItem).join("\n");
   if (!next_fragment_url) return body;
   return `${body}
-<div class="gal-sentinel" data-gallery-sentinel data-next="${esc(next_fragment_url)}"></div>`;
+${renderGallerySentinel(next_fragment_url)}`;
 }

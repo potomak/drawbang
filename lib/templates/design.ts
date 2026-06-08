@@ -1,10 +1,6 @@
-// TODO (#shared-template-utils): HTML head/shell duplication — see
-// home.ts for the lift-to-_html-shell plan.
-
-import { assetUrl } from "../../src/layout/asset-version.js";
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
-import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
+import { renderHtmlShell } from "./_html-shell.js";
 
 // Visual reference for the shared design system. Renders every reusable
 // component on one page so visual drift is caught immediately when a
@@ -47,17 +43,7 @@ const SPACING_TOKENS: ReadonlyArray<{ token: string; value: string }> = [
   { token: "--border", value: "1px — every visible rule" },
 ];
 
-export default function renderDesign(v: DesignView): string {
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    ${renderAnalytics()}
-    ${renderMetaPixel()}
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Draw! · Design system</title>
-    <link rel="stylesheet" href="${assetUrl("/gallery-v2.css")}" />
-    <style>
+const DESIGN_STYLES = `<style>
       .ds-grid { display: grid; gap: 40px; }
       .ds-row { display: grid; gap: 16px; }
       .ds-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
@@ -83,10 +69,13 @@ export default function renderDesign(v: DesignView): string {
         aspect-ratio: 1; background: var(--canvas-bg, #0a0a0a);
         display: grid; place-items: center; color: var(--fg-muted); font-size: var(--t-xs);
       }
-    </style>
-  </head>
-  <body>
-    ${renderHeader()}
+    </style>`;
+
+export default function renderDesign(v: DesignView): string {
+  return renderHtmlShell({
+    title: "Draw! · Design system",
+    extraHead: DESIGN_STYLES,
+    body: `    ${renderHeader()}
     <main>
       <h1 class="page-title">Design system</h1>
       <p class="page-sub">Visual reference for tokens + components defined in <code>static/chrome.css</code> and described in <code>docs/design-system.md</code>.</p>
@@ -176,10 +165,8 @@ export default function renderDesign(v: DesignView): string {
 
       </div>
     </main>
-    ${renderFooter({ repoUrl: v.repo_url })}
-  </body>
-</html>
-`;
+    ${renderFooter({ repoUrl: v.repo_url })}`,
+  });
 }
 
 function section(title: string, lede: string, body: string): string {

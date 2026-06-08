@@ -14,30 +14,6 @@ with the commit SHA.
 
 ---
 
-## #shared-template-utils
-
-Every Lambda-rendered template duplicates: (1) the HTML head/shell
-(`<!doctype>`, `<html lang>`, `<meta>`, `<title>`, `assetUrl` link,
-analytics + Meta Pixel snippets, `renderHeader`/`renderFooter` wrap),
-and (2) — for paginated surfaces — the inline `<script>` IntersectionObserver
-block that watches `[data-feed-sentinel]` and appends fragments.
-
-**Files**
-- HTML shell duplicated in: `home.ts`, `gallery.ts`, `owner.ts`,
-  `tile-page.ts`, `follow-list.ts`, `bookmarks.ts`, `products.ts`,
-  `design.ts`. (RSS `feed.ts` has its own XML shell — lower priority.)
-- Infinite-scroll script duplicated in: `home.ts`, `gallery.ts`,
-  `follow-list.ts`, `bookmarks.ts`.
-
-**Suggested fix.**
-1. `lib/templates/_html-shell.ts#renderHtmlShell({ title, description,
-   ogMeta, body, header?, footer?, extraHead?, extraScripts? })`.
-2. Extract the observer into `static/infinite-scroll.js` (loaded via a
-   single `<script src="/infinite-scroll.js">` tag rendered by the shell
-   when `paginated: true`).
-
----
-
 ## #shared-localstorage
 
 The same `try { localStorage.{get,set,remove}Item } catch {}` boilerplate

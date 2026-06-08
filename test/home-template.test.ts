@@ -33,7 +33,7 @@ describe("renderHome", () => {
       repo_url: "https://github.com/test/test",
     });
     assert.match(html, /<main>/);
-    assert.match(html, /<ul class="feed-list" data-feed-list>/);
+    assert.match(html, /<ul class="feed-list" data-infinite-list>/);
     assert.match(html, /<article class="feed-card">/);
     assert.match(html, /<a class="feed-card-author-link" href="\/u\/alice">alice<\/a>/);
     assert.doesNotMatch(html, /@alice/);
@@ -82,15 +82,16 @@ describe("renderHome", () => {
     assert.match(html, /class="profile-picture profile-picture-placeholder"[^>]*data-profile-picture-username="alice"/);
   });
 
-  test("emits an infinite-scroll sentinel + observer script when paginated", () => {
+  test("emits an infinite-scroll sentinel + loads the shared observer script when paginated", () => {
     const html = renderHome({
       items: [item()],
       next_fragment_url: "/feed/items?cursor=foo",
       repo_url: "https://github.com/test/test",
     });
-    assert.match(html, /data-feed-sentinel data-next="\/feed\/items\?cursor=foo"/);
-    assert.match(html, /IntersectionObserver/);
-    assert.match(html, /\[data-feed-list\]/);
+    assert.match(html, /data-infinite-sentinel/);
+    assert.match(html, /data-infinite-target="\[data-infinite-list\]"/);
+    assert.match(html, /data-next="\/feed\/items\?cursor=foo"/);
+    assert.match(html, /<script src="\/infinite-scroll\.js"/);
   });
 
   test("empty-state renders the editor link instead of the list", () => {
@@ -202,11 +203,11 @@ describe("renderFeedFragment", () => {
     const html = renderFeedFragment([item()], "/feed/items?cursor=x");
     assert.doesNotMatch(html, /<html/);
     assert.match(html, /<article class="feed-card">/);
-    assert.match(html, /<li class="feed-sentinel" data-feed-sentinel data-next="\/feed\/items\?cursor=x">/);
+    assert.match(html, /<li class="feed-sentinel" data-infinite-sentinel data-infinite-target="\[data-infinite-list\]" data-next="\/feed\/items\?cursor=x">/);
   });
 
   test("omits the sentinel on the last page (next=null)", () => {
     const html = renderFeedFragment([item()], null);
-    assert.doesNotMatch(html, /data-feed-sentinel/);
+    assert.doesNotMatch(html, /data-infinite-sentinel/);
   });
 });

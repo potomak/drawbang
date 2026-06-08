@@ -1,22 +1,13 @@
-// TODO (#shared-template-utils): the HTML head/shell (doctype, lang,
-// charset, viewport, title, asset link, analytics, header/footer wrap) is
-// duplicated across every template here. Extract renderHtmlShell({title,
-// description, body, ...}) into lib/templates/_html-shell.ts. The inline
-// infinite-scroll <script> below is also repeated in gallery.ts /
-// follow-list.ts / bookmarks.ts — move to static/infinite-scroll.js or
-// a shared _infinite-scroll.ts renderer.
-
 import { assetUrl } from "../../src/layout/asset-version.js";
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
-import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 import { esc } from "./_escape.js";
+import { renderHtmlShell } from "./_html-shell.js";
 import { formatItemDate } from "./_time.js";
 
 // `/` — the social feed home. Vertical card list, mobile-first, single
 // column on small screens with a max-width container on larger ones.
-// Reuses `renderProfilePicture()` for the left column and the same
-// infinite-scroll observer pattern as the legacy gallery (kept inline
-// here — one consumer, low cost).
+// The infinite-scroll observer is shared with the other paginated
+// surfaces via /infinite-scroll.js.
 
 export interface FeedAuthor {
   username: string;
@@ -131,8 +122,7 @@ function renderShareAction(drawing_id: string, id_short: string): string {
 }
 
 // Items-only render (no chrome). Used by /feed/items?cursor=… so the
-// observer can append the next page in place. Mirrors the data-attribute
-// contract the inline observer below reads.
+// observer can append the next page in place.
 export function renderFeedFragment(
   items: FeedItem[],
   next_fragment_url: string | null,
@@ -140,7 +130,7 @@ export function renderFeedFragment(
   const cards = items.map(renderFeedCard).join("\n");
   if (!next_fragment_url) return cards;
   return `${cards}
-<li class="feed-sentinel" data-feed-sentinel data-next="${esc(next_fragment_url)}"></li>`;
+${renderFeedSentinel(next_fragment_url)}`;
 }
 
 export default function renderHome(v: HomeView): string {
@@ -148,15 +138,10 @@ export default function renderHome(v: HomeView): string {
   const empty = v.items.length === 0;
   const body = empty
     ? `      <p class="feed-empty">No drawings yet — be the first: <a href="/draw">open the editor</a>.</p>`
-    : `      <ul class="feed-list" data-feed-list>
+    : `      <ul class="feed-list" data-infinite-list>
 ${cards}${v.next_fragment_url ? `
-        <li class="feed-sentinel" data-feed-sentinel data-next="${esc(v.next_fragment_url)}"></li>` : ""}
+        ${renderFeedSentinel(v.next_fragment_url)}` : ""}
       </ul>`;
-  // Only ship the IntersectionObserver script when there's actually a
-  // sentinel to observe. Saves a few hundred bytes on the empty + last-
-  // page renders, and keeps assertions that "the empty page contains
-  // no data-feed-sentinel string anywhere" honest.
-  const observerScript = v.next_fragment_url ? renderObserverScript() : "";
   // Only the feed shows the right "discover" rail. Other surfaces
   // (drawing, profile, products, design) inherit the default and stay 2-col.
   const footerOpts = {
@@ -165,63 +150,25 @@ ${cards}${v.next_fragment_url ? `
     rightRail: true,
     rightRailContent: v.discover_rail_html ?? "",
   };
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    ${renderAnalytics()}
-    ${renderMetaPixel()}
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Draw!</title>
-    <link rel="stylesheet" href="${assetUrl("/gallery-v2.css")}" />
-  </head>
-  <body>
-    ${renderHeader({ active: "home", rightRail: true })}
+  // Only ship the infinite-scroll script when there's a sentinel to
+  // observe — saves a few hundred bytes on empty + last-page renders.
+  const infiniteScript = v.next_fragment_url
+    ? `    <script src="${assetUrl("/infinite-scroll.js")}"></script>\n`
+    : "";
+  return renderHtmlShell({
+    title: "Draw!",
+    body: `    ${renderHeader({ active: "home", rightRail: true })}
     <main>
 ${body}
     </main>
     ${renderFooter(footerOpts)}
-${observerScript}    <script src="${assetUrl("/toggle-handler.js")}"></script>
+${infiniteScript}    <script src="${assetUrl("/toggle-handler.js")}"></script>
     <script src="${assetUrl("/like.js")}"></script>
     <script src="${assetUrl("/bookmark.js")}"></script>
-    <script src="${assetUrl("/share.js")}"></script>
-  </body>
-</html>
-`;
+    <script src="${assetUrl("/share.js")}"></script>`,
+  });
 }
 
-function renderObserverScript(): string {
-  return `    <script>
-(function () {
-  // Infinite-scroll sentinel observer. Same shape as the gallery's
-  // legacy script; lives inline because the feed is the only consumer.
-  function wire(sentinel) {
-    if (!sentinel || sentinel.dataset.wired) return;
-    sentinel.dataset.wired = "1";
-    var next = sentinel.dataset.next;
-    if (!next) return;
-    var io = new IntersectionObserver(async function (entries) {
-      if (!entries.some(function (e) { return e.isIntersecting; })) return;
-      io.disconnect();
-      try {
-        var res = await fetch(next);
-        if (!res.ok) return;
-        var html = await res.text();
-        var list = document.querySelector("[data-feed-list]");
-        if (list) {
-          sentinel.remove();
-          list.insertAdjacentHTML("beforeend", html);
-        }
-        var nextSentinel = document.querySelector("[data-feed-sentinel]:not([data-wired])");
-        if (nextSentinel) wire(nextSentinel);
-      } catch (e) {
-        // Network/decoding error: the sentinel is gone; refresh to retry.
-      }
-    }, { rootMargin: "200px" });
-    io.observe(sentinel);
-  }
-  document.querySelectorAll("[data-feed-sentinel]").forEach(wire);
-})();
-    </script>
-`;
+function renderFeedSentinel(nextUrl: string): string {
+  return `<li class="feed-sentinel" data-infinite-sentinel data-infinite-target="[data-infinite-list]" data-next="${esc(nextUrl)}"></li>`;
 }

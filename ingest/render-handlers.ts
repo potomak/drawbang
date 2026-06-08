@@ -22,6 +22,7 @@ import {
 } from "../config/constants.js";
 import renderGallery, {
   renderGalleryFragment,
+  renderGallerySentinel,
   type GalleryItem,
   type GalleryView,
 } from "../lib/templates/gallery.js";
@@ -47,6 +48,7 @@ import renderFollowList, {
 } from "../lib/templates/follow-list.js";
 import renderNotFound from "../lib/templates/not-found.js";
 import renderProducts from "../lib/templates/products.js";
+import { assetUrl } from "../src/layout/asset-version.js";
 import renderDesign from "../lib/templates/design.js";
 import { renderDiscover } from "../lib/templates/discover.js";
 import { loadDiscover } from "./discover-handler.js";
@@ -800,44 +802,19 @@ async function ownerStatsView(
   };
 }
 
-// Splices the gallery's infinite-scroll sentinel + observer script into the
-// profile page just before </main>. The owner template renders into a
-// `<ul class="img-grid">` already; the gallery sentinel + observer
-// observe `[data-gallery-items]` and `[data-gallery-sentinel]`, so we
-// tag the ul + append the sentinel.
+// Splices the gallery's infinite-scroll sentinel into the profile page
+// just before </main>. The owner template renders into a
+// `<ul class="img-grid">` already; tagging it with data-gallery-items
+// gives the shared /infinite-scroll.js script a list target to find.
 function injectProfileSentinel(html: string, nextUrl: string): string {
+  const sentinel = renderGallerySentinel(nextUrl);
   return html
     .replace(`<ul class="img-grid">`, `<ul class="img-grid" data-gallery-items>`)
     .replace(
       `    </main>`,
-      `      <div class="gal-sentinel" data-gallery-sentinel data-next="${nextUrl}"></div>
-      <script>
-(function () {
-  function wire(sentinel) {
-    if (!sentinel || sentinel.dataset.wired) return;
-    sentinel.dataset.wired = "1";
-    var next = sentinel.dataset.next;
-    if (!next) return;
-    var io = new IntersectionObserver(async function (entries) {
-      if (!entries.some(function (e) { return e.isIntersecting; })) return;
-      io.disconnect();
-      try {
-        var res = await fetch(next);
-        if (!res.ok) return;
-        var html = await res.text();
-        var list = document.querySelector("[data-gallery-items]");
-        if (list) list.insertAdjacentHTML("beforeend", html);
-        sentinel.remove();
-        var nextSentinel = document.querySelector("[data-gallery-sentinel]:not([data-wired])");
-        if (nextSentinel) wire(nextSentinel);
-      } catch (e) {}
-    }, { rootMargin: "200px" });
-    io.observe(sentinel);
-  }
-  document.querySelectorAll("[data-gallery-sentinel]").forEach(wire);
-})();
-      </script>
-    </main>`,
+      `      ${sentinel}
+    </main>
+    <script src="${assetUrl("/infinite-scroll.js")}"></script>`,
     );
 }
 
