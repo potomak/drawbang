@@ -5,6 +5,12 @@ import type {
 } from "aws-lambda";
 import { handleIngest, type AuthedUser, type IngestRequest } from "./handler.js";
 import { JwtError, verifyJwt } from "./jwt.js";
+import {
+  authErrorCode,
+  estimateBase64Bytes,
+  ingestErrorCode,
+  logOutcome,
+} from "./log-outcome.js";
 import { handleUserStats } from "./user-stats-handler.js";
 import {
   handleForgotPassword,
@@ -69,6 +75,13 @@ import {
 import { ProductCountersStore } from "../merch/product-counters.js";
 import type { MerchCatalog } from "../merch/lambda.js";
 import merchCatalogJson from "../config/merch.json" with { type: "json" };
+import { CloudWatchLogsClient } from "@aws-sdk/client-cloudwatch-logs";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import {
+  handleAdminRoute,
+  parseRange,
+  type AdminHandlerConfig,
+} from "./admin-handler.js";
 
 const bucket = required("DRAWBANG_BUCKET");
 const publicBaseUrl = required("PUBLIC_BASE_URL");
@@ -90,6 +103,21 @@ const jwtSecret = required("JWT_SECRET");
 // Optional: until SES is wired, password-reset emails fail at send time
 // (caught + logged in the handler) but the rest of ingest stays up.
 const sesFromAddress = process.env.SES_FROM_ADDRESS ?? "";
+// Comma-separated usernames allowed to view /admin. Empty (the default)
+// means nobody can — every /admin request returns 403. Update the value
+// via the SAM parameter `AdminUsernames` (GitHub repository variable
+// `ADMIN_USERNAMES`); the change takes effect on next deploy.
+const adminUsernames = new Set(
+  (process.env.ADMIN_USERNAMES ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+);
+// Log group queried by the /admin page. Defaults to the conventional
+// `/aws/lambda/<function>` location; override via env when the Lambda
+// is reused for testing against a different log stream.
+const ingestLogGroup =
+  process.env.INGEST_LOG_GROUP ?? "/aws/lambda/drawbang-ingest";
 
 // Reused across invocations in a warm Lambda container. Cold start pays the
 // SDK init cost once; subsequent requests reuse the connection pool.
@@ -125,6 +153,21 @@ const cacheInvalidator = cfDistributionId
   : undefined;
 const productCountersStore = new ProductCountersStore({ tableName: productCountersTable });
 const merchCatalog = merchCatalogJson as MerchCatalog;
+// Lazily created — both clients are only used by /admin, so cold-start
+// for every other route stays cheap. Lambda's container reuse keeps the
+// connection pool warm once the first /admin hits.
+let adminCfgCache: AdminHandlerConfig | null = null;
+function adminCfg(): AdminHandlerConfig {
+  if (adminCfgCache) return adminCfgCache;
+  adminCfgCache = {
+    ddbClient: new DynamoDBClient({}),
+    cwLogsClient: new CloudWatchLogsClient({}),
+    usersTable,
+    drawingsTable,
+    logGroup: ingestLogGroup,
+  };
+  return adminCfgCache;
+}
 const renderConfig: RenderHandlersConfig = {
   drawingStore,
   publicBaseUrl,
@@ -157,9 +200,20 @@ export async function handler(
   const rawMethod = event.requestContext.http.method;
   const method = rawMethod === "HEAD" ? "GET" : rawMethod;
   const path = event.rawPath ?? event.requestContext.http.path ?? "";
+  // Route-outcome logging context. logOutcome() is invoked from inside
+  // handleIngestRoute + handleAuthRoute (the two flows operators are most
+  // likely to report on) so the JSON line carries domain fields beyond
+  // status/duration. Other routes inherit only the API Gateway access
+  // log entry for now.
+  const t0 = Date.now();
+  const requestId = event.requestContext.requestId;
+  const ctx: RouteContext = { requestId, t0 };
 
   if (method === "POST" && path === "/ingest") {
-    return handleIngestRoute(event);
+    return handleIngestRoute(event, ctx);
+  }
+  if (method === "GET" && path === "/admin") {
+    return handleAdminRouteWrapped(event, ctx);
   }
   // Dynamic HTML routes: feed home, drawing page, profile, RSS, products.
   // Each queries the drawings DDB store + renders the matching template.
@@ -306,9 +360,14 @@ export async function handler(
     return jsonWithHeaders(result.status, result.body, result.headers);
   }
   if (method === "POST" && path.startsWith("/auth/")) {
-    return handleAuthRoute(event, path);
+    return handleAuthRoute(event, path, ctx);
   }
   return text(405, "method not allowed");
+}
+
+interface RouteContext {
+  requestId: string;
+  t0: number;
 }
 
 function queryParam(event: APIGatewayProxyEventV2, name: string): string | null {
@@ -329,14 +388,25 @@ function adaptRender(r: RenderResponse): APIGatewayProxyResultV2 {
 async function handleAuthRoute(
   event: APIGatewayProxyEventV2,
   path: string,
+  ctx: RouteContext,
 ): Promise<APIGatewayProxyResultV2> {
+  const route = `POST ${path}`;
   let body: Record<string, unknown>;
   try {
     body = parseJson(event) as Record<string, unknown>;
   } catch {
+    logOutcome({
+      requestId: ctx.requestId,
+      route,
+      status: 400,
+      duration_ms: Date.now() - ctx.t0,
+      error_code: "bad_json",
+      error_message: "bad json body",
+    });
     return json(400, { error: "bad json body" });
   }
   let result;
+  let auth: AuthedUser | null = null;
   switch (path) {
     case "/auth/register":
       result = await handleRegister(body, authConfig);
@@ -351,8 +421,17 @@ async function handleAuthRoute(
       result = await handleResetPassword(body, authConfig);
       break;
     case "/auth/profile-picture": {
-      const auth = extractAuth(event);
-      if (!auth) return json(401, { error: "authentication required" });
+      auth = extractAuth(event);
+      if (!auth) {
+        logOutcome({
+          requestId: ctx.requestId,
+          route,
+          status: 401,
+          duration_ms: Date.now() - ctx.t0,
+          error_code: "unauthorized",
+        });
+        return json(401, { error: "authentication required" });
+      }
       const setPpAuth: SetProfilePictureAuth = {
         user_id: auth.user_id,
         username: auth.username,
@@ -361,8 +440,17 @@ async function handleAuthRoute(
       break;
     }
     case "/auth/profile": {
-      const auth = extractAuth(event);
-      if (!auth) return json(401, { error: "authentication required" });
+      auth = extractAuth(event);
+      if (!auth) {
+        logOutcome({
+          requestId: ctx.requestId,
+          route,
+          status: 401,
+          duration_ms: Date.now() - ctx.t0,
+          error_code: "unauthorized",
+        });
+        return json(401, { error: "authentication required" });
+      }
       const profileAuth: ProfileAuth = {
         user_id: auth.user_id,
         username: auth.username,
@@ -371,16 +459,54 @@ async function handleAuthRoute(
       break;
     }
     default:
+      logOutcome({
+        requestId: ctx.requestId,
+        route,
+        status: 405,
+        duration_ms: Date.now() - ctx.t0,
+      });
       return text(405, "method not allowed");
   }
+  // Pull identity off the success body for register/login, and off the
+  // verified JWT for profile-picture/profile. Failure bodies don't carry
+  // identity, so it stays undefined.
+  const success =
+    result.status >= 200 && result.status < 300
+      ? (result.body as { user_id?: string; username?: string })
+      : null;
+  const errorMessage =
+    result.status >= 400
+      ? (result.body as { error?: string }).error
+      : undefined;
+  logOutcome({
+    requestId: ctx.requestId,
+    route,
+    status: result.status,
+    duration_ms: Date.now() - ctx.t0,
+    user_id: auth?.user_id ?? success?.user_id,
+    username: auth?.username ?? success?.username,
+    error_code: errorMessage ? authErrorCode(path, errorMessage) : undefined,
+    error_message: errorMessage,
+  });
   return jsonWithHeaders(result.status, result.body, result.headers);
 }
 
 async function handleIngestRoute(
   event: APIGatewayProxyEventV2,
+  ctx: RouteContext,
 ): Promise<APIGatewayProxyResultV2> {
+  const route = "POST /ingest";
   const auth = extractAuth(event);
-  if (!auth) return json(401, { error: "authentication required" });
+  if (!auth) {
+    logOutcome({
+      requestId: ctx.requestId,
+      route,
+      status: 401,
+      duration_ms: Date.now() - ctx.t0,
+      error_code: "unauthorized",
+    });
+    return json(401, { error: "authentication required" });
+  }
   let body: IngestRequest;
   try {
     // TODO (#type-safety): `parseJson(event) as IngestRequest` trusts the
@@ -389,8 +515,19 @@ async function handleIngestRoute(
     // login / set-profile-picture routes.
     body = parseJson(event) as IngestRequest;
   } catch {
+    logOutcome({
+      requestId: ctx.requestId,
+      route,
+      status: 400,
+      duration_ms: Date.now() - ctx.t0,
+      user_id: auth.user_id,
+      username: auth.username,
+      error_code: "bad_json",
+      error_message: "bad json body",
+    });
     return json(400, { error: "bad json body" });
   }
+  const gifSize = typeof body.gif === "string" ? estimateBase64Bytes(body.gif) : undefined;
   const result = await handleIngest(body, {
     storage,
     publicBaseUrl,
@@ -400,7 +537,66 @@ async function handleIngestRoute(
     drawingStore,
     cacheInvalidator,
   });
+  const success = result.status === 200 || result.status === 202;
+  const errorMessage =
+    !success ? (result.body as { error?: string }).error : undefined;
+  logOutcome({
+    requestId: ctx.requestId,
+    route,
+    status: result.status,
+    duration_ms: Date.now() - ctx.t0,
+    user_id: auth.user_id,
+    username: auth.username,
+    drawing_id: success
+      ? (result.body as { id: string }).id
+      : undefined,
+    parent_id: body.parent ?? null,
+    gif_size_bytes: gifSize,
+    error_code: errorMessage ? ingestErrorCode(errorMessage) : undefined,
+    error_message: errorMessage,
+  });
   return json(result.status, result.body);
+}
+
+// GET /admin — JWT-gated overview page. 401 on missing/invalid token,
+// 403 when the verified username isn't on the allowlist, 200 with the
+// rendered HTML otherwise. The handler emits its own logOutcome so
+// admin views show up in the outcome stream too.
+async function handleAdminRouteWrapped(
+  event: APIGatewayProxyEventV2,
+  ctx: RouteContext,
+): Promise<APIGatewayProxyResultV2> {
+  const route = "GET /admin";
+  const auth = extractAuth(event);
+  if (!auth) {
+    logOutcome({
+      requestId: ctx.requestId, route, status: 401,
+      duration_ms: Date.now() - ctx.t0,
+      error_code: "unauthorized",
+    });
+    return json(401, { error: "authentication required" });
+  }
+  if (!adminUsernames.has(auth.username)) {
+    logOutcome({
+      requestId: ctx.requestId, route, status: 403,
+      duration_ms: Date.now() - ctx.t0,
+      user_id: auth.user_id, username: auth.username,
+      error_code: "forbidden",
+    });
+    return json(403, { error: "not authorised" });
+  }
+  const range = parseRange(queryParam(event, "range"));
+  const rendered = await handleAdminRoute({
+    cfg: adminCfg(),
+    range,
+    adminUsername: auth.username,
+  });
+  logOutcome({
+    requestId: ctx.requestId, route, status: rendered.status,
+    duration_ms: Date.now() - ctx.t0,
+    user_id: auth.user_id, username: auth.username,
+  });
+  return adaptRender(rendered);
 }
 
 // Verify the session JWT from the Authorization header. Returns the

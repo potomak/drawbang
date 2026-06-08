@@ -73,6 +73,10 @@ jobs:
           # Not sensitive (a public From address) — a prod environment variable,
           # not a secret. secrets.* would resolve empty and skip the param.
           SES_FROM_ADDRESS: ${{ vars.SES_FROM_ADDRESS }}
+          # Comma-separated usernames allowed to view /admin. Sourced from a
+          # GitHub repository variable so adding/removing an admin is a click
+          # in the repo settings, not a code edit.
+          ADMIN_USERNAMES: ${{ vars.ADMIN_USERNAMES }}
         run: |
           # Read the prior deploy's CloudFront distribution id (if any) so
           # the Lambda env var can reference it without a CloudFormation
@@ -96,6 +100,7 @@ jobs:
             "StripeWebhookSecret=${STRIPE_WEBHOOK_SECRET}" \
             "JwtSecret=${JWT_SECRET}" \
             "SesFromAddress=${SES_FROM_ADDRESS}" \
+            "AdminUsernames=${ADMIN_USERNAMES}" \
             "CloudFrontDistributionIdOverride=${PRIOR_CF_ID}"; do
             [ -n "${kv#*=}" ] && PARAMS+=("$kv")
           done

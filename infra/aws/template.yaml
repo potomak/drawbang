@@ -69,6 +69,13 @@ Parameters:
     Type: String
     Default: ""
     Description: CloudFront distribution id used by the Lambda to invalidate cached gallery/profile pages on publish.
+  AdminUsernames:
+    Type: String
+    Default: ""
+    Description: |
+      Comma-separated usernames allowed to view /admin. Empty (the default)
+      means nobody can — every /admin request returns 403. Supply via a
+      GitHub repository variable so the value survives redeploys.
 
 Conditions:
   HasCustomDomain: !Not [!Equals [!Ref DomainName, ""]]
@@ -444,6 +451,19 @@ Resources:
             Compress: true
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          # /admin — gated overview page. Authorization must reach the
+          # Lambda; the rendered HTML carries Cache-Control: private,
+          # no-store so neither the edge nor the browser stores it.
+          # Exact pattern (no /admin/* yet) — extend to /admin* if/when
+          # JSON sub-routes land.
+          - PathPattern: /admin
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
         # Map S3 misses to the chrome'd /404.html the builder writes. Both
         # codes are routed because OAC returns 403 for keys outside the
         # public/* prefix and 404 for missing keys inside it. Short cache
@@ -717,6 +737,7 @@ Resources:
           CF_DISTRIBUTION_ID: !Ref CloudFrontDistributionIdOverride
           JWT_SECRET: !Ref JwtSecret
           SES_FROM_ADDRESS: !Ref SesFromAddress
+          ADMIN_USERNAMES: !Ref AdminUsernames
           NODE_OPTIONS: "--enable-source-maps"
       Policies:
         - S3CrudPolicy:
@@ -747,6 +768,26 @@ Resources:
             - Effect: Allow
               Action: cloudfront:CreateInvalidation
               Resource: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/*"
+        # /admin reads CloudWatch Logs Insights against this function's own
+        # log group to render the events panel. StartQuery, GetQueryResults,
+        # StopQuery, DescribeQueries are the four actions the SDK needs.
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:StartQuery
+                - logs:GetQueryResults
+                - logs:StopQuery
+                - logs:DescribeQueries
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/drawbang-ingest:*"
+        # /admin also needs DescribeTable on the two tables it polls for
+        # ItemCount totals. DescribeTable is a control-plane action that
+        # SAM's DynamoDBCrudPolicy macro does NOT grant.
+        - Statement:
+            - Effect: Allow
+              Action: dynamodb:DescribeTable
+              Resource:
+                - !GetAtt UsersTable.Arn
+                - !GetAtt DrawingsTable.Arn
       Events:
         Ingest:
           Type: HttpApi
@@ -946,10 +987,43 @@ Resources:
             ApiId: !Ref IngestApi
             Method: ANY
             Path: /u/{username}/streak
+        Admin:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /admin
+
+  # Cap retention on the Lambda's own log group so the storage bill stays
+  # bounded and the Insights window the /admin page queries has a fixed
+  # ceiling. Without this explicit resource, Lambda auto-creates the group
+  # with infinite retention.
+  IngestFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/drawbang-ingest
+      RetentionInDays: 90
+
+  # Catches every request that reaches API Gateway with method/path/status/
+  # latency + the integration error message — the layer that's silent on
+  # 4xx from inside the Lambda. Application-side outcome logs (logOutcome
+  # in ingest/log-outcome.ts) sit on top with domain fields (user_id,
+  # drawing_id, error_code, …); the access log is the safety net when the
+  # Lambda crashes before its own logging runs. Retention is short so the
+  # CloudWatch ingestion bill stays in pennies even if request volume
+  # 100xs (see plan: hey-not-sure-how-optimized-bubble.md, cost section).
+  IngestApiAccessLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/apigateway/${AWS::StackName}-ingest"
+      RetentionInDays: 30
 
   IngestApi:
     Type: AWS::Serverless::HttpApi
     Properties:
+      AccessLogSettings:
+        DestinationArn: !GetAtt IngestApiAccessLogs.Arn
+        Format: '{"requestId":"$context.requestId","sourceIp":"$context.identity.sourceIp","method":"$context.httpMethod","path":"$context.path","routeKey":"$context.routeKey","status":"$context.status","integrationStatus":"$context.integrationStatus","integrationErrorMessage":"$context.integrationErrorMessage","responseLatency":"$context.responseLatency","userAgent":"$context.identity.userAgent"}'
       CorsConfiguration:
         # The custom domain is the canonical origin for the deployed editor.
         # Wildcard secondary entry covers the cloudfront.net hostname (and

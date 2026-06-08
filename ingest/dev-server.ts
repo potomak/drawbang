@@ -31,6 +31,14 @@ import { ConsoleEmailSender } from "./email.js";
 import { JwtError, verifyJwt } from "./jwt.js";
 import type { AuthedUser } from "./handler.js";
 import {
+  authErrorCode,
+  estimateBase64Bytes,
+  ingestErrorCode,
+  logOutcome,
+} from "./log-outcome.js";
+import { parseRange } from "./admin-handler.js";
+import { renderAdmin, type AdminView } from "../lib/templates/admin.js";
+import {
   handleGetProfile,
   handleLogin,
   handleRegister,
@@ -68,6 +76,16 @@ const ROOT = path.resolve(__dirname, "..", "dev-bucket");
 const PORT = Number(process.env.PORT ?? 8787);
 const PUBLIC_BASE = process.env.PUBLIC_BASE ?? "http://localhost:5173";
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret";
+// In dev, an empty allowlist means "any signed-in user is admin" so the
+// local /admin loop is one-step. In prod, an empty allowlist locks
+// everyone out — different default on purpose.
+const adminUsernames = new Set(
+  (process.env.ADMIN_USERNAMES ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+);
+const adminOpenInDev = adminUsernames.size === 0;
 
 const storage = new FsStorage(ROOT);
 const drawingStore = new MemoryDrawingStore();
@@ -111,8 +129,16 @@ const server = http.createServer(async (req, res) => {
     cors(res);
 
     if (req.method === "POST" && req.url === "/ingest") {
+      const route = "POST /ingest";
+      const t0 = Date.now();
+      const requestId = devRequestId();
       const auth = extractAuth(req);
       if (!auth) {
+        logOutcome({
+          requestId, route, status: 401,
+          duration_ms: Date.now() - t0,
+          error_code: "unauthorized",
+        });
         json(res, 401, { error: "authentication required" });
         return;
       }
@@ -124,6 +150,12 @@ const server = http.createServer(async (req, res) => {
       try {
         parsed = JSON.parse(body);
       } catch {
+        logOutcome({
+          requestId, route, status: 400,
+          duration_ms: Date.now() - t0,
+          user_id: auth.user_id, username: auth.username,
+          error_code: "bad_json", error_message: "bad json",
+        });
         json(res, 400, { error: "bad json" });
         return;
       }
@@ -133,11 +165,61 @@ const server = http.createServer(async (req, res) => {
         auth,
         drawingStore,
       });
+      const success = result.status === 200 || result.status === 202;
+      const errorMessage = !success
+        ? (result.body as { error?: string }).error
+        : undefined;
+      logOutcome({
+        requestId, route, status: result.status,
+        duration_ms: Date.now() - t0,
+        user_id: auth.user_id, username: auth.username,
+        drawing_id: success ? (result.body as { id: string }).id : undefined,
+        parent_id: parsed?.parent ?? null,
+        gif_size_bytes: typeof parsed?.gif === "string"
+          ? estimateBase64Bytes(parsed.gif)
+          : undefined,
+        error_code: errorMessage ? ingestErrorCode(errorMessage) : undefined,
+        error_message: errorMessage,
+      });
       json(res, result.status, result.body);
       // No builder pass anymore — the new drawing already lives in the
       // in-memory drawing store, so /gallery and /d/<id> pick it up on
       // the next GET.
       return;
+    }
+
+    // /admin — dev-local stub. Renders the same template the prod handler
+    // does, but with in-memory counts so the local loop works without
+    // CloudWatch. Auth gate honours ADMIN_USERNAMES; empty env var means
+    // any signed-in user is admin so the dev cycle stays one-step.
+    if (req.method === "GET" && req.url) {
+      const u = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
+      if (u.pathname === "/admin") {
+        const route = "GET /admin";
+        const t0 = Date.now();
+        const requestId = devRequestId();
+        const auth = extractAuth(req);
+        if (!auth) {
+          logOutcome({ requestId, route, status: 401, duration_ms: Date.now() - t0, error_code: "unauthorized" });
+          json(res, 401, { error: "authentication required" });
+          return;
+        }
+        if (!adminOpenInDev && !adminUsernames.has(auth.username)) {
+          logOutcome({ requestId, route, status: 403, duration_ms: Date.now() - t0, user_id: auth.user_id, username: auth.username, error_code: "forbidden" });
+          json(res, 403, { error: "not authorised" });
+          return;
+        }
+        const range = parseRange(u.searchParams.get("range"));
+        const view = await buildDevAdminView(auth.username, range);
+        const body = renderAdmin(view);
+        res.writeHead(200, {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "private, no-store",
+        });
+        res.end(body);
+        logOutcome({ requestId, route, status: 200, duration_ms: Date.now() - t0, user_id: auth.user_id, username: auth.username });
+        return;
+      }
     }
 
     // Dynamic HTML routes (Phase 3). Same handlers the Lambda uses in prod.
@@ -287,15 +369,24 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && req.url && req.url.startsWith("/auth/")) {
+      const route = `POST ${req.url}`;
+      const t0 = Date.now();
+      const requestId = devRequestId();
       const body = await readBody(req);
       let parsed: Record<string, unknown>;
       try {
         parsed = JSON.parse(body);
       } catch {
+        logOutcome({
+          requestId, route, status: 400,
+          duration_ms: Date.now() - t0,
+          error_code: "bad_json", error_message: "bad json",
+        });
         json(res, 400, { error: "bad json" });
         return;
       }
       let result;
+      let authedUser: AuthedUser | null = null;
       switch (req.url) {
         case "/auth/register":
           result = await handleRegister(parsed, authConfig);
@@ -310,36 +401,65 @@ const server = http.createServer(async (req, res) => {
           result = await handleResetPassword(parsed, authConfig);
           break;
         case "/auth/profile-picture": {
-          const auth = extractAuth(req);
-          if (!auth) {
+          authedUser = extractAuth(req);
+          if (!authedUser) {
+            logOutcome({
+              requestId, route, status: 401,
+              duration_ms: Date.now() - t0,
+              error_code: "unauthorized",
+            });
             json(res, 401, { error: "authentication required" });
             return;
           }
           const setPpAuth: SetProfilePictureAuth = {
-            user_id: auth.user_id,
-            username: auth.username,
+            user_id: authedUser.user_id,
+            username: authedUser.username,
           };
           result = await handleSetProfilePicture(parsed, setPpAuth, authConfig);
           break;
         }
         case "/auth/profile": {
-          const auth = extractAuth(req);
-          if (!auth) {
+          authedUser = extractAuth(req);
+          if (!authedUser) {
+            logOutcome({
+              requestId, route, status: 401,
+              duration_ms: Date.now() - t0,
+              error_code: "unauthorized",
+            });
             json(res, 401, { error: "authentication required" });
             return;
           }
           const profileAuth: ProfileAuth = {
-            user_id: auth.user_id,
-            username: auth.username,
+            user_id: authedUser.user_id,
+            username: authedUser.username,
           };
           result = await handleUpdateProfile(parsed, profileAuth, authConfig);
           break;
         }
         default:
+          logOutcome({
+            requestId, route, status: 404,
+            duration_ms: Date.now() - t0,
+          });
           res.writeHead(404);
           res.end("not found");
           return;
       }
+      const success = result.status >= 200 && result.status < 300;
+      const successBody = success
+        ? (result.body as { user_id?: string; username?: string })
+        : null;
+      const errorMessage = !success
+        ? (result.body as { error?: string }).error
+        : undefined;
+      logOutcome({
+        requestId, route, status: result.status,
+        duration_ms: Date.now() - t0,
+        user_id: authedUser?.user_id ?? successBody?.user_id,
+        username: authedUser?.username ?? successBody?.username,
+        error_code: errorMessage ? authErrorCode(req.url, errorMessage) : undefined,
+        error_message: errorMessage,
+      });
       jsonWithHeaders(res, result.status, result.body, result.headers);
       return;
     }
@@ -390,6 +510,44 @@ function jsonWithHeaders(
     ...(headers ?? {}),
   });
   res.end(JSON.stringify(body));
+}
+
+// Cheap monotonic request id for the dev server. Mirrors the
+// $context.requestId field the prod API Gateway access log carries
+// so log-outcome JSON lines look the same in both environments.
+let devReqCounter = 0;
+function devRequestId(): string {
+  devReqCounter += 1;
+  return `dev-${process.pid}-${devReqCounter}`;
+}
+
+// In-memory AdminView for the dev /admin page. Counts come from the
+// Memory stores; success-rate cards stay null (rendered as "—") because
+// there's no real outcome stream locally. Use the dev loop to verify
+// layout + auth gate; visit prod for the real numbers.
+async function buildDevAdminView(
+  adminUsername: string,
+  range: AdminView["range"],
+): Promise<AdminView> {
+  const drawingsPage = await drawingStore.queryGallery({ limit: 1000 });
+  const totalDrawings = drawingsPage.items.length;
+  const totalUsers = userStoreSize();
+  return {
+    adminUsername,
+    range,
+    generatedAtISO: new Date().toISOString(),
+    totalUsers,
+    totalDrawings,
+    publish: null,
+    register: null,
+    failures: [],
+  };
+}
+
+// MemoryUserStore has no public size(); peek at the private map.
+function userStoreSize(): number | null {
+  const m = (userStore as unknown as { byEmail?: Map<unknown, unknown> }).byEmail;
+  return m instanceof Map ? m.size : null;
 }
 
 function readBody(req: http.IncomingMessage): Promise<string> {
