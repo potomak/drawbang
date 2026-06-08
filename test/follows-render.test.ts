@@ -179,7 +179,7 @@ describe("renderFollowersPageHandler", () => {
     // for /hydrate.js so it can swap in a real <img> if she sets one later.
     assert.match(
       res.body,
-      /<span class="profile-picture profile-picture-placeholder" aria-hidden="true" data-profile-picture-username="carol" data-profile-picture-size="44">C<\/span>/,
+      /<span class="profile-picture profile-picture-placeholder" aria-hidden="true" data-profile-picture-username="carol" data-profile-picture-size="48">C<\/span>/,
     );
   });
 

@@ -47,7 +47,7 @@ export function renderFollowCard(item: FollowListItem): string {
 
 function renderFollowCardPicture(item: FollowListItem): string {
   const id = item.profile_picture_drawing_id;
-  const size = 44;
+  const size = 48;
   const dataAttrs = `data-profile-picture-username="${esc(item.username)}" data-profile-picture-size="${size}"`;
   if (id && /^[0-9a-f]{64}$/.test(id)) {
     return `<img class="profile-picture" src="/tiles/${esc(id)}.gif" alt="${esc(item.username)}" width="${size}" height="${size}" loading="lazy" ${dataAttrs} />`;

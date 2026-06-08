@@ -65,7 +65,7 @@ describe("renderHome", () => {
     );
     // /hydrate.js reads these to swap the image in/out without a page reload.
     assert.match(html, /data-profile-picture-username="alice"/);
-    assert.match(html, /data-profile-picture-size="44"/);
+    assert.match(html, /data-profile-picture-size="48"/);
   });
 
   test("renders a monogram placeholder in the left rail when no picture is set", () => {

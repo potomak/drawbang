@@ -38,15 +38,15 @@
 /* Left column: profile picture only. Username + date now live in the
    .feed-card-author header inside .feed-card-main. */
 .feed-card-pp {
-  flex: 0 0 44px;
+  flex: 0 0 48px;
   display: block;
   text-decoration: none;
   line-height: 0;
 }
 .feed-card-pp .profile-picture {
   display: block;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   margin: 0;
 }
 .feed-card-pp .profile-picture-placeholder {
@@ -96,7 +96,6 @@
   display: block;
   max-width: 320px;
   width: 100%;
-  border: var(--border) solid var(--line);
   background: var(--paper-2);
   text-decoration: none;
 }
@@ -117,7 +116,7 @@
 @media (max-width: 859px) {
   .feed-card {
     display: grid;
-    grid-template-columns: 44px 1fr;
+    grid-template-columns: 48px 1fr;
     grid-template-areas:
       "pp      author"
       "art     art"
@@ -308,19 +307,18 @@
 .follow-card-pp { display: inline-flex; line-height: 0; }
 .follow-card-pp .profile-picture {
   display: block;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   margin: 0;
 }
 .follow-card-pp .profile-picture-placeholder {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   font-size: 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: var(--paper-2);
-  border: var(--border) solid var(--line);
   color: var(--fg-muted);
 }
 .follow-card-name {
@@ -352,7 +350,6 @@
 .img-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  gap: 8px;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -362,7 +359,6 @@
   display: block;
   aspect-ratio: 1;
   background: var(--paper-2);
-  border: var(--border) solid var(--line);
   overflow: hidden;
   position: relative;
 }
@@ -410,7 +406,6 @@
   height: auto;
   display: block;
   background: var(--paper-2);
-  border: var(--border) solid var(--line);
   aspect-ratio: 1;
   image-rendering: pixelated;
 }
@@ -435,7 +430,6 @@ img.profile-picture {
   display: inline-block;
   vertical-align: middle;
   margin-right: 8px;
-  border: var(--border) solid var(--line);
   background: var(--paper-2);
   image-rendering: crisp-edges;
   image-rendering: pixelated;
@@ -604,7 +598,6 @@ img.profile-picture {
   aspect-ratio: 1;
   position: relative;
   background: var(--paper-2);
-  border: var(--border) solid var(--line);
   overflow: hidden;
 }
 .st-day-out { background: transparent; border-color: transparent; }
@@ -682,7 +675,6 @@ img.profile-picture {
   width: 32px;
   height: 32px;
   background: var(--paper-2);
-  border: var(--border) solid var(--line);
   image-rendering: pixelated;
 }
 .rr-thumb--placeholder { display: inline-block; }

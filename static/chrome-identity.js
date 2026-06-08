@@ -64,7 +64,7 @@
       const img = el.querySelector(".hdr-profile-pic");
       if (img instanceof HTMLImageElement) {
         img.setAttribute("data-profile-picture-username", username);
-        img.setAttribute("data-profile-picture-size", "24");
+        img.setAttribute("data-profile-picture-size", "32");
         img.alt = username;
       }
       const name = el.querySelector(".hdr-profile-name");
@@ -137,7 +137,7 @@
       const html = usernames
         .map(
           (un) =>
-            `<a class="rail-thumb" href="/u/${encodeURIComponent(un)}" aria-label="${escapeAttr(un)}"><span class="profile-picture" data-profile-picture-username="${escapeAttr(un)}" data-profile-picture-size="28"></span></a>`,
+            `<a class="rail-thumb" href="/u/${encodeURIComponent(un)}" aria-label="${escapeAttr(un)}"><span class="profile-picture profile-picture-placeholder" aria-hidden="true" data-profile-picture-username="${escapeAttr(un)}" data-profile-picture-size="32">${escapeAttr((un.charAt(0) || "?").toUpperCase())}</span></a>`,
         )
         .join("");
       grid.innerHTML = html;

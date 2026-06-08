@@ -81,7 +81,7 @@ export function renderFeedCard(item: FeedItem): string {
 // placeholder when the author hasn't set one (or the row is anonymous)
 // so the column width stays consistent across cards.
 function renderFeedProfilePicture(author: FeedAuthor | null): string {
-  const size = 44;
+  const size = 48;
   const pic = author?.profile_picture_drawing_id;
   // Anonymous cards (no author) emit an untagged placeholder — there's no
   // username to hydrate against.

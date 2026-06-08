@@ -186,8 +186,8 @@ a:hover { color: var(--accent); }
 }
 .hdr-profile:hover { border-color: var(--ink); color: var(--ink); }
 .hdr-profile-pic {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   display: block;
   background: var(--canvas-bg);
 }
@@ -297,11 +297,9 @@ a:hover { color: var(--accent); }
   display: block;
   aspect-ratio: 1;
   background: var(--paper-2);
-  border: var(--border) solid var(--line);
   overflow: hidden;
   line-height: 0;
 }
-.rail-thumb:hover { border-color: var(--ink); }
 .rail-thumb .profile-picture {
   display: block;
   width: 100%;
