@@ -998,11 +998,11 @@ Resources:
   # bounded and the Insights window the /admin page queries has a fixed
   # ceiling. Without this explicit resource, Lambda auto-creates the group
   # with infinite retention.
-  IngestFunctionLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /aws/lambda/drawbang-ingest
-      RetentionInDays: 90
+  # IngestFunctionLogGroup:
+  #   Type: AWS::Logs::LogGroup
+  #   Properties:
+  #     LogGroupName: /aws/lambda/drawbang-ingest
+  #     RetentionInDays: 90
 
   # Catches every request that reaches API Gateway with method/path/status/
   # latency + the integration error message — the layer that's silent on
