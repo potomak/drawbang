@@ -308,6 +308,14 @@ a:hover { color: var(--accent); }
   background: var(--paper-2);
   image-rendering: pixelated;
 }
+.rail-thumb .profile-picture-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted);
+  font: 600 12px/1 var(--font-sans);
+  text-transform: uppercase;
+}
 
 .rail-foot {
   margin-top: auto;
