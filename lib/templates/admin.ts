@@ -3,9 +3,15 @@ import { esc } from "./_escape.js";
 import { renderHtmlShell } from "./_html-shell.js";
 
 // /admin overview. Hidden URL (no link in the chrome), gated by an
-// allowlist in lambda.ts before this template runs. Cards on top, a
-// recent-failures table below. Inline styles only — this is the one
-// page that uses them, no need to leak `.adm-*` rules into chrome.css.
+// allowlist enforced server-side on the data endpoint. Browser navs
+// don't carry the Bearer JWT, so the shell page itself is
+// unauthenticated and an inline boot script fetches the real data
+// from /admin/data with Authorization: Bearer <jwt>. Same pattern as
+// /u/<un>/bookmarks → /me/bookmarks/feed.
+//
+// Cards on top, a recent-failures table below. Inline styles only —
+// this is the one page that uses them, no need to leak `.adm-*` rules
+// into chrome.css.
 
 export type AdminRange = "24h" | "7d" | "30d";
 
@@ -33,6 +39,11 @@ export interface AdminView {
   }>;
 }
 
+export interface AdminShellOptions {
+  range: AdminRange;
+  repo_url: string;
+}
+
 const RANGES: ReadonlyArray<AdminRange> = ["24h", "7d", "30d"];
 
 const ADMIN_STYLES = `<style>
@@ -57,15 +68,81 @@ const ADMIN_STYLES = `<style>
       .adm-status-4xx { color: var(--ink); }
       .adm-status-5xx { color: #b00020; font-weight: bold; }
       .adm-empty { padding: 24px; text-align: center; color: var(--fg-muted); }
+      .adm-inner { display: grid; gap: 24px; }
     </style>`;
 
-export function renderAdmin(v: AdminView): string {
+export function renderAdminShell(opts: AdminShellOptions): string {
   return renderHtmlShell({
     title: "Admin — Draw!",
     extraHead: `<meta name="robots" content="noindex,nofollow">\n    ${ADMIN_STYLES}`,
+    bodyAttrs: "data-admin-page",
     body: `    ${renderHeader()}
     <main class="adm-main">
-      ${renderBar(v)}
+      <div class="adm-bar">
+        <div>
+          <h1 class="adm-section-title">Admin — overview</h1>
+        </div>
+        <nav class="adm-range" aria-label="Range">${renderRangeLinks(opts.range)}</nav>
+      </div>
+      <div class="adm-inner" data-admin-inner>
+        <div class="adm-empty" data-admin-loading>Loading admin data…</div>
+      </div>
+    </main>
+    ${renderFooter({ repoUrl: opts.repo_url })}
+    ${renderBootScript()}`,
+  });
+}
+
+// Inline auth + fetch dance. Plain JS so the admin page can ship as a
+// single Lambda response without a separate bundle. Mirrors the
+// bookmarks shell's renderBootScript() for the same reason: browser
+// navigations don't carry the Bearer JWT, so the data has to be
+// pulled by the page itself after it loads.
+function renderBootScript(): string {
+  return `    <script>
+(function () {
+  var jwt = null;
+  try { jwt = localStorage.getItem("drawbang:jwt"); } catch (e) {}
+  if (!jwt) {
+    var next = encodeURIComponent(location.pathname + location.search);
+    location.replace("/login?next=" + next);
+    return;
+  }
+  var url = "/admin/data" + location.search;
+  fetch(url, { headers: { Authorization: "Bearer " + jwt } })
+    .then(function (res) {
+      if (res.status === 401) {
+        var next = encodeURIComponent(location.pathname + location.search);
+        location.replace("/login?next=" + next);
+        return null;
+      }
+      if (res.status === 403) return "__forbidden__";
+      return res.ok ? res.text() : null;
+    })
+    .then(function (html) {
+      var inner = document.querySelector("[data-admin-inner]");
+      if (!inner) return;
+      if (html === "__forbidden__") {
+        inner.innerHTML = '<div class="adm-empty">Not authorised. Your account isn\\'t on the admin allowlist.</div>';
+        return;
+      }
+      if (html === null) {
+        inner.innerHTML = '<div class="adm-empty">Couldn\\'t load admin data.</div>';
+        return;
+      }
+      inner.innerHTML = html;
+    })
+    .catch(function () {
+      var inner = document.querySelector("[data-admin-inner]");
+      if (inner) inner.innerHTML = '<div class="adm-empty">Couldn\\'t load admin data.</div>';
+    });
+})();
+    </script>
+`;
+}
+
+export function renderAdminInner(v: AdminView): string {
+  return `<div class="adm-meta">signed in as ${esc(v.adminUsername)} · generated ${esc(v.generatedAtISO)}</div>
       <div class="adm-grid" aria-label="Site totals + window stats">
         ${renderCard("Total users", numberOrDash(v.totalUsers), "all time, sampled ~6h")}
         ${renderCard("Total drawings", numberOrDash(v.totalDrawings), "all time, sampled ~6h")}
@@ -77,24 +154,14 @@ export function renderAdmin(v: AdminView): string {
       <section aria-labelledby="adm-failures-title">
         <h2 id="adm-failures-title" class="adm-section-title">Recent failures (last 50)</h2>
         ${renderFailuresTable(v.failures)}
-      </section>
-    </main>
-    ${renderFooter({ repoUrl: "https://github.com/potomak/drawbang" })}`,
-  });
+      </section>`;
 }
 
-function renderBar(v: AdminView): string {
-  const links = RANGES.map((r) => {
-    const current = r === v.range ? ' aria-current="page"' : "";
+function renderRangeLinks(range: AdminRange): string {
+  return RANGES.map((r) => {
+    const current = r === range ? ' aria-current="page"' : "";
     return `<a href="/admin?range=${r}"${current}>${r}</a>`;
   }).join("");
-  return `<div class="adm-bar">
-        <div>
-          <h1 class="adm-section-title">Admin — overview</h1>
-          <div class="adm-meta">signed in as ${esc(v.adminUsername)} · generated ${esc(v.generatedAtISO)}</div>
-        </div>
-        <nav class="adm-range" aria-label="Range">${links}</nav>
-      </div>`;
 }
 
 function renderCard(label: string, num: string, sub: string): string {

@@ -2,14 +2,19 @@ import type { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DescribeTableCommand } from "@aws-sdk/client-dynamodb";
 import type { CloudWatchLogsClient } from "@aws-sdk/client-cloudwatch-logs";
 import { runInsightsQuery, type InsightsRow } from "./cloudwatch-logs.js";
-import { renderAdmin, type AdminView, type AdminRange } from "../lib/templates/admin.js";
+import { renderAdminInner, type AdminView, type AdminRange } from "../lib/templates/admin.js";
 import type { RenderResponse } from "./render-handlers.js";
 
-// /admin overview page. Pulls high-level counters from DynamoDB
-// DescribeTable (sampled ~every 6h, free) and event aggregates from
-// CloudWatch Logs Insights against the `{kind:"outcome",…}` stream
-// emitted by ingest/log-outcome.ts. Auth gating happens in lambda.ts
-// before this handler runs.
+// /admin/data endpoint. Returns an HTML fragment (the data-bound
+// inner section: meta + cards + failures table). The /admin shell
+// page fetches this with Authorization: Bearer <jwt> from its inline
+// boot script — see lib/templates/admin.ts.
+//
+// Pulls high-level counters from DynamoDB DescribeTable (sampled
+// ~every 6h, free) and event aggregates from CloudWatch Logs Insights
+// against the `{kind:"outcome",…}` stream emitted by
+// ingest/log-outcome.ts. Auth gating happens in lambda.ts before this
+// handler runs.
 
 export interface AdminHandlerConfig {
   // Both clients are injected so tests can stub them without a real
@@ -94,7 +99,7 @@ export async function handleAdminRoute(
     status: 200,
     contentType: "text/html; charset=utf-8",
     cacheControl: "private, no-store",
-    body: renderAdmin(view),
+    body: renderAdminInner(view),
   };
 }
 

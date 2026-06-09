@@ -37,7 +37,11 @@ import {
   logOutcome,
 } from "./log-outcome.js";
 import { parseRange } from "./admin-handler.js";
-import { renderAdmin, type AdminView } from "../lib/templates/admin.js";
+import {
+  renderAdminInner,
+  renderAdminShell,
+  type AdminView,
+} from "../lib/templates/admin.js";
 import {
   handleGetProfile,
   handleLogin,
@@ -188,14 +192,27 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // /admin — dev-local stub. Renders the same template the prod handler
-    // does, but with in-memory counts so the local loop works without
-    // CloudWatch. Auth gate honours ADMIN_USERNAMES; empty env var means
-    // any signed-in user is admin so the dev cycle stays one-step.
+    // /admin shell + /admin/data fragment — mirrors the prod split.
+    // Shell ships unauthenticated; data endpoint runs the Bearer +
+    // allowlist gate. In dev, an empty ADMIN_USERNAMES means "any
+    // signed-in user is admin" so the local loop stays one-step.
     if (req.method === "GET" && req.url) {
       const u = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
       if (u.pathname === "/admin") {
-        const route = "GET /admin";
+        const range = parseRange(u.searchParams.get("range"));
+        const body = renderAdminShell({
+          range,
+          repo_url: process.env.REPO_URL ?? "https://github.com/potomak/drawbang",
+        });
+        res.writeHead(200, {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "private, no-store",
+        });
+        res.end(body);
+        return;
+      }
+      if (u.pathname === "/admin/data") {
+        const route = "GET /admin/data";
         const t0 = Date.now();
         const requestId = devRequestId();
         const auth = extractAuth(req);
@@ -211,7 +228,7 @@ const server = http.createServer(async (req, res) => {
         }
         const range = parseRange(u.searchParams.get("range"));
         const view = await buildDevAdminView(auth.username, range);
-        const body = renderAdmin(view);
+        const body = renderAdminInner(view);
         res.writeHead(200, {
           "Content-Type": "text/html; charset=utf-8",
           "Cache-Control": "private, no-store",

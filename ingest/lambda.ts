@@ -82,6 +82,7 @@ import {
   parseRange,
   type AdminHandlerConfig,
 } from "./admin-handler.js";
+import { renderAdminShell } from "../lib/templates/admin.js";
 
 const bucket = required("DRAWBANG_BUCKET");
 const publicBaseUrl = required("PUBLIC_BASE_URL");
@@ -212,8 +213,21 @@ export async function handler(
   if (method === "POST" && path === "/ingest") {
     return handleIngestRoute(event, ctx);
   }
+  // /admin — public shell. Carries no per-user data, so it ships
+  // unauthenticated; an inline boot script reads the JWT from
+  // localStorage and fetches /admin/data with a Bearer header. The
+  // Bearer + allowlist gate lives on /admin/data below.
   if (method === "GET" && path === "/admin") {
-    return handleAdminRouteWrapped(event, ctx);
+    const range = parseRange(queryParam(event, "range"));
+    return adaptRender({
+      status: 200,
+      contentType: "text/html; charset=utf-8",
+      cacheControl: "private, no-store",
+      body: renderAdminShell({ range, repo_url: repoUrl }),
+    });
+  }
+  if (method === "GET" && path === "/admin/data") {
+    return handleAdminDataRoute(event, ctx);
   }
   // Dynamic HTML routes: feed home, drawing page, profile, RSS, products.
   // Each queries the drawings DDB store + renders the matching template.
@@ -558,15 +572,16 @@ async function handleIngestRoute(
   return json(result.status, result.body);
 }
 
-// GET /admin — JWT-gated overview page. 401 on missing/invalid token,
-// 403 when the verified username isn't on the allowlist, 200 with the
-// rendered HTML otherwise. The handler emits its own logOutcome so
+// GET /admin/data — JWT-gated HTML fragment used by the /admin shell
+// to populate its data-bound area. 401 on missing/invalid token, 403
+// when the verified username isn't on the allowlist, 200 with the
+// inner HTML otherwise. The handler emits its own logOutcome so
 // admin views show up in the outcome stream too.
-async function handleAdminRouteWrapped(
+async function handleAdminDataRoute(
   event: APIGatewayProxyEventV2,
   ctx: RouteContext,
 ): Promise<APIGatewayProxyResultV2> {
-  const route = "GET /admin";
+  const route = "GET /admin/data";
   const auth = extractAuth(event);
   if (!auth) {
     logOutcome({

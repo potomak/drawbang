@@ -451,12 +451,15 @@ Resources:
             Compress: true
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
-          # /admin — gated overview page. Authorization must reach the
-          # Lambda; the rendered HTML carries Cache-Control: private,
-          # no-store so neither the edge nor the browser stores it.
-          # Exact pattern (no /admin/* yet) — extend to /admin* if/when
-          # JSON sub-routes land.
-          - PathPattern: /admin
+          # /admin (the public shell page) + /admin/data (Bearer-gated
+          # HTML fragment fetched by the shell's inline boot script).
+          # Browser navs to /admin don't carry the JWT, so the shell
+          # itself is unauthenticated; the data fetch is gated server-
+          # side. Both responses are Cache-Control: private, no-store,
+          # so neither the edge nor the browser stores them. AllViewer-
+          # ExceptHostHeader forwards Authorization so /admin/data
+          # sees the Bearer token.
+          - PathPattern: /admin*
             TargetOriginId: api
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD, OPTIONS]
@@ -993,16 +996,21 @@ Resources:
             ApiId: !Ref IngestApi
             Method: GET
             Path: /admin
+        AdminData:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /admin/data
 
-  # Cap retention on the Lambda's own log group so the storage bill stays
-  # bounded and the Insights window the /admin page queries has a fixed
-  # ceiling. Without this explicit resource, Lambda auto-creates the group
-  # with infinite retention.
-  # IngestFunctionLogGroup:
-  #   Type: AWS::Logs::LogGroup
-  #   Properties:
-  #     LogGroupName: /aws/lambda/drawbang-ingest
-  #     RetentionInDays: 90
+  # Lambda auto-creates /aws/lambda/drawbang-ingest with infinite retention
+  # on first invocation. Apply a 90-day cap once via the AWS CLI so the
+  # storage bill stays bounded and the CWLogs Insights window the /admin
+  # page queries has a fixed ceiling:
+  #   aws logs put-retention-policy \
+  #     --log-group-name /aws/lambda/drawbang-ingest \
+  #     --retention-in-days 90
+  # The setting survives redeploys (SAM doesn't manage the group).
 
   # Catches every request that reaches API Gateway with method/path/status/
   # latency + the integration error message — the layer that's silent on

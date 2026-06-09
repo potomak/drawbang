@@ -10,6 +10,7 @@ import {
   type CloudWatchLogsClient,
 } from "@aws-sdk/client-cloudwatch-logs";
 import { handleAdminRoute, parseRange } from "../ingest/admin-handler.js";
+import { renderAdminShell } from "../lib/templates/admin.js";
 
 // Fakes the AWS SDK clients with handcrafted responses. Tests stay
 // hermetic and assert what we'd actually want to render: counts, success
@@ -98,7 +99,7 @@ describe("parseRange", () => {
 });
 
 describe("handleAdminRoute", () => {
-  test("renders 200 HTML with private,no-store cache-control", async () => {
+  test("renders the inner HTML fragment with private,no-store cache-control", async () => {
     const cfg = baseCfg({});
     const res = await handleAdminRoute({
       cfg, range: "24h", adminUsername: "potomak",
@@ -106,7 +107,9 @@ describe("handleAdminRoute", () => {
     assert.equal(res.status, 200);
     assert.equal(res.cacheControl, "private, no-store");
     assert.match(res.contentType, /^text\/html/);
-    assert.match(res.body, /<title>Admin — Draw!<\/title>/);
+    // Fragment — no doctype, no <title>; the shell owns those.
+    assert.equal(/<title>/.test(res.body), false);
+    assert.equal(/<!doctype/i.test(res.body), false);
     assert.match(res.body, /signed in as potomak/);
   });
 
@@ -250,11 +253,26 @@ describe("handleAdminRoute", () => {
     assert.equal(startedSnapshot24h, 3);
   });
 
-  test("noindex meta is present so admin pages don't get crawled", async () => {
-    const cfg = baseCfg({});
-    const res = await handleAdminRoute({
-      cfg, range: "24h", adminUsername: "potomak",
+});
+
+describe("renderAdminShell", () => {
+  test("ships the chrome, loading skeleton, range nav, and inline boot script", () => {
+    const html = renderAdminShell({
+      range: "7d",
+      repo_url: "https://github.com/potomak/drawbang",
     });
-    assert.match(res.body, /<meta name="robots" content="noindex,nofollow">/);
+    assert.match(html, /<title>Admin — Draw!<\/title>/);
+    assert.match(html, /<meta name="robots" content="noindex,nofollow">/);
+    assert.match(html, /data-admin-page/);
+    assert.match(html, /data-admin-inner/);
+    assert.match(html, /data-admin-loading/);
+    // Selected range tab is marked current.
+    assert.match(html, /href="\/admin\?range=7d"[^>]*aria-current="page"/);
+    // Boot script fetches /admin/data with the Bearer token.
+    assert.match(html, /localStorage\.getItem\("drawbang:jwt"\)/);
+    assert.match(html, /"\/admin\/data"/);
+    assert.match(html, /Authorization: "Bearer " \+ jwt/);
+    // 401 redirects to /login with the original URL as next=.
+    assert.match(html, /location\.replace\("\/login\?next="/);
   });
 });
