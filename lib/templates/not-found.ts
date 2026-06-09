@@ -1,25 +1,15 @@
-import { assetUrl } from "../../src/layout/asset-version.js";
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
-import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
+import { renderHtmlShell } from "./_html-shell.js";
 
 export interface NotFoundView {
   repo_url: string;
 }
 
 export default function renderNotFound(v: NotFoundView): string {
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    ${renderAnalytics()}
-    ${renderMetaPixel()}
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Draw! · Not found</title>
-    <meta name="robots" content="noindex" />
-    <link rel="stylesheet" href="${assetUrl("/gallery-v2.css")}" />
-  </head>
-  <body>
-    ${renderHeader({ active: "home" })}
+  return renderHtmlShell({
+    title: "Draw! · Not found",
+    extraHead: '<meta name="robots" content="noindex" />',
+    body: `    ${renderHeader({ active: "home" })}
     <main>
       <h1 class="page-title">Page not found</h1>
       <p>
@@ -27,8 +17,6 @@ export default function renderNotFound(v: NotFoundView): string {
         <a href="/draw">the editor</a> and draw something new.
       </p>
     </main>
-    ${renderFooter({ active: "home", repoUrl: v.repo_url })}
-  </body>
-</html>
-`;
+    ${renderFooter({ active: "home", repoUrl: v.repo_url })}`,
+  });
 }
