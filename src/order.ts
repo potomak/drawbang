@@ -73,6 +73,8 @@ function formatUsd(cents: number | undefined): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
+// TODO (#shared-escape): third copy of the HTML escaper — consolidate
+// with lib/templates/_escape.ts (docs/architecture-review-2026-06.md).
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (ch) => {
     switch (ch) {

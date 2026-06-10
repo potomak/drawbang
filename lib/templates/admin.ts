@@ -46,6 +46,8 @@ export interface AdminShellOptions {
 
 const RANGES: ReadonlyArray<AdminRange> = ["24h", "7d", "30d"];
 
+// TODO (#admin-inline-styles): move .adm-* to static/gallery-v2.css per the
+// three-CSS-file rule — see docs/architecture-review-2026-06.md.
 const ADMIN_STYLES = `<style>
       .adm-main { display: grid; gap: 24px; padding: 24px var(--pad); max-width: 1100px; margin: 0 auto; }
       .adm-bar { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }

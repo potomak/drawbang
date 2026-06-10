@@ -495,6 +495,8 @@ function cors(res: http.ServerResponse): void {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 }
 
+// TODO (#dev-server-drift): this and the route table above hand-mirror
+// lambda.ts — see docs/architecture-review-2026-06.md.
 function extractAuth(req: http.IncomingMessage): AuthedUser | null {
   const header = req.headers.authorization ?? "";
   const m = /^Bearer\s+(.+)$/i.exec(header);

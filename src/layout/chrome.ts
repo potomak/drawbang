@@ -177,6 +177,8 @@ const ESC: Record<string, string> = {
   '"': "&quot;",
   "'": "&#39;",
 };
+// TODO (#shared-escape): duplicate of lib/templates/_escape.ts esc() —
+// consolidate to one shared module (docs/architecture-review-2026-06.md).
 function esc(v: unknown): string {
   if (v == null) return "";
   return String(v).replace(/[&<>"']/g, (c) => ESC[c]!);

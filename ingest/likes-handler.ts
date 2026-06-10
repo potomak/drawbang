@@ -32,6 +32,8 @@ export async function handleLike(
   cfg: LikesHandlerConfig,
 ): Promise<LikesResult> {
   if (!DRAWING_ID_RE.test(drawing_id)) return err(400, "invalid drawing_id");
+  // TODO (#now-idiom): standardise the now() seam idiom across handlers —
+  // see docs/architecture-review-2026-06.md.
   const now = cfg.now ? cfg.now() : new Date();
   return toggleAction(
     () =>

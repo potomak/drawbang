@@ -616,6 +616,8 @@ async function handleAdminDataRoute(
 
 // Verify the session JWT from the Authorization header. Returns the
 // authenticated account, or null when the header is missing/invalid/expired.
+// TODO (#dev-server-drift): this and the route table above are hand-mirrored
+// in dev-server.ts — see docs/architecture-review-2026-06.md.
 function extractAuth(event: APIGatewayProxyEventV2): AuthedUser | null {
   const header =
     event.headers?.authorization ?? event.headers?.Authorization ?? "";
