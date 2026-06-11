@@ -636,14 +636,22 @@ async function handlePublish(): Promise<void> {
   }
   tracker.publishClick(state.frames.length);
   showFlash({ kind: "info", message: "Publishing…" });
+  // Captured before the await so the remix flag reflects the parent that
+  // was actually sent, even if state resets mid-flight.
+  const publishedParentId = parentId;
   try {
     const result = await submit({
       ingestUrl: INGEST_URL,
       gif: encodeGif({ frames: state.frames, activePalette, size: currentSize }),
-      parent: parentId ?? undefined,
+      parent: publishedParentId ?? undefined,
     });
     flashPublished(result.share_url);
-    tracker.publishSuccess({ frames: state.frames.length, solve_ms: 0 });
+    tracker.publishSuccess({
+      frames: state.frames.length,
+      solve_ms: 0,
+      remix: publishedParentId !== null,
+      prompt: null,
+    });
     if (localId) {
       await local.save({ id: localId, frames: state.frames, activePalette, publishedId: result.id });
     }

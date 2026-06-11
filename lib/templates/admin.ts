@@ -28,6 +28,15 @@ export interface AdminView {
   // doesn't 500 the whole page.
   publish: { succ: number; fail: number; total: number } | null;
   register: { succ: number; fail: number; total: number } | null;
+  // Product KPIs computed server-side from a recent-drawings scan
+  // (DrawingStore, not GA). null when the scan fails so the rest of
+  // the page still renders.
+  kpis: {
+    scanned: number;
+    remixes: number;
+    remixRatePct: number | null;
+    publishesPerDay: number | null;
+  } | null;
   // Last 50 failures across all routes, newest first.
   failures: ReadonlyArray<{
     timestamp: string;
@@ -153,6 +162,7 @@ export function renderAdminInner(v: AdminView): string {
         ${renderCard("Publish success", successRate(v.publish), publishSub(v.publish))}
         ${renderCard("Register success", successRate(v.register), registerSub(v.register))}
       </div>
+      ${renderKpisSection(v.kpis)}
       <section aria-labelledby="adm-failures-title">
         <h2 id="adm-failures-title" class="adm-section-title">Recent failures (last 50)</h2>
         ${renderFailuresTable(v.failures)}
@@ -164,6 +174,41 @@ function renderRangeLinks(range: AdminRange): string {
     const current = r === range ? ' aria-current="page"' : "";
     return `<a href="/admin?range=${r}"${current}>${r}</a>`;
   }).join("");
+}
+
+function renderKpisSection(k: AdminView["kpis"]): string {
+  const title =
+    k == null ? "Product KPIs" : `Product KPIs (last ${k.scanned} drawings)`;
+  return `<section aria-labelledby="adm-kpis-title">
+        <h2 id="adm-kpis-title" class="adm-section-title">${esc(title)}</h2>
+        <div class="adm-grid">
+          ${renderCard("Remix rate", kpiRemixRate(k), kpiRemixSub(k))}
+          ${renderCard("Publishes / day", kpiPerDay(k), kpiPerDaySub(k))}
+        </div>
+      </section>`;
+}
+
+function kpiRemixRate(k: AdminView["kpis"]): string {
+  if (k == null || k.remixRatePct == null) return "—";
+  return `${k.remixRatePct.toFixed(1)}%`;
+}
+
+function kpiRemixSub(k: AdminView["kpis"]): string {
+  if (k == null) return "drawings query failed";
+  if (k.scanned === 0) return "no drawings scanned";
+  return `${k.remixes.toLocaleString("en-US")} of ${k.scanned.toLocaleString("en-US")} are remixes`;
+}
+
+function kpiPerDay(k: AdminView["kpis"]): string {
+  if (k == null || k.publishesPerDay == null) return "—";
+  const n = k.publishesPerDay;
+  return n >= 1 ? n.toFixed(1) : n.toFixed(2);
+}
+
+function kpiPerDaySub(k: AdminView["kpis"]): string {
+  if (k == null) return "drawings query failed";
+  if (k.publishesPerDay == null) return "needs ≥ 2 drawings";
+  return "across the scanned window";
 }
 
 function renderCard(label: string, num: string, sub: string): string {

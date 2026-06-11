@@ -26,6 +26,11 @@
     el.textContent = String(Math.max(0, n + delta));
   }
 
+  function track(name, params) {
+    if (typeof window.gtag !== "function") return;
+    window.gtag("event", name, params);
+  }
+
   window.drawbangCreateToggleHandler({
     initFlag: "__drawbangFollowInit",
     targetAttr: "data-follow-target",
@@ -41,6 +46,10 @@
     },
     onRevert: function (_btn, nextPressed) {
       bumpProfileCounter(nextPressed ? -1 : 1);
+    },
+    onSuccess: function (btn, nextPressed) {
+      if (!nextPressed) return; // only the follow, not the unfollow
+      track("follow_click", { username: btn.getAttribute("data-follow-target") || "" });
     },
     beforeWire: function (btn) {
       var me = viewerUsername();

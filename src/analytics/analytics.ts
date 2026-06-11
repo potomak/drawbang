@@ -65,7 +65,12 @@ export class Tracker {
     gtagEvent("publish_click", { frames });
   }
 
-  publishSuccess(args: { frames: number; solve_ms: number }): void {
+  publishSuccess(args: {
+    frames: number;
+    solve_ms: number;
+    remix: boolean;
+    prompt: string | null;
+  }): void {
     gtagEvent("publish_success", args);
   }
 
@@ -75,10 +80,18 @@ export class Tracker {
     gtagEvent("gif_download_click", args);
   }
 
+  videoExportClick(args: { format: string; duration_s: number }): void {
+    gtagEvent("video_export_click", args);
+  }
+
   // -- Drawing detail / share ---------------------------------------------
 
   copyShareLinkClick(): void {
     gtagEvent("copy_share_link_click", {});
+  }
+
+  embedCopyClick(): void {
+    gtagEvent("embed_copy_click", {});
   }
 
   shareClick(target: ShareTarget): void {
@@ -91,6 +104,30 @@ export class Tracker {
 
   makeMerchClick(drawingId: string): void {
     gtagEvent("make_merch_click", { drawing_id: drawingId });
+  }
+
+  // -- Social actions -----------------------------------------------------
+
+  likeClick(drawingId: string): void {
+    gtagEvent("like_click", { drawing_id: drawingId });
+  }
+
+  bookmarkClick(drawingId: string): void {
+    gtagEvent("bookmark_click", { drawing_id: drawingId });
+  }
+
+  followClick(username: string): void {
+    gtagEvent("follow_click", { username });
+  }
+
+  // -- Prompts ------------------------------------------------------------
+
+  promptCtaClick(args: { slug: string }): void {
+    gtagEvent("prompt_cta_click", args);
+  }
+
+  promptBannerView(): void {
+    gtagEvent("prompt_banner_view", {});
   }
 
   // -- Merch picker -------------------------------------------------------

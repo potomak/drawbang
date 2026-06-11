@@ -100,12 +100,12 @@ describe("Tracker — typed event methods", () => {
 
   test("publishClick / publishSuccess shape", () => {
     tracker.publishClick(4);
-    tracker.publishSuccess({ frames: 4, solve_ms: 1200 });
+    tracker.publishSuccess({ frames: 4, solve_ms: 1200, remix: true, prompt: null });
     assert.deepEqual(vendors.gtag[0], ["event", "publish_click", { frames: 4 }]);
     assert.deepEqual(vendors.gtag[1], [
       "event",
       "publish_success",
-      { frames: 4, solve_ms: 1200 },
+      { frames: 4, solve_ms: 1200, remix: true, prompt: null },
     ]);
   });
 

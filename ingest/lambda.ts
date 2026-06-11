@@ -163,6 +163,7 @@ function adminCfg(): AdminHandlerConfig {
   adminCfgCache = {
     ddbClient: new DynamoDBClient({}),
     cwLogsClient: new CloudWatchLogsClient({}),
+    drawingStore,
     usersTable,
     drawingsTable,
     logGroup: ingestLogGroup,

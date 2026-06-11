@@ -40,6 +40,7 @@
   //   onPressed(btn, pressed)      — optional extra render after aria-pressed
   //   onOptimistic(btn, next, was) — optional extra optimistic side effect
   //   onRevert(btn, next, was)     — optional revert for the onOptimistic side effect
+  //   onSuccess(btn, next, was)    — optional; fires only once the server confirms the write
   //   beforeWire(btn)              — optional; return false to skip wiring (e.g. self-follow)
   window.drawbangCreateToggleHandler = function (config) {
     if (window[config.initFlag]) return;
@@ -68,7 +69,10 @@
         .then(function (res) {
           // 409 means the server's state already matched our optimistic
           // outcome — treat as success.
-          if (res.ok || res.status === 409) return;
+          if (res.ok || res.status === 409) {
+            if (config.onSuccess) config.onSuccess(btn, nextPressed, wasPressed);
+            return;
+          }
           if (res.status === 401) { redirectToLogin(); return; }
           return res.text().then(function (text) {
             var msg = nextPressed ? config.errorMessages.press : config.errorMessages.unpress;

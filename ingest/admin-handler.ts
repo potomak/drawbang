@@ -3,6 +3,7 @@ import { DescribeTableCommand } from "@aws-sdk/client-dynamodb";
 import type { CloudWatchLogsClient } from "@aws-sdk/client-cloudwatch-logs";
 import { runInsightsQuery, type InsightsRow } from "./cloudwatch-logs.js";
 import { renderAdminInner, type AdminView, type AdminRange } from "../lib/templates/admin.js";
+import type { DrawingStore, QueryPage } from "./drawing-store.js";
 import type { RenderResponse } from "./render-handlers.js";
 
 // /admin/data endpoint. Returns an HTML fragment (the data-bound
@@ -11,20 +12,47 @@ import type { RenderResponse } from "./render-handlers.js";
 // boot script — see lib/templates/admin.ts.
 //
 // Pulls high-level counters from DynamoDB DescribeTable (sampled
-// ~every 6h, free) and event aggregates from CloudWatch Logs Insights
+// ~every 6h, free), event aggregates from CloudWatch Logs Insights
 // against the `{kind:"outcome",…}` stream emitted by
-// ingest/log-outcome.ts. Auth gating happens in lambda.ts before this
-// handler runs.
+// ingest/log-outcome.ts, and product KPIs (remix rate, publish pace)
+// from a recent-drawings DrawingStore scan. Auth gating happens in
+// lambda.ts before this handler runs.
 
 export interface AdminHandlerConfig {
   // Both clients are injected so tests can stub them without a real
   // AWS connection. The handler only uses `.send`.
   ddbClient: Pick<DynamoDBClient, "send">;
   cwLogsClient: Pick<CloudWatchLogsClient, "send">;
+  drawingStore: DrawingStore;
   usersTable: string;
   drawingsTable: string;
   logGroup: string;
   now?: () => Date;
+}
+
+// Product KPIs come from a recent-drawings scan (same pattern as
+// discover-handler.ts) so remix rate is measurable from server truth
+// without GA. 200 rows ≈ one cheap GSI1 query.
+export const KPI_SCAN_LIMIT = 200;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function computeProductKpis(
+  page: QueryPage | null,
+): AdminView["kpis"] {
+  if (!page) return null;
+  const scanned = page.items.length;
+  // `!= null` on purpose: DDB omits parent_id on non-fork rows (GSI3
+  // sparseness), so it reads back undefined despite the DrawingRow type.
+  const remixes = page.items.filter((r) => r.parent_id != null).length;
+  const remixRatePct = scanned > 0 ? (remixes / scanned) * 100 : null;
+  let publishesPerDay: number | null = null;
+  if (scanned >= 2) {
+    const times = page.items.map((r) => r.created_at_ms);
+    const spanMs = Math.max(...times) - Math.min(...times);
+    if (spanMs > 0) publishesPerDay = scanned / (spanMs / DAY_MS);
+  }
+  return { scanned, remixes, remixRatePct, publishesPerDay };
 }
 
 const RANGES: ReadonlyArray<AdminRange> = ["24h", "7d", "30d"];
@@ -76,12 +104,14 @@ export async function handleAdminRoute(
     publishStats,
     registerStats,
     failures,
+    kpiPage,
   ] = await Promise.all([
     describeItemCount(cfg.ddbClient, cfg.usersTable).catch(() => null),
     describeItemCount(cfg.ddbClient, cfg.drawingsTable).catch(() => null),
     insights(PUBLISH_STATS_QUERY).catch(() => null),
     insights(REGISTER_STATS_QUERY).catch(() => null),
     insights(FAILURES_QUERY).catch(() => null),
+    cfg.drawingStore.queryGallery({ limit: KPI_SCAN_LIMIT }).catch(() => null),
   ]);
 
   const view: AdminView = {
@@ -92,6 +122,7 @@ export async function handleAdminRoute(
     totalDrawings,
     publish: summariseOutcome(publishStats),
     register: summariseOutcome(registerStats),
+    kpis: computeProductKpis(kpiPage),
     failures: parseFailures(failures),
   };
 

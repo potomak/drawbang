@@ -36,7 +36,7 @@ import {
   ingestErrorCode,
   logOutcome,
 } from "./log-outcome.js";
-import { parseRange } from "./admin-handler.js";
+import { computeProductKpis, KPI_SCAN_LIMIT, parseRange } from "./admin-handler.js";
 import {
   renderAdminInner,
   renderAdminShell,
@@ -540,10 +540,10 @@ function devRequestId(): string {
   return `dev-${process.pid}-${devReqCounter}`;
 }
 
-// In-memory AdminView for the dev /admin page. Counts come from the
-// Memory stores; success-rate cards stay null (rendered as "—") because
-// there's no real outcome stream locally. Use the dev loop to verify
-// layout + auth gate; visit prod for the real numbers.
+// In-memory AdminView for the dev /admin page. Counts + product KPIs
+// come from the Memory stores; success-rate cards stay null (rendered
+// as "—") because there's no real outcome stream locally. Use the dev
+// loop to verify layout + auth gate; visit prod for the real numbers.
 async function buildDevAdminView(
   adminUsername: string,
   range: AdminView["range"],
@@ -551,6 +551,7 @@ async function buildDevAdminView(
   const drawingsPage = await drawingStore.queryGallery({ limit: 1000 });
   const totalDrawings = drawingsPage.items.length;
   const totalUsers = userStoreSize();
+  const kpiPage = await drawingStore.queryGallery({ limit: KPI_SCAN_LIMIT });
   return {
     adminUsername,
     range,
@@ -559,6 +560,7 @@ async function buildDevAdminView(
     totalDrawings,
     publish: null,
     register: null,
+    kpis: computeProductKpis(kpiPage),
     failures: [],
   };
 }

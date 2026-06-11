@@ -19,6 +19,11 @@
     if (el) el.textContent = String(Math.max(0, n));
   }
 
+  function track(name, params) {
+    if (typeof window.gtag !== "function") return;
+    window.gtag("event", name, params);
+  }
+
   // Snapshot the pre-click count so revert restores it exactly even
   // after a clamped decrement.
   var prevCounts = new WeakMap();
@@ -37,6 +42,10 @@
     onRevert: function (btn) {
       var prev = prevCounts.get(btn);
       if (typeof prev === "number") writeCount(btn, prev);
+    },
+    onSuccess: function (btn, nextPressed) {
+      if (!nextPressed) return; // only the like, not the unlike
+      track("like_click", { drawing_id: btn.getAttribute("data-like-target") || "" });
     },
   });
 })();

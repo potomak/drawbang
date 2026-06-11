@@ -10,6 +10,11 @@ import {
   type CloudWatchLogsClient,
 } from "@aws-sdk/client-cloudwatch-logs";
 import { handleAdminRoute, parseRange } from "../ingest/admin-handler.js";
+import {
+  MemoryDrawingStore,
+  type DrawingRow,
+  type DrawingStore,
+} from "../ingest/drawing-store.js";
 import { renderAdminShell } from "../lib/templates/admin.js";
 
 // Fakes the AWS SDK clients with handcrafted responses. Tests stay
@@ -69,16 +74,34 @@ function fakeCwLogs(scenario: InsightsScenario): {
 }
 
 const FIXED_NOW = new Date("2026-06-08T18:00:00.000Z");
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function drawingRow(overrides: Partial<DrawingRow> = {}): DrawingRow {
+  const ms = overrides.created_at_ms ?? FIXED_NOW.getTime();
+  return {
+    drawing_id: overrides.drawing_id ?? "a".repeat(64),
+    size: overrides.size ?? 16,
+    created_at: overrides.created_at ?? new Date(ms).toISOString(),
+    created_at_ms: ms,
+    user_id: overrides.user_id ?? "u".repeat(64),
+    username: overrides.username ?? "alice",
+    parent_id: overrides.parent_id ?? null,
+    frames: overrides.frames ?? 1,
+    gif_size_bytes: overrides.gif_size_bytes ?? 1234,
+  };
+}
 
 function baseCfg(args: {
   itemCounts?: Record<string, number>;
   scenario?: InsightsScenario;
+  drawingStore?: DrawingStore;
 }) {
   const cw = fakeCwLogs(args.scenario ?? { matchers: [] });
   return {
     ddbClient: fakeDdb(args.itemCounts ?? {}),
     cwLogsClient: cw.client,
     cwSpy: cw,
+    drawingStore: args.drawingStore ?? new MemoryDrawingStore(),
     usersTable: "drawbang-users",
     drawingsTable: "drawbang-drawings",
     logGroup: "/aws/lambda/drawbang-ingest",
@@ -138,6 +161,7 @@ describe("handleAdminRoute", () => {
       cfg: {
         ddbClient: ddb,
         cwLogsClient: cw.client,
+        drawingStore: new MemoryDrawingStore(),
         usersTable: "drawbang-users",
         drawingsTable: "drawbang-drawings",
         logGroup: "/aws/lambda/drawbang-ingest",
@@ -251,6 +275,58 @@ describe("handleAdminRoute", () => {
       "both ranges should issue the same number of queries (3)",
     );
     assert.equal(startedSnapshot24h, 3);
+  });
+
+  test("computes remix rate + publishes-per-day from the drawings scan", async () => {
+    const store = new MemoryDrawingStore();
+    const newest = FIXED_NOW.getTime();
+    // 4 drawings over a 3-day span; one is a fork → 25% remix rate,
+    // 4 / 3 days ≈ 1.3 publishes/day.
+    await store.put(drawingRow({ drawing_id: "1".repeat(64), created_at_ms: newest - 3 * DAY_MS }));
+    await store.put(drawingRow({ drawing_id: "2".repeat(64), created_at_ms: newest - 2 * DAY_MS }));
+    await store.put(drawingRow({
+      drawing_id: "3".repeat(64),
+      created_at_ms: newest - 1 * DAY_MS,
+      parent_id: "1".repeat(64),
+    }));
+    await store.put(drawingRow({ drawing_id: "4".repeat(64), created_at_ms: newest }));
+
+    const cfg = baseCfg({ drawingStore: store });
+    const res = await handleAdminRoute({
+      cfg, range: "24h", adminUsername: "potomak",
+    });
+    assert.match(res.body, /Product KPIs \(last 4 drawings\)/);
+    assert.match(res.body, /Remix rate[\s\S]*?>25\.0%</);
+    assert.match(res.body, /1 of 4 are remixes/);
+    assert.match(res.body, /Publishes \/ day[\s\S]*?>1\.3</);
+  });
+
+  test("KPI cards show em-dash when the drawings scan rejects", async () => {
+    const failing = new MemoryDrawingStore();
+    failing.queryGallery = async () => {
+      throw new Error("transient");
+    };
+    const cfg = baseCfg({ drawingStore: failing });
+    const res = await handleAdminRoute({
+      cfg, range: "24h", adminUsername: "potomak",
+    });
+    assert.equal(res.status, 200);
+    assert.match(res.body, /Product KPIs/);
+    assert.match(res.body, /Remix rate[\s\S]*?>—</);
+    assert.match(res.body, /drawings query failed/);
+  });
+
+  test("KPI publishes-per-day needs at least two drawings", async () => {
+    const store = new MemoryDrawingStore();
+    await store.put(drawingRow({ parent_id: "b".repeat(64) }));
+    const cfg = baseCfg({ drawingStore: store });
+    const res = await handleAdminRoute({
+      cfg, range: "24h", adminUsername: "potomak",
+    });
+    assert.match(res.body, /Product KPIs \(last 1 drawings\)/);
+    assert.match(res.body, /Remix rate[\s\S]*?>100\.0%</);
+    assert.match(res.body, /Publishes \/ day[\s\S]*?>—</);
+    assert.match(res.body, /needs ≥ 2 drawings/);
   });
 
 });
