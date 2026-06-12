@@ -38,7 +38,7 @@ export function renderAnalytics(): string {
   // flag (set by the /privacy opt-out toggle). The localStorage access is
   // wrapped in try/catch for browsers that throw under file:// or strict
   // private mode.
-  return `<!-- Drawbang analytics opt-out gate -->
+  return `<!-- Draw! analytics opt-out gate -->
 <script>
 (function () {
   var dnt = (navigator.doNotTrack === '1') || (window.doNotTrack === '1');

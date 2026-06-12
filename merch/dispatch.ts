@@ -118,8 +118,8 @@ export async function placePrintifyOrder(
         }
       }
       const printifyProduct = await deps.printify.createProduct({
-        title: `Drawbang #${order.drawing_id.slice(0, 8)}`,
-        description: `${dim}x${dim} pixel art from drawbang.\n\nView the source drawing: ${drawingUrl}`,
+        title: `Draw! #${order.drawing_id.slice(0, 8)}`,
+        description: `${dim}x${dim} pixel art from Draw!\n\nView the source drawing: ${drawingUrl}`,
         blueprint_id: product.blueprint_id,
         print_provider_id: product.print_provider_id,
         variants: [{ id: variant.id, price: variant.retail_cents, is_enabled: true }],

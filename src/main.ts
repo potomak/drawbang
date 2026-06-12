@@ -919,7 +919,7 @@ function downloadGif(): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "drawbang.gif";
+  a.download = "draw.gif";
   a.click();
   URL.revokeObjectURL(url);
   tracker.gifDownloadClick({ source: "editor", frames: state.frames.length });

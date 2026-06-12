@@ -32,9 +32,9 @@ export default function renderFeed(v: FeedView): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
-    <title>drawbang</title>
+    <title>Draw!</title>
     <link>${esc(v.base_url)}/</link>
-    <description>Latest pixel art from drawbang</description>
+    <description>Latest pixel art from Draw!</description>
     <lastBuildDate>${esc(v.build_date)}</lastBuildDate>
 ${items}
   </channel>

@@ -201,7 +201,7 @@ test("happy path: upload -> create product -> create order -> submitted", async 
   // Product creation: title, blueprint, print provider, single variant + placeholder
   assert.equal(printifyCalls.createProduct.length, 1);
   const product = printifyCalls.createProduct[0];
-  assert.equal(product.title, `Drawbang #${"f".repeat(8)}`);
+  assert.equal(product.title, `Draw! #${"f".repeat(8)}`);
   assert.match(product.description, /https:\/\/drawbang\.example\/t\/ffffff/);
   assert.equal(product.blueprint_id, 6);
   assert.equal(product.print_provider_id, 99);

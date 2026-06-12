@@ -47,7 +47,7 @@ describe("renderAnalytics() — DNT / opt-out gate", () => {
   test("emits a gate script that runs before gtag.js loads", () => {
     const html = renderAnalytics();
     // Pre-snippet script comes first.
-    const gateIdx = html.indexOf("Drawbang analytics opt-out gate");
+    const gateIdx = html.indexOf("Draw! analytics opt-out gate");
     const gtagIdx = html.indexOf("googletagmanager.com/gtag/js");
     assert.ok(gateIdx >= 0, "gate comment should appear");
     assert.ok(gtagIdx > gateIdx, "gate script must precede gtag.js");
