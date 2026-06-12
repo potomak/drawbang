@@ -155,6 +155,32 @@ function renderPromptBanner(p: Prompt): string {
       </section>`;
 }
 
+// Logged-out pitch above the feed. SSR always renders it (the page is
+// edge-cached and identity-blind); chrome-identity.js hides every
+// [data-signed-out-only] element when a session exists. Samples are the
+// newest feed items — live content, nothing hardcoded.
+function renderHero(items: FeedItem[]): string {
+  const samples = items
+    .slice(0, 3)
+    .map(
+      (it) =>
+        `<img class="home-hero-sample" src="${esc(it.thumb)}" alt="" width="64" height="64" loading="lazy" />`,
+    )
+    .join("");
+  const samplesBlock = samples
+    ? `\n        <div class="home-hero-samples" aria-hidden="true">${samples}</div>`
+    : "";
+  return `<section class="home-hero" data-signed-out-only aria-label="About Draw!">
+        <h1 class="home-hero-title">Make a looping 16×16 sprite in 60 seconds</h1>
+        <ol class="home-hero-steps">
+          <li>Pick a color and draw</li>
+          <li>Add frames to make it loop</li>
+          <li>Publish, share, and remix</li>
+        </ol>${samplesBlock}
+        <a class="btn primary home-hero-cta" href="/draw">Start drawing</a>
+      </section>`;
+}
+
 function renderFeedSortNav(sort: "new" | "top"): string {
   const link = (href: string, label: string, active: boolean): string =>
     `<a class="feed-sort-link" href="${href}"${active ? ` aria-current="page"` : ""}>${label}</a>`;
@@ -196,6 +222,7 @@ ${cards}${v.next_fragment_url ? `
     title: "Draw!",
     body: `    ${renderHeader({ active: "home", rightRail: true })}
     <main>
+      ${renderHero(v.items)}
 ${banner}      ${renderFeedSortNav(sort)}
 ${body}
     </main>

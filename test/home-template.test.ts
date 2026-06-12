@@ -260,6 +260,48 @@ describe("prompt banner", () => {
   });
 });
 
+describe("logged-out hero", () => {
+  test("renders the pitch + 3 steps + Start-drawing CTA, gated by data-signed-out-only", () => {
+    const html = renderHome({
+      items: [item()],
+      repo_url: "https://github.com/test/test",
+    });
+    assert.match(html, /<section class="home-hero" data-signed-out-only/);
+    assert.match(html, /Make a looping 16×16 sprite in 60 seconds/);
+    assert.equal((html.match(/<ol class="home-hero-steps">/g) ?? []).length, 1);
+    assert.match(html, /<a class="btn primary home-hero-cta" href="\/draw">Start drawing<\/a>/);
+    // Hero sits above the feed (and above the sort nav).
+    const heroIdx = html.indexOf("home-hero");
+    const navIdx = html.indexOf('class="feed-sort"');
+    assert.ok(heroIdx > -1 && navIdx > -1 && heroIdx < navIdx);
+  });
+
+  test("samples are the newest items' thumbs, capped at 3, decorative", () => {
+    const ids = ["1", "2", "3", "4"].map((c) => c.repeat(64));
+    const html = renderHome({
+      items: ids.map((id) => item({ id })),
+      repo_url: "https://github.com/test/test",
+    });
+    assert.match(html, /<div class="home-hero-samples" aria-hidden="true">/);
+    const samples = [...html.matchAll(/<img class="home-hero-sample" src="\/tiles\/([0-9a-f]{64})\.gif" alt=""/g)].map((m) => m[1]);
+    assert.deepEqual(samples, ids.slice(0, 3));
+  });
+
+  test("empty feed: hero still renders, just without the samples row", () => {
+    const html = renderHome({
+      items: [],
+      repo_url: "https://github.com/test/test",
+    });
+    assert.match(html, /class="home-hero"/);
+    assert.doesNotMatch(html, /home-hero-samples/);
+  });
+
+  test("renderFeedFragment never includes the hero", () => {
+    const html = renderFeedFragment([item()], "/feed/items?cursor=x");
+    assert.doesNotMatch(html, /home-hero/);
+  });
+});
+
 describe("renderFeedFragment", () => {
   test("returns just the cards (no <html>) and appends a sentinel when paginated", () => {
     const html = renderFeedFragment([item()], "/feed/items?cursor=x");

@@ -109,6 +109,15 @@
       }
     }
 
+    //    Inverse: signed-out-only blocks (e.g. the home hero) ship
+    //    visible — the logged-out default — and hide once a session
+    //    exists. The early return above means logged-out viewers never
+    //    reach this.
+    const signedOutOnly = document.querySelectorAll("[data-signed-out-only]");
+    for (const el of signedOutOnly) {
+      if (el instanceof HTMLElement) el.hidden = true;
+    }
+
     // 5. Populate the left-rail follower/following thumb grids. Fetch
     //    the first N usernames per direction, stamp them as profile
     //    pictures, and let hydrate.js (via its MutationObserver) swap

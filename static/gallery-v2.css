@@ -368,6 +368,43 @@
   padding: 48px 16px;
 }
 
+/* Logged-out hero — first block on /. SSR always renders it;
+   chrome-identity.js hides [data-signed-out-only] when a session
+   exists. Same hairline + paper-2 well language as .prompt-banner. */
+.home-hero {
+  max-width: 720px;
+  margin: 8px 0 16px;
+  padding: 20px 16px;
+  border: var(--border) solid var(--line);
+  background: var(--paper-2);
+}
+.home-hero-title {
+  margin: 0;
+  font-size: var(--t-xl);
+  font-weight: 700;
+  line-height: 1.25;
+}
+.home-hero-steps {
+  margin: 12px 0 0;
+  padding-left: 20px;
+  color: var(--fg-muted);
+  font-size: var(--t-sm);
+}
+.home-hero-steps li { margin: 2px 0; }
+.home-hero-samples {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.home-hero-sample {
+  width: 64px;
+  height: 64px;
+  image-rendering: pixelated;
+  border: 1px solid var(--line);
+  background: var(--paper-2);
+}
+.home-hero-cta { margin-top: 16px; }
+
 /* Daily-prompt banner — sits above .feed-list on /. Visuals come from
    existing primitives (hairline + paper-2 well, .panel-h kicker,
    .btn.primary CTA from chrome.css); rules here are layout-only. */
