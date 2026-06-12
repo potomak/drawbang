@@ -613,6 +613,7 @@ Resources:
         - { AttributeName: gallery_pk, AttributeType: S }
         - { AttributeName: username, AttributeType: S }
         - { AttributeName: parent_id, AttributeType: S }
+        - { AttributeName: prompt_id, AttributeType: S }
         - { AttributeName: created_at_ms, AttributeType: N }
       KeySchema:
         - { AttributeName: drawing_id, KeyType: HASH }
@@ -630,6 +631,11 @@ Resources:
         - IndexName: GSI3
           KeySchema:
             - { AttributeName: parent_id,     KeyType: HASH }
+            - { AttributeName: created_at_ms, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+        - IndexName: GSI4
+          KeySchema:
+            - { AttributeName: prompt_id,     KeyType: HASH }
             - { AttributeName: created_at_ms, KeyType: RANGE }
           Projection: { ProjectionType: ALL }
 

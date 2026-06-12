@@ -16,6 +16,7 @@ import {
 //                 user_id             # 64-hex stable account id
 //                 username            # denormalized for gallery render
 //                 parent_id           # drawing_id of fork parent, or null
+//                 prompt_id           # daily-prompt slug, or absent
 //                 frames              # 1..16  (animated when > 1)
 //                 gif_size_bytes
 //
@@ -24,6 +25,8 @@ import {
 //   GSI2 — per-profile gallery:     PK = username     SK = created_at_ms
 //   GSI3 — forks of a parent:       PK = parent_id    SK = created_at_ms (sparse:
 //          GSI3 only indexes rows that have a parent_id)
+//   GSI4 — drawings for a prompt:   PK = prompt_id    SK = created_at_ms (sparse:
+//          GSI4 only indexes rows that have a prompt_id)
 //
 // GSI2 is keyed on username (not user_id) because the /u/<username> URL is
 // the public identity and usernames are immutable in v1 — saves a
@@ -41,6 +44,9 @@ export interface DrawingRow {
   user_id: string;
   username: string;
   parent_id: string | null;
+  // Daily-prompt slug the drawing was published for. Optional (not null) so
+  // untagged rows omit the attribute and GSI4 stays sparse.
+  prompt_id?: string;
   frames: number;
   gif_size_bytes: number;
   // Denormalised likes counter. Maintained by LikesStore via TransactWrite
@@ -69,6 +75,7 @@ export interface DrawingStore {
   queryGallery(opts: QueryOpts): Promise<QueryPage>;
   queryByUsername(username: string, opts: QueryOpts): Promise<QueryPage>;
   queryForks(parent_id: string, opts: QueryOpts): Promise<QueryPage>;
+  queryByPrompt(prompt_id: string, opts: QueryOpts): Promise<QueryPage>;
 }
 
 // Sentinel partition key for the gallery GSI. All drawings share it so the
@@ -136,13 +143,14 @@ export class DynamoDrawingStore implements DrawingStore {
     // put(), so this PutItem path runs at most once per content id. We
     // stamp `gallery_pk = "GALLERY"` here so the row lands in GSI1; the
     // DrawingRow shape stays GSI-agnostic for the caller. parent_id is
-    // omitted entirely when null so GSI3 stays sparse (DDB rejects NULL
-    // on a GSI key with ValidationException).
+    // omitted entirely when null (and prompt_id when unset) so GSI3/GSI4
+    // stay sparse (DDB rejects NULL on a GSI key with ValidationException).
     const item: Record<string, unknown> = {
       ...row,
       gallery_pk: GALLERY_PARTITION,
     };
     if (row.parent_id === null) delete item.parent_id;
+    if (row.prompt_id === undefined) delete item.prompt_id;
     await this.doc.send(new PutCommand({ TableName: this.table, Item: item }));
   }
 
@@ -163,6 +171,10 @@ export class DynamoDrawingStore implements DrawingStore {
 
   async queryForks(parent_id: string, opts: QueryOpts): Promise<QueryPage> {
     return this.queryByPk("parent_id", parent_id, "GSI3", opts);
+  }
+
+  async queryByPrompt(prompt_id: string, opts: QueryOpts): Promise<QueryPage> {
+    return this.queryByPk("prompt_id", prompt_id, "GSI4", opts);
   }
 
   private async queryByPk(
@@ -239,6 +251,10 @@ export class MemoryDrawingStore implements DrawingStore {
 
   async queryForks(parent_id: string, opts: QueryOpts): Promise<QueryPage> {
     return this.pageByFilter((r) => r.parent_id === parent_id, opts);
+  }
+
+  async queryByPrompt(prompt_id: string, opts: QueryOpts): Promise<QueryPage> {
+    return this.pageByFilter((r) => r.prompt_id === prompt_id, opts);
   }
 
   private pageByFilter(
