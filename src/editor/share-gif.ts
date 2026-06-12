@@ -55,6 +55,38 @@ export interface EncodeShareInput {
   delayMs?: number;
 }
 
+interface PaletteAnalysis {
+  paletteRgb: RGB[];
+  usedSlots: number[];
+  bg: RGB;
+  fg: RGB;
+}
+
+function analyzePalette(frames: Bitmap[], activePalette: Uint8Array): PaletteAnalysis {
+  const paletteRgb = activePaletteToRgb(activePalette);
+  const usage = countUsage(frames);
+  const usedSlots: number[] = [];
+  for (let i = 0; i < ACTIVE_PALETTE_SIZE; i++) {
+    if (usage[i] > 0) usedSlots.push(i);
+  }
+  // Sort dark → light so the swatch reads as a tonal ramp regardless of
+  // the order the user picked colors in. Ties keep ascending slot order.
+  usedSlots.sort((a, b) => luminance(paletteRgb[a]) - luminance(paletteRgb[b]) || a - b);
+  const { bg, fg } = deriveColors(paletteRgb, usage, usedSlots);
+  return { paletteRgb, usedSlots, bg, fg };
+}
+
+// Shared "derived plinth" look: the video compositor uses the same
+// dominant-color background + lightest-color accent as the OG share image
+// so every off-site artifact of a drawing reads as one family.
+export function deriveShareColors(
+  frames: Bitmap[],
+  activePalette: Uint8Array,
+): { bg: RGB; fg: RGB } {
+  const { bg, fg } = analyzePalette(frames, activePalette);
+  return { bg, fg };
+}
+
 export function encodeShareGif({
   frames,
   activePalette,
@@ -77,17 +109,7 @@ export function encodeShareGif({
   const artX = Math.round((SHARE_W - artW) / 2);
   const artY = Math.round((SHARE_H - artH) / 2);
 
-  const paletteRgb = activePaletteToRgb(activePalette);
-  const usage = countUsage(frames);
-  const usedSlots: number[] = [];
-  for (let i = 0; i < ACTIVE_PALETTE_SIZE; i++) {
-    if (usage[i] > 0) usedSlots.push(i);
-  }
-  // Sort dark → light so the swatch reads as a tonal ramp regardless of
-  // the order the user picked colors in. Ties keep ascending slot order.
-  usedSlots.sort((a, b) => luminance(paletteRgb[a]) - luminance(paletteRgb[b]) || a - b);
-
-  const { bg, fg } = deriveColors(paletteRgb, usage, usedSlots);
+  const { paletteRgb, usedSlots, bg, fg } = analyzePalette(frames, activePalette);
 
   const gct = buildGct(paletteRgb, bg, fg);
 
