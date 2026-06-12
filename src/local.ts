@@ -11,6 +11,7 @@ export interface StoredDrawing {
   created_at: number;
   frames: Uint8Array[]; // flattened pixel arrays
   activePalette: Uint8Array;
+  delayMs?: number; // per-frame delay; absent = legacy 200 ms (5 fps)
   publishedId?: string; // PoW hash once submitted
 }
 
@@ -33,6 +34,7 @@ export async function save(d: {
   id: string;
   frames: Bitmap[];
   activePalette: Uint8Array;
+  delayMs?: number;
   publishedId?: string;
 }): Promise<void> {
   const db = await open();
@@ -42,6 +44,7 @@ export async function save(d: {
     created_at: Date.now(),
     frames: d.frames.map((f) => new Uint8Array(f.data)),
     activePalette: new Uint8Array(d.activePalette),
+    delayMs: d.delayMs,
     publishedId: d.publishedId,
   } as StoredDrawing);
   await promisify(tx);

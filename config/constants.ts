@@ -1,6 +1,13 @@
 export const FPS = 5;
 export const MAX_FRAMES = 16;
 export const FRAME_DELAY_MS = Math.round(1000 / FPS);
+
+// Per-frame delay bounds enforced at ingest, in GIF centiseconds
+// (80–250 ms ≈ 12.5–4 fps). The editor's FPS slider stops all fall inside;
+// the legacy fixed 5 fps (20 cs) sits in the middle. Single-frame GIFs are
+// exempt — their delay never renders.
+export const MIN_FRAME_DELAY_CS = 8;
+export const MAX_FRAME_DELAY_CS = 25;
 export const PER_PAGE = 36;
 export const ACTIVE_PALETTE_SIZE = 16;
 export const BASE_PALETTE_SIZE = 256;

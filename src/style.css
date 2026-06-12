@@ -256,19 +256,19 @@ body > main, .app > main { display: block; }
 .ed-fps {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   font-size: var(--t-xs);
   color: var(--fg-muted);
 }
-.ed-fps input {
-  width: 44px;
-  height: 24px;
-  font: 500 var(--t-xs) var(--font);
-  text-align: center;
-  background: var(--bg);
+.ed-fps input[type="range"] {
+  width: 90px;
+  accent-color: var(--accent);
+}
+.ed-fps-out {
+  font: 500 var(--t-xs) / 1 var(--font-mono);
   color: var(--fg);
-  border: var(--border) solid var(--border-c);
-  padding: 0 4px;
+  min-width: 2ch;
+  text-align: right;
 }
 .ed-frames-strip {
   display: flex;

@@ -36,7 +36,7 @@ import {
   submit,
 } from "./submit.js";
 import { showFlash } from "./layout/flash.js";
-import { DEFAULT_SIZE, DRAWING_SIZES } from "../config/constants.js";
+import { DEFAULT_SIZE, DRAWING_SIZES, FRAME_DELAY_MS } from "../config/constants.js";
 
 // Target physical canvas: ~560 backing pixels per side, matched to the v2
 // editor wrap. Per-size pixelSize keeps the visible canvas the same physical
@@ -81,10 +81,12 @@ let parentId: string | null = null;
 // response to the prompt.
 let promptSlug: string | null = null;
 let onion = false;
-// GIF playback is locked at 5 fps (200 ms/frame) — matches the encoded
-// delay, so previewing in the editor looks the same as the rendered GIF.
-const FPS = 5;
-const PLAY_DELAY_MS = 1000 / FPS;
+// One delay drives both the preview timer and encodeGif, so the editor
+// preview always matches the rendered GIF. Snapped to FPS_STEPS; the
+// 5-fps stop (200 ms) is the legacy default every old drawing sits on.
+const FPS_STEPS = [4, 5, 6, 8, 10, 12];
+const DEFAULT_FPS_INDEX = 1; // 5 fps
+let delayMs: number = FRAME_DELAY_MS;
 
 // -- Tool icon SVGs (placeholder — will be replaced) ------------------------
 // 16×16 viewBox, fill=currentColor. The user plans to swap these later;
@@ -177,6 +179,11 @@ app.innerHTML = /* html */ `
           <button class="btn xs" data-action="paste-frame" id="pasteBtn" title="Paste copied frame as a new frame" disabled>${ICON.paste}<span style="margin-left:6px">Paste</span></button>
           <button class="btn xs" data-action="toggle-onion" id="onionBtn" aria-pressed="false" title="Onion skin (preview previous frame)">Onion</button>
           <button class="btn xs" data-action="play" id="playBtn" title="Play animation">${ICON.play}<span style="margin-left:6px">Play</span></button>
+          <label class="ed-fps" title="Animation speed (frames per second)">
+            <span class="ed-fps-label">FPS</span>
+            <input type="range" id="fpsRange" min="0" max="${FPS_STEPS.length - 1}" step="1" value="${DEFAULT_FPS_INDEX}" aria-label="Animation speed in frames per second" />
+            <output id="fpsOut" class="ed-fps-out">${FPS_STEPS[DEFAULT_FPS_INDEX]}</output>
+          </label>
         </div>
       </div>
       <div id="frameList" class="ed-frames-strip"></div>
@@ -211,6 +218,8 @@ const framesHeadingEl = document.getElementById("framesHeading")!;
 const onionBtnEl = document.getElementById("onionBtn") as HTMLButtonElement;
 const playBtnEl = document.getElementById("playBtn") as HTMLButtonElement;
 const pasteBtnEl = document.getElementById("pasteBtn") as HTMLButtonElement;
+const fpsRangeEl = document.getElementById("fpsRange") as HTMLInputElement;
+const fpsOutEl = document.getElementById("fpsOut") as HTMLOutputElement;
 
 function setLastPublishedId(id: string | null): void {
   lastPublishedId = id;
@@ -530,10 +539,15 @@ function startPlay(): void {
   state.current = 0;
   render();
   updatePlayButton();
+  startPlayTimer();
+}
+
+function startPlayTimer(): void {
+  if (playTimer !== null) clearInterval(playTimer);
   playTimer = setInterval(() => {
     state.current = (state.current + 1) % state.frames.length;
     renderPlayTick();
-  }, PLAY_DELAY_MS);
+  }, delayMs);
 }
 
 function renderPlayTick(): void {
@@ -571,6 +585,32 @@ function setOnion(next: boolean): void {
   onion = next;
   onionBtnEl.setAttribute("aria-pressed", onion ? "true" : "false");
   render();
+}
+
+function fpsToDelayMs(fps: number): number {
+  return Math.round(1000 / fps);
+}
+
+// Snap an arbitrary GIF delay onto the nearest slider stop. Needed for
+// forks: GIF delays are stored in centiseconds, so a 6-fps drawing (167 ms)
+// decodes as 170 ms — snapping restores the exact stop (and wire format).
+function nearestFpsIndex(ms: number): number {
+  let best = 0;
+  for (let i = 1; i < FPS_STEPS.length; i++) {
+    const better =
+      Math.abs(fpsToDelayMs(FPS_STEPS[i]) - ms) < Math.abs(fpsToDelayMs(FPS_STEPS[best]) - ms);
+    if (better) best = i;
+  }
+  return best;
+}
+
+function setFps(index: number): void {
+  const i = Math.max(0, Math.min(FPS_STEPS.length - 1, Math.round(index)));
+  delayMs = fpsToDelayMs(FPS_STEPS[i]);
+  fpsRangeEl.value = String(i);
+  fpsOutEl.textContent = String(FPS_STEPS[i]);
+  // Retime an in-flight preview so dragging the slider changes the loop live.
+  if (playing) startPlayTimer();
 }
 
 // -- Palette picker ---------------------------------------------------------
@@ -651,7 +691,7 @@ async function handlePublish(): Promise<void> {
   try {
     const result = await submit({
       ingestUrl: INGEST_URL,
-      gif: encodeGif({ frames: state.frames, activePalette, size: currentSize }),
+      gif: encodeGif({ frames: state.frames, activePalette, size: currentSize, delayMs }),
       parent: publishedParentId ?? undefined,
       prompt: publishedPromptSlug ?? undefined,
     });
@@ -663,7 +703,7 @@ async function handlePublish(): Promise<void> {
       prompt: publishedPromptSlug,
     });
     if (localId) {
-      await local.save({ id: localId, frames: state.frames, activePalette, publishedId: result.id });
+      await local.save({ id: localId, frames: state.frames, activePalette, delayMs, publishedId: result.id });
     }
     setLastPublishedId(result.id);
     resetEditor({ keepPublishedId: true });
@@ -690,7 +730,7 @@ function flashPublished(shareUrl: string): void {
 }
 
 function downloadGif(): void {
-  const bytes = encodeGif({ frames: state.frames, activePalette, size: currentSize });
+  const bytes = encodeGif({ frames: state.frames, activePalette, size: currentSize, delayMs });
   const copy = new Uint8Array(bytes);
   const blob = new Blob([copy as unknown as BlobPart], { type: "image/gif" });
   const url = URL.createObjectURL(blob);
@@ -756,7 +796,7 @@ function copyShareLink(): void {
 
 function persist(): void {
   if (!localId) localId = local.uuid();
-  local.save({ id: localId, frames: state.frames, activePalette }).catch(() => {});
+  local.save({ id: localId, frames: state.frames, activePalette, delayMs }).catch(() => {});
 }
 
 // -- Events -----------------------------------------------------------------
@@ -830,6 +870,11 @@ document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>
 
 paletteSelectEl?.addEventListener("change", () => {
   applyPalette(paletteSelectEl.value);
+});
+
+fpsRangeEl.addEventListener("input", () => {
+  setFps(Number(fpsRangeEl.value));
+  persist();
 });
 
 window.addEventListener("keydown", (ev) => {
@@ -906,6 +951,7 @@ async function boot(): Promise<void> {
       }
       state.frames = decoded.frames;
       if (decoded.activePalette) activePalette = decoded.activePalette;
+      setFps(nearestFpsIndex(decoded.delayMs));
       state.current = 0;
       parentId = forkId;
       setLastPublishedId(forkId);

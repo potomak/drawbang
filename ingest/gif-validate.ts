@@ -2,6 +2,8 @@ import {
   ACTIVE_PALETTE_SIZE,
   DRAWBANG_APP_IDENTIFIER,
   MAX_FRAMES,
+  MAX_FRAME_DELAY_CS,
+  MIN_FRAME_DELAY_CS,
   isAllowedDrawingSize,
   maxGifBytesFor,
 } from "../config/constants.js";
@@ -46,6 +48,7 @@ export function validateGif(bytes: Uint8Array): GifValidation {
 
   let frameCount = 0;
   let activePalette: Uint8Array | null = null;
+  const gceDelaysCs: number[] = [];
 
   while (p < bytes.length) {
     const marker = bytes[p];
@@ -76,6 +79,9 @@ export function validateGif(bytes: Uint8Array): GifValidation {
       } else {
         // GCE (0xF9), comment (0xFE), plain text (0x01) — skip size + sub-blocks
         const size = bytes[p++];
+        if (label === 0xf9 && size >= 4) {
+          gceDelaysCs.push(bytes[p + 1] | (bytes[p + 2] << 8));
+        }
         p += size;
         p = skipSubBlocks(bytes, p);
       }
@@ -104,6 +110,15 @@ export function validateGif(bytes: Uint8Array): GifValidation {
   }
 
   if (frameCount === 0) throw new Error("gif has no frames");
+  if (frameCount > 1) {
+    for (const cs of gceDelaysCs) {
+      if (cs < MIN_FRAME_DELAY_CS || cs > MAX_FRAME_DELAY_CS) {
+        throw new Error(
+          `frame delay ${cs * 10} ms out of range (${MIN_FRAME_DELAY_CS * 10}–${MAX_FRAME_DELAY_CS * 10} ms)`,
+        );
+      }
+    }
+  }
   if (!activePalette) throw new Error("gif missing DRAWBANG application extension");
   return { frameCount, activePalette, size };
 }

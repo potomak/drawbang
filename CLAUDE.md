@@ -486,7 +486,9 @@ legacy/               Archived Ruby app; read-only reference, never imported
   drawing is visible immediately. CloudFront invalidations on
   `/gallery*`, `/u/<username>*`, `/feed.rss` keep the edge cache in
   sync.
-- **GIF format is fixed.** ≤16 frames, 5 FPS (200 ms delay), GCT has
+- **GIF format is fixed.** ≤16 frames; per-drawing frame delay
+  80–250 ms (editor FPS slider 4–12; legacy drawings sit on 200 ms /
+  5 FPS; single-frame gifs exempt from the bounds at ingest); GCT has
   32 entries: slots 0..15 = active palette RGB, slot 16 = transparent,
   17..31 = 0.
 - **DRAWBANG Application Extension** (in `src/editor/gif.ts`): app

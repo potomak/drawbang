@@ -97,3 +97,29 @@ test("validateGif rejects a disallowed size (24x24)", () => {
   tampered[6] = 24; tampered[7] = 0; tampered[8] = 24; tampered[9] = 0;
   assert.throws(() => validateGif(tampered), /size 24 not allowed/);
 });
+
+test("validateGif accepts multi-frame delays across the 80–250 ms range", () => {
+  const frames = [new Bitmap(), new Bitmap()];
+  // 83 ms → 8 cs (12 fps), 200 ms → 20 cs (legacy 5 fps), 250 ms → 25 cs (4 fps).
+  for (const delayMs of [83, 200, 250]) {
+    const bytes = encodeGif({ frames, activePalette: DEFAULT_ACTIVE_PALETTE, delayMs });
+    assert.equal(validateGif(bytes).frameCount, 2, `delayMs ${delayMs}`);
+  }
+});
+
+test("validateGif rejects multi-frame delays outside 80–250 ms", () => {
+  const frames = [new Bitmap(), new Bitmap()];
+  for (const delayMs of [30, 500]) {
+    const bytes = encodeGif({ frames, activePalette: DEFAULT_ACTIVE_PALETTE, delayMs });
+    assert.throws(() => validateGif(bytes), /out of range/, `delayMs ${delayMs}`);
+  }
+});
+
+test("validateGif exempts single-frame gifs from the delay bounds", () => {
+  const bytes = encodeGif({
+    frames: [new Bitmap()],
+    activePalette: DEFAULT_ACTIVE_PALETTE,
+    delayMs: 500,
+  });
+  assert.equal(validateGif(bytes).frameCount, 1);
+});
