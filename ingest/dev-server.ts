@@ -257,7 +257,7 @@ const server = http.createServer(async (req, res) => {
       }
       let rendered: RenderResponse | null = null;
       if (pathOnly === "/") {
-        rendered = await renderHomePageHandler(renderConfig, cursor);
+        rendered = await renderHomePageHandler(renderConfig, cursor, u.searchParams.get("sort"));
       } else if (pathOnly === "/feed/items") {
         rendered = await renderFeedItemsHandler(renderConfig, cursor);
       } else if (pathOnly === "/feed.rss") {

@@ -173,6 +173,86 @@ describe("renderHomePageHandler", () => {
     // saving the DDB read on every paginated request.
     assert.doesNotMatch(second.body, /Most Liked · 30D/);
   });
+
+  test("sort toggle renders with Newest active by default", async () => {
+    const { store, cfg } = makeConfig();
+    await store.put(row());
+    const res = await renderHomePageHandler(cfg, null);
+    assert.match(res.body, /class="feed-sort"/);
+    assert.match(res.body, /<a class="feed-sort-link" href="\/" aria-current="page">Newest<\/a>/);
+    assert.match(res.body, /<a class="feed-sort-link" href="\/\?sort=top">Top today<\/a>/);
+  });
+});
+
+describe("renderHomePageHandler ?sort=top", () => {
+  test("orders the last 24h by like_count, not recency", async () => {
+    const { store, cfg } = makeConfig();
+    const now = Date.now();
+    await store.put(row({ drawing_id: "1".repeat(64), like_count: 2, created_at_ms: now - 3000 }));
+    await store.put(row({ drawing_id: "2".repeat(64), like_count: 9, created_at_ms: now - 2000 }));
+    await store.put(row({ drawing_id: "3".repeat(64), like_count: 5, created_at_ms: now - 1000 }));
+    const res = await renderHomePageHandler(cfg, null, "top");
+    assert.equal(res.status, 200);
+    // Bound to <main> — the discover rail after it also lists liked drawings.
+    const feed = res.body.slice(res.body.indexOf("<main>"), res.body.indexOf("</main>"));
+    const order = ["2", "3", "1"].map((c) => feed.indexOf(c.repeat(64)));
+    assert.ok(order.every((i) => i > -1), "expected all three drawings in the feed");
+    assert.deepEqual([...order].sort((a, b) => a - b), order, "expected like-count order");
+  });
+
+  test("drawings older than 24 hours are excluded", async () => {
+    const { store, cfg } = makeConfig();
+    const now = Date.now();
+    await store.put(row({ drawing_id: "1".repeat(64), like_count: 99, created_at_ms: now - 25 * 60 * 60 * 1000 }));
+    await store.put(row({ drawing_id: "2".repeat(64), like_count: 1, created_at_ms: now - 1000 }));
+    const res = await renderHomePageHandler(cfg, null, "top");
+    // Bound to <main> — the stale drawing legitimately appears in the
+    // discover rail (30d window) rendered after it.
+    const feed = res.body.slice(res.body.indexOf("<main>"), res.body.indexOf("</main>"));
+    assert.ok(feed.indexOf("2".repeat(64)) > -1);
+    assert.equal(feed.indexOf("1".repeat(64)), -1, "stale drawing must not appear in the feed");
+  });
+
+  test("caps at perPage with no infinite-scroll sentinel", async () => {
+    const { store, cfg } = makeConfig(2);
+    const now = Date.now();
+    for (let i = 0; i < 4; i++) {
+      await store.put(row({ drawing_id: String(i).padStart(64, "f"), like_count: i, created_at_ms: now - i * 1000 }));
+    }
+    const res = await renderHomePageHandler(cfg, null, "top");
+    assert.doesNotMatch(res.body, /data-infinite-sentinel/);
+    const cards = res.body.match(/<article class="feed-card">/g) ?? [];
+    assert.equal(cards.length, 2);
+  });
+
+  test("empty day renders the top-specific fallback copy", async () => {
+    const { store, cfg } = makeConfig();
+    const now = Date.now();
+    await store.put(row({ created_at_ms: now - 48 * 60 * 60 * 1000 }));
+    const res = await renderHomePageHandler(cfg, null, "top");
+    assert.match(res.body, /Nothing published in the last 24 hours/);
+    assert.doesNotMatch(res.body, /No drawings yet/);
+  });
+
+  test("marks Top today active in the toggle and keeps banner + discover rail", async () => {
+    const { store, cfg } = makeConfig();
+    cfg.now = () => new Date("2026-06-01T17:00:00.000Z");
+    await store.put(row({ like_count: 3, created_at_ms: Date.parse("2026-06-01T16:00:00.000Z") }));
+    const res = await renderHomePageHandler(cfg, null, "top");
+    assert.match(res.body, /<a class="feed-sort-link" href="\/\?sort=top" aria-current="page">Top today<\/a>/);
+    assert.match(res.body, /class="prompt-banner"/);
+    assert.match(res.body, /Most Liked · 30D/);
+  });
+
+  test("unknown sort values fall back to the chronological feed", async () => {
+    const { store, cfg } = makeConfig();
+    await store.put(row({ drawing_id: "1".repeat(64), created_at_ms: 100 }));
+    await store.put(row({ drawing_id: "2".repeat(64), created_at_ms: 200 }));
+    const res = await renderHomePageHandler(cfg, null, "garbage");
+    const i1 = res.body.indexOf("2".repeat(64));
+    const i2 = res.body.indexOf("1".repeat(64));
+    assert.ok(i1 > -1 && i2 > -1 && i1 < i2, "expected newest-first order");
+  });
 });
 
 describe("renderFeedItemsHandler (fragment endpoint)", () => {

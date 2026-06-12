@@ -198,11 +198,52 @@ async function loadFeedItems(
   }));
 }
 
+// "Top today" sort: scan the recent gallery window in memory, same
+// approximation as the discover rail — no GSI, no precompute. The page
+// is bounded (top 36, no pagination) and catches up at the 300s
+// s-maxage like the like counts themselves.
+const TOP_TODAY_WINDOW_MS = 24 * 60 * 60 * 1000;
+const TOP_TODAY_SCAN_LIMIT = 200;
+
+async function renderTopTodayPage(
+  cfg: RenderHandlersConfig,
+  perPage: number,
+): Promise<RenderResponse> {
+  const [page, discover] = await Promise.all([
+    cfg.drawingStore.queryGallery({ limit: TOP_TODAY_SCAN_LIMIT }),
+    loadDiscover({ drawingStore: cfg.drawingStore, userStore: cfg.userStore, now: cfg.now }),
+  ]);
+  const now = cfg.now ? cfg.now() : new Date();
+  const cutoff = now.getTime() - TOP_TODAY_WINDOW_MS;
+  // Stable sort keeps queryGallery's newest-first order as the tiebreak
+  // for equal like counts.
+  const rows = page.items
+    .filter((r) => r.created_at_ms >= cutoff)
+    .sort((a, b) => (b.like_count ?? 0) - (a.like_count ?? 0))
+    .slice(0, perPage);
+  const items = await loadFeedItems(cfg, rows);
+  const view: HomeView = {
+    items,
+    sort: "top",
+    repo_url: cfg.repoUrl,
+    discover_rail_html: renderDiscover(discover),
+    prompt: promptForDate(now),
+  };
+  return {
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: CC_GALLERY,
+    body: renderHome(view),
+  };
+}
+
 export async function renderHomePageHandler(
   cfg: RenderHandlersConfig,
   rawCursor: string | null,
+  rawSort: string | null = null,
 ): Promise<RenderResponse> {
   const perPage = cfg.perPage ?? PER_PAGE;
+  if (rawSort === "top") return renderTopTodayPage(cfg, perPage);
   const cursor = decodeCursor(rawCursor) ?? undefined;
   // Load the feed page and the discover rail in parallel; both reads
   // share the s-maxage=300 edge cache so this is the only time per

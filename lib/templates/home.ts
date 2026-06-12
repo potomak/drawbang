@@ -29,6 +29,9 @@ export interface FeedItem {
 
 export interface HomeView {
   items: FeedItem[];
+  // Feed ordering. "top" = most-liked of the last 24 hours, bounded to
+  // one page with no infinite scroll. Absent/"new" = chronological.
+  sort?: "new" | "top";
   // Today's daily prompt. When present, a banner renders above the feed
   // with a "Draw this" CTA. The /feed/items fragment path never sets it.
   prompt?: Prompt;
@@ -152,12 +155,26 @@ function renderPromptBanner(p: Prompt): string {
       </section>`;
 }
 
+function renderFeedSortNav(sort: "new" | "top"): string {
+  const link = (href: string, label: string, active: boolean): string =>
+    `<a class="feed-sort-link" href="${href}"${active ? ` aria-current="page"` : ""}>${label}</a>`;
+  return `<nav class="feed-sort" aria-label="Feed sort">
+        ${link("/", "Newest", sort === "new")}
+        ${link("/?sort=top", "Top today", sort === "top")}
+      </nav>`;
+}
+
 export default function renderHome(v: HomeView): string {
+  const sort = v.sort ?? "new";
   const cards = v.items.map(renderFeedCard).join("\n");
   const empty = v.items.length === 0;
   const banner = v.prompt ? `      ${renderPromptBanner(v.prompt)}\n` : "";
+  const emptyCopy =
+    sort === "top"
+      ? `Nothing published in the last 24 hours — <a href="/draw">draw the first</a>.`
+      : `No drawings yet — be the first: <a href="/draw">open the editor</a>.`;
   const body = empty
-    ? `      <p class="feed-empty">No drawings yet — be the first: <a href="/draw">open the editor</a>.</p>`
+    ? `      <p class="feed-empty">${emptyCopy}</p>`
     : `      <ul class="feed-list" data-infinite-list>
 ${cards}${v.next_fragment_url ? `
         ${renderFeedSentinel(v.next_fragment_url)}` : ""}
@@ -179,7 +196,8 @@ ${cards}${v.next_fragment_url ? `
     title: "Draw!",
     body: `    ${renderHeader({ active: "home", rightRail: true })}
     <main>
-${banner}${body}
+${banner}      ${renderFeedSortNav(sort)}
+${body}
     </main>
     ${renderFooter(footerOpts)}
 ${infiniteScript}    <script src="${assetUrl("/toggle-handler.js")}"></script>

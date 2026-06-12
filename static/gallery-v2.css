@@ -16,6 +16,30 @@
    itself has NO border or background; a single bottom divider separates
    rows. The drawing image is also borderless.
    ===================================================================== */
+/* Newest | Top today toggle above the feed. Text links; the active one
+   carries aria-current and the accent underline. */
+.feed-sort {
+  display: flex;
+  gap: 16px;
+  max-width: 720px;
+  padding: 4px 4px 12px;
+  border-bottom: var(--border) solid var(--border-c);
+}
+.feed-sort-link {
+  font-size: var(--t-sm);
+  color: var(--fg-muted);
+  text-decoration: none;
+}
+.feed-sort-link:hover { color: var(--ink); }
+.feed-sort-link[aria-current="page"] {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 6px;
+}
+
 .feed-list {
   display: flex;
   flex-direction: column;

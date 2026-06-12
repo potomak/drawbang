@@ -236,7 +236,7 @@ export async function handler(
   // Dynamic HTML routes: feed home, drawing page, profile, RSS, products.
   // Each queries the drawings DDB store + renders the matching template.
   if (method === "GET" && path === "/") {
-    return adaptRender(await renderHomePageHandler(renderConfig, queryParam(event, "cursor")));
+    return adaptRender(await renderHomePageHandler(renderConfig, queryParam(event, "cursor"), queryParam(event, "sort")));
   }
   if (method === "GET" && path === "/feed/items") {
     return adaptRender(await renderFeedItemsHandler(renderConfig, queryParam(event, "cursor")));
