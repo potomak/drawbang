@@ -177,6 +177,7 @@ app.innerHTML = /* html */ `
                .btn-icon-label class in src/style.css. -->
           <button class="btn xs" data-action="copy-frame" title="Copy current frame">${ICON.copy}<span style="margin-left:6px">Copy</span></button>
           <button class="btn xs" data-action="paste-frame" id="pasteBtn" title="Paste copied frame as a new frame" disabled>${ICON.paste}<span style="margin-left:6px">Paste</span></button>
+          <button class="btn xs" data-action="copy-png" title="Copy current frame to the system clipboard as a PNG">Copy PNG</button>
           <button class="btn xs" data-action="toggle-onion" id="onionBtn" aria-pressed="false" title="Onion skin (preview previous frame)">Onion</button>
           <button class="btn xs" data-action="toggle-grid" id="gridBtn" aria-pressed="true" title="Pixel grid + transparency markers">Grid</button>
           <button class="btn xs" data-action="play" id="playBtn" title="Play animation">${ICON.play}<span style="margin-left:6px">Play</span></button>
@@ -474,6 +475,46 @@ function copyFrame(): void {
   clipboard = state.frames[state.current].clone();
   pasteBtnEl.disabled = false;
   showFlash({ kind: "info", message: `Copied frame ${state.current + 1}.`, autoDismissMs: 5000 });
+}
+
+// Writes the current frame to the system clipboard as an upscaled PNG so it
+// can be pasted into chats/posts. Transparent cells stay transparent.
+async function copyFrameAsPng(): Promise<void> {
+  if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
+    showFlash({ kind: "error", message: "Copying images isn't supported in this browser." });
+    return;
+  }
+  const scale = Math.max(1, Math.floor(512 / currentSize));
+  const cv = document.createElement("canvas");
+  cv.width = currentSize * scale;
+  cv.height = currentSize * scale;
+  const ctx = cv.getContext("2d")!;
+  const frame = state.frames[state.current];
+  const palette = activePaletteToRgb(activePalette);
+  for (let y = 0; y < currentSize; y++) {
+    for (let x = 0; x < currentSize; x++) {
+      const v = frame.get(x, y);
+      if (v === TRANSPARENT) continue;
+      const [r, g, b] = palette[v];
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillRect(x * scale, y * scale, scale, scale);
+    }
+  }
+  try {
+    // Hand ClipboardItem the blob *promise* — Safari rejects the write as
+    // out-of-gesture if we await toBlob before constructing the item.
+    const blob = new Promise<Blob>((resolve, reject) => {
+      cv.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/png");
+    });
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    showFlash({
+      kind: "success",
+      message: `Frame ${state.current + 1} copied as PNG.`,
+      autoDismissMs: 5000,
+    });
+  } catch {
+    showFlash({ kind: "error", message: "Couldn't copy the frame to the clipboard." });
+  }
 }
 
 // Inserts the clipboard as a new frame after the current one. The original
@@ -875,6 +916,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>
       case "shift-up": handleTransform(shiftUp); break;
       case "copy-frame": copyFrame(); break;
       case "paste-frame": pasteAsNewFrame(); break;
+      case "copy-png": stopPlay(); void copyFrameAsPng(); break;
       case "play": togglePlay(); break;
       case "toggle-onion": setOnion(!onion); break;
       case "toggle-grid": setGrid(!mainCanvas.settings.showGrid); break;
