@@ -386,6 +386,28 @@ dialog form menu button:hover { border-color: var(--border-strong); }
   border-color: var(--accent);
   box-shadow: inset 0 0 0 2px var(--accent);
 }
+.ed-import { margin-top: 12px; }
+.ed-import-label {
+  display: block;
+  font-size: var(--t-xs);
+  color: var(--fg-muted);
+  margin-bottom: 4px;
+}
+.ed-import-row { display: flex; gap: 6px; }
+.ed-import-row input {
+  flex: 1;
+  min-width: 0;
+  font: 400 var(--t-sm) var(--font-mono);
+  color: var(--fg);
+  background: var(--bg-elev);
+  border: var(--border) solid var(--border-c);
+  padding: 0 8px;
+  height: 32px;
+}
+.ed-import-row input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
 
 /* =====================================================================
    MERCH PICKER (/merch?d=<id>)

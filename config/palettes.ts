@@ -16,7 +16,7 @@ export interface RetroPalette {
   colors: readonly string[];
 }
 
-function padPalette(colors: readonly string[]): readonly string[] {
+export function padPalette(colors: readonly string[]): readonly string[] {
   if (colors.length >= ACTIVE_PALETTE_SIZE) {
     return colors.slice(0, ACTIVE_PALETTE_SIZE);
   }

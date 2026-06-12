@@ -16,7 +16,12 @@ import {
   hexToRgb,
   nearestBaseIndex,
 } from "./editor/palette.js";
-import { RETRO_PALETTES, type RetroPalette } from "../config/palettes.js";
+import { RETRO_PALETTES, padPalette, type RetroPalette } from "../config/palettes.js";
+import {
+  lospecPaletteUrl,
+  parseImportInput,
+  parseLospecJson,
+} from "./editor/lospec.js";
 import {
   PixelPerfectStroke,
   drawPixel,
@@ -202,6 +207,13 @@ app.innerHTML = /* html */ `
   <dialog id="palettePicker">
     <p>Pick a color from the 256-color base palette</p>
     <div id="baseGrid"></div>
+    <div class="ed-import">
+      <label class="ed-import-label" for="lospecInput">Import a palette — Lospec slug, URL, or hex colors</label>
+      <div class="ed-import-row">
+        <input id="lospecInput" type="text" placeholder="sweetie-16" autocomplete="off" spellcheck="false" enterkeyhint="go" />
+        <button type="button" class="btn sm" id="lospecImportBtn">Import</button>
+      </div>
+    </div>
     <form method="dialog">
       <menu>
         <button value="cancel">Cancel</button>
@@ -222,6 +234,8 @@ const paletteEl = document.getElementById("palette")!;
 const paletteSelectEl = document.getElementById("paletteSelect") as HTMLSelectElement | null;
 const picker = document.getElementById("palettePicker") as HTMLDialogElement;
 const baseGridEl = document.getElementById("baseGrid")!;
+const lospecInputEl = document.getElementById("lospecInput") as HTMLInputElement;
+const lospecImportBtnEl = document.getElementById("lospecImportBtn") as HTMLButtonElement;
 const framesHeadingEl = document.getElementById("framesHeading")!;
 const onionBtnEl = document.getElementById("onionBtn") as HTMLButtonElement;
 const gridBtnEl = document.getElementById("gridBtn") as HTMLButtonElement;
@@ -755,6 +769,87 @@ function openPickerForSlot(slot: number): void {
   // the current cell instead so the two indicators merge.
   baseCellEls[activePalette[slot]]?.focus();
 }
+
+// -- Lospec palette import ---------------------------------------------------
+
+const IMPORTED_PALETTE_ID = "imported";
+
+// Reflects an imported palette in the select via a dynamic "Imported — <name>"
+// option (created on first import, relabeled on later ones). Deliberately not
+// persisted to PALETTE_LS_KEY: the colors themselves survive reload through
+// the share hash, same as per-slot edits.
+function setImportedOption(name: string): void {
+  currentPaletteId = IMPORTED_PALETTE_ID;
+  if (!paletteSelectEl) return;
+  let opt = paletteSelectEl.querySelector<HTMLOptionElement>(
+    `option[value="${IMPORTED_PALETTE_ID}"]`,
+  );
+  if (!opt) {
+    opt = document.createElement("option");
+    opt.value = IMPORTED_PALETTE_ID;
+    paletteSelectEl.appendChild(opt);
+  }
+  opt.textContent = `Imported — ${name}`;
+  paletteSelectEl.value = IMPORTED_PALETTE_ID;
+}
+
+function applyImportedPalette(name: string, colors: readonly string[]): void {
+  // The DRAWBANG gif extension stores base-palette indices, so arbitrary
+  // RGB must snap to the nearest base color.
+  const padded = padPalette(colors);
+  const next = new Uint8Array(padded.length);
+  for (let i = 0; i < padded.length; i++) {
+    next[i] = nearestBaseIndex(hexToRgb(padded[i]));
+  }
+  activePalette = next;
+  selectedSlot = 1;
+  setImportedOption(name);
+  picker.close();
+  render();
+  persist();
+  showFlash({ kind: "success", message: `Imported “${name}”`, autoDismissMs: 4000 });
+}
+
+async function handlePaletteImport(): Promise<void> {
+  const req = parseImportInput(lospecInputEl.value);
+  if (!req) {
+    // The flash renders below the <dialog> top layer — close before flashing.
+    picker.close();
+    showFlash({
+      kind: "error",
+      message: "Enter a Lospec palette slug, lospec.com URL, or hex colors.",
+      autoDismissMs: 6000,
+    });
+    return;
+  }
+  if (req.kind === "colors") {
+    applyImportedPalette("Custom palette", req.colors);
+    return;
+  }
+  lospecImportBtnEl.disabled = true;
+  try {
+    const res = await fetch(lospecPaletteUrl(req.slug));
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const palette = parseLospecJson(await res.json(), req.slug);
+    applyImportedPalette(palette.name, palette.colors);
+  } catch {
+    picker.close();
+    showFlash({
+      kind: "error",
+      message: `Couldn't load “${req.slug}” from Lospec.`,
+      autoDismissMs: 6000,
+    });
+  } finally {
+    lospecImportBtnEl.disabled = false;
+  }
+}
+
+lospecImportBtnEl.addEventListener("click", () => void handlePaletteImport());
+lospecInputEl.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  void handlePaletteImport();
+});
 
 // -- Publishing / export ----------------------------------------------------
 
