@@ -81,3 +81,6 @@ export const CC_FOLLOW_LIST = "public, s-maxage=60, stale-while-revalidate=60";
 export const CC_FOLLOW_THUMBS = "public, s-maxage=60, stale-while-revalidate=30";
 export const CC_PRODUCTS = "public, s-maxage=86400, stale-while-revalidate=60";
 export const CC_DESIGN = "public, s-maxage=300, stale-while-revalidate=60";
+// Embed pages are near-immutable (the gif is content-addressed); the
+// long edge TTL still lets footer copy evolve within a day.
+export const CC_EMBED = "public, max-age=3600, s-maxage=86400";

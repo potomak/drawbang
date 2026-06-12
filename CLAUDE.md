@@ -118,6 +118,7 @@ asset, new tracking script) must consider every entry below.
 | `/gallery`                     | 301 → `/`                                         | CloudFront Function redirect |
 | `/gallery/items`               | 301 → `/feed/items`                               | CloudFront Function redirect |
 | `/d/<64hex>`                   | `lib/templates/tile-page.ts` via Lambda           | Dynamic |
+| `/embed/<64hex>`               | `lib/templates/embed.ts` via Lambda               | Dynamic — bare iframe player (no chrome, no scripts), click-through to `/d/<id>`, long edge TTL. |
 | `/u/<username>`                | `lib/templates/owner.ts` via Lambda               | Dynamic |
 | `/u/<username>/items?cursor=…` | gallery fragment via Lambda                       | Dynamic (infinite scroll) |
 | `/u/<username>/bookmarks`      | `lib/templates/bookmarks.ts` via Lambda           | Dynamic — owner-only page shell. The body is hydrated client-side via `/me/bookmarks/feed` because browser navs don't carry the Bearer JWT. |

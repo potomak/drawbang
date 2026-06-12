@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 import { MemoryDrawingStore, type DrawingRow } from "../ingest/drawing-store.js";
 import {
   renderDrawingPageHandler,
+  renderEmbedPageHandler,
   renderFeedHandler,
   renderFeedItemsHandler,
   renderHomePageHandler,
@@ -287,6 +288,37 @@ describe("renderFeedItemsHandler (fragment endpoint)", () => {
     const cursor = new URL(next![1], "http://x").searchParams.get("cursor");
     const page2 = await renderFeedItemsHandler(cfg, cursor);
     assert.doesNotMatch(page2.body, /data-infinite-sentinel/);
+  });
+});
+
+describe("renderEmbedPageHandler", () => {
+  test("renders the bare player: pixelated img, click-through, attribution", async () => {
+    const { store, cfg } = makeConfig();
+    const id = "a".repeat(64);
+    await store.put(row({ drawing_id: id }));
+    const res = await renderEmbedPageHandler(cfg, id);
+    assert.equal(res.status, 200);
+    assert.equal(res.cacheControl, "public, max-age=3600, s-maxage=86400");
+    assert.match(res.body, /image-rendering: pixelated/);
+    assert.match(res.body, new RegExp(`<img src="/tiles/${id}\\.gif"`));
+    assert.match(res.body, new RegExp(`href="/d/${id}" target="_top"`));
+    assert.match(res.body, /Made with Draw!/);
+    // No chrome/shell — the page must stay iframe-sized.
+    assert.doesNotMatch(res.body, /app-shell|rail-left|class="hdr"/);
+  });
+
+  test("404 for an unknown id is plain text, not the chrome'd not-found", async () => {
+    const { cfg } = makeConfig();
+    const res = await renderEmbedPageHandler(cfg, "b".repeat(64));
+    assert.equal(res.status, 404);
+    assert.match(res.contentType, /text\/plain/);
+    assert.doesNotMatch(res.body, /<html/);
+  });
+
+  test("404 for a malformed id", async () => {
+    const { cfg } = makeConfig();
+    const res = await renderEmbedPageHandler(cfg, "not-an-id");
+    assert.equal(res.status, 404);
   });
 });
 

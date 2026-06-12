@@ -61,6 +61,7 @@ export default defineConfig({
       "/feed/items": "http://localhost:8787",
       "^/gallery(/items)?$": "http://localhost:8787",
       "^/d/.*": "http://localhost:8787",
+      "^/embed/.*": "http://localhost:8787",
       "^/u/.*": "http://localhost:8787",
       "^/prompts.*": "http://localhost:8787",
       "^/drawings/.*/like$": "http://localhost:8787",

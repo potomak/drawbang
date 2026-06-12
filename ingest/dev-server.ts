@@ -58,6 +58,7 @@ import {
   renderBookmarksPageHandler,
   renderDesignPageHandler,
   renderDrawingPageHandler,
+  renderEmbedPageHandler,
   renderFeedHandler,
   renderFeedItemsHandler,
   renderFollowersItemsHandler,
@@ -277,6 +278,8 @@ const server = http.createServer(async (req, res) => {
         if (prim) rendered = await renderPromptItemsHandler(renderConfig, prim[1], cursor);
         const dm = pathOnly.match(/^\/d\/([0-9a-f]{64})$/);
         if (dm) rendered = await renderDrawingPageHandler(renderConfig, dm[1]);
+        const em = pathOnly.match(/^\/embed\/([0-9a-f]{64})$/);
+        if (em) rendered = await renderEmbedPageHandler(renderConfig, em[1]);
         const um = pathOnly.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])$/);
         if (um) rendered = await renderProfilePageHandler(renderConfig, um[1]);
         const uim = pathOnly.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])\/items$/);

@@ -56,6 +56,7 @@ import {
   renderBookmarksPageHandler,
   renderDesignPageHandler,
   renderDrawingPageHandler,
+  renderEmbedPageHandler,
   renderFeedHandler,
   renderFeedItemsHandler,
   renderFollowersItemsHandler,
@@ -286,6 +287,12 @@ export async function handler(
     const m = path.match(/^\/d\/([0-9a-f]{64})$/);
     if (method === "GET" && m) {
       return adaptRender(await renderDrawingPageHandler(renderConfig, m[1]));
+    }
+  }
+  {
+    const m = path.match(/^\/embed\/([0-9a-f]{64})$/);
+    if (method === "GET" && m) {
+      return adaptRender(await renderEmbedPageHandler(renderConfig, m[1]));
     }
   }
   {

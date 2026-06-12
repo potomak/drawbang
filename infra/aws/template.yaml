@@ -325,6 +325,14 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: !Ref DynamicCachePolicy
+          # /embed/<64hex> iframe player pages.
+          - PathPattern: /embed/*
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref DynamicCachePolicy
           # /u/<username>/bookmarks — owner-only page. Must come before the
           # generic /u/* behaviour (CloudFront picks the longest match) so
           # we forward the Authorization header to Lambda; the page is
@@ -893,6 +901,12 @@ Resources:
             ApiId: !Ref IngestApi
             Method: ANY
             Path: /d/{id}
+        EmbedPage:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: ANY
+            Path: /embed/{id}
         ProfilePage:
           Type: HttpApi
           Properties:

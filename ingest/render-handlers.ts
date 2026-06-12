@@ -19,7 +19,9 @@ import {
   CC_FOLLOW_THUMBS,
   CC_PRODUCTS,
   CC_DESIGN,
+  CC_EMBED,
 } from "../config/constants.js";
+import renderEmbed from "../lib/templates/embed.js";
 import renderGallery, {
   renderGalleryFragment,
   renderGallerySentinel,
@@ -357,6 +359,31 @@ async function loadAncestorChain(
     parentId = parent.parent_id;
   }
   return chain.reverse();
+}
+
+// -- /embed/<id> ---------------------------------------------------------------
+
+export async function renderEmbedPageHandler(
+  cfg: RenderHandlersConfig,
+  drawing_id: string,
+): Promise<RenderResponse> {
+  // 404s are plain text — the page lives inside a tiny iframe where the
+  // chrome'd not-found shell makes no sense.
+  const missing = !DRAWING_ID_RE.test(drawing_id) || !(await cfg.drawingStore.get(drawing_id));
+  if (missing) {
+    return {
+      status: 404,
+      contentType: "text/plain; charset=utf-8",
+      cacheControl: CC_NOT_FOUND,
+      body: "Not found",
+    };
+  }
+  return {
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: CC_EMBED,
+    body: renderEmbed({ drawing_id }),
+  };
 }
 
 export async function renderDrawingPageHandler(
