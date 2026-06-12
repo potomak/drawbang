@@ -178,6 +178,7 @@ app.innerHTML = /* html */ `
           <button class="btn xs" data-action="copy-frame" title="Copy current frame">${ICON.copy}<span style="margin-left:6px">Copy</span></button>
           <button class="btn xs" data-action="paste-frame" id="pasteBtn" title="Paste copied frame as a new frame" disabled>${ICON.paste}<span style="margin-left:6px">Paste</span></button>
           <button class="btn xs" data-action="toggle-onion" id="onionBtn" aria-pressed="false" title="Onion skin (preview previous frame)">Onion</button>
+          <button class="btn xs" data-action="toggle-grid" id="gridBtn" aria-pressed="true" title="Pixel grid + transparency markers">Grid</button>
           <button class="btn xs" data-action="play" id="playBtn" title="Play animation">${ICON.play}<span style="margin-left:6px">Play</span></button>
           <label class="ed-fps" title="Animation speed (frames per second)">
             <span class="ed-fps-label">FPS</span>
@@ -216,6 +217,7 @@ const picker = document.getElementById("palettePicker") as HTMLDialogElement;
 const baseGridEl = document.getElementById("baseGrid")!;
 const framesHeadingEl = document.getElementById("framesHeading")!;
 const onionBtnEl = document.getElementById("onionBtn") as HTMLButtonElement;
+const gridBtnEl = document.getElementById("gridBtn") as HTMLButtonElement;
 const playBtnEl = document.getElementById("playBtn") as HTMLButtonElement;
 const pasteBtnEl = document.getElementById("pasteBtn") as HTMLButtonElement;
 const fpsRangeEl = document.getElementById("fpsRange") as HTMLInputElement;
@@ -226,6 +228,7 @@ function setLastPublishedId(id: string | null): void {
 }
 
 const PALETTE_LS_KEY = "drawbang:palette";
+const GRID_LS_KEY = "drawbang:grid";
 
 function findRetroPalette(id: string): RetroPalette | null {
   return RETRO_PALETTES.find((p) => p.id === id) ?? null;
@@ -587,6 +590,21 @@ function setOnion(next: boolean): void {
   render();
 }
 
+// Toggles both the empty-cell grid lines and the transparency markers —
+// PixelCanvas keys them off one flag, giving an unobstructed view of the art.
+function setGrid(next: boolean, persistChoice = true): void {
+  mainCanvas.settings.showGrid = next;
+  gridBtnEl.setAttribute("aria-pressed", next ? "true" : "false");
+  render();
+  if (persistChoice) {
+    try {
+      localStorage.setItem(GRID_LS_KEY, next ? "1" : "0");
+    } catch {
+      // ignore — the preference just won't survive this session
+    }
+  }
+}
+
 function fpsToDelayMs(fps: number): number {
   return Math.round(1000 / fps);
 }
@@ -859,6 +877,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>
       case "paste-frame": pasteAsNewFrame(); break;
       case "play": togglePlay(); break;
       case "toggle-onion": setOnion(!onion); break;
+      case "toggle-grid": setGrid(!mainCanvas.settings.showGrid); break;
       case "edit-color": openPickerForSlot(selectedSlot); break;
       case "export-gif": stopPlay(); downloadGif(); break;
       case "share": stopPlay(); copyShareLink(); break;
@@ -924,6 +943,11 @@ async function boot(): Promise<void> {
     }
   } catch {
     // ignore — applyPalette default state is already in place
+  }
+  try {
+    if (localStorage.getItem(GRID_LS_KEY) === "0") setGrid(false, false);
+  } catch {
+    // ignore — grid stays on
   }
 
   const hash = location.hash.match(/#d=([A-Za-z0-9_-]+)/)?.[1];
