@@ -70,6 +70,9 @@ import {
   renderProductsPageHandler,
   renderProfileItemsHandler,
   renderProfilePageHandler,
+  renderPromptItemsHandler,
+  renderPromptPageHandler,
+  renderPromptsArchiveHandler,
   renderStreakPageHandler,
   type RenderHandlersConfig,
   type RenderResponse,
@@ -263,9 +266,15 @@ const server = http.createServer(async (req, res) => {
         rendered = await renderDesignPageHandler(renderConfig);
       } else if (pathOnly === "/products") {
         rendered = await renderProductsPageHandler(renderConfig, "1");
+      } else if (pathOnly === "/prompts") {
+        rendered = await renderPromptsArchiveHandler(renderConfig);
       } else {
         const pm = pathOnly.match(/^\/products\/p\/(\d+)$/);
         if (pm) rendered = await renderProductsPageHandler(renderConfig, pm[1]);
+        const prm = pathOnly.match(/^\/prompts\/([a-z0-9-]{1,32})$/);
+        if (prm) rendered = await renderPromptPageHandler(renderConfig, prm[1]);
+        const prim = pathOnly.match(/^\/prompts\/([a-z0-9-]{1,32})\/items$/);
+        if (prim) rendered = await renderPromptItemsHandler(renderConfig, prim[1], cursor);
         const dm = pathOnly.match(/^\/d\/([0-9a-f]{64})$/);
         if (dm) rendered = await renderDrawingPageHandler(renderConfig, dm[1]);
         const um = pathOnly.match(/^\/u\/([a-z0-9_][a-z0-9_-]{1,18}[a-z0-9_])$/);

@@ -1,3 +1,4 @@
+import type { Prompt } from "../../config/prompts.js";
 import { assetUrl } from "../../src/layout/asset-version.js";
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { esc } from "./_escape.js";
@@ -28,6 +29,9 @@ export interface FeedItem {
 
 export interface HomeView {
   items: FeedItem[];
+  // Today's daily prompt. When present, a banner renders above the feed
+  // with a "Draw this" CTA. The /feed/items fragment path never sets it.
+  prompt?: Prompt;
   // discover_rail_html: pre-rendered HTML for the right "discover"
   // rail (lib/templates/discover.ts). Empty / undefined → the rail
   // is rendered empty.
@@ -133,9 +137,25 @@ export function renderFeedFragment(
 ${renderFeedSentinel(next_fragment_url)}`;
 }
 
+// Daily-prompt banner above the feed. The view-fire gtag call is inlined
+// (guarded, runs once at parse) rather than shipped as a static/*.js file
+// — same precedent as the bookmarks page boot script. The slug is
+// JSON-encoded with `<` escaped so it can never close the script element.
+function renderPromptBanner(p: Prompt): string {
+  const slugJs = JSON.stringify(p.slug).replace(/</g, "\\u003c");
+  return `<section class="prompt-banner" aria-label="Today's prompt">
+        <p class="panel-h prompt-banner-kicker">Today's prompt</p>
+        <h2 class="prompt-banner-title">${esc(p.title)}</h2>
+        <p class="prompt-banner-blurb">${esc(p.blurb)}</p>
+        <a class="btn primary prompt-banner-cta" href="/draw?prompt=${esc(p.slug)}">Draw this</a>
+        <script>typeof gtag==="function"&&gtag("event","prompt_banner_view",{slug:${slugJs}});</script>
+      </section>`;
+}
+
 export default function renderHome(v: HomeView): string {
   const cards = v.items.map(renderFeedCard).join("\n");
   const empty = v.items.length === 0;
+  const banner = v.prompt ? `      ${renderPromptBanner(v.prompt)}\n` : "";
   const body = empty
     ? `      <p class="feed-empty">No drawings yet — be the first: <a href="/draw">open the editor</a>.</p>`
     : `      <ul class="feed-list" data-infinite-list>
@@ -159,7 +179,7 @@ ${cards}${v.next_fragment_url ? `
     title: "Draw!",
     body: `    ${renderHeader({ active: "home", rightRail: true })}
     <main>
-${body}
+${banner}${body}
     </main>
     ${renderFooter(footerOpts)}
 ${infiniteScript}    <script src="${assetUrl("/toggle-handler.js")}"></script>

@@ -344,6 +344,83 @@
   padding: 48px 16px;
 }
 
+/* Daily-prompt banner — sits above .feed-list on /. Visuals come from
+   existing primitives (hairline + paper-2 well, .panel-h kicker,
+   .btn.primary CTA from chrome.css); rules here are layout-only. */
+.prompt-banner {
+  max-width: 720px;
+  margin: 8px 0 16px;
+  padding: 16px;
+  border: var(--border) solid var(--line);
+  background: var(--paper-2);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "kicker kicker"
+    "title  cta"
+    "blurb  cta";
+  align-items: center;
+  column-gap: 16px;
+}
+.prompt-banner-kicker { grid-area: kicker; margin-bottom: 8px; }
+.prompt-banner-title {
+  grid-area: title;
+  margin: 0;
+  font-size: var(--t-lg);
+  font-weight: 700;
+}
+.prompt-banner-blurb {
+  grid-area: blurb;
+  margin: 4px 0 0;
+  color: var(--fg-muted);
+  font-size: var(--t-sm);
+}
+.prompt-banner-cta { grid-area: cta; justify-self: end; }
+
+@media (max-width: 859px) {
+  .prompt-banner {
+    grid-template-columns: 1fr;
+    grid-template-areas: "kicker" "title" "blurb" "cta";
+  }
+  .prompt-banner-cta { justify-self: start; margin-top: 12px; }
+}
+
+/* =====================================================================
+   PROMPTS (pm-) — /prompts archive rows + /prompts/<slug> page
+   ===================================================================== */
+.pm-archive { list-style: none; margin: 0; padding: 0; }
+.pm-row {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: var(--border) solid var(--line);
+}
+.pm-row:last-child { border-bottom: var(--border) solid var(--line); }
+.pm-date {
+  font: 500 var(--t-xs)/1.9 var(--font-mono);
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+.pm-title {
+  color: var(--fg);
+  font-weight: 600;
+  text-decoration: none;
+}
+.pm-title:hover { color: var(--accent); text-decoration: underline; }
+.pm-row .badge { margin-left: 8px; }
+.pm-blurb {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--t-sm);
+  color: var(--fg-muted);
+}
+.pm-cta { margin: 0 0 24px; }
+
+@media (max-width: 859px) {
+  .pm-row { grid-template-columns: 72px 1fr; gap: 12px; }
+}
+
 /* =====================================================================
    GALLERY — tight image grid + archive list
    ===================================================================== */

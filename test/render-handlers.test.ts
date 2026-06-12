@@ -8,6 +8,9 @@ import {
   renderHomePageHandler,
   renderProfileItemsHandler,
   renderProfilePageHandler,
+  renderPromptItemsHandler,
+  renderPromptPageHandler,
+  renderPromptsArchiveHandler,
   type RenderHandlersConfig,
 } from "../ingest/render-handlers.js";
 
@@ -21,6 +24,7 @@ function row(overrides: Partial<DrawingRow> = {}): DrawingRow {
     user_id: overrides.user_id ?? "u".repeat(64),
     username: overrides.username ?? "alice",
     parent_id: overrides.parent_id ?? null,
+    prompt_id: overrides.prompt_id,
     frames: overrides.frames ?? 1,
     gif_size_bytes: overrides.gif_size_bytes ?? 1234,
     like_count: overrides.like_count,
@@ -99,6 +103,32 @@ describe("renderHomePageHandler", () => {
     assert.match(res.body, /<span class="like-count" data-like-count>0<\/span>/);
   });
 
+  test("renders today's daily-prompt banner with the /draw?prompt= CTA", async () => {
+    const { store, cfg } = makeConfig();
+    // 2026-06-01 ET is a dated OVERRIDES entry in config/prompts.ts →
+    // deterministic "tiny-ghost" regardless of rotation arithmetic.
+    cfg.now = () => new Date("2026-06-01T17:00:00.000Z");
+    await store.put(row());
+    const res = await renderHomePageHandler(cfg, null);
+    assert.match(res.body, /class="prompt-banner"/);
+    assert.match(res.body, /Tiny ghost/);
+    assert.match(res.body, /href="\/draw\?prompt=tiny-ghost"/);
+    assert.match(res.body, /gtag\("event","prompt_banner_view",\{slug:"tiny-ghost"\}\)/);
+  });
+
+  test("prompt banner: cursor pages omit it (same rule as the discover rail)", async () => {
+    const { store, cfg } = makeConfig(2);
+    for (let i = 0; i < 4; i++) {
+      await store.put(row({ drawing_id: String(i).padStart(64, "f"), created_at_ms: 1000 + i }));
+    }
+    const first = await renderHomePageHandler(cfg, null);
+    assert.match(first.body, /class="prompt-banner"/);
+    const match = first.body.match(/data-next="\/feed\/items\?cursor=([^"]+)"/);
+    assert.ok(match);
+    const second = await renderHomePageHandler(cfg, match![1]);
+    assert.doesNotMatch(second.body, /prompt-banner/);
+  });
+
   test("discover rail: Most Liked module appears on the first page", async () => {
     const { store, cfg } = makeConfig();
     const now = Date.now();
@@ -156,6 +186,14 @@ describe("renderFeedItemsHandler (fragment endpoint)", () => {
     assert.doesNotMatch(res.body, /class="hdr"/);
     assert.match(res.body, /<article class="feed-card">/);
     assert.match(res.body, /data-infinite-sentinel/);
+  });
+
+  test("never includes the daily-prompt banner", async () => {
+    const { store, cfg } = makeConfig();
+    await store.put(row());
+    const res = await renderFeedItemsHandler(cfg, null);
+    assert.doesNotMatch(res.body, /prompt-banner/);
+    assert.doesNotMatch(res.body, /prompt_banner_view/);
   });
 
   test("last page omits the sentinel", async () => {
@@ -375,5 +413,126 @@ describe("renderFeedHandler", () => {
     const i1 = res.body.indexOf("2".repeat(64));
     const i2 = res.body.indexOf("1".repeat(64));
     assert.ok(i1 < i2, "expected newer item first in feed");
+  });
+});
+
+// Fixed clocks for the /prompts surfaces. PROMPTS_EPOCH_ET is 2026-06-15;
+// 16:00Z is always the same calendar day in ET (12:00 EDT), so day math
+// is unambiguous. Rotation day 0 = slime-bounce, 1 = campfire, 2 = coin-spin.
+const EPOCH_NOON = () => new Date("2026-06-15T16:00:00Z");
+const EPOCH_PLUS_2 = () => new Date("2026-06-17T16:00:00Z");
+const PRE_EPOCH = () => new Date("2026-06-12T16:00:00Z");
+
+describe("renderPromptsArchiveHandler", () => {
+  test("lists epoch through today newest-first and never leaks future days", async () => {
+    const { cfg } = makeConfig();
+    cfg.now = EPOCH_PLUS_2;
+    const res = await renderPromptsArchiveHandler(cfg);
+    assert.equal(res.status, 200);
+    const iToday = res.body.indexOf("/prompts/coin-spin");
+    const iYesterday = res.body.indexOf("/prompts/campfire");
+    const iEpoch = res.body.indexOf("/prompts/slime-bounce");
+    assert.ok(iToday > -1 && iYesterday > -1 && iEpoch > -1, "expected all three days listed");
+    assert.ok(iToday < iYesterday && iYesterday < iEpoch, "expected newest-first order");
+    assert.equal(res.body.match(/class="pm-row"/g)?.length, 3);
+    assert.doesNotMatch(res.body, /2026-06-18/);
+    assert.match(res.body, />Today</);
+  });
+
+  test("pre-epoch clock degrades to a single today-only entry", async () => {
+    const { cfg } = makeConfig();
+    cfg.now = PRE_EPOCH;
+    const res = await renderPromptsArchiveHandler(cfg);
+    assert.equal(res.body.match(/class="pm-row"/g)?.length, 1);
+    assert.match(res.body, />Today</);
+  });
+});
+
+describe("renderPromptPageHandler", () => {
+  test("404s on a slug that names no prompt", async () => {
+    const { cfg } = makeConfig();
+    cfg.now = EPOCH_NOON;
+    assert.equal((await renderPromptPageHandler(cfg, "not-a-real-prompt")).status, 404);
+    assert.equal((await renderPromptPageHandler(cfg, "Bad!Slug")).status, 404);
+  });
+
+  test("lists only rows tagged with this prompt, newest-first", async () => {
+    const { store, cfg } = makeConfig();
+    cfg.now = EPOCH_NOON;
+    await store.put(row({ drawing_id: "1".repeat(64), prompt_id: "slime-bounce", created_at_ms: 100 }));
+    await store.put(row({ drawing_id: "2".repeat(64), prompt_id: "slime-bounce", created_at_ms: 200 }));
+    await store.put(row({ drawing_id: "3".repeat(64), prompt_id: "campfire", created_at_ms: 300 }));
+    await store.put(row({ drawing_id: "4".repeat(64), created_at_ms: 400 }));
+    const res = await renderPromptPageHandler(cfg, "slime-bounce");
+    assert.equal(res.status, 200);
+    const i2 = res.body.indexOf("2".repeat(64));
+    const i1 = res.body.indexOf("1".repeat(64));
+    assert.ok(i2 > -1 && i1 > -1 && i2 < i1, "expected both tagged rows, newest first");
+    assert.equal(res.body.indexOf("3".repeat(64)), -1);
+    assert.equal(res.body.indexOf("4".repeat(64)), -1);
+  });
+
+  test("today's prompt carries the Draw-this CTA; a stale one points at the archive", async () => {
+    const { cfg } = makeConfig();
+    cfg.now = EPOCH_NOON; // today = slime-bounce
+    const today = await renderPromptPageHandler(cfg, "slime-bounce");
+    assert.match(today.body, /href="\/draw\?prompt=slime-bounce"/);
+    const stale = await renderPromptPageHandler(cfg, "campfire");
+    assert.doesNotMatch(stale.body, /href="\/draw\?prompt=/);
+    assert.match(stale.body, /day has passed/);
+  });
+
+  test("og:image is the newest submission's -large.gif, falling back to the logo", async () => {
+    const { store, cfg } = makeConfig();
+    cfg.now = EPOCH_NOON;
+    const empty = await renderPromptPageHandler(cfg, "slime-bounce");
+    assert.match(empty.body, /og:image" content="https:\/\/draw\.example\/og-logo\.png"/);
+    await store.put(row({ drawing_id: "1".repeat(64), prompt_id: "slime-bounce", created_at_ms: 100 }));
+    await store.put(row({ drawing_id: "2".repeat(64), prompt_id: "slime-bounce", created_at_ms: 200 }));
+    const filled = await renderPromptPageHandler(cfg, "slime-bounce");
+    assert.match(
+      filled.body,
+      new RegExp(`og:image" content="https://draw\\.example/tiles/${"2".repeat(64)}-large\\.gif"`),
+    );
+  });
+
+  test("more items than perPage emits a sentinel pointing at the items fragment", async () => {
+    const { store, cfg } = makeConfig(2);
+    cfg.now = EPOCH_NOON;
+    for (let i = 0; i < 3; i++) {
+      await store.put(row({
+        drawing_id: String(i).padStart(64, "b"),
+        prompt_id: "slime-bounce",
+        created_at_ms: 1000 + i,
+      }));
+    }
+    const res = await renderPromptPageHandler(cfg, "slime-bounce");
+    assert.match(res.body, /data-next="\/prompts\/slime-bounce\/items\?cursor=/);
+  });
+});
+
+describe("renderPromptItemsHandler", () => {
+  test("404s on a slug that names no prompt", async () => {
+    const { cfg } = makeConfig();
+    assert.equal((await renderPromptItemsHandler(cfg, "not-a-real-prompt", null)).status, 404);
+  });
+
+  test("paginates as a bare fragment, following the cursor to the end", async () => {
+    const { store, cfg } = makeConfig(2);
+    cfg.now = EPOCH_NOON;
+    for (let i = 0; i < 3; i++) {
+      await store.put(row({
+        drawing_id: String(i).padStart(64, "b"),
+        prompt_id: "slime-bounce",
+        created_at_ms: 1000 + i,
+      }));
+    }
+    const first = await renderPromptItemsHandler(cfg, "slime-bounce", null);
+    assert.doesNotMatch(first.body, /<html/);
+    const match = first.body.match(/data-next="\/prompts\/slime-bounce\/items\?cursor=([^"]+)"/);
+    assert.ok(match, "expected a next cursor on the first fragment");
+    const second = await renderPromptItemsHandler(cfg, "slime-bounce", match![1]);
+    assert.ok(second.body.includes("0".padStart(64, "b")), "expected the oldest row on page 2");
+    assert.doesNotMatch(second.body, /data-next=/);
   });
 });

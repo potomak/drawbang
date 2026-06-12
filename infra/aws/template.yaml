@@ -378,6 +378,17 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: !Ref DynamicCachePolicy
+          # /prompts archive + /prompts/<slug> submission pages +
+          # /prompts/<slug>/items fragments. Public dynamic HTML, same
+          # policy as /u/* — DynamicCachePolicy keys on the cursor query
+          # string and honours the handlers' CC_GALLERY s-maxage.
+          - PathPattern: /prompts*
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref DynamicCachePolicy
           # /auth/* (POST register/login/forgot/reset/profile-picture) — runs
           # through CloudFront so in-page scripts on /d/<id> can call the
           # profile-picture endpoint with a relative URL. Caching is disabled (each request
@@ -996,6 +1007,24 @@ Resources:
             ApiId: !Ref IngestApi
             Method: ANY
             Path: /u/{username}/streak
+        PromptsArchive:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: ANY
+            Path: /prompts
+        PromptPage:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: ANY
+            Path: /prompts/{slug}
+        PromptItems:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: ANY
+            Path: /prompts/{slug}/items
         Admin:
           Type: HttpApi
           Properties:

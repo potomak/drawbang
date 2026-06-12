@@ -199,6 +199,67 @@ describe("renderFeedCard", () => {
   });
 });
 
+describe("prompt banner", () => {
+  const prompt = {
+    slug: "tiny-ghost",
+    title: "Tiny ghost",
+    blurb: "Boo, but make it adorable.",
+  };
+
+  test("renders title, blurb, and the Draw-this CTA above the feed", () => {
+    const html = renderHome({
+      items: [item()],
+      prompt,
+      repo_url: "https://github.com/test/test",
+    });
+    assert.match(html, /<section class="prompt-banner" aria-label="Today's prompt">/);
+    assert.match(html, /<h2 class="prompt-banner-title">Tiny ghost<\/h2>/);
+    assert.match(html, /<p class="prompt-banner-blurb">Boo, but make it adorable\.<\/p>/);
+    assert.match(html, /<a class="btn primary prompt-banner-cta" href="\/draw\?prompt=tiny-ghost">Draw this<\/a>/);
+    // Banner sits above the cards.
+    const bannerIdx = html.indexOf("prompt-banner");
+    const listIdx = html.indexOf('<ul class="feed-list"');
+    assert.ok(bannerIdx > -1 && listIdx > -1 && bannerIdx < listIdx);
+  });
+
+  test("fires a guarded prompt_banner_view gtag event carrying the slug", () => {
+    const html = renderHome({
+      items: [item()],
+      prompt,
+      repo_url: "https://github.com/test/test",
+    });
+    assert.match(
+      html,
+      /<script>typeof gtag==="function"&&gtag\("event","prompt_banner_view",\{slug:"tiny-ghost"\}\);<\/script>/,
+    );
+  });
+
+  test("omitted entirely when the view has no prompt", () => {
+    const html = renderHome({
+      items: [item()],
+      repo_url: "https://github.com/test/test",
+    });
+    assert.doesNotMatch(html, /prompt-banner/);
+    assert.doesNotMatch(html, /prompt_banner_view/);
+  });
+
+  test("still renders on the empty feed state", () => {
+    const html = renderHome({
+      items: [],
+      prompt,
+      repo_url: "https://github.com/test/test",
+    });
+    assert.match(html, /class="prompt-banner"/);
+    assert.match(html, /<p class="feed-empty">No drawings yet/);
+  });
+
+  test("renderFeedFragment never includes the banner", () => {
+    const html = renderFeedFragment([item()], "/feed/items?cursor=x");
+    assert.doesNotMatch(html, /prompt-banner/);
+    assert.doesNotMatch(html, /prompt_banner_view/);
+  });
+});
+
 describe("renderFeedFragment", () => {
   test("returns just the cards (no <html>) and appends a sentinel when paginated", () => {
     const html = renderFeedFragment([item()], "/feed/items?cursor=x");

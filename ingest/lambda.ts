@@ -68,6 +68,9 @@ import {
   renderProductsPageHandler,
   renderProfileItemsHandler,
   renderProfilePageHandler,
+  renderPromptItemsHandler,
+  renderPromptPageHandler,
+  renderPromptsArchiveHandler,
   renderStreakPageHandler,
   type RenderHandlersConfig,
   type RenderResponse,
@@ -257,6 +260,26 @@ export async function handler(
     const m = path.match(/^\/products\/p\/(\d+)$/);
     if (method === "GET" && m) {
       return adaptRender(await renderProductsPageHandler(renderConfig, m[1]));
+    }
+  }
+  // /prompts — daily-prompt archive; /prompts/<slug> — submission grid;
+  // /prompts/<slug>/items?cursor=… — infinite-scroll fragment. Slug
+  // pattern mirrors PROMPT_SLUG_RE in config/prompts.ts.
+  if (method === "GET" && path === "/prompts") {
+    return adaptRender(await renderPromptsArchiveHandler(renderConfig));
+  }
+  {
+    const m = path.match(/^\/prompts\/([a-z0-9-]{1,32})$/);
+    if (method === "GET" && m) {
+      return adaptRender(await renderPromptPageHandler(renderConfig, m[1]));
+    }
+  }
+  {
+    const m = path.match(/^\/prompts\/([a-z0-9-]{1,32})\/items$/);
+    if (method === "GET" && m) {
+      return adaptRender(
+        await renderPromptItemsHandler(renderConfig, m[1], queryParam(event, "cursor")),
+      );
     }
   }
   {

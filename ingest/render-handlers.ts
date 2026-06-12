@@ -49,6 +49,19 @@ import renderFollowList, {
 import renderNotFound from "../lib/templates/not-found.js";
 import renderProducts from "../lib/templates/products.js";
 import { assetUrl } from "../src/layout/asset-version.js";
+import {
+  PROMPT_SLUG_RE,
+  PROMPTS_EPOCH_ET,
+  etDateString,
+  promptBySlug,
+  promptForDate,
+} from "../config/prompts.js";
+import {
+  renderPromptArchive,
+  renderPromptPage,
+  type PromptArchiveEntry,
+  type PromptPageView,
+} from "../lib/templates/prompts.js";
 import renderDesign from "../lib/templates/design.js";
 import { renderDiscover } from "../lib/templates/discover.js";
 import { loadDiscover } from "./discover-handler.js";
@@ -208,6 +221,12 @@ export async function renderHomePageHandler(
   const view: HomeView = { items, repo_url: cfg.repoUrl };
   if (next) view.next_fragment_url = next;
   if (discover) view.discover_rail_html = renderDiscover(discover);
+  // Daily-prompt banner, first page only (same rule as the discover
+  // rail — /feed/items appends must not repeat it). Computed at render
+  // time: / is edge-cached with s-maxage=300, so the banner can flip up
+  // to ~5 minutes late at ET midnight. Accepted trade-off — do not add
+  // cache-busting or invalidation for this.
+  if (!cursor) view.prompt = promptForDate(cfg.now ? cfg.now() : new Date());
   return {
     status: 200,
     contentType: "text/html; charset=utf-8",
@@ -875,6 +894,98 @@ export async function renderProductsPageHandler(
     contentType: "text/html; charset=utf-8",
     cacheControl: CC_PRODUCTS,
     body,
+  };
+}
+
+// -- /prompts + /prompts/<slug> + /prompts/<slug>/items -----------------------
+
+const MS_PER_DAY = 86_400_000;
+
+function etDayToUtcMs(day: string): number {
+  const [y, m, d] = day.split("-").map(Number);
+  return Date.UTC(y, m - 1, d);
+}
+
+// Archive entries, newest first, built purely from config — every ET day
+// from the prompts epoch through today inclusive. Days after today must
+// never appear (no future-prompt leaks); before launch (today < epoch)
+// the list degrades to just today's prompt so the page is never empty.
+function buildPromptArchiveEntries(now: Date): PromptArchiveEntry[] {
+  const today = etDateString(now);
+  // ISO date strings compare correctly as plain strings.
+  const first = today < PROMPTS_EPOCH_ET ? today : PROMPTS_EPOCH_ET;
+  const entries: PromptArchiveEntry[] = [];
+  for (let ms = etDayToUtcMs(today); ms >= etDayToUtcMs(first); ms -= MS_PER_DAY) {
+    const date = new Date(ms).toISOString().slice(0, 10);
+    entries.push({
+      date,
+      // Noon UTC is always the same calendar day in ET (UTC-4/-5), so
+      // this resolves the prompt for `date` — OVERRIDES included.
+      prompt: promptForDate(new Date(ms + MS_PER_DAY / 2)),
+      is_today: date === today,
+    });
+  }
+  return entries;
+}
+
+export async function renderPromptsArchiveHandler(
+  cfg: RenderHandlersConfig,
+): Promise<RenderResponse> {
+  const entries = buildPromptArchiveEntries(cfg.now ? cfg.now() : new Date());
+  return {
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: CC_GALLERY,
+    body: renderPromptArchive({
+      entries,
+      public_base_url: cfg.publicBaseUrl,
+      repo_url: cfg.repoUrl,
+    }),
+  };
+}
+
+export async function renderPromptPageHandler(
+  cfg: RenderHandlersConfig,
+  slug: string,
+): Promise<RenderResponse> {
+  if (!PROMPT_SLUG_RE.test(slug)) return notFound(cfg);
+  const prompt = promptBySlug(slug);
+  if (!prompt) return notFound(cfg);
+  const perPage = cfg.perPage ?? PER_PAGE;
+  const page = await cfg.drawingStore.queryByPrompt(slug, { limit: perPage });
+  const next = buildFragmentUrl(`/prompts/${slug}/items`, page.next_cursor);
+  const view: PromptPageView = {
+    prompt,
+    is_today: promptForDate(cfg.now ? cfg.now() : new Date()).slug === slug,
+    items: page.items.map(itemFromRow),
+    top_drawing_id: page.items[0]?.drawing_id ?? null,
+    public_base_url: cfg.publicBaseUrl,
+    repo_url: cfg.repoUrl,
+  };
+  if (next) view.next_fragment_url = next;
+  return {
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: CC_GALLERY,
+    body: renderPromptPage(view),
+  };
+}
+
+export async function renderPromptItemsHandler(
+  cfg: RenderHandlersConfig,
+  slug: string,
+  rawCursor: string | null,
+): Promise<RenderResponse> {
+  if (!PROMPT_SLUG_RE.test(slug) || !promptBySlug(slug)) return notFound(cfg);
+  const perPage = cfg.perPage ?? PER_PAGE;
+  const cursor = decodeCursor(rawCursor) ?? undefined;
+  const page = await cfg.drawingStore.queryByPrompt(slug, { limit: perPage, cursor });
+  const next = buildFragmentUrl(`/prompts/${slug}/items`, page.next_cursor);
+  return {
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: CC_GALLERY,
+    body: renderGalleryFragment(page.items.map(itemFromRow), next),
   };
 }
 
