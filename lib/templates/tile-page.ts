@@ -114,7 +114,7 @@ ${forks.map(renderItem).join("\n")}
     title: `Draw! · ${esc(v.id_short)}`,
     extraHead: ogMeta,
     body: `    ${renderHeader({ active: "home" })}
-    <main data-tile-page data-drawing-id="${esc(v.drawing_id)}" data-id-short="${esc(v.id_short)}" data-author-username="${esc(v.author?.username ?? "")}">
+    <main data-tile-page data-drawing-id="${esc(v.drawing_id)}" data-id-short="${esc(v.id_short)}" data-author-username="${esc(v.author?.username ?? "")}" data-public-base-url="${esc(v.public_base_url)}">
       <div class="dr-grid">
         <div class="dr-art-wrap">
           <img src="${gif}" alt="tile ${esc(v.id_short)}" width="320" height="320" />
@@ -142,6 +142,7 @@ ${forks.map(renderItem).join("\n")}
               <a class="btn" id="dr-share-threads" href="https://www.threads.net/intent/post?text=${encodeURIComponent(`Pixel art from Draw! · Tile ID ${v.id_short}`)}&amp;url=${encodeURIComponent(`${v.public_base_url}/d/${v.drawing_id}`)}" target="_blank" rel="nofollow noopener noreferrer">Share to Threads</a>
               <a class="btn" id="dr-share-reddit" href="https://www.reddit.com/submit?url=${encodeURIComponent(`${v.public_base_url}/d/${v.drawing_id}`)}&amp;title=${encodeURIComponent(`Pixel art from Draw! · Tile ID ${v.id_short}`)}" target="_blank" rel="nofollow noopener noreferrer">Share to Reddit</a>
               <a class="btn" id="dr-share-x" href="https://twitter.com/intent/tweet?url=${encodeURIComponent(`${v.public_base_url}/d/${v.drawing_id}`)}&amp;text=${encodeURIComponent(`Pixel art from Draw! · Tile ID ${v.id_short}`)}" target="_blank" rel="nofollow noopener noreferrer">Share to X</a>
+              <button class="btn" id="dr-copy-embed" type="button">Copy embed code</button>
               <button class="btn" id="dr-share" type="button" hidden>Share…</button>
             </div>
           </div>

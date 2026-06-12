@@ -75,10 +75,10 @@
     });
   }
 
-  // -- Copy link -----------------------------------------------------------
-  function fallbackCopy(url) {
+  // -- Copy link / embed code ----------------------------------------------
+  function fallbackCopy(text) {
     var tmp = document.createElement("textarea");
-    tmp.value = url;
+    tmp.value = text;
     tmp.setAttribute("readonly", "");
     tmp.style.position = "fixed";
     tmp.style.top = "-9999px";
@@ -94,24 +94,41 @@
     return ok;
   }
 
+  async function copyText(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+      return fallbackCopy(text);
+    } catch (e) {
+      return fallbackCopy(text);
+    }
+  }
+
   function wireCopyLink() {
     var btn = document.getElementById("dr-copy-link");
     if (!btn) return;
     btn.addEventListener("click", async function () {
-      var url = window.location.href;
-      var ok = false;
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(url);
-          ok = true;
-        } else {
-          ok = fallbackCopy(url);
-        }
-      } catch (e) {
-        ok = fallbackCopy(url);
-      }
+      var ok = await copyText(window.location.href);
       flash(ok ? "success" : "error", ok ? "Link copied" : "Could not copy — try long-pressing the URL", 1800);
       track("copy_share_link_click", {});
+    });
+  }
+
+  function wireCopyEmbed(main) {
+    var btn = document.getElementById("dr-copy-embed");
+    if (!btn) return;
+    var drawingId = main.dataset.drawingId || "";
+    var base = main.dataset.publicBaseUrl || window.location.origin;
+    if (!drawingId) return;
+    var snippet =
+      '<iframe src="' + base + "/embed/" + drawingId +
+      '" width="320" height="340" frameborder="0"></iframe>';
+    btn.addEventListener("click", async function () {
+      var ok = await copyText(snippet);
+      flash(ok ? "success" : "error", ok ? "Embed code copied — paste it into your page" : "Could not copy embed code", 2400);
+      track("embed_copy_click", { drawing_id: drawingId });
     });
   }
 
@@ -165,6 +182,7 @@
     if (!main) return;
     wireSetProfilePicture(main);
     wireCopyLink();
+    wireCopyEmbed(main);
     wireWebShare(main);
     wireAnchorTracking(main);
   }

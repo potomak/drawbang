@@ -190,12 +190,12 @@ test("tile page: loads /flash.js + /tile-page.js so the lifted client behaviour 
 
 test("tile page: <main> ships the drawing/author data attributes the script reads", () => {
   const html = renderTilePage(baseView);
-  assert.match(html, /<main data-tile-page data-drawing-id="f{64}" data-id-short="ffffffff" data-author-username="alice">/);
+  assert.match(html, /<main data-tile-page data-drawing-id="f{64}" data-id-short="ffffffff" data-author-username="alice" data-public-base-url="https:\/\/pixel\.drawbang\.com">/);
 });
 
 test("tile page: <main> data-author-username is empty when the drawing is anonymous", () => {
   const html = renderTilePage({ ...baseView, author: null });
-  assert.match(html, /<main data-tile-page [^>]*data-author-username="">/);
+  assert.match(html, /<main data-tile-page [^>]*data-author-username=""[^>]*>/);
 });
 
 test("tile page: emits the full OG suite with absolute URLs and the -large.gif image", () => {
@@ -281,6 +281,11 @@ test("tile page: actions split into two .dr-action-row groups", () => {
   assert.equal(groups.length, 2);
 });
 
+test("tile page: Copy embed code is an interactive button in the share row", () => {
+  const html = renderTilePage(baseView);
+  assert.match(html, /<button class="btn" id="dr-copy-embed" type="button">Copy embed code<\/button>/);
+});
+
 test("tile page: Web Share button is rendered hidden by default (progressive enhancement)", () => {
   const html = renderTilePage(baseView);
   assert.match(
@@ -298,6 +303,7 @@ test("tile page: action buttons ship their GA-wired ids", () => {
   assert.match(html, /id="dr-share-x"/);
   assert.match(html, /id="dr-download-gif"/);
   assert.match(html, /id="dr-copy-link"/);
+  assert.match(html, /id="dr-copy-embed"/);
   assert.match(html, /id="dr-share"/);
   assert.match(html, /id="dr-set-profile-picture"/);
 });
