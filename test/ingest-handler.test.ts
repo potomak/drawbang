@@ -3,6 +3,8 @@ import { describe, test } from "node:test";
 import { handleIngest, type AuthedUser } from "../ingest/handler.js";
 import type { Storage } from "../ingest/storage.js";
 import { MemoryDrawingStore } from "../ingest/drawing-store.js";
+import { NoopInvalidator } from "../ingest/cache-invalidation.js";
+import { PROMPTS, promptForDate } from "../config/prompts.js";
 import { Bitmap } from "../src/editor/bitmap.js";
 import { encodeGif } from "../src/editor/gif.js";
 import { DEFAULT_ACTIVE_PALETTE } from "../src/editor/palette.js";
@@ -220,6 +222,94 @@ describe("handleIngest", () => {
     const id = (res.body as { id: string }).id;
     const row = await h.drawingStore.get(id);
     assert.equal(row!.parent_id, null);
+  });
+});
+
+// Mid-day UTC on an OVERRIDES date ("2026-06-01" → "tiny-ghost") so the ET
+// calendar day — and therefore the expected prompt — is unambiguous in tests.
+const PROMPT_NOW = new Date("2026-06-01T12:00:00.000Z");
+const TODAY_SLUG = promptForDate(PROMPT_NOW).slug;
+// A real, well-formed slug that just isn't today's pick.
+const STALE_SLUG = PROMPTS.find((p) => p.slug !== TODAY_SLUG)!.slug;
+
+describe("handleIngest daily-prompt tagging", () => {
+  test("today's slug is stored as prompt_id and invalidation includes /prompts*", async () => {
+    const h = makeHarness();
+    const inv = new NoopInvalidator();
+    const gif = makeGif(5);
+    const res = await handleIngest(
+      { gif: Buffer.from(gif).toString("base64"), prompt: TODAY_SLUG },
+      {
+        storage: h.storage,
+        publicBaseUrl: PUBLIC_BASE,
+        auth: AUTH,
+        drawingStore: h.drawingStore,
+        cacheInvalidator: inv,
+        now: () => PROMPT_NOW,
+      },
+    );
+    assert.equal(res.status, 202);
+    const row = await h.drawingStore.get((res.body as { id: string }).id);
+    assert.equal(row!.prompt_id, TODAY_SLUG);
+    assert.equal(inv.calls.length, 1);
+    assert.ok(inv.calls[0].includes("/prompts*"), `expected /prompts* in ${inv.calls[0].join(",")}`);
+  });
+
+  test("stale or garbage slug never fails the publish and is never stored", async () => {
+    const cases: Array<{ seed: number; prompt: string }> = [
+      { seed: 6, prompt: STALE_SLUG }, // valid format, wrong day
+      { seed: 7, prompt: "Not A Slug!!" }, // fails PROMPT_SLUG_RE
+      { seed: 8, prompt: "x".repeat(33) }, // too long for PROMPT_SLUG_RE
+    ];
+    for (const c of cases) {
+      const h = makeHarness();
+      const inv = new NoopInvalidator();
+      const gif = makeGif(c.seed);
+      const res = await handleIngest(
+        { gif: Buffer.from(gif).toString("base64"), prompt: c.prompt },
+        {
+          storage: h.storage,
+          publicBaseUrl: PUBLIC_BASE,
+          auth: AUTH,
+          drawingStore: h.drawingStore,
+          cacheInvalidator: inv,
+          now: () => PROMPT_NOW,
+        },
+      );
+      assert.equal(res.status, 202, `publish should succeed for prompt ${JSON.stringify(c.prompt)}`);
+      const row = await h.drawingStore.get((res.body as { id: string }).id);
+      assert.ok(row, "drawing row should exist");
+      assert.ok(!("prompt_id" in row!), `prompt_id must be absent for ${JSON.stringify(c.prompt)}`);
+      assert.equal(inv.calls.length, 1);
+      assert.ok(!inv.calls[0].includes("/prompts*"), `unexpected /prompts* for ${JSON.stringify(c.prompt)}`);
+    }
+  });
+
+  test("missing prompt keeps the existing behavior exactly", async () => {
+    const h = makeHarness();
+    const inv = new NoopInvalidator();
+    const gif = makeGif(9);
+    const res = await handleIngest(
+      { gif: Buffer.from(gif).toString("base64") },
+      {
+        storage: h.storage,
+        publicBaseUrl: PUBLIC_BASE,
+        auth: AUTH,
+        drawingStore: h.drawingStore,
+        cacheInvalidator: inv,
+        now: () => PROMPT_NOW,
+      },
+    );
+    assert.equal(res.status, 202);
+    const row = await h.drawingStore.get((res.body as { id: string }).id);
+    assert.ok(!("prompt_id" in row!), "prompt_id must be absent when no prompt is sent");
+    assert.deepEqual(inv.calls, [[
+      "/",
+      "/feed/items*",
+      "/gallery*",
+      `/u/${AUTH.username}*`,
+      "/feed.rss",
+    ]]);
   });
 });
 

@@ -9,6 +9,7 @@ export interface SubmitOptions {
   ingestUrl: string;
   gif: Uint8Array;
   parent?: string;
+  prompt?: string;
   signal?: AbortSignal;
 }
 
@@ -29,6 +30,7 @@ export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
     body: JSON.stringify({
       gif: base64(opts.gif),
       parent: opts.parent,
+      prompt: opts.prompt,
     }),
     signal: opts.signal,
   });

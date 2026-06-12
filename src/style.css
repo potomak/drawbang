@@ -27,6 +27,16 @@ svg, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .app { min-height: 100vh; display: flex; flex-direction: column; }
 body > main, .app > main { display: block; }
 
+/* ===== Canvas banner =====
+   Daily-prompt chip at the top of the editor, shown only when
+   /draw?prompt=<slug> names TODAY's prompt. Guidance copy only — the
+   editor never enforces prompt rules. First child of <main>, so it
+   aligns with the editor content for free. */
+.canvas-banner { margin-bottom: 16px; font-size: var(--t-sm); }
+.cv-banner-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cv-banner-text { color: var(--fg); }
+.cv-banner-hint { color: var(--fg-muted); white-space: nowrap; }
+
 /* ===== Button (editor-only variants) =====
    Base .btn / .primary / .ghost live in chrome.css. Variants below are
    editor-specific (icon toolbar, small modal buttons, pressed/disabled

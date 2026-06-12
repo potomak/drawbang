@@ -53,14 +53,21 @@ export class NoopInvalidator implements CacheInvalidator {
 
 // The set of paths a freshly-published drawing should invalidate. Kept as a
 // pure function so tests can pin the exact paths emitted.
-export function pathsToInvalidateOnPublish(username: string): string[] {
-  return [
+export function pathsToInvalidateOnPublish(
+  username: string,
+  opts?: { promptTagged?: boolean },
+): string[] {
+  const paths = [
     "/",
     "/feed/items*",
     "/gallery*",
     `/u/${username}*`,
     "/feed.rss",
   ];
+  // Prompt pages only churn when the publish actually carried today's tag;
+  // untagged publishes keep the path list (and invalidation cost) unchanged.
+  if (opts?.promptTagged) paths.push("/prompts*");
+  return paths;
 }
 
 // Invalidates the profile so an edit (profile picture, bio, link, …)

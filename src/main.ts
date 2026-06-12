@@ -27,6 +27,8 @@ import {
   shiftUp,
 } from "./editor/tools.js";
 import { decodeShare, encodeShare } from "./share.js";
+import { promptFromQuery, promptGuidanceHint } from "./prompt-query.js";
+import type { Prompt } from "../config/prompts.js";
 import * as local from "./local.js";
 import { isLoggedIn } from "./auth.js";
 import {
@@ -73,6 +75,11 @@ let lastPublishedId: string | null = null;
 // `parent` on the next publish so the new drawing records its lineage.
 // Cleared on every reset — a blank canvas isn't a fork of anything.
 let parentId: string | null = null;
+// Set when the editor boots with ?prompt=<slug> matching TODAY's ET prompt
+// (stale/garbage slugs are ignored entirely). Unlike parentId it survives
+// resetEditor: the chip stays up, so every publish this session is a
+// response to the prompt.
+let promptSlug: string | null = null;
 let onion = false;
 // GIF playback is locked at 5 fps (200 ms/frame) — matches the encoded
 // delay, so previewing in the editor looks the same as the rendered GIF.
@@ -111,6 +118,7 @@ const ICON = {
 const app = document.getElementById("app")!;
 app.innerHTML = /* html */ `
   <main>
+    <div id="promptBanner" class="canvas-banner" hidden></div>
     <div class="ed-size-picker" role="radiogroup" aria-label="Canvas size">
       <span class="ed-size-label">Size</span>
       ${DRAWING_SIZES.map((s) => `<button type="button" class="btn xs ed-size-opt" data-size="${s}" aria-pressed="${s === DEFAULT_SIZE ? "true" : "false"}">${s}×${s}</button>`).join("")}
@@ -636,21 +644,23 @@ async function handlePublish(): Promise<void> {
   }
   tracker.publishClick(state.frames.length);
   showFlash({ kind: "info", message: "Publishing…" });
-  // Captured before the await so the remix flag reflects the parent that
-  // was actually sent, even if state resets mid-flight.
+  // Captured before the await so the remix flag and prompt tag reflect
+  // what was actually sent, even if state resets mid-flight.
   const publishedParentId = parentId;
+  const publishedPromptSlug = promptSlug;
   try {
     const result = await submit({
       ingestUrl: INGEST_URL,
       gif: encodeGif({ frames: state.frames, activePalette, size: currentSize }),
       parent: publishedParentId ?? undefined,
+      prompt: publishedPromptSlug ?? undefined,
     });
     flashPublished(result.share_url);
     tracker.publishSuccess({
       frames: state.frames.length,
       solve_ms: 0,
       remix: publishedParentId !== null,
-      prompt: null,
+      prompt: publishedPromptSlug,
     });
     if (localId) {
       await local.save({ id: localId, frames: state.frames, activePalette, publishedId: result.id });
@@ -830,6 +840,30 @@ window.addEventListener("keydown", (ev) => {
   }
 });
 
+// -- Daily prompt ------------------------------------------------------------
+
+function showPromptBanner(p: Prompt): void {
+  const banner = document.getElementById("promptBanner");
+  if (!banner) return;
+  const row = document.createElement("div");
+  row.className = "cv-banner-row";
+  const text = document.createElement("span");
+  text.className = "cv-banner-text";
+  const title = document.createElement("strong");
+  title.textContent = `Today's prompt: ${p.title}`;
+  text.append(title, ` — ${p.blurb}`);
+  row.appendChild(text);
+  const hint = promptGuidanceHint(p);
+  if (hint) {
+    const hintEl = document.createElement("span");
+    hintEl.className = "cv-banner-hint";
+    hintEl.textContent = hint;
+    row.appendChild(hintEl);
+  }
+  banner.appendChild(row);
+  banner.hidden = false;
+}
+
 // -- Bootstrapping ----------------------------------------------------------
 
 async function boot(): Promise<void> {
@@ -849,6 +883,14 @@ async function boot(): Promise<void> {
 
   const hash = location.hash.match(/#d=([A-Za-z0-9_-]+)/)?.[1];
   const forkId = new URL(location.href).searchParams.get("fork");
+
+  // ?prompt= and ?fork= may coexist — remixing today's prompt is legal.
+  const todaysPrompt = promptFromQuery(location.search, new Date());
+  if (todaysPrompt) {
+    promptSlug = todaysPrompt.slug;
+    showPromptBanner(todaysPrompt);
+    tracker.promptCtaClick({ slug: todaysPrompt.slug });
+  }
 
   if (forkId) {
     try {

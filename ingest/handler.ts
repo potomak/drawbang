@@ -1,4 +1,5 @@
 import { contentHashHex } from "../src/content-hash.js";
+import { PROMPT_SLUG_RE, promptForDate } from "../config/prompts.js";
 import { decodeGif } from "../src/editor/gif.js";
 import { encodeShareGif } from "../src/editor/share-gif.js";
 import { validateGif } from "./gif-validate.js";
@@ -20,6 +21,9 @@ export interface AuthedUser {
 export interface IngestRequest {
   gif: string; // base64
   parent?: string;
+  // Daily-prompt slug the client claims this drawing answers. Untrusted:
+  // only stored when it matches today's ET prompt (see handleIngest).
+  prompt?: string;
 }
 
 export interface IngestSuccess {
@@ -103,6 +107,17 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     "public, max-age=31536000, immutable",
   );
 
+  // Daily-prompt tag: stored ONLY when the submitted slug is well-formed
+  // AND equals today's ET prompt. Anything else (stale slug, garbage, a
+  // future theme) is silently dropped — a bad prompt must never fail or
+  // alter an otherwise-valid publish.
+  const promptId =
+    req.prompt !== undefined &&
+    PROMPT_SLUG_RE.test(req.prompt) &&
+    req.prompt === promptForDate(now).slug
+      ? req.prompt
+      : undefined;
+
   // Dual-write to the dynamic DDB store so the new /gallery, /d/<id>,
   // /u/<username>, /feed.rss routes can serve the drawing without
   // waiting for the builder. Wrapped in try/catch — the gif is already
@@ -119,6 +134,8 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
         user_id: author.user_id,
         username: author.username,
         parent_id: req.parent ?? null,
+        // Optional-absent (never null) so GSI4 stays sparse.
+        ...(promptId !== undefined ? { prompt_id: promptId } : {}),
         frames: decoded.frames.length,
         gif_size_bytes: gif.length,
       });
@@ -175,7 +192,9 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   // the invalidator; the publish has already committed so we return 202
   // regardless of whether the cache flush succeeded.
   if (cfg.cacheInvalidator) {
-    void cfg.cacheInvalidator.invalidate(pathsToInvalidateOnPublish(author.username));
+    void cfg.cacheInvalidator.invalidate(
+      pathsToInvalidateOnPublish(author.username, { promptTagged: promptId !== undefined }),
+    );
   }
 
   return {
