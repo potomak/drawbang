@@ -52,6 +52,11 @@ import {
 } from "./hydrate-handler.js";
 import { CloudFrontInvalidator } from "./cache-invalidation.js";
 import { SesEmailSender } from "./email.js";
+import { DynamoSubscribersStore } from "./subscribers-store.js";
+import {
+  handleSubscribe,
+  type SubscribeHandlerConfig,
+} from "./subscribe-handler.js";
 import {
   renderBookmarksPageHandler,
   renderDesignPageHandler,
@@ -98,6 +103,7 @@ const drawingsTable = required("DRAWBANG_DRAWINGS_TABLE");
 const likesTable = required("DRAWBANG_LIKES_TABLE");
 const bookmarksTable = required("DRAWBANG_BOOKMARKS_TABLE");
 const followsTable = required("DRAWBANG_FOLLOWS_TABLE");
+const subscribersTable = required("DRAWBANG_SUBSCRIBERS_TABLE");
 // Optional: when unset (e.g. local dev), publish skips CF invalidation —
 // cached pages refresh at s-maxage instead.
 const cfDistributionId = process.env.CF_DISTRIBUTION_ID ?? "";
@@ -147,6 +153,10 @@ const followsStore = new DynamoFollowsStore({
   usersTable,
 });
 const followsConfig: FollowsHandlerConfig = { followsStore, userStore };
+const subscribersStore = new DynamoSubscribersStore({
+  tableName: subscribersTable,
+});
+const subscribeConfig: SubscribeHandlerConfig = { subscribersStore };
 const hydrateConfig: HydrateHandlerConfig = {
   likesStore,
   bookmarksStore,
@@ -403,6 +413,11 @@ export async function handler(
     const profileAuth: ProfileAuth = { user_id: auth.user_id, username: auth.username };
     const result = await handleGetProfile(profileAuth, authConfig);
     return jsonWithHeaders(result.status, result.body, result.headers);
+  }
+  // POST /subscribe — public email capture from the home-page hero.
+  if (method === "POST" && path === "/subscribe") {
+    const result = await handleSubscribe(rawBody(event), subscribeConfig);
+    return json(result.status, result.body);
   }
   if (method === "POST" && path.startsWith("/auth/")) {
     return handleAuthRoute(event, path, ctx);
@@ -733,12 +748,14 @@ function required(name: string): string {
   return v;
 }
 
+function rawBody(event: APIGatewayProxyEventV2): string {
+  return event.isBase64Encoded && event.body
+    ? Buffer.from(event.body, "base64").toString("utf8")
+    : event.body ?? "";
+}
+
 function parseJson(event: APIGatewayProxyEventV2): unknown {
-  const raw =
-    event.isBase64Encoded && event.body
-      ? Buffer.from(event.body, "base64").toString("utf8")
-      : event.body ?? "";
-  return JSON.parse(raw);
+  return JSON.parse(rawBody(event));
 }
 
 function json(status: number, body: unknown): APIGatewayProxyResultV2 {

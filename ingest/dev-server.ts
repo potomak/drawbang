@@ -27,6 +27,11 @@ import {
   handleHydrate,
   type HydrateHandlerConfig,
 } from "./hydrate-handler.js";
+import { MemorySubscribersStore } from "./subscribers-store.js";
+import {
+  handleSubscribe,
+  type SubscribeHandlerConfig,
+} from "./subscribe-handler.js";
 import { ConsoleEmailSender } from "./email.js";
 import { JwtError, verifyJwt } from "./jwt.js";
 import type { AuthedUser } from "./handler.js";
@@ -104,6 +109,8 @@ const bookmarksStore = new MemoryBookmarksStore(drawingStore);
 const bookmarksConfig: BookmarksHandlerConfig = { bookmarksStore };
 const followsStore = new MemoryFollowsStore(userStore);
 const followsConfig: FollowsHandlerConfig = { followsStore, userStore };
+const subscribersStore = new MemorySubscribersStore();
+const subscribeConfig: SubscribeHandlerConfig = { subscribersStore };
 const hydrateConfig: HydrateHandlerConfig = {
   likesStore,
   bookmarksStore,
@@ -395,6 +402,14 @@ const server = http.createServer(async (req, res) => {
         jsonWithHeaders(res, result.status, result.body, result.headers);
         return;
       }
+    }
+
+    // POST /subscribe — public email capture from the home-page hero.
+    if (req.method === "POST" && req.url === "/subscribe") {
+      const body = await readBody(req);
+      const result = await handleSubscribe(body, subscribeConfig);
+      json(res, result.status, result.body);
+      return;
     }
 
     if (req.method === "POST" && req.url && req.url.startsWith("/auth/")) {

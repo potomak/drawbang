@@ -300,6 +300,18 @@ describe("logged-out hero", () => {
     const html = renderFeedFragment([item()], "/feed/items?cursor=x");
     assert.doesNotMatch(html, /home-hero/);
   });
+
+  test("hero carries the subscribe form (email + honeypot) and loads /subscribe.js", () => {
+    const html = renderHome({
+      items: [item()],
+      repo_url: "https://github.com/test/test",
+    });
+    assert.match(html, /<form class="home-hero-subscribe" data-subscribe-form>/);
+    assert.match(html, /<input id="subscribe-email" name="email" type="email" autocomplete="email"[^>]*required/);
+    // Honeypot ships offscreen (CSS class), never [hidden]/display:none.
+    assert.match(html, /<input class="home-hero-subscribe-trap" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"/);
+    assert.match(html, /<script src="\/subscribe\.js"><\/script>/);
+  });
 });
 
 describe("renderFeedFragment", () => {

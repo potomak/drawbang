@@ -411,6 +411,16 @@ Resources:
             Compress: true
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          # POST /subscribe — public email capture from the home-page hero.
+          # Same no-cache + forward-body policy pair as /auth/*.
+          - PathPattern: /subscribe
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
           # /drawings/<id>/like (POST + DELETE). Same policy pair as /auth/*
           # — each request carries its own JWT, so no caching, and we
           # forward Authorization via AllViewerExceptHostHeader.
@@ -739,6 +749,19 @@ Resources:
             - { AttributeName: created_at_ms, KeyType: RANGE }
           Projection: { ProjectionType: KEYS_ONLY }
 
+  # Subscribers: email-capture list from the home-page hero. PK=email,
+  # attr created_at. Write-only from the app (digest sending is deferred);
+  # idempotent conditional Put keeps the first-seen created_at.
+  SubscribersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: drawbang-subscribers
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: email, AttributeType: S }
+      KeySchema:
+        - { AttributeName: email, KeyType: HASH }
+
   # -- Ingest Lambda + API Gateway --------------------------------------------
 
   IngestFunction:
@@ -762,6 +785,7 @@ Resources:
           DRAWBANG_LIKES_TABLE: !Ref LikesTable
           DRAWBANG_BOOKMARKS_TABLE: !Ref BookmarksTable
           DRAWBANG_FOLLOWS_TABLE: !Ref FollowsTable
+          DRAWBANG_SUBSCRIBERS_TABLE: !Ref SubscribersTable
           CF_DISTRIBUTION_ID: !Ref CloudFrontDistributionIdOverride
           JWT_SECRET: !Ref JwtSecret
           SES_FROM_ADDRESS: !Ref SesFromAddress
@@ -777,6 +801,7 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref LikesTable }
         - DynamoDBCrudPolicy: { TableName: !Ref BookmarksTable }
         - DynamoDBCrudPolicy: { TableName: !Ref FollowsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref SubscribersTable }
         # The /products handler queries the merch popularity counters (the
         # MerchFunction is the writer; ingest only reads here).
         - DynamoDBReadPolicy: { TableName: !Ref ProductCountersTable }
@@ -871,6 +896,12 @@ Resources:
             ApiId: !Ref IngestApi
             Method: POST
             Path: /auth/profile
+        Subscribe:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: POST
+            Path: /subscribe
         HomePage:
           Type: HttpApi
           Properties:

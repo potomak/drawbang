@@ -178,6 +178,14 @@ function renderHero(items: FeedItem[]): string {
           <li>Publish, share, and remix</li>
         </ol>${samplesBlock}
         <a class="btn primary home-hero-cta" href="/draw">Start drawing</a>
+        <form class="home-hero-subscribe" data-subscribe-form>
+          <label class="lab" for="subscribe-email">Get launch notes by email</label>
+          <div class="home-hero-subscribe-row">
+            <input id="subscribe-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required />
+            <input class="home-hero-subscribe-trap" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" />
+            <button class="btn" type="submit">Subscribe</button>
+          </div>
+        </form>
       </section>`;
 }
 
@@ -230,7 +238,8 @@ ${body}
 ${infiniteScript}    <script src="${assetUrl("/toggle-handler.js")}"></script>
     <script src="${assetUrl("/like.js")}"></script>
     <script src="${assetUrl("/bookmark.js")}"></script>
-    <script src="${assetUrl("/share.js")}"></script>`,
+    <script src="${assetUrl("/share.js")}"></script>
+    <script src="${assetUrl("/subscribe.js")}"></script>`,
   });
 }
 

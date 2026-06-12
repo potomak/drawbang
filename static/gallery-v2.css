@@ -404,6 +404,35 @@
   background: var(--paper-2);
 }
 .home-hero-cta { margin-top: 16px; }
+.home-hero-subscribe {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: var(--border) solid var(--line);
+}
+.home-hero-subscribe-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  max-width: 420px;
+}
+.home-hero-subscribe-row input[type="email"] {
+  flex: 1;
+  min-width: 0;
+  height: var(--tap);
+  padding: 0 10px;
+  background: var(--paper);
+  border: var(--border) solid var(--line);
+  color: var(--fg);
+  font: 400 var(--t-sm) var(--font-sans);
+}
+/* Honeypot: offscreen, not display:none — some bots skip hidden inputs. */
+.home-hero-subscribe-trap {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
 
 /* Daily-prompt banner — sits above .feed-list on /. Visuals come from
    existing primitives (hairline + paper-2 well, .panel-h kicker,

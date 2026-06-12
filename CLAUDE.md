@@ -149,6 +149,7 @@ JSON endpoints (no caching at the edge — `Cache-Control: no-store`):
 | `/users/<username>/follow`     | POST / DELETE | required | `ingest/follows-handler.ts` — follow/unfollow. Self-follow → 400, missing target → 404, duplicate → 409. Bumps `follower_count`/`following_count` on the users rows transactionally with the edge write. |
 | `/auth/*`                      | POST          | mixed | `ingest/auth-handler.ts` (register/login/forgot/reset/profile-picture). |
 | `/users/<user_id>/stats`       | GET           | none | `ingest/user-stats-handler.ts` — public, short max-age. |
+| `/subscribe`                   | POST          | none | `ingest/subscribe-handler.ts` — email capture from the home-page hero. Honeypot field `website` → silent 200; idempotent on email (first-seen `created_at` wins). Write-only; digest sending is deferred. |
 
 **Adding a new "X is stale on the cached feed" field is a one-liner.** Don't invent another endpoint or another client script. Add the field to `HydrateBody` (in `ingest/hydrate-handler.ts`), populate it in the handler, add a case to the `apply` step in `static/hydrate.js` that updates the right DOM nodes. The SSR templates carry `data-*` attributes the hydrator reads; click handlers stay in their per-action scripts (`like.js`, `bookmark.js`, `follow.js`).
 
@@ -345,6 +346,11 @@ ingest/               Lambda + dev-server: ingest, render, auth
                       read-side hydration channel. Public, no-store; optional
                       Bearer JWT populates viewer_* fields. See the JSON
                       endpoints table above.
+  subscribers-store.ts DDB wrapper for the drawbang-subscribers email-capture
+                      table (PK email; idempotent conditional put) +
+                      MemorySubscribersStore for dev/tests.
+  subscribe-handler.ts POST /subscribe — public email capture from the
+                      home-page hero (honeypot `website` → silent 200).
   cache-invalidation.ts CloudFrontInvalidator + path generators
                       (pathsToInvalidateOnPublish,
                       pathsToInvalidateOnProfilePictureChange).
@@ -366,8 +372,9 @@ ingest/               Lambda + dev-server: ingest, render, auth
                       /users/{id}/stats, /auth/*, /hydrate,
                       /drawings/{id}/{like,bookmark} (POST + DELETE),
                       /users/{un}/follow (POST + DELETE),
-                      /me/bookmarks/feed. Verifies the Bearer JWT for
-                      every write route + /me/bookmarks/feed. /hydrate
+                      /me/bookmarks/feed, /subscribe (POST, public).
+                      Verifies the Bearer JWT for every write route except
+                      /subscribe + for /me/bookmarks/feed. /hydrate
                       treats the Bearer JWT as optional (viewer_* fields
                       go null when absent).
   dev-server.ts       Node HTTP shim for `npm run ingest:dev` —
@@ -435,6 +442,9 @@ static/               Plain JS + CSS shipped as edge assets
   share.js            Web Share wirer for `[data-share-button]` controls
                       on the feed. navigator.share when supported, falls
                       back to clipboard copy + flash. Loaded by home.ts.
+  subscribe.js        Submit handler for the hero email-capture form
+                      (`[data-subscribe-form]`) — POST /subscribe + flash
+                      feedback. Loaded by home.ts.
   og-logo.png         OG fallback image.
 
 vite/plugins/
@@ -566,6 +576,8 @@ Lambda (runtime, set via SAM):
   `drawbang-bookmarks`).
 - `DRAWBANG_FOLLOWS_TABLE` — DDB table for follow edges between accounts
   (default `drawbang-follows`).
+- `DRAWBANG_SUBSCRIBERS_TABLE` — DDB table for the email-capture list
+  (default `drawbang-subscribers`).
 - `DRAWBANG_PRODUCT_COUNTERS_TABLE` — feeds `/products` (default
   `drawbang-product-counters`).
 - `CF_DISTRIBUTION_ID` — CloudFront distribution id for publish-time
