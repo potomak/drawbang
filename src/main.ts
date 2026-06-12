@@ -870,7 +870,7 @@ async function boot(): Promise<void> {
     } catch (err) {
       showFlash({
         kind: "error",
-        message: `Fork failed: ${err instanceof Error ? err.message : String(err)}`,
+        message: `Remix failed: ${err instanceof Error ? err.message : String(err)}`,
       });
     }
   } else if (hash) {

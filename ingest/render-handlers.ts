@@ -274,6 +274,31 @@ export async function renderGalleryItemsHandler(
 
 // -- /d/<id> -----------------------------------------------------------------
 
+// Deepest remix lineage the page walks. Each hop is one GetItem; ≤8
+// serial reads per render is acceptable behind the page's s-maxage.
+const ANCESTOR_CHAIN_CAP = 8;
+
+// Walks parent_id hops upward and returns the chain root-first
+// (root → … → parent). The walk is defensive by design: it caps the
+// depth, breaks on cycles, and treats a missing parent row as the end
+// of the chain — lineage must never error the page.
+async function loadAncestorChain(
+  store: DrawingStore,
+  row: DrawingRow,
+): Promise<{ id: string; id_short: string }[]> {
+  const chain: { id: string; id_short: string }[] = [];
+  const visited = new Set<string>([row.drawing_id]);
+  let parentId = row.parent_id;
+  while (parentId && chain.length < ANCESTOR_CHAIN_CAP && !visited.has(parentId)) {
+    visited.add(parentId);
+    const parent = await store.get(parentId);
+    if (!parent) break;
+    chain.push({ id: parent.drawing_id, id_short: parent.drawing_id.slice(0, 8) });
+    parentId = parent.parent_id;
+  }
+  return chain.reverse();
+}
+
 export async function renderDrawingPageHandler(
   cfg: RenderHandlersConfig,
   drawing_id: string,
@@ -289,6 +314,7 @@ export async function renderDrawingPageHandler(
   const forks = await cfg.drawingStore.queryForks(drawing_id, {
     limit: cfg.perPage ?? PER_PAGE,
   });
+  const ancestors = await loadAncestorChain(cfg.drawingStore, row);
   // Author profile picture: optional lookup so legacy "anonymous" /
   // unregistered usernames just render without one. Short-circuit for
   // the "anonymous" bucket since RESERVED_USERNAMES guarantees no real
@@ -310,6 +336,7 @@ export async function renderDrawingPageHandler(
       profile_picture_drawing_id: authorAccount?.profile_picture_drawing_id ?? null,
     },
     forks: forks.items.map(itemFromRow),
+    ancestors,
     like_count: row.like_count ?? 0,
     public_base_url: cfg.publicBaseUrl,
     repo_url: cfg.repoUrl,

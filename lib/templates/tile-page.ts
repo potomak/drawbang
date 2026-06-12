@@ -32,6 +32,10 @@ export interface TilePageView {
   // available. The dynamic /d/<id> handler queries GSI3 and passes the
   // results here.
   forks?: GalleryItem[];
+  // Remix ancestry, root-first (root → … → parent). The handler walks
+  // parent_id hops and caps the chain, so this may start mid-lineage on
+  // very deep chains. Empty/omitted when the drawing isn't a remix.
+  ancestors?: { id: string; id_short: string }[];
   // SSR initial like count. Filled state is hydrated by /like.js.
   like_count: number;
   public_base_url: string;
@@ -57,10 +61,28 @@ export function formatCreatedAt(iso: string): string {
   return `${month} ${day}, ${year} · ${hh}:${mm} UTC`;
 }
 
+// Breadcrumb of linked ancestor thumbs ending in the current drawing as
+// the non-linked terminal. Only rendered when the drawing is a remix.
+function renderChainSection(v: TilePageView): string {
+  const ancestors = v.ancestors ?? [];
+  if (ancestors.length === 0) return "";
+  const links = ancestors.map(
+    (a) => `          <li class="dr-chain-item"><a class="dr-chain-link" href="/d/${esc(a.id)}" aria-label="Drawing ${esc(a.id_short)}"><img class="dr-chain-thumb" src="/tiles/${esc(a.id)}.gif" alt="drawing ${esc(a.id_short)}" width="48" height="48" loading="lazy" /></a></li>`,
+  );
+  const current = `          <li class="dr-chain-item dr-chain-current" aria-current="page"><img class="dr-chain-thumb" src="/tiles/${esc(v.drawing_id)}.gif" alt="this drawing, ${esc(v.id_short)}" width="48" height="48" /></li>`;
+  return `      <section class="dr-chain">
+        <p class="panel-h">Remix chain</p>
+        <ol class="dr-chain-list">
+${[...links, current].join("\n")}
+        </ol>
+      </section>
+`;
+}
+
 export default function renderTilePage(v: TilePageView): string {
   const gif = `/tiles/${esc(v.drawing_id)}.gif`;
   const parentBlock = v.parent
-    ? `<dt>Parent</dt><dd><a href="/d/${esc(v.parent.parent)}">${esc(v.parent.parent_short)}</a></dd>`
+    ? `<dt>Remixed from</dt><dd><a href="/d/${esc(v.parent.parent)}">${esc(v.parent.parent_short)}</a></dd>`
     : "";
   const authorBlock = v.author
     ? `<dt>Author</dt><dd><a class="dr-author" href="/u/${esc(v.author.username)}">${renderProfilePicture(v.author.profile_picture_drawing_id, v.author.username, 20)}${esc(v.author.username)}</a></dd>`
@@ -69,12 +91,13 @@ export default function renderTilePage(v: TilePageView): string {
   const forks = v.forks ?? [];
   const forksSection = forks.length > 0
     ? `      <section class="dr-forks">
-        <p class="panel-h">Forks · ${forks.length}</p>
+        <p class="panel-h">Remixes · ${forks.length}</p>
         <ul class="img-grid">
 ${forks.map(renderItem).join("\n")}
         </ul>
       </section>`
     : "";
+  const chainSection = renderChainSection(v);
   const ogMeta = `<meta name="description" content="Pixel art from Draw! · Create your own at https://pixel.drawbang.com" />
     <link rel="canonical" href="${esc(v.public_base_url)}/d/${esc(v.drawing_id)}" />
     <meta property="og:type" content="website" />
@@ -107,10 +130,10 @@ ${forks.map(renderItem).join("\n")}
           </dl>
           <div class="dr-actions">
             <div class="dr-action-row">
+              <a class="btn primary" id="dr-fork" href="/draw?fork=${esc(v.drawing_id)}">Remix</a>
               ${renderLikeButton(v.drawing_id, v.like_count)}
               ${renderBookmarkButton(v.drawing_id)}
-              <a class="btn primary" id="dr-make-merch" href="/merch?d=${esc(v.drawing_id)}&amp;frame=0" rel="nofollow noreferrer">Make merch</a>
-              <a class="btn" id="dr-fork" href="/draw?fork=${esc(v.drawing_id)}">Fork &amp; edit</a>
+              <a class="btn" id="dr-make-merch" href="/merch?d=${esc(v.drawing_id)}&amp;frame=0" rel="nofollow noreferrer">Make merch</a>
               <button class="btn" id="dr-set-profile-picture" type="button" hidden>Set as profile picture</button>
               <button class="btn" id="dr-copy-link" type="button">Copy link</button>
               <a class="btn ghost" id="dr-download-gif" href="${gif}" download>Download GIF</a>
@@ -124,7 +147,7 @@ ${forks.map(renderItem).join("\n")}
           </div>
         </div>
       </div>
-${forksSection}
+${chainSection}${forksSection}
     </main>
     ${renderFooter({ active: "home", repoUrl: v.repo_url })}
     <script src="${assetUrl("/flash.js")}"></script>

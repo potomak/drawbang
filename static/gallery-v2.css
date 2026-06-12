@@ -447,6 +447,43 @@ img.profile-picture {
 .dr-actions { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
 .dr-action-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
+/* Remix-chain breadcrumb — linked ancestor thumbs (root → … → parent)
+   ending in the current drawing as the non-linked terminal. Thumbs use
+   the standard drawing well (line frame on paper-2) so transparent
+   pixels stay visible. */
+.dr-chain { margin: 0 0 24px; }
+.dr-chain-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dr-chain-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dr-chain-item + .dr-chain-item::before {
+  content: "\2192";
+  font: 500 var(--t-sm)/1 var(--font-mono);
+  color: var(--fg-dim);
+}
+.dr-chain-link { display: block; line-height: 0; }
+.dr-chain-thumb {
+  display: block;
+  width: 48px;
+  height: 48px;
+  border: var(--border) solid var(--line);
+  background: var(--paper-2);
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+.dr-chain-link:hover .dr-chain-thumb { border-color: var(--accent); }
+.dr-chain-current .dr-chain-thumb { border-color: var(--line-strong); }
+
 /* Owner stats block (/u/<username>) — streaks + badges (#115/#116).
    Same grid shape as .dr-meta so it sits comfortably above the drawings grid. */
 .ow-stats {

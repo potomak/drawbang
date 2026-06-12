@@ -107,9 +107,9 @@ export function renderBookmarkButton(drawing_id: string): string {
 }
 
 function renderForkAction(drawing_id: string): string {
-  return `<a class="feed-action" href="/draw?fork=${esc(drawing_id)}" aria-label="Fork and edit">
+  return `<a class="feed-action" href="/draw?fork=${esc(drawing_id)}" aria-label="Remix this drawing">
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="7" cy="5" r="2"/><circle cx="17" cy="5" r="2"/><circle cx="12" cy="19" r="2"/><path d="M7 7v3c0 1.1 .9 2 2 2h6c1.1 0 2-.9 2-2V7"/><path d="M12 12v5"/></svg>
-      <span>Fork</span>
+      <span>Remix</span>
     </a>`;
 }
 

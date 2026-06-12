@@ -135,11 +135,12 @@ describe("renderFeedCard", () => {
     assert.match(html, /<span class="like-count" data-like-count>7<\/span>/);
   });
 
-  test("renders a Fork action linking to /draw?fork=<id>", () => {
+  test("renders a Remix action linking to /draw?fork=<id>", () => {
     const id = "c".repeat(64);
     const html = renderFeedCard(item({ id }));
     assert.match(html, new RegExp(`<a class="feed-action" href="/draw\\?fork=${id}"`));
-    assert.match(html, />Fork<\/span>/);
+    assert.match(html, />Remix<\/span>/);
+    assert.doesNotMatch(html, />Fork<\/span>/);
   });
 
   test("renders a Share button with data-share-button + path target", () => {

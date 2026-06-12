@@ -85,15 +85,15 @@ test("tile page: author label (anonymous)", () => {
   assert.match(html, /<dt>Author<\/dt><dd>anonymous<\/dd>/);
 });
 
-test("tile page: parent link (when present) renders in the meta dl", () => {
+test("tile page: parent link (when present) renders as 'Remixed from' in the meta dl", () => {
   const html = renderTilePage({
     ...baseView,
     parent: { parent: "c".repeat(64), parent_short: "cccccccc" },
   });
-  assert.match(html, /<dt>Parent<\/dt><dd><a href="\/d\/c{64}">cccccccc<\/a><\/dd>/);
+  assert.match(html, /<dt>Remixed from<\/dt><dd><a href="\/d\/c{64}">cccccccc<\/a><\/dd>/);
 });
 
-test("tile page: forks rendered server-side when present", () => {
+test("tile page: remixes rendered server-side when present", () => {
   const html = renderTilePage({
     ...baseView,
     forks: [
@@ -106,13 +106,74 @@ test("tile page: forks rendered server-side when present", () => {
       },
     ],
   });
-  assert.match(html, /<p class="panel-h">Forks · 1<\/p>/);
+  assert.match(html, /<p class="panel-h">Remixes · 1<\/p>/);
   assert.match(html, new RegExp(`href="/d/${"c".repeat(64)}"`));
 });
 
-test("tile page: no forks section when forks is empty/omitted", () => {
+test("tile page: no remixes section when forks is empty/omitted", () => {
   const html = renderTilePage(baseView);
   assert.doesNotMatch(html, /<section class="dr-forks">/);
+});
+
+test("tile page: Remix is the primary CTA and leads the action row", () => {
+  const html = renderTilePage(baseView);
+  assert.match(
+    html,
+    new RegExp(`<a class="btn primary" id="dr-fork" href="/draw\\?fork=f{64}">Remix</a>`),
+  );
+  assert.match(html, /<a class="btn" id="dr-make-merch"/);
+  const remixIdx = html.indexOf('id="dr-fork"');
+  const likeIdx = html.indexOf("data-like-target");
+  const merchIdx = html.indexOf('id="dr-make-merch"');
+  assert.ok(remixIdx > -1 && remixIdx < likeIdx && remixIdx < merchIdx);
+});
+
+test("tile page: no user-facing Fork copy remains", () => {
+  const html = renderTilePage({
+    ...baseView,
+    parent: { parent: "c".repeat(64), parent_short: "cccccccc" },
+    forks: [
+      {
+        id: "d".repeat(64),
+        id_short: "dddddddd",
+        href: `/d/${"d".repeat(64)}`,
+        thumb: `/tiles/${"d".repeat(64)}.gif`,
+        created_at: "2026-05-09T00:00:00.000Z",
+      },
+    ],
+    ancestors: [{ id: "c".repeat(64), id_short: "cccccccc" }],
+  });
+  // Strip attribute values (?fork= URLs, ids, classes are allowed to keep
+  // the name); only rendered text + labels must be Fork-free.
+  const visible = html.replace(/="[^"]*"/g, "");
+  assert.doesNotMatch(visible, /Fork/);
+});
+
+test("tile page: ancestors render a chain of linked thumbs ending in the non-linked current drawing", () => {
+  const root = "a".repeat(64);
+  const parent = "b".repeat(64);
+  const html = renderTilePage({
+    ...baseView,
+    ancestors: [
+      { id: root, id_short: "aaaaaaaa" },
+      { id: parent, id_short: "bbbbbbbb" },
+    ],
+  });
+  assert.match(html, /<section class="dr-chain">/);
+  assert.match(html, /<p class="panel-h">Remix chain<\/p>/);
+  const links = [...html.matchAll(/class="dr-chain-link" href="\/d\/([0-9a-f]{64})"/g)].map((m) => m[1]);
+  assert.deepEqual(links, [root, parent]);
+  assert.match(
+    html,
+    new RegExp(`<li class="dr-chain-item dr-chain-current" aria-current="page"><img class="dr-chain-thumb" src="/tiles/f{64}\\.gif"`),
+  );
+});
+
+test("tile page: no chain section when ancestors is empty/omitted", () => {
+  const html = renderTilePage(baseView);
+  assert.doesNotMatch(html, /dr-chain/);
+  const htmlEmpty = renderTilePage({ ...baseView, ancestors: [] });
+  assert.doesNotMatch(htmlEmpty, /dr-chain/);
 });
 
 test("tile page: Copy link is an interactive button, not a self-link", () => {

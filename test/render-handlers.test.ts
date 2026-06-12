@@ -209,10 +209,111 @@ describe("renderDrawingPageHandler", () => {
     // Author link to /u/<username>.
     assert.match(res.body, /href="\/u\/bob"/);
     // Parent shown.
+    assert.match(res.body, /<dt>Remixed from<\/dt>/);
     assert.match(res.body, new RegExp(`href="/d/${parentId}"`));
-    // Forks section lists carol's drawing.
-    assert.match(res.body, /<p class="panel-h">Forks · 1<\/p>/);
+    // Remixes section lists carol's drawing.
+    assert.match(res.body, /<p class="panel-h">Remixes · 1<\/p>/);
     assert.match(res.body, new RegExp(`/d/${grandchildId}`));
+  });
+
+  test("Remix is the first action and carries .primary; merch loses it", async () => {
+    const { store, cfg } = makeConfig();
+    const id = "a".repeat(64);
+    await store.put(row({ drawing_id: id }));
+    const res = await renderDrawingPageHandler(cfg, id);
+    assert.match(
+      res.body,
+      new RegExp(`<a class="btn primary" id="dr-fork" href="/draw\\?fork=${id}">Remix</a>`),
+    );
+    assert.match(res.body, /<a class="btn" id="dr-make-merch"/);
+    const remixIdx = res.body.indexOf('id="dr-fork"');
+    const likeIdx = res.body.indexOf("data-like-target");
+    const merchIdx = res.body.indexOf('id="dr-make-merch"');
+    assert.ok(remixIdx > -1 && likeIdx > -1 && merchIdx > -1);
+    assert.ok(remixIdx < likeIdx && remixIdx < merchIdx, "expected Remix first in the action row");
+    assert.doesNotMatch(res.body, /Fork &amp; edit/);
+  });
+});
+
+describe("renderDrawingPageHandler remix chain", () => {
+  // ids must be 64-hex; index-tagged so each is unique + addressable.
+  function chainId(i: number): string {
+    return String(i).padStart(64, "0");
+  }
+
+  async function seedChain(store: MemoryDrawingStore, depth: number): Promise<string[]> {
+    const ids: string[] = [];
+    for (let i = 1; i <= depth; i++) {
+      ids.push(chainId(i));
+      await store.put(row({
+        drawing_id: chainId(i),
+        parent_id: i === 1 ? null : chainId(i - 1),
+        created_at_ms: 1000 + i,
+      }));
+    }
+    return ids;
+  }
+
+  function chainLinks(body: string): string[] {
+    return [...body.matchAll(/class="dr-chain-link" href="\/d\/([0-9a-f]{64})"/g)].map((m) => m[1]);
+  }
+
+  test("3-deep chain renders 2 ancestor links, root-first, current as non-linked terminal", async () => {
+    const { store, cfg } = makeConfig();
+    const [rootId, childId, grandchildId] = await seedChain(store, 3);
+    const res = await renderDrawingPageHandler(cfg, grandchildId);
+    assert.equal(res.status, 200);
+    assert.match(res.body, /<section class="dr-chain">/);
+    assert.deepEqual(chainLinks(res.body), [rootId, childId]);
+    // Current drawing is the terminal item: a plain thumb, no link.
+    assert.match(
+      res.body,
+      new RegExp(`<li class="dr-chain-item dr-chain-current" aria-current="page"><img class="dr-chain-thumb" src="/tiles/${grandchildId}\\.gif"`),
+    );
+  });
+
+  test("10-deep chain caps at 8 ancestors (nearest first dropped is the true root)", async () => {
+    const { store, cfg } = makeConfig();
+    const ids = await seedChain(store, 10);
+    const res = await renderDrawingPageHandler(cfg, ids[9]);
+    assert.equal(res.status, 200);
+    const links = chainLinks(res.body);
+    assert.equal(links.length, 8);
+    // The 8 nearest ancestors are ids[1..8]; the true root falls off.
+    assert.deepEqual(links, ids.slice(1, 9));
+    assert.equal(res.body.indexOf(ids[0]), -1);
+  });
+
+  test("missing parent row renders without a chain and without erroring", async () => {
+    const { store, cfg } = makeConfig();
+    const id = "b".repeat(64);
+    await store.put(row({ drawing_id: id, parent_id: "d".repeat(64) }));
+    const res = await renderDrawingPageHandler(cfg, id);
+    assert.equal(res.status, 200);
+    assert.doesNotMatch(res.body, /dr-chain/);
+  });
+
+  test("parent missing mid-walk truncates the chain instead of erroring", async () => {
+    const { store, cfg } = makeConfig();
+    const ghost = "e".repeat(64);
+    const parentId = "1".repeat(64);
+    const childId = "2".repeat(64);
+    await store.put(row({ drawing_id: parentId, parent_id: ghost, created_at_ms: 100 }));
+    await store.put(row({ drawing_id: childId, parent_id: parentId, created_at_ms: 200 }));
+    const res = await renderDrawingPageHandler(cfg, childId);
+    assert.equal(res.status, 200);
+    assert.deepEqual(chainLinks(res.body), [parentId]);
+  });
+
+  test("cyclic parent_id rows terminate the walk", async () => {
+    const { store, cfg } = makeConfig();
+    const a = "1".repeat(64);
+    const b = "2".repeat(64);
+    await store.put(row({ drawing_id: a, parent_id: b, created_at_ms: 100 }));
+    await store.put(row({ drawing_id: b, parent_id: a, created_at_ms: 200 }));
+    const res = await renderDrawingPageHandler(cfg, a);
+    assert.equal(res.status, 200);
+    assert.deepEqual(chainLinks(res.body), [b]);
   });
 });
 
