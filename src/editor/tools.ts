@@ -2,6 +2,46 @@ import { Bitmap, TRANSPARENT } from "./bitmap.js";
 
 export type ToolId = "pixel" | "erase" | "fill";
 
+export interface StrokePoint {
+  x: number;
+  y: number;
+}
+
+// Pixel-perfect stroke filter. Freehand 1px strokes leave "L corners" on
+// direction changes (… right, right, DOWN …) that read as smudges at 16×16.
+// Track the visited cells; whenever the newest three form an L — middle
+// point orthogonal to both neighbours, endpoints diagonal to each other —
+// the corner cell is redundant and gets un-painted.
+export class PixelPerfectStroke {
+  private readonly path: StrokePoint[] = [];
+
+  // Records a visited cell. Returns the corner to un-paint when this cell
+  // completes an L, else null. The corner is dropped from the path so the
+  // remaining diagonal chains into the next detection (a staircase stroke
+  // collapses to a clean 1px diagonal).
+  next(x: number, y: number): StrokePoint | null {
+    const last = this.path[this.path.length - 1];
+    if (last && last.x === x && last.y === y) return null;
+    this.path.push({ x, y });
+    if (this.path.length < 3) return null;
+    const p0 = this.path[this.path.length - 3];
+    const p1 = this.path[this.path.length - 2];
+    const p2 = this.path[this.path.length - 1];
+    const isCorner =
+      orthAdjacent(p0, p1) &&
+      orthAdjacent(p1, p2) &&
+      Math.abs(p0.x - p2.x) === 1 &&
+      Math.abs(p0.y - p2.y) === 1;
+    if (!isCorner) return null;
+    this.path.splice(this.path.length - 2, 1);
+    return p1;
+  }
+}
+
+function orthAdjacent(a: StrokePoint, b: StrokePoint): boolean {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1;
+}
+
 // Paints a single pixel. Returns the replaced value, or null if unchanged.
 export function drawPixel(
   b: Bitmap,

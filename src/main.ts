@@ -18,6 +18,7 @@ import {
 } from "./editor/palette.js";
 import { RETRO_PALETTES, type RetroPalette } from "../config/palettes.js";
 import {
+  PixelPerfectStroke,
   drawPixel,
   fillArea,
   flipHorizontal,
@@ -64,6 +65,9 @@ let tool: "pixel" | "erase" | "fill" = "pixel";
 let painting = false;
 let strokeSnapshot: Bitmap | null = null;
 let strokeDirty = false;
+let pixelPerfect = false;
+// Live only during a pencil stroke when pixelPerfect is on.
+let ppStroke: PixelPerfectStroke | null = null;
 let playing = false;
 let playTimer: ReturnType<typeof setInterval> | null = null;
 let frameBeforePlay = 0;
@@ -102,6 +106,7 @@ const ICON = {
   rotate: `<svg width="32" height="32" viewBox="0 0 16 16" shape-rendering="crispEdges"><g fill="currentColor"><rect x="6" y="0" width="1" height="1"/><rect x="7" y="0" width="1" height="1"/><rect x="8" y="0" width="1" height="1"/><rect x="9" y="0" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="5" y="1" width="1" height="1"/><rect x="10" y="1" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="11" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="11" y="3" width="1" height="1"/><rect x="4" y="6" width="1" height="1"/><rect x="10" y="6" width="1" height="1"/><rect x="11" y="6" width="1" height="1"/><rect x="12" y="6" width="1" height="1"/><rect x="4" y="7" width="1" height="1"/><rect x="11" y="7" width="1" height="1"/><rect x="12" y="7" width="1" height="1"/><rect x="5" y="8" width="1" height="1"/><rect x="10" y="8" width="1" height="1"/><rect x="12" y="8" width="1" height="1"/><rect x="6" y="9" width="1" height="1"/><rect x="7" y="9" width="1" height="1"/><rect x="8" y="9" width="1" height="1"/><rect x="9" y="9" width="1" height="1"/><rect x="5" y="11" width="1" height="1"/><rect x="6" y="11" width="1" height="1"/><rect x="10" y="11" width="1" height="1"/><rect x="11" y="11" width="1" height="1"/><rect x="4" y="12" width="1" height="1"/><rect x="7" y="12" width="1" height="1"/><rect x="9" y="12" width="1" height="1"/><rect x="12" y="12" width="1" height="1"/><rect x="5" y="13" width="1" height="1"/><rect x="6" y="13" width="1" height="1"/><rect x="7" y="13" width="1" height="1"/><rect x="9" y="13" width="1" height="1"/><rect x="12" y="13" width="1" height="1"/><rect x="7" y="14" width="1" height="1"/><rect x="9" y="14" width="1" height="1"/><rect x="12" y="14" width="1" height="1"/><rect x="5" y="15" width="1" height="1"/><rect x="6" y="15" width="1" height="1"/><rect x="10" y="15" width="1" height="1"/><rect x="11" y="15" width="1" height="1"/></g></svg>`,
   shiftX: `<svg width="32" height="32" viewBox="0 0 16 16" shape-rendering="crispEdges"><g fill="currentColor"><rect x="2" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/><rect x="7" y="3" width="1" height="1"/><rect x="1" y="4" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="5" y="4" width="1" height="1"/><rect x="8" y="4" width="1" height="1"/><rect x="1" y="5" width="1" height="1"/><rect x="4" y="5" width="1" height="1"/><rect x="5" y="5" width="1" height="1"/><rect x="8" y="5" width="1" height="1"/><rect x="12" y="5" width="1" height="1"/><rect x="2" y="6" width="1" height="1"/><rect x="3" y="6" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="7" y="6" width="1" height="1"/><rect x="13" y="6" width="1" height="1"/><rect x="2" y="7" width="1" height="1"/><rect x="3" y="7" width="1" height="1"/><rect x="6" y="7" width="1" height="1"/><rect x="7" y="7" width="1" height="1"/><rect x="10" y="7" width="1" height="1"/><rect x="11" y="7" width="1" height="1"/><rect x="12" y="7" width="1" height="1"/><rect x="13" y="7" width="1" height="1"/><rect x="14" y="7" width="1" height="1"/><rect x="1" y="8" width="1" height="1"/><rect x="4" y="8" width="1" height="1"/><rect x="5" y="8" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/><rect x="13" y="8" width="1" height="1"/><rect x="1" y="9" width="1" height="1"/><rect x="4" y="9" width="1" height="1"/><rect x="5" y="9" width="1" height="1"/><rect x="8" y="9" width="1" height="1"/><rect x="12" y="9" width="1" height="1"/><rect x="2" y="10" width="1" height="1"/><rect x="3" y="10" width="1" height="1"/><rect x="6" y="10" width="1" height="1"/><rect x="7" y="10" width="1" height="1"/></g></svg>`,
   shiftY: `<svg width="32" height="32" viewBox="0 0 16 16" shape-rendering="crispEdges"><g fill="currentColor"><rect x="7" y="1" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="7" y="2" width="1" height="1"/><rect x="8" y="2" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="7" y="3" width="1" height="1"/><rect x="9" y="3" width="1" height="1"/><rect x="7" y="4" width="1" height="1"/><rect x="7" y="5" width="1" height="1"/><rect x="4" y="7" width="1" height="1"/><rect x="5" y="7" width="1" height="1"/><rect x="8" y="7" width="1" height="1"/><rect x="9" y="7" width="1" height="1"/><rect x="3" y="8" width="1" height="1"/><rect x="6" y="8" width="1" height="1"/><rect x="7" y="8" width="1" height="1"/><rect x="10" y="8" width="1" height="1"/><rect x="3" y="9" width="1" height="1"/><rect x="6" y="9" width="1" height="1"/><rect x="7" y="9" width="1" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="4" y="10" width="1" height="1"/><rect x="5" y="10" width="1" height="1"/><rect x="8" y="10" width="1" height="1"/><rect x="9" y="10" width="1" height="1"/><rect x="4" y="11" width="1" height="1"/><rect x="5" y="11" width="1" height="1"/><rect x="8" y="11" width="1" height="1"/><rect x="9" y="11" width="1" height="1"/><rect x="3" y="12" width="1" height="1"/><rect x="6" y="12" width="1" height="1"/><rect x="7" y="12" width="1" height="1"/><rect x="10" y="12" width="1" height="1"/><rect x="3" y="13" width="1" height="1"/><rect x="6" y="13" width="1" height="1"/><rect x="7" y="13" width="1" height="1"/><rect x="10" y="13" width="1" height="1"/><rect x="4" y="14" width="1" height="1"/><rect x="5" y="14" width="1" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="9" y="14" width="1" height="1"/></g></svg>`,
+  perfect: `<svg width="32" height="32" viewBox="0 0 16 16" shape-rendering="crispEdges"><g fill="currentColor"><rect x="3" y="12" width="1" height="1"/><rect x="4" y="12" width="1" height="1"/><rect x="4" y="11" width="1" height="1"/><rect x="5" y="11" width="1" height="1"/><rect x="5" y="10" width="1" height="1"/><rect x="6" y="10" width="1" height="1"/><rect x="6" y="9" width="1" height="1"/><rect x="7" y="9" width="1" height="1"/><rect x="7" y="8" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/><rect x="8" y="7" width="1" height="1"/><rect x="9" y="7" width="1" height="1"/><rect x="9" y="6" width="1" height="1"/><rect x="10" y="6" width="1" height="1"/><rect x="10" y="5" width="1" height="1"/><rect x="11" y="5" width="1" height="1"/><rect x="11" y="4" width="1" height="1"/><rect x="12" y="4" width="1" height="1"/><rect x="12" y="3" width="1" height="1"/><rect x="13" y="3" width="1" height="1"/></g></svg>`,
   plus: `<svg width="14" height="14" viewBox="0 0 14 14"><g fill="currentColor"><rect x="6" y="2" width="2" height="10"/><rect x="2" y="6" width="10" height="2"/></g></svg>`,
   copy: `<svg width="14" height="14" viewBox="0 0 14 14"><g fill="currentColor"><rect x="2" y="2" width="8" height="8" fill="none" stroke="currentColor" stroke-width="2"/><rect x="5" y="5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="2"/></g></svg>`,
   paste: `<svg width="14" height="14" viewBox="0 0 14 14"><g fill="currentColor"><rect x="3" y="1" width="8" height="2"/><rect x="2" y="3" width="10" height="9" fill="none" stroke="currentColor" stroke-width="2"/></g></svg>`,
@@ -137,6 +142,7 @@ app.innerHTML = /* html */ `
         <button class="btn icon ed-tool" data-tool="pixel" aria-pressed="true" title="Pencil" aria-label="Pencil">${ICON.pencil}</button>
         <button class="btn icon ed-tool" data-tool="erase" title="Eraser" aria-label="Eraser">${ICON.eraser}</button>
         <button class="btn icon ed-tool" data-tool="fill" title="Fill" aria-label="Fill">${ICON.fill}</button>
+        <button class="btn icon ed-tool" data-action="toggle-pixel-perfect" id="pixelPerfectBtn" aria-pressed="false" title="Pixel-perfect strokes (clean 1px diagonals)" aria-label="Pixel-perfect strokes">${ICON.perfect}</button>
         <button class="btn icon ed-tool" data-action="undo" title="Undo" aria-label="Undo">${ICON.undo}</button>
         <button class="btn icon ed-tool" data-action="clear" title="Clear" aria-label="Clear">${ICON.clear}</button>
         <button class="btn icon ed-tool" data-action="flip-h" title="Flip horizontal" aria-label="Flip horizontal">${ICON.flipH}</button>
@@ -219,6 +225,7 @@ const baseGridEl = document.getElementById("baseGrid")!;
 const framesHeadingEl = document.getElementById("framesHeading")!;
 const onionBtnEl = document.getElementById("onionBtn") as HTMLButtonElement;
 const gridBtnEl = document.getElementById("gridBtn") as HTMLButtonElement;
+const pixelPerfectBtnEl = document.getElementById("pixelPerfectBtn") as HTMLButtonElement;
 const playBtnEl = document.getElementById("playBtn") as HTMLButtonElement;
 const pasteBtnEl = document.getElementById("pasteBtn") as HTMLButtonElement;
 const fpsRangeEl = document.getElementById("fpsRange") as HTMLInputElement;
@@ -230,6 +237,7 @@ function setLastPublishedId(id: string | null): void {
 
 const PALETTE_LS_KEY = "drawbang:palette";
 const GRID_LS_KEY = "drawbang:grid";
+const PIXEL_PERFECT_LS_KEY = "drawbang:pixel-perfect";
 
 function findRetroPalette(id: string): RetroPalette | null {
   return RETRO_PALETTES.find((p) => p.id === id) ?? null;
@@ -398,6 +406,13 @@ function applyTool(x: number, y: number): void {
   } else {
     const prev = drawPixel(b, x, y, value);
     if (prev !== null) strokeDirty = true;
+    if (ppStroke && tool === "pixel") {
+      const corner = ppStroke.next(x, y);
+      // Un-paint the L corner by restoring whatever the stroke started over.
+      if (corner && strokeSnapshot) {
+        b.set(corner.x, corner.y, strokeSnapshot.get(corner.x, corner.y));
+      }
+    }
   }
   render();
 }
@@ -405,6 +420,7 @@ function applyTool(x: number, y: number): void {
 function beginStroke(): void {
   strokeSnapshot = state.frames[state.current].clone();
   strokeDirty = false;
+  ppStroke = pixelPerfect && tool === "pixel" ? new PixelPerfectStroke() : null;
 }
 
 function endStroke(): void {
@@ -419,6 +435,7 @@ function endStroke(): void {
   }
   strokeSnapshot = null;
   strokeDirty = false;
+  ppStroke = null;
   persist();
 }
 
@@ -629,6 +646,18 @@ function setOnion(next: boolean): void {
   onion = next;
   onionBtnEl.setAttribute("aria-pressed", onion ? "true" : "false");
   render();
+}
+
+function setPixelPerfect(next: boolean, persistChoice = true): void {
+  pixelPerfect = next;
+  pixelPerfectBtnEl.setAttribute("aria-pressed", next ? "true" : "false");
+  if (persistChoice) {
+    try {
+      localStorage.setItem(PIXEL_PERFECT_LS_KEY, next ? "1" : "0");
+    } catch {
+      // ignore — the preference just won't survive this session
+    }
+  }
 }
 
 // Toggles both the empty-cell grid lines and the transparency markers —
@@ -920,6 +949,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>
       case "play": togglePlay(); break;
       case "toggle-onion": setOnion(!onion); break;
       case "toggle-grid": setGrid(!mainCanvas.settings.showGrid); break;
+      case "toggle-pixel-perfect": setPixelPerfect(!pixelPerfect); break;
       case "edit-color": openPickerForSlot(selectedSlot); break;
       case "export-gif": stopPlay(); downloadGif(); break;
       case "share": stopPlay(); copyShareLink(); break;
@@ -988,8 +1018,9 @@ async function boot(): Promise<void> {
   }
   try {
     if (localStorage.getItem(GRID_LS_KEY) === "0") setGrid(false, false);
+    if (localStorage.getItem(PIXEL_PERFECT_LS_KEY) === "1") setPixelPerfect(true, false);
   } catch {
-    // ignore — grid stays on
+    // ignore — defaults stay in place
   }
 
   const hash = location.hash.match(/#d=([A-Za-z0-9_-]+)/)?.[1];
