@@ -1,10 +1,16 @@
 import { strict as assert } from "node:assert";
 import { describe, test } from "node:test";
 import {
+  detectVideoSupport,
   MAX_VIDEO_DURATION_MS,
   MIN_VIDEO_DURATION_MS,
+  MP4_CODEC_CANDIDATES,
+  outputFilename,
+  pickMp4Codec,
+  pickWebmMimeType,
   planVideo,
   VIDEO_PRESETS,
+  WEBM_MIME_CANDIDATES,
 } from "../src/editor/video.js";
 
 describe("planVideo layout", () => {
@@ -100,5 +106,85 @@ describe("planVideo timing", () => {
   test("rejects empty animations and bad delays", () => {
     assert.throws(() => planVideo({ frameCount: 0, delayMs: 200, size: 16, preset: "square" }));
     assert.throws(() => planVideo({ frameCount: 4, delayMs: 0, size: 16, preset: "square" }));
+  });
+});
+
+describe("encoder capability detection", () => {
+  test("pickWebmMimeType walks the preference list and returns the first supported", () => {
+    assert.equal(
+      pickWebmMimeType((m) => m === "video/webm;codecs=vp9"),
+      "video/webm;codecs=vp9",
+    );
+    assert.equal(
+      pickWebmMimeType((m) => m === "video/webm;codecs=vp8"),
+      "video/webm;codecs=vp8",
+    );
+    assert.equal(
+      pickWebmMimeType((m) => m === "video/webm"),
+      "video/webm",
+    );
+    assert.equal(pickWebmMimeType(() => false), null);
+  });
+
+  test("pickWebmMimeType prefers vp9 over vp8 when both are reported supported", () => {
+    assert.equal(
+      pickWebmMimeType(() => true),
+      "video/webm;codecs=vp9",
+    );
+  });
+
+  test("pickMp4Codec returns the first level-4.2 baseline codec when supported", async () => {
+    const codec = await pickMp4Codec(1080, 1920, async (config) => ({
+      supported: config.codec === "avc1.42002a",
+      config,
+    } as VideoEncoderSupport));
+    assert.equal(codec, "avc1.42002a");
+  });
+
+  test("pickMp4Codec falls through to the lowest level when only it is supported", async () => {
+    const codec = await pickMp4Codec(1080, 1080, async (config) => ({
+      supported: config.codec === "avc1.42001f",
+      config,
+    } as VideoEncoderSupport));
+    assert.equal(codec, "avc1.42001f");
+  });
+
+  test("pickMp4Codec returns null when no candidate matches", async () => {
+    const codec = await pickMp4Codec(1080, 1080, async () => ({ supported: false } as VideoEncoderSupport));
+    assert.equal(codec, null);
+  });
+
+  test("pickMp4Codec swallows thrown rejections from isConfigSupported", async () => {
+    const codec = await pickMp4Codec(1080, 1080, async (config) => {
+      if (config.codec !== "avc1.420028") throw new Error("nope");
+      return { supported: true, config } as VideoEncoderSupport;
+    });
+    assert.equal(codec, "avc1.420028");
+  });
+
+  test("detectVideoSupport returns {mp4: unsupported, webm: unsupported} in node", async () => {
+    const plan = planVideo({ frameCount: 4, delayMs: 200, size: 16, preset: "square" });
+    const support = await detectVideoSupport(plan);
+    assert.equal(support.mp4.supported, false);
+    assert.equal(support.webm.supported, false);
+  });
+
+  test("codec candidate lists go highest-capability first", () => {
+    // The plan calls for level-4.2 first so 1080×1920 Reels passes; if
+    // this assertion breaks we'd silently downgrade Reels output.
+    assert.equal(MP4_CODEC_CANDIDATES[0], "avc1.42002a");
+    assert.equal(WEBM_MIME_CANDIDATES[0], "video/webm;codecs=vp9");
+  });
+});
+
+describe("outputFilename", () => {
+  test("uses a 12-char slug suffix and the right extension", () => {
+    const id = "deadbeef".repeat(8); // 64 hex
+    assert.equal(outputFilename(id, "mp4"), "draw-deadbeefdead.mp4");
+    assert.equal(outputFilename(id, "webm"), "draw-deadbeefdead.webm");
+  });
+
+  test("falls back to a stable name when the id has no valid chars", () => {
+    assert.equal(outputFilename("---", "mp4"), "draw-draw.mp4");
   });
 });

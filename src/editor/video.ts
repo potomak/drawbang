@@ -1,3 +1,4 @@
+import { ArrayBufferTarget, Muxer } from "mp4-muxer";
 import { LOGO_BITMAP, LOGO_H, LOGO_W } from "../layout/logo-bitmap.js";
 import { TRANSPARENT, type Bitmap } from "./bitmap.js";
 import { activePaletteToRgb, type RGB } from "./palette.js";
@@ -184,4 +185,209 @@ function buildLogoCanvas(fg: RGB): HTMLCanvasElement {
   }
   ctx.putImageData(img, 0, 0);
   return c;
+}
+
+// ---------------------------------------------------------------------------
+// Encoder fallback chain
+// ---------------------------------------------------------------------------
+// The export dialog picks one of: MP4 (WebCodecs + mp4-muxer), WebM
+// (MediaRecorder), or GIF (the existing toolbar download). Detection runs
+// when the dialog opens so the labels reflect what the browser will
+// actually produce. Pure helpers below stay node-testable; the encoders
+// themselves are browser-only and exercised by the manual QA matrix.
+
+export type VideoEncodingFormat = "mp4" | "webm";
+
+// Tried in order. Higher AVC levels first so 1080×1920 Reels passes on
+// browsers that gate by level; baseline profile (`42…`) maximizes Reels
+// compatibility, as Instagram historically transcoded high-profile uploads.
+export const MP4_CODEC_CANDIDATES: readonly string[] = [
+  "avc1.42002a", // baseline, level 4.2 (≥1080×1920 @ 30fps)
+  "avc1.420028", // baseline, level 4.0
+  "avc1.42001f", // baseline, level 3.1
+];
+
+export const WEBM_MIME_CANDIDATES: readonly string[] = [
+  "video/webm;codecs=vp9",
+  "video/webm;codecs=vp8",
+  "video/webm",
+];
+
+export interface VideoSupport {
+  mp4: { supported: true; codec: string } | { supported: false };
+  webm: { supported: true; mimeType: string } | { supported: false };
+}
+
+export function pickWebmMimeType(isSupported: (mime: string) => boolean): string | null {
+  for (const mime of WEBM_MIME_CANDIDATES) {
+    if (isSupported(mime)) return mime;
+  }
+  return null;
+}
+
+export async function pickMp4Codec(
+  width: number,
+  height: number,
+  isConfigSupported: (config: VideoEncoderConfig) => Promise<VideoEncoderSupport>,
+): Promise<string | null> {
+  for (const codec of MP4_CODEC_CANDIDATES) {
+    try {
+      const result = await isConfigSupported({ codec, width, height });
+      if (result.supported) return codec;
+    } catch {
+      // Some browsers throw rather than returning {supported:false}.
+    }
+  }
+  return null;
+}
+
+export async function detectVideoSupport(plan: VideoPlan): Promise<VideoSupport> {
+  const g = globalThis as unknown as {
+    VideoEncoder?: typeof VideoEncoder;
+    MediaRecorder?: typeof MediaRecorder;
+  };
+  let mp4: VideoSupport["mp4"] = { supported: false };
+  if (typeof g.VideoEncoder?.isConfigSupported === "function") {
+    const codec = await pickMp4Codec(plan.width, plan.height, g.VideoEncoder.isConfigSupported);
+    if (codec) mp4 = { supported: true, codec };
+  }
+  let webm: VideoSupport["webm"] = { supported: false };
+  if (typeof g.MediaRecorder?.isTypeSupported === "function") {
+    const mimeType = pickWebmMimeType(g.MediaRecorder.isTypeSupported);
+    if (mimeType) webm = { supported: true, mimeType };
+  }
+  return { mp4, webm };
+}
+
+export function outputFilename(drawingIdShort: string, format: VideoEncodingFormat): string {
+  const slug = drawingIdShort.replace(/[^a-z0-9]/gi, "").slice(0, 12) || "draw";
+  return `draw-${slug}.${format}`;
+}
+
+export interface EncodeVideoOptions {
+  compositor: VideoCompositor;
+  format: VideoEncodingFormat;
+  support: VideoSupport;
+  onProgress?: (fraction: number) => void;
+}
+
+export interface EncodedVideo {
+  blob: Blob;
+  filename: string;
+  format: VideoEncodingFormat;
+}
+
+export async function encodeVideo(
+  options: EncodeVideoOptions & { drawingIdShort: string },
+): Promise<EncodedVideo> {
+  const { compositor, format, support, drawingIdShort, onProgress } = options;
+  const filename = outputFilename(drawingIdShort, format);
+  if (format === "mp4") {
+    if (!support.mp4.supported) throw new Error("encodeVideo: mp4 not supported");
+    const blob = await encodeMp4(compositor, support.mp4.codec, onProgress);
+    return { blob, filename, format };
+  }
+  if (!support.webm.supported) throw new Error("encodeVideo: webm not supported");
+  const blob = await encodeWebm(compositor, support.webm.mimeType, onProgress);
+  return { blob, filename, format };
+}
+
+async function encodeMp4(
+  compositor: VideoCompositor,
+  codec: string,
+  onProgress?: (fraction: number) => void,
+): Promise<Blob> {
+  const { plan } = compositor;
+  const target = new ArrayBufferTarget();
+  const muxer = new Muxer({
+    target,
+    fastStart: "in-memory",
+    video: {
+      codec: "avc",
+      width: plan.width,
+      height: plan.height,
+      frameRate: plan.fps,
+    },
+  });
+  const encoder = new VideoEncoder({
+    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+    error: (e) => {
+      throw e;
+    },
+  });
+  // Conservative bitrate: pixel art compresses very well; this keeps a
+  // 1080×1920 15s clip well under typical Reels upload caps.
+  const bitrate = plan.width * plan.height * 4;
+  encoder.configure({
+    codec,
+    width: plan.width,
+    height: plan.height,
+    bitrate,
+    framerate: plan.fps,
+  });
+
+  const canvas = document.createElement("canvas");
+  canvas.width = plan.width;
+  canvas.height = plan.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("encodeMp4: no 2d context");
+
+  for (let i = 0; i < plan.totalFrames; i++) {
+    compositor.paint(ctx, i);
+    const timestamp = i * plan.frameDurationUs;
+    const frame = new VideoFrame(canvas, { timestamp, duration: plan.frameDurationUs });
+    // Every frame a keyframe: clips are short, pixel art compresses well,
+    // and this guarantees the muxer can finalize without partial GOPs.
+    encoder.encode(frame, { keyFrame: true });
+    frame.close();
+    if (onProgress) onProgress((i + 1) / plan.totalFrames);
+    // Backpressure: if the encoder's queue gets deep, yield so the
+    // browser can drain it before we keep submitting frames.
+    if (encoder.encodeQueueSize > 8) {
+      await new Promise<void>((r) => setTimeout(r, 0));
+    }
+  }
+  await encoder.flush();
+  encoder.close();
+  muxer.finalize();
+  return new Blob([target.buffer], { type: "video/mp4" });
+}
+
+async function encodeWebm(
+  compositor: VideoCompositor,
+  mimeType: string,
+  onProgress?: (fraction: number) => void,
+): Promise<Blob> {
+  const { plan } = compositor;
+  const canvas = document.createElement("canvas");
+  canvas.width = plan.width;
+  canvas.height = plan.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("encodeWebm: no 2d context");
+  compositor.paint(ctx, 0);
+
+  const stream = canvas.captureStream(plan.fps);
+  const recorder = new MediaRecorder(stream, { mimeType });
+  const chunks: Blob[] = [];
+  recorder.ondataavailable = (ev) => {
+    if (ev.data && ev.data.size > 0) chunks.push(ev.data);
+  };
+
+  return new Promise<Blob>((resolve, reject) => {
+    recorder.onerror = (ev) => reject((ev as { error?: Error }).error ?? new Error("MediaRecorder error"));
+    recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType }));
+    recorder.start();
+    let frame = 1;
+    const interval = window.setInterval(() => {
+      if (frame >= plan.totalFrames) {
+        window.clearInterval(interval);
+        // Let the last frame land on the encoder before stopping.
+        window.setTimeout(() => recorder.stop(), Math.max(60, 1000 / plan.fps));
+        return;
+      }
+      compositor.paint(ctx, frame);
+      if (onProgress) onProgress(frame / plan.totalFrames);
+      frame++;
+    }, 1000 / plan.fps);
+  });
 }
