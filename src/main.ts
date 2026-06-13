@@ -43,6 +43,7 @@ import {
 } from "./submit.js";
 import { showFlash } from "./layout/flash.js";
 import { createExportDialog } from "./export-dialog.js";
+import { OpLogRecorder } from "./editor/oplog.js";
 import { DEFAULT_SIZE, DRAWING_SIZES, FRAME_DELAY_MS } from "../config/constants.js";
 
 // Target physical canvas: ~560 backing pixels per side, matched to the v2
@@ -266,6 +267,13 @@ const exportConfirmEl = document.getElementById("exportConfirm") as HTMLButtonEl
 const exportCancelEl = document.getElementById("exportCancel") as HTMLButtonElement;
 const exportStatusEl = document.getElementById("exportStatus")!;
 
+// Per-session timelapse recorder. Captures one op per pointer stroke
+// + frame/transform/palette/clear/size actions, capped at MAX_OPS /
+// MAX_BYTES. Persisted as StoredDrawing.opLog so a draft survives a
+// reload; reset on publish + size change because those start a new
+// drawing artifact.
+const opLog = new OpLogRecorder();
+
 const exportCtrl = createExportDialog({
   dialog: exportDialog,
   optionsContainer: exportOptionsEl,
@@ -311,6 +319,7 @@ function applyPalette(id: string, persist = true): void {
   activePalette = paletteToActiveIndices(palette);
   currentPaletteId = palette.id;
   selectedSlot = 1;
+  opLog.recordPalette(activePalette);
   if (persist) {
     // TODO (#shared-localstorage): this try/catch wraps the same shape used
     // in auth.ts, order.ts, privacy.ts, and the static/ JS files. Extract
@@ -454,15 +463,20 @@ function applyTool(x: number, y: number): void {
         render();
       });
       strokeDirty = true;
+      opLog.recordFill(frameIdx, x, y, value);
     }
   } else {
     const prev = drawPixel(b, x, y, value);
-    if (prev !== null) strokeDirty = true;
+    if (prev !== null) {
+      strokeDirty = true;
+      opLog.recordPixel(x, y, value);
+    }
     if (ppStroke && tool === "pixel") {
       const corner = ppStroke.next(x, y);
       // Un-paint the L corner by restoring whatever the stroke started over.
       if (corner && strokeSnapshot) {
         b.set(corner.x, corner.y, strokeSnapshot.get(corner.x, corner.y));
+        opLog.recordPixel(corner.x, corner.y, strokeSnapshot.get(corner.x, corner.y));
       }
     }
   }
@@ -473,6 +487,7 @@ function beginStroke(): void {
   strokeSnapshot = state.frames[state.current].clone();
   strokeDirty = false;
   ppStroke = pixelPerfect && tool === "pixel" ? new PixelPerfectStroke() : null;
+  if (tool !== "fill") opLog.beginStroke(state.current);
 }
 
 function endStroke(): void {
@@ -485,13 +500,14 @@ function endStroke(): void {
       render();
     });
   }
+  opLog.endStroke();
   strokeSnapshot = null;
   strokeDirty = false;
   ppStroke = null;
   persist();
 }
 
-function handleTransform(f: (b: Bitmap) => void): void {
+function handleTransform(f: (b: Bitmap) => void, op: "flip-h" | "flip-v" | "rotate" | "shift-x" | "shift-y"): void {
   stopPlay();
   const frameIdx = state.current;
   const before = state.frames[frameIdx].clone();
@@ -501,6 +517,7 @@ function handleTransform(f: (b: Bitmap) => void): void {
     state.current = Math.min(frameIdx, state.frames.length - 1);
     render();
   });
+  opLog.recordXform(frameIdx, op);
   render();
   persist();
 }
@@ -516,6 +533,7 @@ function addFrame(): void {
     undo();
     render();
   });
+  opLog.recordFrameAdd(state.frames.length - 1);
   render();
   persist();
   tracker.frameAddClick(state.frames.length);
@@ -535,6 +553,7 @@ function deleteFrameAt(idx: number): void {
     state.current = Math.min(before.current, state.frames.length - 1);
     render();
   });
+  opLog.recordFrameDel(idx);
   render();
   persist();
   tracker.frameDeleteClick(state.frames.length);
@@ -599,6 +618,7 @@ function pasteAsNewFrame(): void {
     return;
   }
   const insertAt = state.current + 1;
+  const fromIdx = state.current;
   const before = { frames: state.frames.slice(), current: state.current };
   state.frames.splice(insertAt, 0, clipboard.clone());
   state.current = insertAt;
@@ -607,6 +627,7 @@ function pasteAsNewFrame(): void {
     state.current = Math.min(before.current, state.frames.length - 1);
     render();
   });
+  opLog.recordFrameDup(fromIdx, insertAt);
   render();
   persist();
 }
@@ -629,6 +650,7 @@ function resetEditor(opts: { keepPublishedId?: boolean } = {}): void {
 
 function clearAllFrames(): void {
   if (!confirm("Clear everything? All frames and undo history will be lost.")) return;
+  opLog.recordClear();
   resetEditor();
 }
 
@@ -924,9 +946,19 @@ async function handlePublish(): Promise<void> {
       prompt: publishedPromptSlug,
     });
     if (localId) {
-      await local.save({ id: localId, frames: state.frames, activePalette, delayMs, publishedId: result.id });
+      await local.save({
+        id: localId,
+        frames: state.frames,
+        activePalette,
+        delayMs,
+        publishedId: result.id,
+        opLog: opLog.serialize(),
+      });
     }
     setLastPublishedId(result.id);
+    // Successful publish ends the current authoring session. The next
+    // drawing's timelapse starts fresh.
+    opLog.reset();
     resetEditor({ keepPublishedId: true });
   } catch (err) {
     if (err instanceof MissingSessionError) {
@@ -961,6 +993,10 @@ function changeSize(newSize: number): void {
     );
     if (!ok) return;
   }
+  // Replay can't make sense of strokes whose coordinates straddle a
+  // resize, so start the timelapse fresh at the new dimensions.
+  opLog.reset();
+  opLog.recordSize(currentSize, newSize);
   currentSize = newSize;
   state.frames = [new Bitmap(currentSize, currentSize)];
   state.current = 0;
@@ -1004,7 +1040,15 @@ function copyShareLink(): void {
 
 function persist(): void {
   if (!localId) localId = local.uuid();
-  local.save({ id: localId, frames: state.frames, activePalette, delayMs }).catch(() => {});
+  local
+    .save({
+      id: localId,
+      frames: state.frames,
+      activePalette,
+      delayMs,
+      opLog: opLog.serialize(),
+    })
+    .catch(() => {});
 }
 
 // -- Events -----------------------------------------------------------------
@@ -1058,11 +1102,11 @@ document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>
     switch (b.dataset.action) {
       case "undo": history.undo(); render(); break;
       case "clear": clearAllFrames(); break;
-      case "flip-h": handleTransform(flipHorizontal); break;
-      case "flip-v": handleTransform(flipVertical); break;
-      case "rotate": handleTransform(rotateLeft); break;
-      case "shift-right": handleTransform(shiftRight); break;
-      case "shift-up": handleTransform(shiftUp); break;
+      case "flip-h": handleTransform(flipHorizontal, "flip-h"); break;
+      case "flip-v": handleTransform(flipVertical, "flip-v"); break;
+      case "rotate": handleTransform(rotateLeft, "rotate"); break;
+      case "shift-right": handleTransform(shiftRight, "shift-x"); break;
+      case "shift-up": handleTransform(shiftUp, "shift-y"); break;
       case "copy-frame": copyFrame(); break;
       case "paste-frame": pasteAsNewFrame(); break;
       case "copy-png": stopPlay(); void copyFrameAsPng(); break;

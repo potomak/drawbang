@@ -1,4 +1,5 @@
 import { Bitmap } from "./editor/bitmap.js";
+import type { OpLog } from "./editor/oplog.js";
 
 // IndexedDB-backed "My drawings" store. Replaces what Redis provided in the
 // legacy app for logged-in users.
@@ -13,6 +14,10 @@ export interface StoredDrawing {
   activePalette: Uint8Array;
   delayMs?: number; // per-frame delay; absent = legacy 200 ms (5 fps)
   publishedId?: string; // PoW hash once submitted
+  // Per-session op log for the timelapse exporter. Absent on legacy
+  // drafts and on any draft saved before M8-1 — replay degrades to
+  // "not available" rather than throwing.
+  opLog?: OpLog;
 }
 
 export function open(): Promise<IDBDatabase> {
@@ -36,6 +41,7 @@ export async function save(d: {
   activePalette: Uint8Array;
   delayMs?: number;
   publishedId?: string;
+  opLog?: OpLog;
 }): Promise<void> {
   const db = await open();
   const tx = db.transaction(STORE, "readwrite");
@@ -46,6 +52,7 @@ export async function save(d: {
     activePalette: new Uint8Array(d.activePalette),
     delayMs: d.delayMs,
     publishedId: d.publishedId,
+    opLog: d.opLog,
   } as StoredDrawing);
   await promisify(tx);
 }
