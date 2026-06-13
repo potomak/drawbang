@@ -241,14 +241,17 @@ export async function pickMp4Codec(
   return null;
 }
 
-export async function detectVideoSupport(plan: VideoPlan): Promise<VideoSupport> {
+export async function detectVideoSupport(dim: {
+  width: number;
+  height: number;
+}): Promise<VideoSupport> {
   const g = globalThis as unknown as {
     VideoEncoder?: typeof VideoEncoder;
     MediaRecorder?: typeof MediaRecorder;
   };
   let mp4: VideoSupport["mp4"] = { supported: false };
   if (typeof g.VideoEncoder?.isConfigSupported === "function") {
-    const codec = await pickMp4Codec(plan.width, plan.height, g.VideoEncoder.isConfigSupported);
+    const codec = await pickMp4Codec(dim.width, dim.height, g.VideoEncoder.isConfigSupported);
     if (codec) mp4 = { supported: true, codec };
   }
   let webm: VideoSupport["webm"] = { supported: false };

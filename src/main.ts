@@ -42,6 +42,7 @@ import {
   submit,
 } from "./submit.js";
 import { showFlash } from "./layout/flash.js";
+import { createExportDialog } from "./export-dialog.js";
 import { DEFAULT_SIZE, DRAWING_SIZES, FRAME_DELAY_MS } from "../config/constants.js";
 
 // Target physical canvas: ~560 backing pixels per side, matched to the v2
@@ -139,7 +140,7 @@ app.innerHTML = /* html */ `
       <button class="btn" data-action="publish">${ICON.publish} Publish</button>
       <button class="btn primary" data-action="make-merch" id="merchBtn">${ICON.cart} Make merch</button>
       <button class="btn" data-action="share">${ICON.share} Copy share link</button>
-      <button class="btn" data-action="export-gif">${ICON.download} Download GIF</button>
+      <button class="btn" data-action="open-export">${ICON.download} Export…</button>
     </div>
 
     <div class="ed-grid">
@@ -220,6 +221,20 @@ app.innerHTML = /* html */ `
       </menu>
     </form>
   </dialog>
+
+  <dialog id="exportDialog" class="ed-export-dialog">
+    <h2 class="ed-export-title">Export</h2>
+    <fieldset class="ed-export-options" id="exportOptions" aria-label="Export format"></fieldset>
+    <label class="ed-export-footer-toggle">
+      <input type="checkbox" id="exportFooter" />
+      <span>Add "Made with Draw!" wordmark</span>
+    </label>
+    <p class="ed-export-status" id="exportStatus" hidden></p>
+    <menu class="ed-export-menu">
+      <button type="button" class="btn" id="exportCancel">Cancel</button>
+      <button type="button" class="btn primary" id="exportConfirm">Export</button>
+    </menu>
+  </dialog>
 `;
 
 const mainCanvasEl = document.getElementById("main") as HTMLCanvasElement;
@@ -244,6 +259,29 @@ const playBtnEl = document.getElementById("playBtn") as HTMLButtonElement;
 const pasteBtnEl = document.getElementById("pasteBtn") as HTMLButtonElement;
 const fpsRangeEl = document.getElementById("fpsRange") as HTMLInputElement;
 const fpsOutEl = document.getElementById("fpsOut") as HTMLOutputElement;
+const exportDialog = document.getElementById("exportDialog") as HTMLDialogElement;
+const exportOptionsEl = document.getElementById("exportOptions")!;
+const exportFooterEl = document.getElementById("exportFooter") as HTMLInputElement;
+const exportConfirmEl = document.getElementById("exportConfirm") as HTMLButtonElement;
+const exportCancelEl = document.getElementById("exportCancel") as HTMLButtonElement;
+const exportStatusEl = document.getElementById("exportStatus")!;
+
+const exportCtrl = createExportDialog({
+  dialog: exportDialog,
+  optionsContainer: exportOptionsEl,
+  footerCheckbox: exportFooterEl,
+  confirmButton: exportConfirmEl,
+  cancelButton: exportCancelEl,
+  statusEl: exportStatusEl,
+  tracker,
+  getSnapshot: () => ({
+    frames: state.frames,
+    activePalette,
+    delayMs,
+    size: currentSize,
+    lastPublishedId,
+  }),
+});
 
 function setLastPublishedId(id: string | null): void {
   lastPublishedId = id;
@@ -912,19 +950,6 @@ function flashPublished(shareUrl: string): void {
   showFlash({ kind: "success", message: ["Published: ", link] });
 }
 
-function downloadGif(): void {
-  const bytes = encodeGif({ frames: state.frames, activePalette, size: currentSize, delayMs });
-  const copy = new Uint8Array(bytes);
-  const blob = new Blob([copy as unknown as BlobPart], { type: "image/gif" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "draw.gif";
-  a.click();
-  URL.revokeObjectURL(url);
-  tracker.gifDownloadClick({ source: "editor", frames: state.frames.length });
-}
-
 // -- Size picker -----------------------------------------------------------
 
 function changeSize(newSize: number): void {
@@ -1046,7 +1071,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>
       case "toggle-grid": setGrid(!mainCanvas.settings.showGrid); break;
       case "toggle-pixel-perfect": setPixelPerfect(!pixelPerfect); break;
       case "edit-color": openPickerForSlot(selectedSlot); break;
-      case "export-gif": stopPlay(); downloadGif(); break;
+      case "open-export": stopPlay(); void exportCtrl.open(); break;
       case "share": stopPlay(); copyShareLink(); break;
       case "publish": stopPlay(); void handlePublish(); break;
       case "make-merch": stopPlay(); openMerch(); break;

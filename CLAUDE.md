@@ -289,7 +289,11 @@ config/               Shared constants
 
 src/                  Vite + TypeScript editor + auth SPAs
   editor/             bitmap, canvas (PixelCanvas), frames, gif, history,
-                      palette, share-gif, tools
+                      palette, share-gif, tools, video (MP4/WebM/GIF
+                      compositor + encoder fallback chain via mp4-muxer)
+  export-dialog.ts    Export-dialog controller — GIF / MP4 square / MP4
+                      Reels picker with WebM fallback, "Made with Draw!"
+                      footer toggle, Web Share Level 2.
   content-hash.ts     sha256 helper (Node sync + Web Crypto fallback)
   share.ts            URL-hash share codec
   local.ts            IndexedDB "My drawings" store
