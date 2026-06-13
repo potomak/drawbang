@@ -288,6 +288,7 @@ const exportCtrl = createExportDialog({
     delayMs,
     size: currentSize,
     lastPublishedId,
+    opLog: opLog.opCount > 0 ? opLog.serialize() : null,
   }),
 });
 

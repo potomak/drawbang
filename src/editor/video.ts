@@ -145,6 +145,61 @@ export function createVideoCompositor(input: VideoCompositorInput): VideoComposi
   };
 }
 
+// ---------------------------------------------------------------------------
+// Timelapse compositor (snapshot stream → video frames; no loop)
+// ---------------------------------------------------------------------------
+
+export interface SnapshotCompositorInput {
+  snapshots: Bitmap[];
+  activePalette: Uint8Array;
+  fps: number;
+  preset: VideoPreset;
+  footer: boolean;
+}
+
+export function createSnapshotCompositor(input: SnapshotCompositorInput): VideoCompositor {
+  const { snapshots, activePalette, fps, preset, footer } = input;
+  if (snapshots.length === 0) throw new Error("createSnapshotCompositor: no snapshots");
+  const size = snapshots[0].width;
+  // Reuse planVideo's layout math (artScale, artX/Y, width/height) by
+  // calling it once with the snapshot dimensions — then override the
+  // loop-time fields, since timelapses don't loop.
+  const baseDelayMs = 1000 / fps;
+  const base = planVideo({ frameCount: 1, delayMs: baseDelayMs, size, preset });
+  const plan: VideoPlan = {
+    ...base,
+    fps,
+    frameDurationUs: Math.round(1_000_000 / fps),
+    repeats: 1,
+    totalFrames: snapshots.length,
+    durationMs: Math.round((snapshots.length / fps) * 1000),
+  };
+  // The timelapse's "color identity" must stay constant across snapshots
+  // so the bg/accent don't flicker. Derive once from the final snapshot
+  // (best representation of the finished palette usage).
+  const { bg, fg } = deriveShareColors([snapshots[snapshots.length - 1]], activePalette);
+  const paletteRgb = activePaletteToRgb(activePalette);
+  const frameCanvases = snapshots.map((f) => rasterizeFrame(f, paletteRgb));
+  const logoCanvas = footer ? buildLogoCanvas(fg) : null;
+  const bgCss = `rgb(${bg[0]},${bg[1]},${bg[2]})`;
+  const logoX = plan.width - LOGO_W * VIDEO_LOGO_SCALE - VIDEO_LOGO_INSET;
+  const logoY = plan.height - LOGO_H * VIDEO_LOGO_SCALE - VIDEO_LOGO_INSET;
+
+  return {
+    plan,
+    paint(ctx, frameIndex) {
+      const idx = Math.min(frameIndex, frameCanvases.length - 1);
+      ctx.fillStyle = bgCss;
+      ctx.fillRect(0, 0, plan.width, plan.height);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(frameCanvases[idx], plan.artX, plan.artY, plan.artW, plan.artH);
+      if (logoCanvas) {
+        ctx.drawImage(logoCanvas, logoX, logoY, LOGO_W * VIDEO_LOGO_SCALE, LOGO_H * VIDEO_LOGO_SCALE);
+      }
+    },
+  };
+}
+
 // Transparent pixels stay alpha-0 so the derived background shows through,
 // matching the share gif's treatment.
 function rasterizeFrame(frame: Bitmap, paletteRgb: RGB[]): HTMLCanvasElement {

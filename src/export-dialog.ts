@@ -2,7 +2,10 @@ import type { tracker as Tracker } from "./analytics/analytics.js";
 import { encodeGif } from "./editor/gif.js";
 import { showFlash } from "./layout/flash.js";
 import type { Bitmap } from "./editor/bitmap.js";
+import type { OpLog } from "./editor/oplog.js";
+import { replay } from "./editor/oplog-replay.js";
 import {
+  createSnapshotCompositor,
   createVideoCompositor,
   detectVideoSupport,
   encodeVideo,
@@ -17,7 +20,7 @@ import {
 // detection (re-runs each open so plugged-in hardware encoders show up),
 // the encode pipeline, Web Share Level 2 dispatch, and tracking.
 
-export type ExportFormatKind = "gif" | "square" | "reels";
+export type ExportFormatKind = "gif" | "square" | "reels" | "timelapse";
 
 export const FOOTER_LS_KEY = "drawbang:export-footer";
 
@@ -27,6 +30,10 @@ export interface ExportEditorSnapshot {
   delayMs: number;
   size: number;
   lastPublishedId: string | null;
+  // Op log + flag for timelapse export. opLog is null for legacy drafts
+  // and for fresh editors with no recorded actions; the timelapse option
+  // is also disabled when the log was truncated (would drift mid-way).
+  opLog: OpLog | null;
 }
 
 export interface ExportDialogConfig {
@@ -45,12 +52,46 @@ interface ResolvedOption {
   label: string;
   disabled: boolean;
   // What we'll actually produce when the user picks this option.
-  produces: { container: "gif" } | { container: "video"; format: VideoEncodingFormat; preset: VideoPreset };
+  produces:
+    | { container: "gif" }
+    | { container: "video"; format: VideoEncodingFormat; preset: VideoPreset }
+    | { container: "timelapse"; format: VideoEncodingFormat };
 }
 
-export function resolveOption(kind: ExportFormatKind, support: VideoSupport): ResolvedOption {
+export interface ResolveContext {
+  support: VideoSupport;
+  // For the timelapse option: how many ops are usable. Zero = no
+  // recording yet; null = log was truncated (replay would drift).
+  timelapseOpCount: number | null;
+}
+
+export function resolveOption(kind: ExportFormatKind, ctx: ResolveContext): ResolvedOption {
+  const { support, timelapseOpCount } = ctx;
   if (kind === "gif") {
     return { kind, label: "GIF (looping)", disabled: false, produces: { container: "gif" } };
+  }
+  if (kind === "timelapse") {
+    if (support.mp4.supported || support.webm.supported) {
+      const format: VideoEncodingFormat = support.mp4.supported ? "mp4" : "webm";
+      const container = format === "mp4" ? "MP4" : "WebM";
+      const suffix = format === "webm" ? " (fallback)" : "";
+      const disabled = timelapseOpCount === null || timelapseOpCount === 0;
+      let label = `Timelapse — ${container} Square${suffix}`;
+      if (timelapseOpCount === null) label += " — log was truncated";
+      else if (timelapseOpCount === 0) label += " — draw something first";
+      return {
+        kind,
+        label,
+        disabled,
+        produces: { container: "timelapse", format },
+      };
+    }
+    return {
+      kind,
+      label: "Timelapse — unavailable in this browser",
+      disabled: true,
+      produces: { container: "timelapse", format: "mp4" },
+    };
   }
   const preset: VideoPreset = kind === "square" ? "square" : "reels";
   const presetLabel = kind === "square" ? "Square (1080×1080)" : "Reels (1080×1920)";
@@ -113,20 +154,23 @@ export function createExportDialog(cfg: ExportDialogConfig): { open: () => Promi
     );
     if (!kindEl) return;
     const kind = kindEl.value as ExportFormatKind;
-    const option = resolveOption(kind, lastSupport);
+    const snapshot = cfg.getSnapshot();
+    const option = resolveOption(kind, {
+      support: lastSupport,
+      timelapseOpCount: timelapseOpCountFromSnapshot(snapshot),
+    });
     if (option.disabled) return;
     inflight = true;
     cfg.confirmButton.disabled = true;
     setStatus(cfg.statusEl, "Encoding…");
     try {
-      const snapshot = cfg.getSnapshot();
       const result = await runExport({
         snapshot,
         option,
         footer: cfg.footerCheckbox.checked,
         support: lastSupport,
       });
-      const trackerFormat = option.produces.container === "gif" ? "gif" : `${option.produces.format}-${option.produces.preset}`;
+      const trackerFormat = trackerLabel(option.produces);
       cfg.tracker.videoExportClick({ format: trackerFormat, duration_s: result.durationS });
       const shared = await shareOrDownload(result.blob, result.filename);
       cfg.dialog.close();
@@ -148,13 +192,23 @@ export function createExportDialog(cfg: ExportDialogConfig): { open: () => Promi
     }
   });
 
+  function trackerLabel(produces: ResolvedOption["produces"]): string {
+    if (produces.container === "gif") return "gif";
+    if (produces.container === "timelapse") return `timelapse-${produces.format}`;
+    return `${produces.format}-${produces.preset}`;
+  }
+
   async function open(): Promise<void> {
     setStatus(cfg.statusEl, "Detecting encoders…");
     // Probe against the larger Reels canvas — anything that can encode
     // 1080×1920 trivially handles 1080×1080 too, so one check is enough.
     const support = await detectVideoSupport({ width: 1080, height: 1920 });
     lastSupport = support;
-    renderOptions(cfg.optionsContainer, support);
+    const snapshot = cfg.getSnapshot();
+    renderOptions(cfg.optionsContainer, {
+      support,
+      timelapseOpCount: timelapseOpCountFromSnapshot(snapshot),
+    });
     setStatus(cfg.statusEl, "");
     cfg.dialog.showModal();
   }
@@ -166,11 +220,11 @@ export function createExportDialog(cfg: ExportDialogConfig): { open: () => Promi
   return { open, close };
 }
 
-function renderOptions(container: HTMLElement, support: VideoSupport): void {
-  const kinds: ExportFormatKind[] = ["gif", "square", "reels"];
+function renderOptions(container: HTMLElement, ctx: ResolveContext): void {
+  const kinds: ExportFormatKind[] = ["gif", "square", "reels", "timelapse"];
   container.innerHTML = kinds
     .map((kind, i) => {
-      const option = resolveOption(kind, support);
+      const option = resolveOption(kind, ctx);
       const id = `ed-export-${kind}`;
       const disabled = option.disabled ? " disabled" : "";
       const checked = i === 0 ? " checked" : "";
@@ -180,6 +234,13 @@ function renderOptions(container: HTMLElement, support: VideoSupport): void {
 </label>`;
     })
     .join("");
+}
+
+function timelapseOpCountFromSnapshot(snapshot: ExportEditorSnapshot): number | null {
+  const log = snapshot.opLog;
+  if (!log) return 0;
+  if (log.truncated) return null;
+  return log.ops.length;
 }
 
 function setStatus(el: HTMLElement, text: string): void {
@@ -232,6 +293,31 @@ async function runExport(input: RunInput): Promise<RunResult> {
       blob: new Blob([copy as unknown as BlobPart], { type: "image/gif" }),
       filename: exportFilename(snapshot, "gif"),
       durationS: Math.round(((snapshot.frames.length * snapshot.delayMs) / 1000) * 10) / 10,
+    };
+  }
+  if (option.produces.container === "timelapse") {
+    if (!snapshot.opLog) throw new Error("timelapse: op log is empty");
+    const timelapse = replay(snapshot.opLog, {
+      size: snapshot.size,
+      palette: snapshot.activePalette,
+    });
+    const compositor = createSnapshotCompositor({
+      snapshots: timelapse.snapshots,
+      activePalette: timelapse.palette,
+      fps: timelapse.fps,
+      preset: "square",
+      footer,
+    });
+    const encoded: EncodedVideo = await encodeVideo({
+      compositor,
+      format: option.produces.format,
+      support,
+      drawingIdShort: snapshot.lastPublishedId ?? "timelapse",
+    });
+    return {
+      blob: encoded.blob,
+      filename: encoded.filename,
+      durationS: Math.round((compositor.plan.durationMs / 1000) * 10) / 10,
     };
   }
   const compositor = createVideoCompositor({

@@ -1,0 +1,248 @@
+import { Bitmap } from "./bitmap.js";
+import {
+  fillArea,
+  flipHorizontal,
+  flipVertical,
+  rotateLeft,
+  shiftRight,
+  shiftUp,
+} from "./tools.js";
+import type {
+  FillPayload,
+  FrameAddPayload,
+  FrameDelPayload,
+  FrameDupPayload,
+  Op,
+  OpLog,
+  PalPayload,
+  PxPayload,
+  SizePayload,
+  XformPayload,
+} from "./oplog.js";
+
+// Replay engine for the M8 op log. Pure: same input → same output, so
+// the timelapse export and any future "draw-in" preview can share the
+// same walker. applyOp() mutates a working ReplayState; replay() drives
+// it forward in time and snaps frame bitmaps at a target FPS.
+
+export interface ReplayState {
+  frames: Bitmap[];
+  current: number;
+  size: number;
+  palette: Uint8Array;
+}
+
+export interface ReplayInit {
+  size: number;
+  palette: Uint8Array;
+}
+
+export function initialReplayState({ size, palette }: ReplayInit): ReplayState {
+  return {
+    frames: [new Bitmap(size, size)],
+    current: 0,
+    size,
+    palette: new Uint8Array(palette),
+  };
+}
+
+export function applyOp(state: ReplayState, op: Op): void {
+  switch (op.k) {
+    case "px":
+      applyPx(state, op);
+      return;
+    case "fill":
+      applyFill(state, op);
+      return;
+    case "fradd":
+      applyFrameAdd(state, op);
+      return;
+    case "frdel":
+      applyFrameDel(state, op);
+      return;
+    case "frdup":
+      applyFrameDup(state, op);
+      return;
+    case "xform":
+      applyXform(state, op);
+      return;
+    case "pal":
+      state.palette = new Uint8Array((op.d as PalPayload).palette);
+      return;
+    case "clear":
+      state.frames = [new Bitmap(state.size, state.size)];
+      state.current = 0;
+      return;
+    case "size":
+      applySize(state, op);
+      return;
+  }
+}
+
+function applyPx(state: ReplayState, op: Op): void {
+  const frameIdx = clampFrame(state, op.f);
+  const f = state.frames[frameIdx];
+  const px = (op.d as PxPayload).pixels;
+  for (let i = 0; i + 2 < px.length; i += 3) {
+    const x = px[i];
+    const y = px[i + 1];
+    if (x >= 0 && x < f.width && y >= 0 && y < f.height) {
+      f.set(x, y, px[i + 2]);
+    }
+  }
+  state.current = frameIdx;
+}
+
+function applyFill(state: ReplayState, op: Op): void {
+  const frameIdx = clampFrame(state, op.f);
+  const f = state.frames[frameIdx];
+  const d = op.d as FillPayload;
+  fillArea(f, d.x, d.y, d.color);
+  state.current = frameIdx;
+}
+
+function applyFrameAdd(state: ReplayState, op: Op): void {
+  const at = clampInsertIndex(state, (op.d as FrameAddPayload).at);
+  state.frames.splice(at, 0, new Bitmap(state.size, state.size));
+  state.current = at;
+}
+
+function applyFrameDel(state: ReplayState, op: Op): void {
+  if (state.frames.length <= 1) return;
+  const at = clampFrame(state, (op.d as FrameDelPayload).at);
+  state.frames.splice(at, 1);
+  if (state.current >= state.frames.length) {
+    state.current = state.frames.length - 1;
+  }
+}
+
+function applyFrameDup(state: ReplayState, op: Op): void {
+  const { from, to } = op.d as FrameDupPayload;
+  const fromIdx = clampFrame(state, from);
+  const toIdx = clampInsertIndex(state, to);
+  state.frames.splice(toIdx, 0, state.frames[fromIdx].clone());
+  state.current = toIdx;
+}
+
+function applyXform(state: ReplayState, op: Op): void {
+  const frameIdx = clampFrame(state, op.f);
+  const f = state.frames[frameIdx];
+  switch ((op.d as XformPayload).op) {
+    case "flip-h":
+      flipHorizontal(f);
+      return;
+    case "flip-v":
+      flipVertical(f);
+      return;
+    case "rotate":
+      rotateLeft(f);
+      return;
+    case "shift-x":
+      shiftRight(f);
+      return;
+    case "shift-y":
+      shiftUp(f);
+      return;
+  }
+}
+
+function applySize(state: ReplayState, op: Op): void {
+  const { to } = op.d as SizePayload;
+  state.size = to;
+  state.frames = [new Bitmap(to, to)];
+  state.current = 0;
+}
+
+function clampFrame(state: ReplayState, n: number | undefined): number {
+  if (n === undefined) return state.current;
+  return Math.max(0, Math.min(state.frames.length - 1, n));
+}
+
+function clampInsertIndex(state: ReplayState, n: number): number {
+  return Math.max(0, Math.min(state.frames.length, n));
+}
+
+// ---------------------------------------------------------------------------
+// Timelapse sampling
+// ---------------------------------------------------------------------------
+
+export interface ReplayOptions extends ReplayInit {
+  targetFps?: number;
+  minDurationMs?: number;
+  maxDurationMs?: number;
+}
+
+export interface Timelapse {
+  fps: number;
+  durationMs: number;
+  snapshots: Bitmap[];
+  palette: Uint8Array;
+  size: number;
+}
+
+export const TIMELAPSE_DEFAULT_FPS = 12;
+export const TIMELAPSE_MIN_DURATION_MS = 5000;
+export const TIMELAPSE_MAX_DURATION_MS = 10000;
+
+export function replay(log: OpLog, opts: ReplayOptions): Timelapse {
+  const state = initialReplayState(opts);
+  const fps = opts.targetFps ?? TIMELAPSE_DEFAULT_FPS;
+  const minDuration = opts.minDurationMs ?? TIMELAPSE_MIN_DURATION_MS;
+  const maxDuration = opts.maxDurationMs ?? TIMELAPSE_MAX_DURATION_MS;
+
+  if (log.ops.length === 0) {
+    return {
+      fps,
+      durationMs: minDuration,
+      snapshots: [state.frames[state.current].clone()],
+      palette: state.palette,
+      size: state.size,
+    };
+  }
+
+  // Stretch or shrink the original timeline into the [min,max] window
+  // so every timelapse hits the share-friendly 5–10s sweet spot.
+  const sourceMs = Math.max(1, log.ops[log.ops.length - 1].t);
+  const durationMs = clamp(sourceMs, minDuration, maxDuration);
+  const totalSamples = Math.max(2, Math.round((durationMs / 1000) * fps));
+
+  const snapshots: Bitmap[] = [];
+  let applied = 0;
+  for (let s = 0; s < totalSamples; s++) {
+    const cutoff = ((s + 1) / totalSamples) * sourceMs;
+    while (applied < log.ops.length && log.ops[applied].t <= cutoff) {
+      applyOp(state, log.ops[applied]);
+      applied++;
+    }
+    snapshots.push(state.frames[state.current].clone());
+  }
+  // Final state: drain any remaining ops so the last snapshot matches
+  // what the live editor would have shown.
+  while (applied < log.ops.length) {
+    applyOp(state, log.ops[applied]);
+    applied++;
+  }
+  // Replace the last snapshot with the truly-final state — for ops that
+  // landed in the same time bucket as totalSamples-1 but rounded past it.
+  snapshots[snapshots.length - 1] = state.frames[state.current].clone();
+
+  return {
+    fps,
+    durationMs: Math.round((snapshots.length / fps) * 1000),
+    snapshots,
+    palette: state.palette,
+    size: state.size,
+  };
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+// Runs the entire log through the state machine without sampling — used
+// by tests to assert that replay-final-state equals live-editor-state.
+export function finalState(log: OpLog, opts: ReplayInit): ReplayState {
+  const state = initialReplayState(opts);
+  for (const op of log.ops) applyOp(state, op);
+  return state;
+}
