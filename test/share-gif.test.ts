@@ -3,7 +3,12 @@ import { test } from "node:test";
 // @ts-expect-error omggif ships no TS types
 import { GifReader } from "omggif";
 import { Bitmap, TRANSPARENT } from "../src/editor/bitmap.js";
-import { encodeShareGif, SHARE_H, SHARE_W } from "../src/editor/share-gif.js";
+import {
+  analyzePalette,
+  encodeShareGif,
+  SHARE_H,
+  SHARE_W,
+} from "../src/editor/share-gif.js";
 import {
   DEFAULT_ACTIVE_PALETTE,
   activePaletteToRgb,
@@ -157,3 +162,26 @@ test("rejects empty / oversized / wrong-shape input", () => {
     /active palette/,
   );
 });
+
+test("analyzePalette returns usedSlots sorted dark→light by luminance", () => {
+  // Pick four palette slots whose RGB values span the EGA luminance range
+  // so the sort produces a stable, hand-verifiable ordering. The drawing
+  // uses them out of order on purpose.
+  const palette = new Uint8Array(DEFAULT_ACTIVE_PALETTE);
+  const rgb = activePaletteToRgb(palette);
+  const candidates = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+  const sortedByLum = [...candidates].sort((a, b) => lum(rgb[a]) - lum(rgb[b]));
+  const pickedSlots = [sortedByLum[10], sortedByLum[0], sortedByLum[6], sortedByLum[3]];
+
+  const b = new Bitmap();
+  pickedSlots.forEach((slot, i) => b.set(i, 0, slot));
+
+  const { usedSlots } = analyzePalette([b], palette);
+  assert.deepEqual(usedSlots, [...pickedSlots].sort((a, c) => lum(rgb[a]) - lum(rgb[c])));
+  // Light ones really do come later:
+  assert.ok(lum(rgb[usedSlots[0]]) <= lum(rgb[usedSlots[usedSlots.length - 1]]));
+});
+
+function lum([r, g, b]: readonly [number, number, number]): number {
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}

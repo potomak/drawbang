@@ -2,7 +2,7 @@ import { ArrayBufferTarget, Muxer } from "mp4-muxer";
 import { LOGO_BITMAP, LOGO_H, LOGO_W } from "../layout/logo-bitmap.js";
 import { TRANSPARENT, type Bitmap } from "./bitmap.js";
 import { activePaletteToRgb, type RGB } from "./palette.js";
-import { deriveShareColors } from "./share-gif.js";
+import { analyzePalette, deriveShareColors } from "./share-gif.js";
 
 // Social-video compositor: paints the drawing's frames onto a 1080-wide
 // canvas (square or 9:16 Reels) with integer nearest-neighbor upscale and
@@ -28,6 +28,17 @@ export const MAX_VIDEO_DURATION_MS = 15000;
 
 const VIDEO_LOGO_SCALE = 4;
 const VIDEO_LOGO_INSET = 24;
+
+// Timelapse palette swatch — top-left chrome that mirrors share-gif's
+// used-colors swatch (share-gif.ts:30-35) so the timelapse video reads as
+// the same artifact family as -large.gif. Sized for the 1080×1080 square
+// preset; at 16 used slots the block is ~228×60 incl. border and clears
+// the centered art (which starts at artY=92) by ~30 px.
+const VIDEO_SWATCH_INSET = 28;
+const VIDEO_SWATCH_SIZE = 24;
+const VIDEO_SWATCH_GUTTER = 4;
+const VIDEO_SWATCH_BORDER = 4;
+const VIDEO_SWATCH_COLS = 8;
 
 export interface VideoPlanInput {
   frameCount: number;
@@ -176,11 +187,15 @@ export function createSnapshotCompositor(input: SnapshotCompositorInput): VideoC
   };
   // The timelapse's "color identity" must stay constant across snapshots
   // so the bg/accent don't flicker. Derive once from the final snapshot
-  // (best representation of the finished palette usage).
-  const { bg, fg } = deriveShareColors([snapshots[snapshots.length - 1]], activePalette);
-  const paletteRgb = activePaletteToRgb(activePalette);
+  // (best representation of the finished palette usage) — that pass also
+  // yields the used-slot list for the top-left palette swatch.
+  const { bg, fg, usedSlots, paletteRgb } = analyzePalette(
+    [snapshots[snapshots.length - 1]],
+    activePalette,
+  );
   const frameCanvases = snapshots.map((f) => rasterizeFrame(f, paletteRgb));
   const logoCanvas = footer ? buildLogoCanvas(fg) : null;
+  const swatchCanvas = footer ? buildSwatchCanvas(usedSlots, paletteRgb, fg) : null;
   const bgCss = `rgb(${bg[0]},${bg[1]},${bg[2]})`;
   const logoX = plan.width - LOGO_W * VIDEO_LOGO_SCALE - VIDEO_LOGO_INSET;
   const logoY = plan.height - LOGO_H * VIDEO_LOGO_SCALE - VIDEO_LOGO_INSET;
@@ -195,6 +210,9 @@ export function createSnapshotCompositor(input: SnapshotCompositorInput): VideoC
       ctx.drawImage(frameCanvases[idx], plan.artX, plan.artY, plan.artW, plan.artH);
       if (logoCanvas) {
         ctx.drawImage(logoCanvas, logoX, logoY, LOGO_W * VIDEO_LOGO_SCALE, LOGO_H * VIDEO_LOGO_SCALE);
+      }
+      if (swatchCanvas) {
+        ctx.drawImage(swatchCanvas, VIDEO_SWATCH_INSET, VIDEO_SWATCH_INSET);
       }
     },
   };
@@ -239,6 +257,46 @@ function buildLogoCanvas(fg: RGB): HTMLCanvasElement {
     img.data[o + 3] = 255;
   }
   ctx.putImageData(img, 0, 0);
+  return c;
+}
+
+// Mirrors share-gif.ts paintSwatch (lines 219-238) but lands RGB fills on
+// an offscreen canvas instead of palette-index bytes, so the timelapse
+// compositor can drawImage it once per frame. Returns null when nothing
+// was painted (drawing had no colored pixels) so the caller skips the
+// drawImage and the destination stays untouched.
+function buildSwatchCanvas(usedSlots: number[], paletteRgb: RGB[], fg: RGB): HTMLCanvasElement | null {
+  if (usedSlots.length === 0) return null;
+  const cols = Math.min(VIDEO_SWATCH_COLS, usedSlots.length);
+  const rows = Math.ceil(usedSlots.length / VIDEO_SWATCH_COLS);
+  const blockW = cols * (VIDEO_SWATCH_SIZE + VIDEO_SWATCH_GUTTER) - VIDEO_SWATCH_GUTTER;
+  const blockH = rows * (VIDEO_SWATCH_SIZE + VIDEO_SWATCH_GUTTER) - VIDEO_SWATCH_GUTTER;
+  const totalW = blockW + 2 * VIDEO_SWATCH_BORDER;
+  const totalH = blockH + 2 * VIDEO_SWATCH_BORDER;
+
+  const c = document.createElement("canvas");
+  c.width = totalW;
+  c.height = totalH;
+  const ctx = c.getContext("2d");
+  if (!ctx) throw new Error("buildSwatchCanvas: no 2d context");
+  ctx.imageSmoothingEnabled = false;
+
+  ctx.fillStyle = `rgb(${fg[0]},${fg[1]},${fg[2]})`;
+  ctx.fillRect(0, 0, totalW, VIDEO_SWATCH_BORDER);
+  ctx.fillRect(0, totalH - VIDEO_SWATCH_BORDER, totalW, VIDEO_SWATCH_BORDER);
+  ctx.fillRect(0, VIDEO_SWATCH_BORDER, VIDEO_SWATCH_BORDER, blockH);
+  ctx.fillRect(totalW - VIDEO_SWATCH_BORDER, VIDEO_SWATCH_BORDER, VIDEO_SWATCH_BORDER, blockH);
+
+  usedSlots.forEach((slot, i) => {
+    const col = i % VIDEO_SWATCH_COLS;
+    const row = Math.floor(i / VIDEO_SWATCH_COLS);
+    const x = VIDEO_SWATCH_BORDER + col * (VIDEO_SWATCH_SIZE + VIDEO_SWATCH_GUTTER);
+    const y = VIDEO_SWATCH_BORDER + row * (VIDEO_SWATCH_SIZE + VIDEO_SWATCH_GUTTER);
+    const [r, g, b] = paletteRgb[slot];
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.fillRect(x, y, VIDEO_SWATCH_SIZE, VIDEO_SWATCH_SIZE);
+  });
+
   return c;
 }
 

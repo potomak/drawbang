@@ -55,14 +55,19 @@ export interface EncodeShareInput {
   delayMs?: number;
 }
 
-interface PaletteAnalysis {
+export interface PaletteAnalysis {
   paletteRgb: RGB[];
   usedSlots: number[];
   bg: RGB;
   fg: RGB;
 }
 
-function analyzePalette(frames: Bitmap[], activePalette: Uint8Array): PaletteAnalysis {
+// Single-pass derivation of everything off-site share artifacts need to
+// render a drawing's "color identity": the full palette as RGB, which
+// slots the drawing actually uses (sorted dark→light by luminance for a
+// readable swatch), and the derived plinth bg + accent fg. Shared with
+// the timelapse compositor so swatch + bg-tint stay aligned with -large.gif.
+export function analyzePalette(frames: Bitmap[], activePalette: Uint8Array): PaletteAnalysis {
   const paletteRgb = activePaletteToRgb(activePalette);
   const usage = countUsage(frames);
   const usedSlots: number[] = [];
