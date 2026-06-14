@@ -5,13 +5,39 @@ export interface IngestResponse {
   share_url: string;
 }
 
+// Per-frame, per-layer pixel data + layer metadata. Optional sidecar to
+// the GIF: the published artifact is still the content-addressed gif
+// bytes, but the server records the layer hierarchy alongside the row
+// so future "fork & edit layers" flows can rehydrate the editor state.
+export interface LayersPayloadLayer {
+  name: string;
+  visible: boolean;
+}
+
+export interface LayersPayload {
+  v: 1;
+  // Ordered bottom→top; aligns 1:1 with each frame's per-layer slot.
+  layers: LayersPayloadLayer[];
+  // frames[frameIdx][layerIdx] is base64(Uint8Array) of that bitmap.
+  frames: string[][];
+}
+
 export interface SubmitOptions {
   ingestUrl: string;
   gif: Uint8Array;
   parent?: string;
   prompt?: string;
+  // When provided, sent as `layers_json` in the publish body so the
+  // server can store the per-layer pixel data on the DrawingRow. Omit
+  // for flat (single-layer) drawings to save the byte cost.
+  layers?: LayersPayload;
   signal?: AbortSignal;
 }
+
+// Soft cap for the layers sidecar. Keeps the publish JSON well under
+// the API Gateway limit even at the worst-case canvas size. Anything
+// larger drops the layer field client-side (the GIF still publishes).
+export const MAX_LAYERS_JSON_BYTES = 64 * 1024;
 
 export class MissingSessionError extends Error {
   constructor() {
@@ -24,6 +50,15 @@ export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
   const session = getSession();
   if (!session) throw new MissingSessionError();
 
+  let layers_json: string | undefined;
+  if (opts.layers) {
+    const encoded = JSON.stringify(opts.layers);
+    // Drop the field rather than reject the publish — the GIF is the
+    // canonical artifact; layers are metadata we'd rather lose than
+    // block on. The local IndexedDB draft still has everything.
+    if (encoded.length <= MAX_LAYERS_JSON_BYTES) layers_json = encoded;
+  }
+
   const res = await fetch(opts.ingestUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeader() },
@@ -31,6 +66,7 @@ export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
       gif: base64(opts.gif),
       parent: opts.parent,
       prompt: opts.prompt,
+      layers_json,
     }),
     signal: opts.signal,
   });

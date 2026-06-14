@@ -6,8 +6,19 @@ import { decodeGif, encodeGif } from "./editor/gif.js";
 import { History } from "./editor/history.js";
 import {
   addFrame as addFrameOp,
+  addLayer as addLayerOp,
+  moveLayer as moveLayerOp,
+  newFrameState,
+  removeLayer as removeLayerOp,
+  toggleLayerVisibility as toggleLayerVisOp,
   type FrameState,
 } from "./editor/frames.js";
+import {
+  cloneFrame,
+  composeFrame,
+  MAX_LAYERS,
+  type Frame,
+} from "./editor/layers.js";
 import {
   BASE_PALETTE,
   DEFAULT_ACTIVE_PALETTE,
@@ -61,7 +72,7 @@ const DRAWING_BASE_URL = import.meta.env.VITE_DRAWING_BASE_URL ?? "/tiles";
 // -- Editor state -----------------------------------------------------------
 
 let currentSize = DEFAULT_SIZE;
-const state: FrameState = { frames: [new Bitmap(currentSize, currentSize)], current: 0 };
+const state: FrameState = newFrameState(currentSize, currentSize);
 let activePalette: Uint8Array = new Uint8Array(DEFAULT_ACTIVE_PALETTE);
 // RetroPalette.id of the currently-applied palette. Persisted to localStorage and applied
 // on boot + on every editor reset so the user's last pick survives a
@@ -78,7 +89,9 @@ let ppStroke: PixelPerfectStroke | null = null;
 let playing = false;
 let playTimer: ReturnType<typeof setInterval> | null = null;
 let frameBeforePlay = 0;
-let clipboard: Bitmap | null = null;
+// Clipboard stores a full Frame (all layers) so paste-as-new-frame
+// preserves the layer hierarchy of the copied frame.
+let clipboard: Frame | null = null;
 const history = new History();
 let localId: string | null = null;
 let lastPublishedId: string | null = null;
@@ -180,6 +193,14 @@ app.innerHTML = /* html */ `
       </div>
     </div>
 
+    <div class="ed-layers">
+      <div class="ed-layers-head">
+        <span class="panel-h" id="layersHeading">Layers — 1</span>
+        <button class="btn xs" data-action="add-layer" id="addLayerBtn" title="Add layer">${ICON.plus}<span style="margin-left:6px">Add layer</span></button>
+      </div>
+      <div id="layerList" class="ed-layers-list"></div>
+    </div>
+
     <div class="ed-frames">
       <div class="ed-frames-head">
         <span class="panel-h" id="framesHeading">Frames — 1</span>
@@ -253,6 +274,9 @@ const baseGridEl = document.getElementById("baseGrid")!;
 const lospecInputEl = document.getElementById("lospecInput") as HTMLInputElement;
 const lospecImportBtnEl = document.getElementById("lospecImportBtn") as HTMLButtonElement;
 const framesHeadingEl = document.getElementById("framesHeading")!;
+const layerListEl = document.getElementById("layerList")!;
+const layersHeadingEl = document.getElementById("layersHeading")!;
+const addLayerBtnEl = document.getElementById("addLayerBtn") as HTMLButtonElement;
 const onionBtnEl = document.getElementById("onionBtn") as HTMLButtonElement;
 const gridBtnEl = document.getElementById("gridBtn") as HTMLButtonElement;
 const pixelPerfectBtnEl = document.getElementById("pixelPerfectBtn") as HTMLButtonElement;
@@ -283,7 +307,7 @@ const exportCtrl = createExportDialog({
   statusEl: exportStatusEl,
   tracker,
   getSnapshot: () => ({
-    frames: state.frames,
+    frames: state.frames.map((f) => composeFrame(state.layers, f)),
     activePalette,
     delayMs,
     size: currentSize,
@@ -355,18 +379,27 @@ function openMerch(): void {
 
 // -- Rendering --------------------------------------------------------------
 
+// Returns the active layer's bitmap on the current frame. All tool
+// writes (pencil, fill, erase, transforms) target this single bitmap.
+function activeBitmap(): Bitmap {
+  return state.frames[state.current].bitmaps[state.currentLayer];
+}
+
 function onionFrame(): Bitmap | null {
   if (!onion || playing || state.frames.length < 2) return null;
   const prev = (state.current - 1 + state.frames.length) % state.frames.length;
-  return state.frames[prev];
+  return composeFrame(state.layers, state.frames[prev]);
 }
 
 function render(): void {
   const palette = activePaletteToRgb(activePalette);
-  mainCanvas.draw(state.frames[state.current], palette, onionFrame());
+  mainCanvas.draw(composeFrame(state.layers, state.frames[state.current]), palette, onionFrame());
   renderFrameStrip();
   renderPalette();
+  renderLayers();
   framesHeadingEl.textContent = `Frames — ${state.frames.length}`;
+  layersHeadingEl.textContent = `Layers — ${state.layers.length}`;
+  addLayerBtnEl.disabled = state.layers.length >= MAX_LAYERS;
 }
 
 function renderPalette(): void {
@@ -406,7 +439,7 @@ function renderFrameStrip(): void {
       showGrid: false,
       gridColor: "",
     });
-    preview.draw(frame, palette);
+    preview.draw(composeFrame(state.layers, frame), palette);
     wrap.appendChild(cv);
     const label = document.createElement("span");
     label.className = "ed-frame-num";
@@ -442,6 +475,164 @@ function renderFrameStrip(): void {
   frameListEl.appendChild(add);
 }
 
+// -- Layers panel -----------------------------------------------------------
+
+// Tiny inline SVGs for visibility + reorder controls. Match the existing
+// in-file pattern (currentColor, small viewBox).
+const LAYER_EYE_ON = `<svg width="14" height="14" viewBox="0 0 14 14"><g fill="currentColor"><path d="M7 3.5C4 3.5 1.6 5.4 0.7 7c0.9 1.6 3.3 3.5 6.3 3.5s5.4-1.9 6.3-3.5C12.4 5.4 10 3.5 7 3.5zm0 5.7A2.2 2.2 0 1 1 7 4.8a2.2 2.2 0 0 1 0 4.4z"/><circle cx="7" cy="7" r="1.1"/></g></svg>`;
+const LAYER_EYE_OFF = `<svg width="14" height="14" viewBox="0 0 14 14"><g fill="currentColor"><path d="M7 3.5C4 3.5 1.6 5.4 0.7 7c0.9 1.6 3.3 3.5 6.3 3.5s5.4-1.9 6.3-3.5C12.4 5.4 10 3.5 7 3.5zm0 5.7A2.2 2.2 0 1 1 7 4.8a2.2 2.2 0 0 1 0 4.4z" opacity="0.4"/><path d="M2 2 L12 12" stroke="currentColor" stroke-width="1.5" fill="none"/></g></svg>`;
+const LAYER_UP = `<svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 3 L11 8 H3 Z" fill="currentColor"/></svg>`;
+const LAYER_DOWN = `<svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 11 L11 6 H3 Z" fill="currentColor"/></svg>`;
+
+// Render the layers panel. Top of the list = topmost layer (z-order),
+// so we iterate state.layers in reverse order (last entry = top).
+function renderLayers(): void {
+  layerListEl.innerHTML = "";
+  for (let dataIdx = state.layers.length - 1; dataIdx >= 0; dataIdx--) {
+    const layer = state.layers[dataIdx];
+    const row = document.createElement("div");
+    row.className =
+      "ed-layer-row" +
+      (dataIdx === state.currentLayer ? " selected" : "") +
+      (!layer.visible ? " hidden" : "");
+    row.dataset.layerIndex = String(dataIdx);
+
+    const vis = document.createElement("button");
+    vis.className = "btn xs ghost ed-layer-vis";
+    vis.title = layer.visible ? "Hide layer" : "Show layer";
+    vis.setAttribute("aria-pressed", layer.visible ? "true" : "false");
+    vis.innerHTML = layer.visible ? LAYER_EYE_ON : LAYER_EYE_OFF;
+    vis.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleLayerAt(dataIdx);
+    });
+    row.appendChild(vis);
+
+    const name = document.createElement("span");
+    name.className = "ed-layer-name";
+    name.textContent = layer.name;
+    name.title = "Click to rename";
+    name.addEventListener("click", (e) => {
+      e.stopPropagation();
+      renameLayerAt(dataIdx);
+    });
+    row.appendChild(name);
+
+    const up = document.createElement("button");
+    up.className = "btn xs ghost ed-layer-move";
+    up.title = "Move layer up";
+    up.innerHTML = LAYER_UP;
+    up.disabled = dataIdx === state.layers.length - 1;
+    up.addEventListener("click", (e) => {
+      e.stopPropagation();
+      moveLayerAt(dataIdx, dataIdx + 1);
+    });
+    row.appendChild(up);
+
+    const down = document.createElement("button");
+    down.className = "btn xs ghost ed-layer-move";
+    down.title = "Move layer down";
+    down.innerHTML = LAYER_DOWN;
+    down.disabled = dataIdx === 0;
+    down.addEventListener("click", (e) => {
+      e.stopPropagation();
+      moveLayerAt(dataIdx, dataIdx - 1);
+    });
+    row.appendChild(down);
+
+    const del = document.createElement("button");
+    del.className = "btn xs ghost ed-layer-del";
+    del.title = "Delete layer";
+    del.innerHTML = ICON.trash;
+    del.disabled = state.layers.length <= 1;
+    del.addEventListener("click", (e) => {
+      e.stopPropagation();
+      removeLayerAt(dataIdx);
+    });
+    row.appendChild(del);
+
+    row.addEventListener("click", () => {
+      if (state.currentLayer === dataIdx) return;
+      state.currentLayer = dataIdx;
+      render();
+    });
+    layerListEl.appendChild(row);
+  }
+}
+
+function addLayer(): void {
+  stopPlay();
+  const undo = addLayerOp(state, MAX_LAYERS);
+  if (!undo) {
+    showFlash({ kind: "info", message: `Max ${MAX_LAYERS} layers.`, autoDismissMs: 5000 });
+    return;
+  }
+  const at = state.currentLayer;
+  history.push(() => {
+    undo();
+    render();
+  });
+  opLog.recordLayerAdd(at);
+  render();
+  persist();
+}
+
+function removeLayerAt(idx: number): void {
+  stopPlay();
+  const undo = removeLayerOp(state, idx);
+  if (!undo) {
+    showFlash({ kind: "info", message: "Can't delete the only layer.", autoDismissMs: 5000 });
+    return;
+  }
+  history.push(() => {
+    undo();
+    render();
+  });
+  opLog.recordLayerDel(idx);
+  render();
+  persist();
+}
+
+function toggleLayerAt(idx: number): void {
+  const undo = toggleLayerVisOp(state, idx);
+  if (!undo) return;
+  history.push(() => {
+    undo();
+    render();
+  });
+  opLog.recordLayerVisibility(idx, state.layers[idx].visible);
+  render();
+  persist();
+}
+
+function moveLayerAt(from: number, to: number): void {
+  stopPlay();
+  const undo = moveLayerOp(state, from, to);
+  if (!undo) return;
+  history.push(() => {
+    undo();
+    render();
+  });
+  opLog.recordLayerMove(from, to);
+  render();
+  persist();
+}
+
+function renameLayerAt(idx: number): void {
+  const current = state.layers[idx].name;
+  const next = prompt("Layer name", current);
+  if (next === null) return;
+  const trimmed = next.trim();
+  if (!trimmed || trimmed === current) return;
+  state.layers[idx].name = trimmed;
+  history.push(() => {
+    state.layers[idx].name = current;
+    render();
+  });
+  render();
+  persist();
+}
+
 // -- Tools ------------------------------------------------------------------
 
 function setActiveTool(next: "pixel" | "erase" | "fill"): void {
@@ -453,18 +644,20 @@ function setActiveTool(next: "pixel" | "erase" | "fill"): void {
 
 function applyTool(x: number, y: number): void {
   const frameIdx = state.current;
-  const b = state.frames[frameIdx];
+  const layerIdx = state.currentLayer;
+  const b = state.frames[frameIdx].bitmaps[layerIdx];
   const value = tool === "erase" ? TRANSPARENT : selectedSlot;
   if (tool === "fill") {
     const before = fillArea(b, x, y, value);
     if (before) {
       history.push(() => {
-        state.frames[frameIdx] = before;
+        state.frames[frameIdx].bitmaps[layerIdx] = before;
         state.current = Math.min(frameIdx, state.frames.length - 1);
+        state.currentLayer = Math.min(layerIdx, state.layers.length - 1);
         render();
       });
       strokeDirty = true;
-      opLog.recordFill(frameIdx, x, y, value);
+      opLog.recordFill(frameIdx, x, y, value, Date.now(), layerIdx);
     }
   } else {
     const prev = drawPixel(b, x, y, value);
@@ -485,19 +678,21 @@ function applyTool(x: number, y: number): void {
 }
 
 function beginStroke(): void {
-  strokeSnapshot = state.frames[state.current].clone();
+  strokeSnapshot = activeBitmap().clone();
   strokeDirty = false;
   ppStroke = pixelPerfect && tool === "pixel" ? new PixelPerfectStroke() : null;
-  if (tool !== "fill") opLog.beginStroke(state.current);
+  if (tool !== "fill") opLog.beginStroke(state.current, state.currentLayer);
 }
 
 function endStroke(): void {
   if (strokeDirty && strokeSnapshot && tool !== "fill") {
     const snapshot = strokeSnapshot;
     const frameIdx = state.current;
+    const layerIdx = state.currentLayer;
     history.push(() => {
-      state.frames[frameIdx] = snapshot;
+      state.frames[frameIdx].bitmaps[layerIdx] = snapshot;
       state.current = Math.min(frameIdx, state.frames.length - 1);
+      state.currentLayer = Math.min(layerIdx, state.layers.length - 1);
       render();
     });
   }
@@ -511,14 +706,16 @@ function endStroke(): void {
 function handleTransform(f: (b: Bitmap) => void, op: "flip-h" | "flip-v" | "rotate" | "shift-x" | "shift-y"): void {
   stopPlay();
   const frameIdx = state.current;
-  const before = state.frames[frameIdx].clone();
-  f(state.frames[frameIdx]);
+  const layerIdx = state.currentLayer;
+  const before = state.frames[frameIdx].bitmaps[layerIdx].clone();
+  f(state.frames[frameIdx].bitmaps[layerIdx]);
   history.push(() => {
-    state.frames[frameIdx] = before;
+    state.frames[frameIdx].bitmaps[layerIdx] = before;
     state.current = Math.min(frameIdx, state.frames.length - 1);
+    state.currentLayer = Math.min(layerIdx, state.layers.length - 1);
     render();
   });
-  opLog.recordXform(frameIdx, op);
+  opLog.recordXform(frameIdx, op, Date.now(), layerIdx);
   render();
   persist();
 }
@@ -561,7 +758,7 @@ function deleteFrameAt(idx: number): void {
 }
 
 function copyFrame(): void {
-  clipboard = state.frames[state.current].clone();
+  clipboard = cloneFrame(state.frames[state.current]);
   pasteBtnEl.disabled = false;
   showFlash({ kind: "info", message: `Copied frame ${state.current + 1}.`, autoDismissMs: 5000 });
 }
@@ -578,7 +775,7 @@ async function copyFrameAsPng(): Promise<void> {
   cv.width = currentSize * scale;
   cv.height = currentSize * scale;
   const ctx = cv.getContext("2d")!;
-  const frame = state.frames[state.current];
+  const frame = composeFrame(state.layers, state.frames[state.current]);
   const palette = activePaletteToRgb(activePalette);
   for (let y = 0; y < currentSize; y++) {
     for (let x = 0; x < currentSize; x++) {
@@ -608,6 +805,8 @@ async function copyFrameAsPng(): Promise<void> {
 
 // Inserts the clipboard as a new frame after the current one. The original
 // "paste into current" behaviour from v1 is gone — too easy to clobber work.
+// The clipboard preserves the full layer stack: pasting brings back every
+// layer of the copied frame, not just the composited result.
 function pasteAsNewFrame(): void {
   stopPlay();
   if (!clipboard) {
@@ -618,10 +817,20 @@ function pasteAsNewFrame(): void {
     showFlash({ kind: "info", message: `Max ${MAX_FRAMES} frames.`, autoDismissMs: 5000 });
     return;
   }
+  // A layer added since the copy means the clipboard's per-layer slot
+  // count no longer matches the document. Pad with empty bitmaps so the
+  // invariant holds; truncate if layers were removed instead.
+  const copy = cloneFrame(clipboard);
+  while (copy.bitmaps.length < state.layers.length) {
+    copy.bitmaps.push(new Bitmap(currentSize, currentSize));
+  }
+  if (copy.bitmaps.length > state.layers.length) {
+    copy.bitmaps.length = state.layers.length;
+  }
   const insertAt = state.current + 1;
   const fromIdx = state.current;
   const before = { frames: state.frames.slice(), current: state.current };
-  state.frames.splice(insertAt, 0, clipboard.clone());
+  state.frames.splice(insertAt, 0, copy);
   state.current = insertAt;
   history.push(() => {
     state.frames = before.frames;
@@ -635,8 +844,11 @@ function pasteAsNewFrame(): void {
 
 function resetEditor(opts: { keepPublishedId?: boolean } = {}): void {
   stopPlay();
-  state.frames = [new Bitmap(currentSize, currentSize)];
+  const fresh = newFrameState(currentSize, currentSize);
+  state.layers = fresh.layers;
+  state.frames = fresh.frames;
   state.current = 0;
+  state.currentLayer = 0;
   history.clear();
   localId = null;
   // Re-apply the user's chosen palette on reset — picking a palette is an
@@ -688,7 +900,7 @@ function startPlayTimer(): void {
 
 function renderPlayTick(): void {
   const palette = activePaletteToRgb(activePalette);
-  mainCanvas.draw(state.frames[state.current], palette);
+  mainCanvas.draw(composeFrame(state.layers, state.frames[state.current]), palette);
   frameListEl
     .querySelectorAll<HTMLElement>(".ed-frame:not(.ed-frame-add)")
     .forEach((w, i) => {
@@ -933,11 +1145,13 @@ async function handlePublish(): Promise<void> {
   const publishedParentId = parentId;
   const publishedPromptSlug = promptSlug;
   try {
+    const flattened = state.frames.map((f) => composeFrame(state.layers, f));
     const result = await submit({
       ingestUrl: INGEST_URL,
-      gif: encodeGif({ frames: state.frames, activePalette, size: currentSize, delayMs }),
+      gif: encodeGif({ frames: flattened, activePalette, size: currentSize, delayMs }),
       parent: publishedParentId ?? undefined,
       prompt: publishedPromptSlug ?? undefined,
+      layers: state.layers.length > 1 ? buildLayersPayload() : undefined,
     });
     flashPublished(result.share_url);
     tracker.publishSuccess({
@@ -950,6 +1164,7 @@ async function handlePublish(): Promise<void> {
       await local.save({
         id: localId,
         frames: state.frames,
+        layers: state.layers,
         activePalette,
         delayMs,
         publishedId: result.id,
@@ -974,6 +1189,27 @@ async function handlePublish(): Promise<void> {
   }
 }
 
+// Build the LayersPayload sidecar for the publish body. Each per-layer
+// bitmap is base64-encoded so the JSON stays small (~33% overhead vs
+// raw bytes). Only called when the document has 2+ layers — flat
+// drawings save the round-trip.
+function buildLayersPayload(): import("./submit.js").LayersPayload {
+  const frames: string[][] = state.frames.map((f) =>
+    f.bitmaps.map((b) => bytesToBase64(b.data)),
+  );
+  return {
+    v: 1,
+    layers: state.layers.map((l) => ({ name: l.name, visible: l.visible })),
+    frames,
+  };
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
 function flashPublished(shareUrl: string): void {
   const link = document.createElement("a");
   link.href = shareUrl;
@@ -987,7 +1223,9 @@ function flashPublished(shareUrl: string): void {
 
 function changeSize(newSize: number): void {
   if (!DRAWING_SIZES.includes(newSize) || newSize === currentSize) return;
-  const hasContent = state.frames.some((f) => f.data.some((v) => v !== TRANSPARENT));
+  const hasContent = state.frames.some((f) =>
+    f.bitmaps.some((b) => b.data.some((v) => v !== TRANSPARENT)),
+  );
   if (hasContent) {
     const ok = confirm(
       `Switch canvas to ${newSize}×${newSize}? Your current drawing will be cleared.`,
@@ -999,8 +1237,11 @@ function changeSize(newSize: number): void {
   opLog.reset();
   opLog.recordSize(currentSize, newSize);
   currentSize = newSize;
-  state.frames = [new Bitmap(currentSize, currentSize)];
+  const fresh = newFrameState(currentSize, currentSize);
+  state.layers = fresh.layers;
+  state.frames = fresh.frames;
   state.current = 0;
+  state.currentLayer = 0;
   mainCanvas.setSize(currentSize, pixelSizeFor(currentSize));
   history.clear();
   parentId = null;
@@ -1029,7 +1270,11 @@ function copyShareLink(): void {
     });
     return;
   }
-  const hash = encodeShare({ frames: state.frames, activePalette });
+  // Share links carry just the flattened bitmaps — the codec is a
+  // pre-layers wire format. Layered drawings still compose down to the
+  // same pixels the GIF would carry, so the link round-trips visually.
+  const flat = state.frames.map((f) => composeFrame(state.layers, f));
+  const hash = encodeShare({ frames: flat, activePalette });
   const url = `${location.origin}${location.pathname}#d=${hash}`;
   navigator.clipboard?.writeText(url);
   showFlash({
@@ -1045,6 +1290,7 @@ function persist(): void {
     .save({
       id: localId,
       frames: state.frames,
+      layers: state.layers,
       activePalette,
       delayMs,
       opLog: opLog.serialize(),
@@ -1120,6 +1366,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>
       case "share": stopPlay(); copyShareLink(); break;
       case "publish": stopPlay(); void handlePublish(); break;
       case "make-merch": stopPlay(); openMerch(); break;
+      case "add-layer": addLayer(); break;
     }
   }),
 );
@@ -1211,10 +1458,16 @@ async function boot(): Promise<void> {
         mainCanvas.setSize(currentSize, pixelSizeFor(currentSize));
         renderSizePicker();
       }
-      state.frames = decoded.frames;
+      // The published GIF is the flattened result; the fork starts as
+      // a one-layer document. Future work: fetch layers_json from the
+      // server when present and rehydrate the full hierarchy.
+      const fresh = newFrameState(currentSize, currentSize);
+      state.layers = fresh.layers;
+      state.frames = decoded.frames.map((b) => ({ bitmaps: [b] }));
+      state.current = 0;
+      state.currentLayer = 0;
       if (decoded.activePalette) activePalette = decoded.activePalette;
       setFps(nearestFpsIndex(decoded.delayMs));
-      state.current = 0;
       parentId = forkId;
       setLastPublishedId(forkId);
     } catch (err) {
@@ -1226,9 +1479,12 @@ async function boot(): Promise<void> {
   } else if (hash) {
     try {
       const d = decodeShare(hash);
-      state.frames = d.frames;
+      const fresh = newFrameState(currentSize, currentSize);
+      state.layers = fresh.layers;
+      state.frames = d.frames.map((b) => ({ bitmaps: [b] }));
       activePalette = d.activePalette;
       state.current = 0;
+      state.currentLayer = 0;
     } catch (err) {
       showFlash({
         kind: "error",

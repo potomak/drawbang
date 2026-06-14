@@ -52,6 +52,11 @@ export interface DrawingRow {
   // Denormalised likes counter. Maintained by LikesStore via TransactWrite
   // atop the like/unlike write. Absent on rows pre-dating the likes table.
   like_count?: number;
+  // Optional layer hierarchy as a JSON string (LayersPayload from
+  // src/submit.ts). Stored verbatim so future "fork & edit layers" flows
+  // can rehydrate the editor state. Absent on rows pre-dating layers and
+  // on flat (single-layer) publishes.
+  layers_json?: string;
 }
 
 export interface DrawingCursor {
@@ -151,6 +156,7 @@ export class DynamoDrawingStore implements DrawingStore {
     };
     if (row.parent_id === null) delete item.parent_id;
     if (row.prompt_id === undefined) delete item.prompt_id;
+    if (row.layers_json === undefined) delete item.layers_json;
     await this.doc.send(new PutCommand({ TableName: this.table, Item: item }));
   }
 

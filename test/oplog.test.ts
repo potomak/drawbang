@@ -13,7 +13,7 @@ import {
 describe("OpLogRecorder — happy path", () => {
   test("collapses a multi-pixel stroke into a single px op with packed triples", () => {
     const r = new OpLogRecorder(1_000);
-    r.beginStroke(0, 1_100);
+    r.beginStroke(0, 0, 1_100);
     r.recordPixel(1, 2, 7);
     r.recordPixel(3, 4, 7);
     r.recordPixel(5, 6, 7);
@@ -130,7 +130,7 @@ describe("OpLogRecorder — caps", () => {
     for (let i = 0; i < MAX_OPS + 10; i++) r.recordFill(0, 0, 0, 1, i);
     assert.equal(r.isTruncated, true);
     const before = r.serialize().ops.length;
-    r.beginStroke(0, 10_000);
+    r.beginStroke(0, 0, 10_000);
     r.recordPixel(7, 7, 7);
     r.endStroke();
     assert.equal(r.serialize().ops.length, before);

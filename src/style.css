@@ -336,6 +336,62 @@ body > main, .app > main { display: block; }
 }
 .ed-frame-add:hover { color: var(--accent); border-color: var(--accent); border-style: solid; }
 
+/* ===== Layers panel ===== */
+.ed-layers {
+  margin-top: 16px;
+  border: var(--border) solid var(--border-c);
+  background: var(--bg-elev);
+}
+.ed-layers-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: var(--border) solid var(--border-c);
+  gap: 12px;
+}
+.ed-layers-head .panel-h { margin: 0; }
+.ed-layers-list {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 4px;
+}
+.ed-layer-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--bg);
+  border: var(--border) solid var(--border-c);
+  cursor: pointer;
+  min-height: 32px;
+}
+.ed-layer-row:hover { border-color: var(--border-strong); }
+.ed-layer-row.selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.ed-layer-row.hidden .ed-layer-name {
+  text-decoration: line-through;
+  color: var(--fg-muted);
+}
+.ed-layer-vis,
+.ed-layer-move,
+.ed-layer-del {
+  flex: 0 0 auto;
+  padding: 2px 4px;
+  min-height: 22px;
+}
+.ed-layer-name {
+  flex: 1 1 auto;
+  font-size: var(--t-xs);
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ===== Identity dialogs (kept from v1 — pixel-native restyle) ===== */
 dialog {
   background: var(--bg-elev);

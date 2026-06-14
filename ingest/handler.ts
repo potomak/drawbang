@@ -24,7 +24,18 @@ export interface IngestRequest {
   // Daily-prompt slug the client claims this drawing answers. Untrusted:
   // only stored when it matches today's ET prompt (see handleIngest).
   prompt?: string;
+  // Optional layer hierarchy. JSON-encoded LayersPayload from the client
+  // (see src/submit.ts). Stored verbatim on the DrawingRow so future
+  // "fork & edit layers" flows can rehydrate the editor state; the
+  // published GIF itself is the flattened result.
+  layers_json?: string;
 }
+
+// Hard ceiling for the layers sidecar. Matches the client soft cap so a
+// payload that squeezed past the client check (older client, attacker)
+// still gets rejected here. The GIF publishes regardless — only the
+// metadata is gated.
+export const MAX_LAYERS_JSON_BYTES = 64 * 1024;
 
 export interface IngestSuccess {
   status: 200 | 202;
@@ -126,6 +137,10 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   if (cfg.drawingStore) {
     try {
       const decoded = decodeGif(gif);
+      const layersJson =
+        typeof req.layers_json === "string" && req.layers_json.length <= MAX_LAYERS_JSON_BYTES
+          ? req.layers_json
+          : undefined;
       await cfg.drawingStore.put({
         drawing_id: id,
         size: decoded.size,
@@ -138,6 +153,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
         ...(promptId !== undefined ? { prompt_id: promptId } : {}),
         frames: decoded.frames.length,
         gif_size_bytes: gif.length,
+        ...(layersJson !== undefined ? { layers_json: layersJson } : {}),
       });
     } catch (e) {
       console.error("[ingest] failed to write drawing row to DDB", e);

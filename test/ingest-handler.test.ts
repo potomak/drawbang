@@ -223,6 +223,51 @@ describe("handleIngest", () => {
     const row = await h.drawingStore.get(id);
     assert.equal(row!.parent_id, null);
   });
+
+  test("layers_json is persisted onto the row when supplied", async () => {
+    const h = makeHarness();
+    const gif = makeGif(20);
+    const layersBlob = JSON.stringify({
+      v: 1,
+      layers: [{ name: "L1", visible: true }, { name: "L2", visible: false }],
+      frames: [["aaaa", "bbbb"]],
+    });
+    const res = await handleIngest(
+      { gif: Buffer.from(gif).toString("base64"), layers_json: layersBlob },
+      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore },
+    );
+    assert.equal(res.status, 202);
+    const id = (res.body as { id: string }).id;
+    const row = await h.drawingStore.get(id);
+    assert.equal(row!.layers_json, layersBlob);
+  });
+
+  test("oversized layers_json is dropped silently — publish still succeeds", async () => {
+    const h = makeHarness();
+    const gif = makeGif(21);
+    const tooBig = "x".repeat(65 * 1024);
+    const res = await handleIngest(
+      { gif: Buffer.from(gif).toString("base64"), layers_json: tooBig },
+      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore },
+    );
+    assert.equal(res.status, 202);
+    const id = (res.body as { id: string }).id;
+    const row = await h.drawingStore.get(id);
+    assert.equal(row!.layers_json, undefined);
+  });
+
+  test("flat publishes omit layers_json so the attribute stays sparse", async () => {
+    const h = makeHarness();
+    const gif = makeGif(22);
+    const res = await handleIngest(
+      { gif: Buffer.from(gif).toString("base64") },
+      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore },
+    );
+    assert.equal(res.status, 202);
+    const id = (res.body as { id: string }).id;
+    const row = await h.drawingStore.get(id);
+    assert.equal(row!.layers_json, undefined);
+  });
 });
 
 // Mid-day UTC on an OVERRIDES date ("2026-06-01" → "tiny-ghost") so the ET
