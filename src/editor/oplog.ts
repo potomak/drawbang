@@ -39,6 +39,7 @@ export type OpKind =
   | "lvis"
   | "lmov"
   | "xform"
+  | "translate"
   | "pal"
   | "clear"
   | "size";
@@ -58,6 +59,7 @@ export interface LayerDelPayload { at: number; }
 export interface LayerVisPayload { at: number; visible: boolean; }
 export interface LayerMovPayload { from: number; to: number; }
 export interface XformPayload { op: XformOp; }
+export interface TranslatePayload { dx: number; dy: number; }
 export interface PalPayload { palette: number[]; }
 export interface SizePayload { from: number; to: number; }
 
@@ -72,6 +74,7 @@ export type OpPayload =
   | LayerVisPayload
   | LayerMovPayload
   | XformPayload
+  | TranslatePayload
   | PalPayload
   | SizePayload
   | undefined;
@@ -204,6 +207,18 @@ export class OpLogRecorder {
     layerIdx: number = 0,
   ): void {
     const entry: Op = { t: this.rel(now), k: "xform", f: frameIdx, d: { op } };
+    if (layerIdx !== 0) entry.l = layerIdx;
+    this.tryPush(entry);
+  }
+
+  recordTranslate(
+    frameIdx: number,
+    dx: number,
+    dy: number,
+    now: number = Date.now(),
+    layerIdx: number = 0,
+  ): void {
+    const entry: Op = { t: this.rel(now), k: "translate", f: frameIdx, d: { dx, dy } };
     if (layerIdx !== 0) entry.l = layerIdx;
     this.tryPush(entry);
   }

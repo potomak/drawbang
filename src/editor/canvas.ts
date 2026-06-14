@@ -43,14 +43,23 @@ export class PixelCanvas {
   }
 
   quantize(clientX: number, clientY: number): { x: number; y: number } {
-    const rect = this.el.getBoundingClientRect();
-    const px = this.settings.pixelSize * (rect.width / this.el.width);
-    const py = this.settings.pixelSize * (rect.height / this.el.height);
-    const x = Math.floor((clientX - rect.left) / px);
-    const y = Math.floor((clientY - rect.top) / py);
+    const { x, y } = this.quantizeUnclamped(clientX, clientY);
     return {
       x: Math.max(0, Math.min(this.size - 1, x)),
       y: Math.max(0, Math.min(this.size - 1, y)),
+    };
+  }
+
+  // Same math as `quantize` minus the bounds clamp. The Move tool needs
+  // unbounded deltas so a drag that runs past the canvas edge keeps
+  // accumulating translation instead of stalling at the boundary cell.
+  quantizeUnclamped(clientX: number, clientY: number): { x: number; y: number } {
+    const rect = this.el.getBoundingClientRect();
+    const px = this.settings.pixelSize * (rect.width / this.el.width);
+    const py = this.settings.pixelSize * (rect.height / this.el.height);
+    return {
+      x: Math.floor((clientX - rect.left) / px),
+      y: Math.floor((clientY - rect.top) / py),
     };
   }
 

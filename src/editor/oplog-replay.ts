@@ -13,6 +13,7 @@ import {
   rotateLeft,
   shiftRight,
   shiftUp,
+  translate,
 } from "./tools.js";
 import type {
   FillPayload,
@@ -28,6 +29,7 @@ import type {
   PalPayload,
   PxPayload,
   SizePayload,
+  TranslatePayload,
   XformPayload,
 } from "./oplog.js";
 
@@ -97,6 +99,9 @@ export function applyOp(state: ReplayState, op: Op): void {
       return;
     case "xform":
       applyXform(state, op);
+      return;
+    case "translate":
+      applyTranslate(state, op);
       return;
     case "pal":
       state.palette = new Uint8Array((op.d as PalPayload).palette);
@@ -221,6 +226,13 @@ function applyXform(state: ReplayState, op: Op): void {
       shiftUp(b);
       break;
   }
+  state.current = f;
+}
+
+function applyTranslate(state: ReplayState, op: Op): void {
+  const { b, f } = targetBitmap(state, op);
+  const { dx, dy } = op.d as TranslatePayload;
+  translate(b, b.clone(), dx, dy);
   state.current = f;
 }
 

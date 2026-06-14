@@ -151,6 +151,12 @@ body > main, .app > main { display: block; }
 }
 
 .ed-tool { width: var(--tap); height: var(--tap); }
+.ed-tools-divider {
+  grid-column: 1 / -1;
+  height: 1px;
+  background: var(--border-c);
+  margin: 4px 0;
+}
 
 .ed-center {
   display: flex;

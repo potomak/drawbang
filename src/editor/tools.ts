@@ -77,7 +77,25 @@ export function fillArea(
   return before;
 }
 
-// Shifts pixels one column right (wraparound).
+// Translates `src` by (dx, dy) and writes the result into `dst`, wrapping
+// at both axes. `dst` and `src` must have matching dimensions; pass
+// `src = original.clone()` so each move-tool render reads from the stable
+// pre-drag snapshot instead of the mid-translation buffer.
+export function translate(dst: Bitmap, src: Bitmap, dx: number, dy: number): void {
+  const w = dst.width;
+  const h = dst.height;
+  const nx = ((dx % w) + w) % w;
+  const ny = ((dy % h) + h) % h;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      dst.set(x, y, src.get((x - nx + w) % w, (y - ny + h) % h));
+    }
+  }
+}
+
+// Shifts pixels one column right (wraparound). Retained for v2 op-log
+// replay (old drafts may still contain shift-x / shift-y xform ops);
+// the editor itself no longer fires these — see the Move tool.
 export function shiftRight(b: Bitmap): void {
   for (let y = 0; y < b.height; y++) {
     const last = b.get(b.width - 1, y);
