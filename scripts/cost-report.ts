@@ -102,7 +102,14 @@ const dryRun = process.env.DRY_RUN === "1" || args.includes("--dry-run");
 
 // ── AWS clients ─────────────────────────────────────────────────────────────
 const cw = new CloudWatchClient({ region: REGION });
-const cf = new CloudFrontClient({ region: REGION });
+// Adaptive retry — the GetInvalidation fanout below grows with the month and
+// trips CloudFront's ~5 TPS limit. The token-bucket rate limiter throttles
+// us down to a sustainable rate instead of failing on the 3rd retry.
+const cf = new CloudFrontClient({
+  region: REGION,
+  retryMode: "adaptive",
+  maxAttempts: 8,
+});
 const lambda = new LambdaClient({ region: REGION });
 
 // ── Time window: first of month UTC → now ───────────────────────────────────
