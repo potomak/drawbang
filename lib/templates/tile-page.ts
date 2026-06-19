@@ -81,6 +81,7 @@ ${[...links, current].join("\n")}
 
 export default function renderTilePage(v: TilePageView): string {
   const gif = `/tiles/${esc(v.drawing_id)}.gif`;
+  const shareMp4 = `/tiles/${esc(v.drawing_id)}-large.mp4`;
   const parentBlock = v.parent
     ? `<dt>Remixed from</dt><dd><a href="/d/${esc(v.parent.parent)}">${esc(v.parent.parent_short)}</a></dd>`
     : "";
@@ -109,6 +110,11 @@ ${forks.map(renderItem).join("\n")}
     <meta property="og:image:type" content="image/gif" />
     <meta property="og:image:width" content="960" />
     <meta property="og:image:height" content="960" />
+    <meta property="og:video" content="${esc(v.public_base_url)}/tiles/${esc(v.drawing_id)}-large.mp4" />
+    <meta property="og:video:secure_url" content="${esc(v.public_base_url)}/tiles/${esc(v.drawing_id)}-large.mp4" />
+    <meta property="og:video:type" content="video/mp4" />
+    <meta property="og:video:width" content="1080" />
+    <meta property="og:video:height" content="1080" />
     <meta name="twitter:card" content="summary_large_image" />`;
   return renderHtmlShell({
     title: `Draw! · ${esc(v.id_short)}`,
@@ -137,6 +143,7 @@ ${forks.map(renderItem).join("\n")}
               <button class="btn" id="dr-set-profile-picture" type="button" hidden>Set as profile picture</button>
               <button class="btn" id="dr-copy-link" type="button">Copy link</button>
               <a class="btn ghost" id="dr-download-gif" href="${gif}" download>Download GIF</a>
+              <a class="btn ghost" id="dr-download-mp4" href="${shareMp4}" download title="Square MP4 with chrome — Instagram-ready">Download MP4</a>
             </div>
             <div class="dr-action-row">
               <a class="btn" id="dr-share-threads" href="https://www.threads.net/intent/post?text=${encodeURIComponent(`Pixel art from Draw! · Tile ID ${v.id_short}`)}&amp;url=${encodeURIComponent(`${v.public_base_url}/d/${v.drawing_id}`)}" target="_blank" rel="nofollow noopener noreferrer">Share to Threads</a>

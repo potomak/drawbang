@@ -2,6 +2,7 @@ import { contentHashHex } from "../src/content-hash.js";
 import { PROMPT_SLUG_RE, promptForDate } from "../config/prompts.js";
 import { decodeGif } from "../src/editor/gif.js";
 import { encodeShareGif } from "../src/editor/share-gif.js";
+import { encodeShareMp4 } from "./share-mp4.js";
 import { validateGif } from "./gif-validate.js";
 import type { Storage } from "./storage.js";
 import type { UserStatsStore } from "./user-stats-store.js";
@@ -160,18 +161,19 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     }
   }
 
-  // 320×320 annotated share image written next to the original at
+  // 960×960 annotated share image written next to the original at
   // public/tiles/<id>-large.gif. Used as og:image on the tile page.
   // Wrapped in try/catch — the original gif is already committed and a
   // share-image failure must not surface as a publish error. Log with
   // the tile id so operators can backfill missing -large.gifs via
   // scripts/backfill-large-gifs.ts.
+  let large: Uint8Array | null = null;
   try {
     const decoded = decodeGif(gif);
     if (!decoded.activePalette) {
       throw new Error("decoded gif has no active palette");
     }
-    const large = encodeShareGif({
+    large = encodeShareGif({
       frames: decoded.frames,
       activePalette: decoded.activePalette,
       delayMs: decoded.delayMs,
@@ -184,6 +186,26 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     );
   } catch (e) {
     console.error(`[ingest] -large.gif write failed for ${id}:`, e);
+  }
+
+  // Instagram-shareable MP4 sidecar at public/tiles/<id>-large.mp4.
+  // Same try/catch posture as -large.gif: failures are logged so an
+  // ffmpeg crash never surfaces as a publish error. Reuses the just-
+  // rendered -large.gif bytes as ffmpeg's input — all the chrome
+  // (plinth bg, swatch, wordmark) is already painted there. See
+  // scripts/backfill-share-mp4.ts for the legacy-drawing backfill path.
+  if (large) {
+    try {
+      const mp4 = await encodeShareMp4(large);
+      await cfg.storage.put(
+        `public/tiles/${id}-large.mp4`,
+        mp4,
+        "video/mp4",
+        "public, max-age=31536000, immutable",
+      );
+    } catch (e) {
+      console.error(`[ingest] -large.mp4 write failed for ${id}:`, e);
+    }
   }
 
   // Streak / total counters (#115). Wrapped in try/catch because the gif

@@ -770,6 +770,12 @@ Resources:
       FunctionName: drawbang-ingest
       Handler: lambda.handler
       CodeUri: ../../dist-lambda
+      # Overrides Globals (256 MB / 10 s) so ffmpeg has CPU + headroom
+      # to transcode the -large.gif sidecar into -large.mp4 at publish
+      # time. Lambda CPU scales with memory; 1024 MB gives ffmpeg ~0.5
+      # vCPU, enough to finish a 6 s 1080×1080 H.264 encode in ~1 s.
+      MemorySize: 1024
+      Timeout: 30
       Environment:
         Variables:
           DRAWBANG_BUCKET: !Ref AssetsBucket

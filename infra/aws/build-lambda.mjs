@@ -1,5 +1,6 @@
 import { build } from "esbuild";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import path from "node:path";
 import fs from "node:fs/promises";
 
@@ -43,3 +44,15 @@ await build({
   entryPoints: [path.join(repoRoot, "merch", "lambda.ts")],
   outfile: path.join(outDir, "merch.js"),
 });
+
+// Ship the arm64 linux ffmpeg binary alongside the handler so
+// ingest/share-mp4.ts (which resolves the binary relative to its own
+// __dirname) can spawn it at runtime. The @ffmpeg-installer/linux-arm64
+// package is a leaf tarball — its install isn't gated by the host
+// platform, so CI's x86_64 runner still ends up with the arm64 binary
+// Lambda needs.
+const require = createRequire(import.meta.url);
+const ffmpegBin = require.resolve("@ffmpeg-installer/linux-arm64/ffmpeg");
+const ffmpegDst = path.join(outDir, "ffmpeg");
+await fs.copyFile(ffmpegBin, ffmpegDst);
+await fs.chmod(ffmpegDst, 0o755);
