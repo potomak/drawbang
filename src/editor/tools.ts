@@ -77,6 +77,14 @@ export function fillArea(
   return before;
 }
 
+// Column index that mirrors `x` across a vertical axis at width/2. For
+// even widths no column maps to itself; for odd widths the middle column
+// is its own mirror, so callers running side effects on the mirror cell
+// should short-circuit when `mirrorX(x, w) === x`.
+export function mirrorX(x: number, width: number): number {
+  return width - 1 - x;
+}
+
 // Translates `src` by (dx, dy) and writes the result into `dst`, wrapping
 // at both axes. `dst` and `src` must have matching dimensions; pass
 // `src = original.clone()` so each move-tool render reads from the stable

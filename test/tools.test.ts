@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import { describe, test } from "node:test";
 import {
   PixelPerfectStroke,
+  mirrorX,
   shiftRight,
   shiftUp,
   translate,
@@ -135,5 +136,23 @@ describe("translate", () => {
     translate(a, src, 9, -7);
     translate(b, src, 9 % 4, ((-7 % 4) + 4) % 4);
     assert.deepEqual(Array.from(a.data), Array.from(b.data));
+  });
+});
+
+describe("mirrorX", () => {
+  test("mirrors the leftmost column to the rightmost", () => {
+    assert.equal(mirrorX(0, 16), 15);
+  });
+
+  test("mirrors the column just left of center to the column just right", () => {
+    assert.equal(mirrorX(7, 16), 8);
+  });
+
+  test("is its own inverse for every supported canvas size", () => {
+    for (const w of [8, 16, 32, 64]) {
+      for (let x = 0; x < w; x++) {
+        assert.equal(mirrorX(mirrorX(x, w), w), x);
+      }
+    }
   });
 });

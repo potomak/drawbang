@@ -9,6 +9,10 @@ export interface CanvasSettings {
   // Drawing-grid dimension (in pixels). Defaults to DEFAULT_SIZE; the editor
   // changes this at runtime when the user picks a different canvas size.
   size?: number;
+  // When true, draw a faint dashed vertical line at the canvas's
+  // horizontal mirror axis (width/2). Set by the editor when horizontal
+  // symmetry mode is on so the user sees where the mirror runs.
+  symmetryAxisH?: boolean;
 }
 
 export class PixelCanvas {
@@ -121,6 +125,25 @@ export class PixelCanvas {
       }
     }
     if (this.settings.showGrid) this.drawGrid(bitmap);
+    if (this.settings.symmetryAxisH && bitmap.width % 2 === 0) {
+      this.drawSymmetryAxisH(bitmap);
+    }
+  }
+
+  // Soft dashed line down the canvas's vertical mirror axis. Reuses
+  // gridColor so the overlay reads as a guide rather than as art.
+  private drawSymmetryAxisH(bitmap: Bitmap): void {
+    const ps = this.settings.pixelSize;
+    const axisX = (bitmap.width / 2) * ps + 0.5;
+    this.ctx.save();
+    this.ctx.strokeStyle = this.settings.gridColor;
+    this.ctx.lineWidth = 1;
+    this.ctx.setLineDash([Math.max(2, ps / 2), Math.max(2, ps / 2)]);
+    this.ctx.beginPath();
+    this.ctx.moveTo(axisX, 0);
+    this.ctx.lineTo(axisX, bitmap.height * ps);
+    this.ctx.stroke();
+    this.ctx.restore();
   }
 
   // Grid lines only run along edges where both adjacent cells are

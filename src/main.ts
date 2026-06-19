@@ -39,6 +39,7 @@ import {
   fillArea,
   flipHorizontal,
   flipVertical,
+  mirrorX,
   rotateLeft,
   translate,
 } from "./editor/tools.js";
@@ -91,6 +92,9 @@ let moveSnapshot: Bitmap | null = null;
 let moveStart: { x: number; y: number } | null = null;
 let moveLastDelta: { dx: number; dy: number } = { dx: 0, dy: 0 };
 let pixelPerfect = false;
+// Horizontal symmetry mode: pencil/eraser/fill also paint the
+// mirrored column (b.width - 1 - x). Persisted to localStorage.
+let symmetryH = false;
 // Live only during a pencil stroke when pixelPerfect is on.
 let ppStroke: PixelPerfectStroke | null = null;
 let playing = false;
@@ -133,6 +137,7 @@ const ICON = {
   flipV: `<svg width="32" height="32" viewBox="0 0 16 16" shape-rendering="crispEdges"><g fill="currentColor"><rect x="6" y="2" width="1" height="1"/><rect x="7" y="2" width="1" height="1"/><rect x="8" y="2" width="1" height="1"/><rect x="9" y="2" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/><rect x="7" y="3" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="9" y="3" width="1" height="1"/><rect x="10" y="3" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="5" y="4" width="1" height="1"/><rect x="6" y="4" width="1" height="1"/><rect x="7" y="4" width="1" height="1"/><rect x="8" y="4" width="1" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="10" y="4" width="1" height="1"/><rect x="11" y="4" width="1" height="1"/><rect x="4" y="5" width="1" height="1"/><rect x="5" y="5" width="1" height="1"/><rect x="10" y="5" width="1" height="1"/><rect x="11" y="5" width="1" height="1"/><rect x="4" y="6" width="1" height="1"/><rect x="11" y="6" width="1" height="1"/><rect x="4" y="7" width="1" height="1"/><rect x="6" y="7" width="1" height="1"/><rect x="9" y="7" width="1" height="1"/><rect x="11" y="7" width="1" height="1"/><rect x="4" y="8" width="1" height="1"/><rect x="6" y="8" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/><rect x="10" y="8" width="1" height="1"/><rect x="11" y="8" width="1" height="1"/><rect x="4" y="9" width="1" height="1"/><rect x="5" y="9" width="1" height="1"/><rect x="7" y="9" width="1" height="1"/><rect x="9" y="9" width="1" height="1"/><rect x="11" y="9" width="1" height="1"/><rect x="4" y="10" width="1" height="1"/><rect x="6" y="10" width="1" height="1"/><rect x="8" y="10" width="1" height="1"/><rect x="10" y="10" width="1" height="1"/><rect x="5" y="11" width="1" height="1"/><rect x="7" y="11" width="1" height="1"/><rect x="9" y="11" width="1" height="1"/><rect x="6" y="12" width="1" height="1"/><rect x="8" y="12" width="1" height="1"/></g></svg>`,
   rotate: `<svg width="32" height="32" viewBox="0 0 16 16" shape-rendering="crispEdges"><g fill="currentColor"><rect x="6" y="0" width="1" height="1"/><rect x="7" y="0" width="1" height="1"/><rect x="8" y="0" width="1" height="1"/><rect x="9" y="0" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="5" y="1" width="1" height="1"/><rect x="10" y="1" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="11" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="11" y="3" width="1" height="1"/><rect x="4" y="6" width="1" height="1"/><rect x="10" y="6" width="1" height="1"/><rect x="11" y="6" width="1" height="1"/><rect x="12" y="6" width="1" height="1"/><rect x="4" y="7" width="1" height="1"/><rect x="11" y="7" width="1" height="1"/><rect x="12" y="7" width="1" height="1"/><rect x="5" y="8" width="1" height="1"/><rect x="10" y="8" width="1" height="1"/><rect x="12" y="8" width="1" height="1"/><rect x="6" y="9" width="1" height="1"/><rect x="7" y="9" width="1" height="1"/><rect x="8" y="9" width="1" height="1"/><rect x="9" y="9" width="1" height="1"/><rect x="5" y="11" width="1" height="1"/><rect x="6" y="11" width="1" height="1"/><rect x="10" y="11" width="1" height="1"/><rect x="11" y="11" width="1" height="1"/><rect x="4" y="12" width="1" height="1"/><rect x="7" y="12" width="1" height="1"/><rect x="9" y="12" width="1" height="1"/><rect x="12" y="12" width="1" height="1"/><rect x="5" y="13" width="1" height="1"/><rect x="6" y="13" width="1" height="1"/><rect x="7" y="13" width="1" height="1"/><rect x="9" y="13" width="1" height="1"/><rect x="12" y="13" width="1" height="1"/><rect x="7" y="14" width="1" height="1"/><rect x="9" y="14" width="1" height="1"/><rect x="12" y="14" width="1" height="1"/><rect x="5" y="15" width="1" height="1"/><rect x="6" y="15" width="1" height="1"/><rect x="10" y="15" width="1" height="1"/><rect x="11" y="15" width="1" height="1"/></g></svg>`,
   perfect: `<svg width="32" height="32" viewBox="0 0 16 16" shape-rendering="crispEdges"><g fill="currentColor"><rect x="3" y="12" width="1" height="1"/><rect x="4" y="12" width="1" height="1"/><rect x="4" y="11" width="1" height="1"/><rect x="5" y="11" width="1" height="1"/><rect x="5" y="10" width="1" height="1"/><rect x="6" y="10" width="1" height="1"/><rect x="6" y="9" width="1" height="1"/><rect x="7" y="9" width="1" height="1"/><rect x="7" y="8" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/><rect x="8" y="7" width="1" height="1"/><rect x="9" y="7" width="1" height="1"/><rect x="9" y="6" width="1" height="1"/><rect x="10" y="6" width="1" height="1"/><rect x="10" y="5" width="1" height="1"/><rect x="11" y="5" width="1" height="1"/><rect x="11" y="4" width="1" height="1"/><rect x="12" y="4" width="1" height="1"/><rect x="12" y="3" width="1" height="1"/><rect x="13" y="3" width="1" height="1"/></g></svg>`,
+  symmetryH: `<svg width="32" height="32" viewBox="0 0 16 16" shape-rendering="crispEdges"><g fill="currentColor"><rect x="7" y="1" width="1" height="1"/><rect x="8" y="1" width="1" height="1"/><rect x="7" y="3" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="10" y="6" width="1" height="1"/><rect x="4" y="7" width="1" height="1"/><rect x="5" y="7" width="1" height="1"/><rect x="10" y="7" width="1" height="1"/><rect x="11" y="7" width="1" height="1"/><rect x="3" y="8" width="1" height="1"/><rect x="4" y="8" width="1" height="1"/><rect x="5" y="8" width="1" height="1"/><rect x="10" y="8" width="1" height="1"/><rect x="11" y="8" width="1" height="1"/><rect x="12" y="8" width="1" height="1"/><rect x="4" y="9" width="1" height="1"/><rect x="5" y="9" width="1" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="11" y="9" width="1" height="1"/><rect x="5" y="10" width="1" height="1"/><rect x="10" y="10" width="1" height="1"/><rect x="7" y="12" width="1" height="1"/><rect x="8" y="12" width="1" height="1"/><rect x="7" y="14" width="1" height="1"/><rect x="8" y="14" width="1" height="1"/></g></svg>`,
   plus: `<svg width="14" height="14" viewBox="0 0 14 14"><g fill="currentColor"><rect x="6" y="2" width="2" height="10"/><rect x="2" y="6" width="10" height="2"/></g></svg>`,
   copy: `<svg width="14" height="14" viewBox="0 0 14 14"><g fill="currentColor"><rect x="2" y="2" width="8" height="8" fill="none" stroke="currentColor" stroke-width="2"/><rect x="5" y="5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="2"/></g></svg>`,
   paste: `<svg width="14" height="14" viewBox="0 0 14 14"><g fill="currentColor"><rect x="3" y="1" width="8" height="2"/><rect x="2" y="3" width="10" height="9" fill="none" stroke="currentColor" stroke-width="2"/></g></svg>`,
@@ -170,6 +175,7 @@ app.innerHTML = /* html */ `
         <button class="btn icon ed-tool" data-tool="fill" title="Fill (G)" aria-label="Fill">${ICON.fill}</button>
         <button class="btn icon ed-tool" data-tool="move" title="Move (V) — drag to translate the layer, wraps at edges" aria-label="Move">${ICON.hand}</button>
         <button class="btn icon ed-tool" data-action="toggle-pixel-perfect" id="pixelPerfectBtn" aria-pressed="false" title="Pixel-perfect strokes (clean 1px diagonals)" aria-label="Pixel-perfect strokes">${ICON.perfect}</button>
+        <button class="btn icon ed-tool" data-action="toggle-symmetry-h" id="symmetryHBtn" aria-pressed="false" title="Horizontal symmetry — mirror strokes across the vertical axis" aria-label="Horizontal symmetry">${ICON.symmetryH}</button>
         <div class="ed-tools-divider" aria-hidden="true"></div>
         <button class="btn icon ed-tool" data-action="undo" title="Undo" aria-label="Undo">${ICON.undo}</button>
         <button class="btn icon ed-tool" data-action="clear" title="Clear" aria-label="Clear">${ICON.clear}</button>
@@ -286,6 +292,7 @@ const addLayerBtnEl = document.getElementById("addLayerBtn") as HTMLButtonElemen
 const onionBtnEl = document.getElementById("onionBtn") as HTMLButtonElement;
 const gridBtnEl = document.getElementById("gridBtn") as HTMLButtonElement;
 const pixelPerfectBtnEl = document.getElementById("pixelPerfectBtn") as HTMLButtonElement;
+const symmetryHBtnEl = document.getElementById("symmetryHBtn") as HTMLButtonElement;
 const playBtnEl = document.getElementById("playBtn") as HTMLButtonElement;
 const pasteBtnEl = document.getElementById("pasteBtn") as HTMLButtonElement;
 const fpsRangeEl = document.getElementById("fpsRange") as HTMLInputElement;
@@ -329,6 +336,7 @@ function setLastPublishedId(id: string | null): void {
 const PALETTE_LS_KEY = "drawbang:palette";
 const GRID_LS_KEY = "drawbang:grid";
 const PIXEL_PERFECT_LS_KEY = "drawbang:pixel-perfect";
+const SYMMETRY_H_LS_KEY = "drawbang:symmetry-h";
 
 function findRetroPalette(id: string): RetroPalette | null {
   return RETRO_PALETTES.find((p) => p.id === id) ?? null;
@@ -653,17 +661,31 @@ function applyTool(x: number, y: number): void {
   const layerIdx = state.currentLayer;
   const b = state.frames[frameIdx].bitmaps[layerIdx];
   const value = tool === "erase" ? TRANSPARENT : selectedSlot;
+  const mx = symmetryH ? mirrorX(x, b.width) : -1;
+  const mirror = symmetryH && mx !== x;
   if (tool === "fill") {
+    // Snapshot upfront so a single undo restores both fill regions even
+    // when symmetric clicks fill distinct disconnected areas.
+    const beforeAll = mirror ? b.clone() : null;
     const before = fillArea(b, x, y, value);
-    if (before) {
+    let mirrorDirty = false;
+    if (mirror) {
+      const mBefore = fillArea(b, mx, y, value);
+      mirrorDirty = mBefore !== null;
+    }
+    if (before || mirrorDirty) {
+      // When both sides changed we restore from the upfront clone;
+      // when only one side did, the original fillArea snapshot suffices.
+      const snapshot = mirror ? beforeAll! : before!;
       history.push(() => {
-        state.frames[frameIdx].bitmaps[layerIdx] = before;
+        state.frames[frameIdx].bitmaps[layerIdx] = snapshot;
         state.current = Math.min(frameIdx, state.frames.length - 1);
         state.currentLayer = Math.min(layerIdx, state.layers.length - 1);
         render();
       });
       strokeDirty = true;
-      opLog.recordFill(frameIdx, x, y, value, Date.now(), layerIdx);
+      if (before) opLog.recordFill(frameIdx, x, y, value, Date.now(), layerIdx);
+      if (mirrorDirty) opLog.recordFill(frameIdx, mx, y, value, Date.now(), layerIdx);
     }
   } else {
     const prev = drawPixel(b, x, y, value);
@@ -671,12 +693,28 @@ function applyTool(x: number, y: number): void {
       strokeDirty = true;
       opLog.recordPixel(x, y, value);
     }
+    if (mirror) {
+      const mPrev = drawPixel(b, mx, y, value);
+      if (mPrev !== null) {
+        strokeDirty = true;
+        opLog.recordPixel(mx, y, value);
+      }
+    }
     if (ppStroke && tool === "pixel") {
       const corner = ppStroke.next(x, y);
       // Un-paint the L corner by restoring whatever the stroke started over.
       if (corner && strokeSnapshot) {
-        b.set(corner.x, corner.y, strokeSnapshot.get(corner.x, corner.y));
-        opLog.recordPixel(corner.x, corner.y, strokeSnapshot.get(corner.x, corner.y));
+        const restore = strokeSnapshot.get(corner.x, corner.y);
+        b.set(corner.x, corner.y, restore);
+        opLog.recordPixel(corner.x, corner.y, restore);
+        if (symmetryH) {
+          const cmx = mirrorX(corner.x, b.width);
+          if (cmx !== corner.x) {
+            const mRestore = strokeSnapshot.get(cmx, corner.y);
+            b.set(cmx, corner.y, mRestore);
+            opLog.recordPixel(cmx, corner.y, mRestore);
+          }
+        }
       }
     }
   }
@@ -947,6 +985,20 @@ function setPixelPerfect(next: boolean, persistChoice = true): void {
   if (persistChoice) {
     try {
       localStorage.setItem(PIXEL_PERFECT_LS_KEY, next ? "1" : "0");
+    } catch {
+      // ignore — the preference just won't survive this session
+    }
+  }
+}
+
+function setSymmetryH(next: boolean, persistChoice = true): void {
+  symmetryH = next;
+  symmetryHBtnEl.setAttribute("aria-pressed", next ? "true" : "false");
+  mainCanvas.settings.symmetryAxisH = next;
+  render();
+  if (persistChoice) {
+    try {
+      localStorage.setItem(SYMMETRY_H_LS_KEY, next ? "1" : "0");
     } catch {
       // ignore — the preference just won't survive this session
     }
@@ -1410,6 +1462,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>
       case "toggle-onion": setOnion(!onion); break;
       case "toggle-grid": setGrid(!mainCanvas.settings.showGrid); break;
       case "toggle-pixel-perfect": setPixelPerfect(!pixelPerfect); break;
+      case "toggle-symmetry-h": setSymmetryH(!symmetryH); break;
       case "edit-color": openPickerForSlot(selectedSlot); break;
       case "open-export": stopPlay(); void exportCtrl.open(); break;
       case "share": stopPlay(); copyShareLink(); break;
@@ -1491,6 +1544,7 @@ async function boot(): Promise<void> {
   try {
     if (localStorage.getItem(GRID_LS_KEY) === "0") setGrid(false, false);
     if (localStorage.getItem(PIXEL_PERFECT_LS_KEY) === "1") setPixelPerfect(true, false);
+    if (localStorage.getItem(SYMMETRY_H_LS_KEY) === "1") setSymmetryH(true, false);
   } catch {
     // ignore — defaults stay in place
   }
