@@ -627,6 +627,13 @@ One-time setup:
 - **Merge directly to `master`** when a change is green (typecheck
   + tests pass). No PR review gate, no long-lived feature branches.
   The deploy workflow runs on every push to `master`.
+- **Default end-of-task flow when implementing a feature/fix**:
+  `npm run typecheck` → `npm test` (keep iterating until green) →
+  commit → push → smoke-check in prod (pixel.drawbang.com) once
+  the GH Actions deploy finishes. Don't pause to ask between these
+  steps unless something fails or the diff is non-obviously
+  destructive. Reserve confirmation for actions outside this loop
+  (force-push, removing data, etc.).
 
 ## UI / UX consistency (paramount)
 
