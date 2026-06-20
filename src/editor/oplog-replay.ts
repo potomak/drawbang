@@ -283,7 +283,10 @@ export interface Timelapse {
 
 export const TIMELAPSE_DEFAULT_FPS = 12;
 export const TIMELAPSE_MIN_DURATION_MS = 5000;
-export const TIMELAPSE_MAX_DURATION_MS = 10000;
+// Cap raised from the original 10 s to give long sessions room to keep
+// one-op-per-frame pacing before batching kicks in. Instagram Reels
+// accepts up to 90 s; 30 s is a comfortable feed-friendly middle ground.
+export const TIMELAPSE_MAX_DURATION_MS = 30000;
 
 function snapshot(state: ReplayState): Bitmap {
   return composeFrame(state.layers, state.frames[state.current]);
@@ -305,31 +308,35 @@ export function replay(log: OpLog, opts: ReplayOptions): Timelapse {
     };
   }
 
-  // Stretch or shrink the original timeline into the [min,max] window
-  // so every timelapse hits the share-friendly 5–10s sweet spot.
-  const sourceMs = Math.max(1, log.ops[log.ops.length - 1].t);
-  const durationMs = clamp(sourceMs, minDuration, maxDuration);
-  const totalSamples = Math.max(2, Math.round((durationMs / 1000) * fps));
+  // Op-paced sampling: one snapshot per recorded op. The wall-clock
+  // op.t is intentionally NOT consulted for video pacing — that's what
+  // collapsed bursts of strokes into a single frame and stalled the
+  // video over idle gaps in the original implementation. The timelapse
+  // shows what the canvas looked like at every state-mutating moment,
+  // back to back.
+  //
+  // Cap: if op count would push the clip past maxDuration at `fps`,
+  // batch K ops per frame so every op still gets applied to the canvas
+  // but the clip stays Instagram-friendly. Floor: pad with the held
+  // final frame so even a 3-op session hits the share-friendly min
+  // duration.
+  const maxFrames = Math.max(1, Math.floor((maxDuration / 1000) * fps));
+  const opsPerFrame = Math.max(1, Math.ceil(log.ops.length / maxFrames));
 
   const snapshots: Bitmap[] = [];
-  let applied = 0;
-  for (let s = 0; s < totalSamples; s++) {
-    const cutoff = ((s + 1) / totalSamples) * sourceMs;
-    while (applied < log.ops.length && log.ops[applied].t <= cutoff) {
-      applyOp(state, log.ops[applied]);
-      applied++;
+  for (let i = 0; i < log.ops.length; ) {
+    const end = Math.min(i + opsPerFrame, log.ops.length);
+    while (i < end) {
+      applyOp(state, log.ops[i]);
+      i++;
     }
     snapshots.push(snapshot(state));
   }
-  // Final state: drain any remaining ops so the last snapshot matches
-  // what the live editor would have shown.
-  while (applied < log.ops.length) {
-    applyOp(state, log.ops[applied]);
-    applied++;
+
+  const minFrames = Math.max(1, Math.ceil((minDuration / 1000) * fps));
+  while (snapshots.length < minFrames) {
+    snapshots.push(snapshot(state));
   }
-  // Replace the last snapshot with the truly-final state — for ops that
-  // landed in the same time bucket as totalSamples-1 but rounded past it.
-  snapshots[snapshots.length - 1] = snapshot(state);
 
   return {
     fps,
@@ -338,10 +345,6 @@ export function replay(log: OpLog, opts: ReplayOptions): Timelapse {
     palette: state.palette,
     size: state.size,
   };
-}
-
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, v));
 }
 
 // Runs the entire log through the state machine without sampling — used

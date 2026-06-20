@@ -105,7 +105,7 @@ describe("applyOp / finalState — determinism", () => {
 });
 
 describe("replay — timelapse sampling", () => {
-  test("a session shorter than the minimum stretches to ≥5s of frames", () => {
+  test("a session shorter than the minimum pads with the held final frame to ≥5s", () => {
     const r = new OpLogRecorder(0);
     r.beginStroke(0, 0, 0);
     r.recordPixel(0, 0, 1);
@@ -113,19 +113,74 @@ describe("replay — timelapse sampling", () => {
     r.recordFill(0, 5, 5, 2, 500);
     const t = replay(r.serialize(), { size: DEFAULT_SIZE, palette: DEFAULT_PALETTE });
     assert.ok(t.durationMs >= 5000);
-    assert.ok(t.durationMs <= 10000);
     // At 12fps × ≥5s = ≥60 snapshots.
     assert.ok(t.snapshots.length >= 60);
+    // Tail must be the held final state — last two snapshots identical.
+    const tail = t.snapshots[t.snapshots.length - 1];
+    const prev = t.snapshots[t.snapshots.length - 2];
+    assert.deepEqual(Array.from(tail.data), Array.from(prev.data));
   });
 
-  test("a session longer than the max compresses to ≤10s", () => {
+  test("every op produces at least one snapshot — no op is silently collapsed", () => {
     const r = new OpLogRecorder(0);
-    for (let i = 0; i < 60; i++) {
-      r.recordFill(0, i % DEFAULT_SIZE, (i * 3) % DEFAULT_SIZE, (i % 15) + 1, i * 1000);
+    const N = 8;
+    for (let i = 0; i < N; i++) {
+      r.beginStroke(0, 0, i);
+      r.recordPixel(i, i, (i % 15) + 1);
+      r.endStroke();
     }
     const t = replay(r.serialize(), { size: DEFAULT_SIZE, palette: DEFAULT_PALETTE });
-    assert.ok(t.durationMs <= 10000);
+    // With opsPerFrame=1 (well under the 30s cap), each op is one
+    // snapshot. Padding may add held-final frames beyond that.
+    assert.ok(
+      t.snapshots.length >= N,
+      `expected ≥${N} snapshots for ${N} ops, got ${t.snapshots.length}`,
+    );
+  });
+
+  test("idle wall-clock time between ops is ignored — pauses don't pad the video", () => {
+    const fast = new OpLogRecorder(0);
+    fast.beginStroke(0, 0, 0);
+    fast.recordPixel(0, 0, 1);
+    fast.endStroke();
+    fast.beginStroke(0, 0, 1);
+    fast.recordPixel(1, 1, 2);
+    fast.endStroke();
+    fast.beginStroke(0, 0, 2);
+    fast.recordPixel(2, 2, 3);
+    fast.endStroke();
+
+    const slow = new OpLogRecorder(0);
+    slow.beginStroke(0, 0, 0);
+    slow.recordPixel(0, 0, 1);
+    slow.endStroke();
+    slow.beginStroke(0, 0, 30_000);
+    slow.recordPixel(1, 1, 2);
+    slow.endStroke();
+    slow.beginStroke(0, 0, 60_000);
+    slow.recordPixel(2, 2, 3);
+    slow.endStroke();
+
+    const a = replay(fast.serialize(), { size: DEFAULT_SIZE, palette: DEFAULT_PALETTE });
+    const b = replay(slow.serialize(), { size: DEFAULT_SIZE, palette: DEFAULT_PALETTE });
+    assert.equal(
+      a.snapshots.length,
+      b.snapshots.length,
+      "snapshot count must depend on op count, not wall-clock spread",
+    );
+    assert.equal(a.durationMs, b.durationMs);
+  });
+
+  test("a session longer than the max compresses to ≤30s via batching", () => {
+    const r = new OpLogRecorder(0);
+    // 500 ops, well over 30s × 12fps = 360 frames — forces batching.
+    for (let i = 0; i < 500; i++) {
+      r.recordFill(0, i % DEFAULT_SIZE, (i * 3) % DEFAULT_SIZE, (i % 15) + 1, i);
+    }
+    const t = replay(r.serialize(), { size: DEFAULT_SIZE, palette: DEFAULT_PALETTE });
+    assert.ok(t.durationMs <= 30000);
     assert.ok(t.durationMs >= 5000);
+    assert.ok(t.snapshots.length <= 360);
   });
 
   test("the final snapshot equals what finalState produces — no dropped ops at the tail", () => {
