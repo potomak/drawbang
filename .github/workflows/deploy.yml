@@ -45,13 +45,24 @@ jobs:
           node-version: "22"
           cache: "npm"
       - run: npm ci
-      - name: Install arm64 ffmpeg binary for Lambda bundle
-        # The Lambda runs on arm64 but CI is x86_64, so npm ci skips the
-        # optionalDependency @ffmpeg-installer/linux-arm64. Force-install
-        # it here just for the build — --no-save keeps package-lock clean
-        # and --force bypasses the package's "cpu": "arm64" guard so the
-        # x86_64 host can still fetch the tarball.
-        run: npm install --no-save --force @ffmpeg-installer/linux-arm64
+      - name: Vendor arm64 ffmpeg binary into node_modules
+        # The Lambda runs on arm64 but CI is x86_64, so `npm ci` skips
+        # the optionalDependency @ffmpeg-installer/linux-arm64 as a
+        # platform mismatch. `npm install --force` then reports the
+        # package as "up to date" (the lockfile already resolved it as
+        # skipped), so the install never re-runs. Bypass npm entirely:
+        # pack the tarball directly and drop it where node_modules
+        # expects so build-lambda.mjs's require.resolve finds it.
+        run: |
+          set -e
+          PKG_VERSION=$(node -p "require('./package.json').optionalDependencies['@ffmpeg-installer/linux-arm64'].replace(/^\^/,'')")
+          mkdir -p node_modules/@ffmpeg-installer
+          rm -rf node_modules/@ffmpeg-installer/linux-arm64
+          cd "$RUNNER_TEMP"
+          npm pack "@ffmpeg-installer/linux-arm64@$PKG_VERSION" --quiet
+          tar -xzf ffmpeg-installer-linux-arm64-*.tgz
+          mv package "$GITHUB_WORKSPACE/node_modules/@ffmpeg-installer/linux-arm64"
+          chmod +x "$GITHUB_WORKSPACE/node_modules/@ffmpeg-installer/linux-arm64/ffmpeg"
       - name: Build Lambda bundle
         # DRAWBANG_ASSET_VERSION is inlined into the bundle by esbuild's
         # `define` (see infra/aws/build-lambda.mjs). assetUrl() then
