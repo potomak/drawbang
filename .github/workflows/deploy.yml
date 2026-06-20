@@ -45,6 +45,13 @@ jobs:
           node-version: "22"
           cache: "npm"
       - run: npm ci
+      - name: Install arm64 ffmpeg binary for Lambda bundle
+        # The Lambda runs on arm64 but CI is x86_64, so npm ci skips the
+        # optionalDependency @ffmpeg-installer/linux-arm64. Force-install
+        # it here just for the build — --no-save keeps package-lock clean
+        # and --force bypasses the package's "cpu": "arm64" guard so the
+        # x86_64 host can still fetch the tarball.
+        run: npm install --no-save --force @ffmpeg-installer/linux-arm64
       - name: Build Lambda bundle
         # DRAWBANG_ASSET_VERSION is inlined into the bundle by esbuild's
         # `define` (see infra/aws/build-lambda.mjs). assetUrl() then

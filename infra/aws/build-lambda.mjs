@@ -46,13 +46,22 @@ await build({
 });
 
 // Ship the arm64 linux ffmpeg binary alongside the handler so
-// ingest/share-mp4.ts (which resolves the binary relative to its own
-// __dirname) can spawn it at runtime. The @ffmpeg-installer/linux-arm64
-// package is a leaf tarball — its install isn't gated by the host
-// platform, so CI's x86_64 runner still ends up with the arm64 binary
-// Lambda needs.
+// ingest/share-mp4.ts (which spawns /var/task/ffmpeg on Lambda) finds
+// it at runtime. The dep is in optionalDependencies because npm refuses
+// to install it on x86_64 CI hosts during npm ci — instead the CI
+// deploy step force-installs it just before this build. Locally on
+// arm64 Linux (the Pi) it lands naturally via `npm install`.
 const require = createRequire(import.meta.url);
-const ffmpegBin = require.resolve("@ffmpeg-installer/linux-arm64/ffmpeg");
+let ffmpegBin;
+try {
+  ffmpegBin = require.resolve("@ffmpeg-installer/linux-arm64/ffmpeg");
+} catch {
+  throw new Error(
+    "lambda:build: @ffmpeg-installer/linux-arm64 isn't installed. " +
+      "Run `npm install --no-save --force @ffmpeg-installer/linux-arm64` " +
+      "to fetch the arm64 binary regardless of host platform.",
+  );
+}
 const ffmpegDst = path.join(outDir, "ffmpeg");
 await fs.copyFile(ffmpegBin, ffmpegDst);
 await fs.chmod(ffmpegDst, 0o755);
