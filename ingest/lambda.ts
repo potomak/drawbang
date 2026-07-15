@@ -422,7 +422,10 @@ export async function handler(
   if (method === "POST" && path.startsWith("/auth/")) {
     return handleAuthRoute(event, path, ctx);
   }
-  return text(405, "method not allowed");
+  // Unknown path → 404, matching dev-server.ts. (A per-path 405 for
+  // known-path-wrong-method isn't worth it: API Gateway registers
+  // explicit path+method events, so those requests rarely reach us.)
+  return text(404, "not found");
 }
 
 interface RouteContext {
@@ -522,10 +525,10 @@ async function handleAuthRoute(
       logOutcome({
         requestId: ctx.requestId,
         route,
-        status: 405,
+        status: 404,
         duration_ms: Date.now() - ctx.t0,
       });
-      return text(405, "method not allowed");
+      return text(404, "not found");
   }
   // Pull identity off the success body for register/login, and off the
   // verified JWT for profile-picture/profile. Failure bodies don't carry
