@@ -239,9 +239,9 @@ dev only.
 Inline `style="..."` attributes that should be CSS classes.
 
 **Files**
-- `src/main.ts:164` — the `<span style="margin-left:6px">` icon-label
-  spans on the Copy / Paste / Play / Pause editor buttons. Replace with
-  a `.btn-icon-label` rule in `src/style.css`.
+- ✅ **Done** (2026-07-15): the `<span style="margin-left:6px">`
+  icon-label spans in `src/main.ts` (Add layer / Copy / Paste /
+  Play / Pause) now use a `.btn-icon-label` rule in `src/style.css`.
 
 **Considered but kept as-is** (not flagged in code):
 - `lib/templates/design.ts` — the swatch/type/spacing rows use inline

@@ -49,6 +49,7 @@ body > main, .app > main { display: block; }
 .btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
 .btn[disabled] { opacity: 0.4; cursor: not-allowed; }
 .btn[disabled]:active { transform: none; }
+.btn-icon-label { margin-left: 6px; }
 
 /* ===== Panel ===== */
 .panel { border: var(--border) solid var(--border-c); background: var(--bg-elev); padding: 16px; }
