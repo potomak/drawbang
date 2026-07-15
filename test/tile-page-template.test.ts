@@ -44,6 +44,29 @@ test("tile page: friendly date is up front", () => {
   );
 });
 
+test("tile page: frame count appends to the Created line, pluralised", () => {
+  const html = renderTilePage({ ...baseView, frames: 4 });
+  assert.match(
+    html,
+    /<dd><time datetime="2026-05-08T04:24:56\.088Z">May 8, 2026 · 04:24 UTC<\/time> · 4 frames<\/dd>/,
+  );
+});
+
+test("tile page: single-frame drawings show '· 1 frame'", () => {
+  const html = renderTilePage({ ...baseView, frames: 1 });
+  assert.match(html, /<\/time> · 1 frame<\/dd>/);
+  assert.doesNotMatch(html, /1 frames/);
+});
+
+test("tile page: Created line unchanged when frames is absent (legacy rows)", () => {
+  const html = renderTilePage(baseView);
+  assert.match(
+    html,
+    /<dd><time datetime="2026-05-08T04:24:56\.088Z">May 8, 2026 · 04:24 UTC<\/time><\/dd>/,
+  );
+  assert.doesNotMatch(html, /undefined frame/);
+});
+
 test("tile page: short ID renders without trailing ellipsis", () => {
   const html = renderTilePage(baseView);
   assert.match(html, /<dt>ID<\/dt>\s*<dd><code class="mono-trunc">ffffffff<\/code><\/dd>/);
