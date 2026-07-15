@@ -161,6 +161,31 @@ describe("handleIngest", () => {
     assert.equal(h.storage.puts.length, writesAfterFirst, "idempotent re-publish should not write again");
   });
 
+  test("re-publish self-heals a missing DDB row without re-writing storage", async () => {
+    const h = makeHarness();
+    const gif = makeGif(10);
+    const id = await contentHashHex(gif);
+    // The original publish's row write is non-fatal — simulate it having
+    // failed by seeding storage with the gif but leaving the store empty.
+    await h.storage.put(`public/tiles/${id}.gif`, gif, "image/gif");
+    const putsBefore = h.storage.puts.length;
+
+    const res = await handleIngest(
+      { gif: Buffer.from(gif).toString("base64") },
+      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore },
+    );
+    assert.equal(res.status, 200);
+    const row = await h.drawingStore.get(id);
+    assert.ok(row, "self-heal should have written the missing row");
+    assert.equal(row!.username, AUTH.username);
+    assert.equal(row!.frames, 1);
+    assert.equal(
+      h.storage.puts.length,
+      putsBefore,
+      "self-heal must not regenerate the gif or sidecars",
+    );
+  });
+
   test("writes a DrawingRow with user_id + username + size + parent_id from the request", async () => {
     const h = makeHarness();
     const gif = makeGif(2);

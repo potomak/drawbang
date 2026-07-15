@@ -99,29 +99,6 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   const id = await contentHashHex(gif);
   const author = cfg.auth;
 
-  // -- 3. Idempotency check --------------------------------------------------
-  // Tiles are content-addressed (id = sha256(gif_bytes)), so the same drawing
-  // always produces the same id. Re-publishes short-circuit on existing.
-  const publishedKey = `public/tiles/${id}.gif`;
-  const alreadyHere = await cfg.storage.exists(publishedKey);
-  if (alreadyHere) {
-    return {
-      status: 200,
-      body: { id, share_url: shareUrlFor(id) },
-    };
-  }
-
-  // -- 4. Persist the gif -----------------------------------------------------
-  // Stored as public/tiles/<id>.gif. Templates link to /tiles/<id>.gif
-  // directly; the legacy /drawings/<id>.gif path still resolves via the
-  // CloudFront rewrite for any stragglers in third-party caches.
-  await cfg.storage.put(
-    publishedKey,
-    gif,
-    "image/gif",
-    "public, max-age=31536000, immutable",
-  );
-
   // Daily-prompt tag: stored ONLY when the submitted slug is well-formed
   // AND equals today's ET prompt. Anything else (stale slug, garbage, a
   // future theme) is silently dropped — a bad prompt must never fail or
@@ -133,12 +110,14 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
       ? req.prompt
       : undefined;
 
-  // Dual-write to the dynamic DDB store so the new /gallery, /d/<id>,
-  // /u/<username>, /feed.rss routes can serve the drawing without
-  // waiting for the builder. Wrapped in try/catch — the gif is already
-  // persisted to S3, and a DDB write failure shouldn't surface as a
-  // publish error; the builder picks the row up next time it sweeps.
-  if (cfg.drawingStore) {
+  // Dual-write to the dynamic DDB store so /, /d/<id>, /u/<username>,
+  // /feed.rss can serve the drawing immediately. Wrapped in try/catch —
+  // the gif is already persisted to S3 (or was on a previous publish),
+  // and a DDB write failure shouldn't surface as a publish error; a
+  // re-publish of the same bytes self-heals the row (see the idempotency
+  // branch below).
+  const writeDrawingRow = async (): Promise<void> => {
+    if (!cfg.drawingStore) return;
     try {
       const layersJson =
         typeof req.layers_json === "string" && req.layers_json.length <= MAX_LAYERS_JSON_BYTES
@@ -164,7 +143,45 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     } catch (e) {
       console.error("[ingest] failed to write drawing row to DDB", e);
     }
+  };
+
+  // -- 3. Idempotency check --------------------------------------------------
+  // Tiles are content-addressed (id = sha256(gif_bytes)), so the same drawing
+  // always produces the same id. Re-publishes short-circuit on existing —
+  // but first self-heal a missing DDB row: the original publish's row write
+  // is non-fatal, so a gif can exist in S3 with no row and stay invisible
+  // on the site forever (nothing sweeps). Sidecars and stats are NOT
+  // regenerated here — the -large.gif/-large.mp4 gaps have dedicated
+  // backfill scripts, and re-running stats would double-count.
+  const publishedKey = `public/tiles/${id}.gif`;
+  const alreadyHere = await cfg.storage.exists(publishedKey);
+  if (alreadyHere) {
+    if (cfg.drawingStore) {
+      try {
+        const existing = await cfg.drawingStore.get(id);
+        if (!existing) await writeDrawingRow();
+      } catch (e) {
+        console.error(`[ingest] self-heal row check failed for ${id}:`, e);
+      }
+    }
+    return {
+      status: 200,
+      body: { id, share_url: shareUrlFor(id) },
+    };
   }
+
+  // -- 4. Persist the gif -----------------------------------------------------
+  // Stored as public/tiles/<id>.gif. Templates link to /tiles/<id>.gif
+  // directly; the legacy /drawings/<id>.gif path still resolves via the
+  // CloudFront rewrite for any stragglers in third-party caches.
+  await cfg.storage.put(
+    publishedKey,
+    gif,
+    "image/gif",
+    "public, max-age=31536000, immutable",
+  );
+
+  await writeDrawingRow();
 
   // 960×960 annotated share image written next to the original at
   // public/tiles/<id>-large.gif. Used as og:image on the tile page.
