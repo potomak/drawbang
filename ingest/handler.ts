@@ -3,7 +3,7 @@ import { PROMPT_SLUG_RE, promptForDate } from "../config/prompts.js";
 import { decodeGif } from "../src/editor/gif.js";
 import { encodeShareGif } from "../src/editor/share-gif.js";
 import { encodeShareMp4 } from "./share-mp4.js";
-import { validateGif } from "./gif-validate.js";
+import { validateGif, type GifValidation } from "./gif-validate.js";
 import type { Storage } from "./storage.js";
 import type { UserStatsStore } from "./user-stats-store.js";
 import type { DrawingStore } from "./drawing-store.js";
@@ -85,8 +85,9 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   } catch (err) {
     return err400(`bad base64: ${errMsg(err)}`);
   }
+  let validation: GifValidation;
   try {
-    validateGif(gif);
+    validation = validateGif(gif);
   } catch (err) {
     return err400(`invalid gif: ${errMsg(err)}`);
   }
@@ -137,14 +138,16 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   // publish error; the builder picks the row up next time it sweeps.
   if (cfg.drawingStore) {
     try {
-      const decoded = decodeGif(gif);
       const layersJson =
         typeof req.layers_json === "string" && req.layers_json.length <= MAX_LAYERS_JSON_BYTES
           ? req.layers_json
           : undefined;
       await cfg.drawingStore.put({
         drawing_id: id,
-        size: decoded.size,
+        // size + frames come from the validateGif scan — no LZW decode
+        // needed for the metadata row, and the row can't diverge from
+        // what validation checked.
+        size: validation.size,
         created_at: nowISO,
         created_at_ms: now.getTime(),
         user_id: author.user_id,
@@ -152,7 +155,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
         parent_id: req.parent ?? null,
         // Optional-absent (never null) so GSI4 stays sparse.
         ...(promptId !== undefined ? { prompt_id: promptId } : {}),
-        frames: decoded.frames.length,
+        frames: validation.frameCount,
         gif_size_bytes: gif.length,
         ...(layersJson !== undefined ? { layers_json: layersJson } : {}),
       });
