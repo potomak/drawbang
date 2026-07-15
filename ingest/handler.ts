@@ -1,3 +1,4 @@
+import { MAX_LAYERS_JSON_BYTES } from "../config/constants.js";
 import { contentHashHex } from "../src/content-hash.js";
 import { PROMPT_SLUG_RE, promptForDate } from "../config/prompts.js";
 import { decodeGif } from "../src/editor/gif.js";
@@ -32,11 +33,12 @@ export interface IngestRequest {
   layers_json?: string;
 }
 
-// Hard ceiling for the layers sidecar. Matches the client soft cap so a
-// payload that squeezed past the client check (older client, attacker)
-// still gets rejected here. The GIF publishes regardless — only the
-// metadata is gated.
-export const MAX_LAYERS_JSON_BYTES = 64 * 1024;
+// MAX_LAYERS_JSON_BYTES (config/constants.ts) is the hard ceiling for the
+// layers sidecar. Re-checked server-side because a payload can squeeze
+// past the client soft cap (older client, attacker) — it still gets
+// rejected here. The GIF publishes regardless — only the metadata is
+// gated.
+export { MAX_LAYERS_JSON_BYTES };
 
 export interface IngestSuccess {
   status: 200 | 202;

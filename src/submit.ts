@@ -1,4 +1,7 @@
+import { MAX_LAYERS_JSON_BYTES } from "../config/constants.js";
 import { authHeader, getSession } from "./auth.js";
+
+export { MAX_LAYERS_JSON_BYTES };
 
 export interface IngestResponse {
   id: string;
@@ -34,10 +37,10 @@ export interface SubmitOptions {
   signal?: AbortSignal;
 }
 
-// Soft cap for the layers sidecar. Keeps the publish JSON well under
-// the API Gateway limit even at the worst-case canvas size. Anything
-// larger drops the layer field client-side (the GIF still publishes).
-export const MAX_LAYERS_JSON_BYTES = 64 * 1024;
+// MAX_LAYERS_JSON_BYTES (config/constants.ts) is the soft cap for the
+// layers sidecar. Keeps the publish JSON well under the API Gateway limit
+// even at the worst-case canvas size. Anything larger drops the layer
+// field client-side (the GIF still publishes).
 
 export class MissingSessionError extends Error {
   constructor() {
