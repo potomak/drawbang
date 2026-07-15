@@ -3,7 +3,15 @@ import type {
   APIGatewayProxyResultV2,
   Context,
 } from "aws-lambda";
-import { handleIngest, type AuthedUser, type IngestRequest } from "./handler.js";
+import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
+import {
+  encodeShareMp4FromStorage,
+  handleIngest,
+  isEncodeShareMp4Event,
+  type AuthedUser,
+  type EncodeShareMp4Event,
+  type IngestRequest,
+} from "./handler.js";
 import { JwtError, verifyJwt } from "./jwt.js";
 import {
   authErrorCode,
@@ -166,6 +174,24 @@ const hydrateConfig: HydrateHandlerConfig = {
 const cacheInvalidator = cfDistributionId
   ? new CloudFrontInvalidator({ distributionId: cfDistributionId })
   : undefined;
+// Async self-invoke for the deferred -large.mp4 encode. Named explicitly
+// (not !GetAtt) to avoid a circular SAM dependency — same pattern as the
+// merch function's MERCH_FUNCTION_NAME. The Event-type invoke resolves as
+// soon as Lambda queues the payload (a few ms), so awaiting it doesn't
+// hold the publish response.
+const ingestFunctionName =
+  process.env.INGEST_FUNCTION_NAME ?? "drawbang-ingest";
+const lambdaClient = new LambdaClient({});
+const deferShareMp4 = async (drawing_id: string): Promise<void> => {
+  const payload: EncodeShareMp4Event = { kind: "encode-share-mp4", drawing_id };
+  await lambdaClient.send(
+    new InvokeCommand({
+      FunctionName: ingestFunctionName,
+      InvocationType: "Event",
+      Payload: Buffer.from(JSON.stringify(payload)),
+    }),
+  );
+};
 const productCountersStore = new ProductCountersStore({ tableName: productCountersTable });
 const merchCatalog = merchCatalogJson as MerchCatalog;
 // Lazily created — both clients are only used by /admin, so cold-start
@@ -205,9 +231,15 @@ const authConfig: AuthHandlerConfig = {
 };
 
 export async function handler(
-  event: APIGatewayProxyEventV2,
+  event: APIGatewayProxyEventV2 | EncodeShareMp4Event,
   _context: Context,
-): Promise<APIGatewayProxyResultV2> {
+): Promise<APIGatewayProxyResultV2 | void> {
+  // Async self-invoke events carry no requestContext.http, so they must
+  // be detected before any HTTP routing touches the event shape.
+  if (isEncodeShareMp4Event(event)) {
+    await encodeShareMp4FromStorage(storage, event.drawing_id);
+    return;
+  }
   // Normalise HEAD → GET so uptime monitors, link checkers, and the
   // CDN-cache validators that issue HEAD requests don't 404. RFC says a
   // HEAD response MAY include a body but the client MUST ignore it, so
@@ -599,6 +631,7 @@ async function handleIngestRoute(
     userStatsStore,
     drawingStore,
     cacheInvalidator,
+    deferShareMp4,
   });
   const success = result.status === 200 || result.status === 202;
   const errorMessage =

@@ -1,6 +1,11 @@
 import { strict as assert } from "node:assert";
 import { describe, test } from "node:test";
-import { handleIngest, type AuthedUser } from "../ingest/handler.js";
+import {
+  encodeShareMp4FromStorage,
+  handleIngest,
+  isEncodeShareMp4Event,
+  type AuthedUser,
+} from "../ingest/handler.js";
 import type { Storage } from "../ingest/storage.js";
 import { MemoryDrawingStore } from "../ingest/drawing-store.js";
 import { NoopInvalidator } from "../ingest/cache-invalidation.js";
@@ -292,6 +297,83 @@ describe("handleIngest", () => {
     const id = (res.body as { id: string }).id;
     const row = await h.drawingStore.get(id);
     assert.equal(row!.layers_json, undefined);
+  });
+});
+
+describe("deferred -large.mp4 encode (#223)", () => {
+  test("event guard accepts the self-invoke shape and rejects HTTP events", () => {
+    const id = "a".repeat(64);
+    assert.ok(isEncodeShareMp4Event({ kind: "encode-share-mp4", drawing_id: id }));
+    assert.ok(!isEncodeShareMp4Event({ kind: "encode-share-mp4", drawing_id: "nope" }));
+    assert.ok(!isEncodeShareMp4Event({ kind: "encode-share-mp4" }));
+    assert.ok(!isEncodeShareMp4Event({ requestContext: { http: { method: "GET" } } }));
+    assert.ok(!isEncodeShareMp4Event(null));
+    assert.ok(!isEncodeShareMp4Event("encode-share-mp4"));
+  });
+
+  test("publish with deferShareMp4 set queues the encode instead of writing the mp4 inline", async () => {
+    const h = makeHarness();
+    const deferred: string[] = [];
+    const gif = makeGif(11);
+    const res = await handleIngest(
+      { gif: Buffer.from(gif).toString("base64") },
+      {
+        storage: h.storage,
+        publicBaseUrl: PUBLIC_BASE,
+        auth: AUTH,
+        drawingStore: h.drawingStore,
+        deferShareMp4: async (id) => { deferred.push(id); },
+      },
+    );
+    assert.equal(res.status, 202);
+    const id = (res.body as { id: string }).id;
+    assert.deepEqual(deferred, [id]);
+    const keys = h.storage.puts.map((p) => p.key);
+    assert.ok(keys.includes(`public/tiles/${id}-large.gif`), "-large.gif still written inline");
+    assert.ok(!keys.includes(`public/tiles/${id}-large.mp4`), "mp4 must not be written on the sync path");
+  });
+
+  test("a failing deferShareMp4 never fails the publish", async () => {
+    const h = makeHarness();
+    const gif = makeGif(12);
+    const res = await handleIngest(
+      { gif: Buffer.from(gif).toString("base64") },
+      {
+        storage: h.storage,
+        publicBaseUrl: PUBLIC_BASE,
+        auth: AUTH,
+        drawingStore: h.drawingStore,
+        deferShareMp4: async () => { throw new Error("lambda invoke down"); },
+      },
+    );
+    assert.equal(res.status, 202);
+  });
+
+  test("encodeShareMp4FromStorage transcodes the stored -large.gif into the mp4 sidecar", async () => {
+    const storage = new MemoryStorage();
+    const id = "b".repeat(64);
+    const largeBytes = new Uint8Array([1, 2, 3]);
+    await storage.put(`public/tiles/${id}-large.gif`, largeBytes, "image/gif");
+    const seen: Uint8Array[] = [];
+    await encodeShareMp4FromStorage(storage, id, async (gifBytes) => {
+      seen.push(gifBytes);
+      return new Uint8Array([9, 9]);
+    });
+    assert.equal(seen.length, 1);
+    assert.deepEqual(seen[0], largeBytes);
+    const mp4 = await storage.getBytes(`public/tiles/${id}-large.mp4`);
+    assert.deepEqual(mp4, new Uint8Array([9, 9]));
+  });
+
+  test("encodeShareMp4FromStorage logs (never throws) when the -large.gif is missing", async () => {
+    const storage = new MemoryStorage();
+    const encodeCalls: number[] = [];
+    await encodeShareMp4FromStorage(storage, "c".repeat(64), async () => {
+      encodeCalls.push(1);
+      return new Uint8Array();
+    });
+    assert.equal(encodeCalls.length, 0, "encoder must not run without input bytes");
+    assert.equal(storage.puts.length, 0);
   });
 });
 

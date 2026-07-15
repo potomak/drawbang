@@ -771,9 +771,11 @@ Resources:
       Handler: lambda.handler
       CodeUri: ../../dist-lambda
       # Overrides Globals (256 MB / 10 s) so ffmpeg has CPU + headroom
-      # to transcode the -large.gif sidecar into -large.mp4 at publish
-      # time. Lambda CPU scales with memory; 1024 MB gives ffmpeg ~0.5
-      # vCPU, enough to finish a 6 s 1080×1080 H.264 encode in ~1 s.
+      # to transcode the -large.gif sidecar into -large.mp4. The encode
+      # runs on an async self-invoke of this same function (not the sync
+      # publish path), so the memory floor still applies here. Lambda CPU
+      # scales with memory; 1024 MB gives ffmpeg ~0.5 vCPU, enough to
+      # finish a 6 s 1080×1080 H.264 encode in ~1 s.
       MemorySize: 1024
       Timeout: 30
       Environment:
@@ -796,10 +798,21 @@ Resources:
           JWT_SECRET: !Ref JwtSecret
           SES_FROM_ADDRESS: !Ref SesFromAddress
           ADMIN_USERNAMES: !Ref AdminUsernames
+          # Used by the publish path to defer the -large.mp4 ffmpeg encode
+          # to an async self-invoke. Naming the function explicitly avoids
+          # a circular SAM dependency vs. !GetAtt IngestFunction.Arn.
+          INGEST_FUNCTION_NAME: drawbang-ingest
           NODE_OPTIONS: "--enable-source-maps"
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
+        # Allow the function to invoke itself (deferred -large.mp4 encode).
+        # The arn:* form scopes to this function only — referencing
+        # !GetAtt IngestFunction.Arn here would be self-referential.
+        - Statement:
+            - Effect: Allow
+              Action: lambda:InvokeFunction
+              Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:drawbang-ingest"
         - DynamoDBCrudPolicy: { TableName: !Ref UserStatsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref UsernamesTable }

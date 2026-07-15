@@ -1,4 +1,4 @@
-import { MAX_LAYERS_JSON_BYTES } from "../config/constants.js";
+import { DRAWING_ID_RE, MAX_LAYERS_JSON_BYTES } from "../config/constants.js";
 import { contentHashHex } from "../src/content-hash.js";
 import { PROMPT_SLUG_RE, promptForDate } from "../config/prompts.js";
 import { decodeGif } from "../src/editor/gif.js";
@@ -73,6 +73,52 @@ export interface HandlerConfig {
   // still works, but the gallery + profile take up to s-maxage seconds
   // to show the new drawing.
   cacheInvalidator?: CacheInvalidator;
+  // Defers the -large.mp4 ffmpeg encode off the synchronous publish path.
+  // The Lambda wires this to an async self-invoke (see EncodeShareMp4Event
+  // in lambda.ts); when absent (dev server, tests) the encode runs inline.
+  deferShareMp4?: (drawing_id: string) => Promise<void>;
+}
+
+// Async self-invoke event for the deferred -large.mp4 encode (#223). The
+// Lambda detects this shape before HTTP routing (async-invoke events carry
+// no requestContext.http) and runs encodeShareMp4FromStorage.
+export interface EncodeShareMp4Event {
+  kind: "encode-share-mp4";
+  drawing_id: string;
+}
+
+export function isEncodeShareMp4Event(event: unknown): event is EncodeShareMp4Event {
+  const e = event as EncodeShareMp4Event | null | undefined;
+  return (
+    e?.kind === "encode-share-mp4" &&
+    typeof e.drawing_id === "string" &&
+    DRAWING_ID_RE.test(e.drawing_id)
+  );
+}
+
+// Worker for the deferred encode: reads the already-written -large.gif,
+// transcodes, writes the -large.mp4 sidecar. Failures are logged, never
+// thrown — the async invocation has no caller to surface them to, and
+// scripts/backfill-share-mp4.ts repairs any gaps. The encoder is
+// injectable so tests don't spawn ffmpeg.
+export async function encodeShareMp4FromStorage(
+  storage: Storage,
+  drawing_id: string,
+  encode: (gif: Uint8Array) => Promise<Uint8Array> = encodeShareMp4,
+): Promise<void> {
+  try {
+    const large = await storage.getBytes(`public/tiles/${drawing_id}-large.gif`);
+    if (!large) throw new Error("-large.gif not found in storage");
+    const mp4 = await encode(large);
+    await storage.put(
+      `public/tiles/${drawing_id}-large.mp4`,
+      mp4,
+      "video/mp4",
+      "public, max-age=31536000, immutable",
+    );
+  } catch (e) {
+    console.error(`[ingest] deferred -large.mp4 write failed for ${drawing_id}:`, e);
+  }
 }
 
 export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Promise<IngestHandlerResult> {
@@ -211,16 +257,27 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
       console.error(`[ingest] -large.gif write failed for ${id}:`, e);
     }
     if (large) {
-      try {
-        const mp4 = await encodeShareMp4(large);
-        await cfg.storage.put(
-          `public/tiles/${id}-large.mp4`,
-          mp4,
-          "video/mp4",
-          "public, max-age=31536000, immutable",
-        );
-      } catch (e) {
-        console.error(`[ingest] -large.mp4 write failed for ${id}:`, e);
+      if (cfg.deferShareMp4) {
+        // Nothing in the publish response depends on the mp4 — hand the
+        // ~1s ffmpeg transcode to an async self-invoke and return. The
+        // Event-type invoke resolves as soon as Lambda queues the payload.
+        try {
+          await cfg.deferShareMp4(id);
+        } catch (e) {
+          console.error(`[ingest] deferring -large.mp4 encode failed for ${id}:`, e);
+        }
+      } else {
+        try {
+          const mp4 = await encodeShareMp4(large);
+          await cfg.storage.put(
+            `public/tiles/${id}-large.mp4`,
+            mp4,
+            "video/mp4",
+            "public, max-age=31536000, immutable",
+          );
+        } catch (e) {
+          console.error(`[ingest] -large.mp4 write failed for ${id}:`, e);
+        }
       }
     }
   };

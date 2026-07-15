@@ -174,6 +174,9 @@ const server = http.createServer(async (req, res) => {
         json(res, 400, { error: "bad json" });
         return;
       }
+      // deferShareMp4 deliberately unset: there's no Lambda to self-invoke
+      // locally, so the -large.mp4 encode runs inline (handleIngest falls
+      // back to the synchronous path when the hook is absent).
       const result = await handleIngest(parsed, {
         storage,
         publicBaseUrl: PUBLIC_BASE,
