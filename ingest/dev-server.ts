@@ -158,9 +158,8 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       const body = await readBody(req);
-      // TODO (#type-safety): `let parsed: any` followed by an unchecked
-      // hand-off to handleIngest. Validate the body matches IngestRequest
-      // before passing it through (same gap exists in lambda.ts).
+      // The unchecked hand-off is safe: handleIngest shape-checks every
+      // field (shapeError in handler-utils.ts) before use, same as prod.
       let parsed: any;
       try {
         parsed = JSON.parse(body);

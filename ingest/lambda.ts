@@ -604,10 +604,10 @@ async function handleIngestRoute(
   }
   let body: IngestRequest;
   try {
-    // TODO (#type-safety): `parseJson(event) as IngestRequest` trusts the
-    // shape of any well-formed JSON. Validate the keys (gif_b64, palette,
-    // etc.) before passing to handleIngest. Same gap on the register /
-    // login / set-profile-picture routes.
+    // The cast is compile-time only; handleIngest shape-checks every field
+    // (shapeError in handler-utils.ts) before use and 400s naming the bad
+    // field. The auth handlers do the same with their normalize*/typeof
+    // guards, so parsed-JSON casts on those routes are equally covered.
     body = parseJson(event) as IngestRequest;
   } catch {
     logOutcome({

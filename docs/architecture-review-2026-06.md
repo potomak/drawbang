@@ -53,25 +53,24 @@ covers both (see `#test-gaps`).
 
 *(Carried over from the 2026-06-07 pass.)*
 
-`JSON.parse(...) as T` casts at request/JWT boundaries trust shape
-blindly. A malformed body with the right keys still flows through to
-handlers.
+✅ **Done** (2026-07-15). Validators landed in the shared handlers, so
+both servers get them for free:
 
-**Files**
-- `ingest/dev-server.ts:150` — `let parsed: any` + `JSON.parse(body)` →
-  handler. Validate the parsed object shape before dispatch.
-- `ingest/lambda.ts:526` — `parseJson(event) as IngestRequest` (and the
-  register/login/profile-picture analogues). Each route should validate
-  its expected keys' types.
-- `ingest/jwt.ts:55` — `JSON.parse(payload) as T` trusts the claims
-  shape. `exp` is checked, but `sub` / `un` / `purpose` / `tv` are read
-  elsewhere without `typeof` guards.
+- `handleIngest` shape-checks every body field via `shapeError()` in
+  `ingest/handler-utils.ts` (plain `typeof`, no new dependency) and
+  400s naming the offending field; the `as IngestRequest` casts in
+  `lambda.ts` / `dev-server.ts` are now compile-time only.
+- The auth handlers already typeof-guarded every field they read
+  (`normalizeEmail` / `normalizeUsername` / password / token checks) —
+  now pinned by wrong-typed-field tests in `test/auth.test.ts`.
+- `ingest/jwt.ts` rejects correctly-signed payloads that aren't plain
+  claims objects (a signed `null` previously threw a raw TypeError);
+  consumer-specific claims stay guarded at each verify site
+  (`extractAuth`, the reset flow).
 
-**Suggested fix.** Lightweight per-route validators (`typeof` checks,
-no new dependency) or one shared `assertShape(input, schema)` helper.
-Keep validators colocated with their request types. Pairs naturally
-with `#dev-server-drift`: validators attached to the shared route
-definitions run identically in both servers.
+The `TODO (#type-safety)` markers are gone. If `#dev-server-drift`
+lands a shared route table later, these handler-level validators ride
+along unchanged.
 
 ---
 

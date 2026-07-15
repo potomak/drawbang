@@ -300,6 +300,36 @@ describe("handleIngest", () => {
   });
 });
 
+describe("handleIngest body shape validation (#type-safety)", () => {
+  // The routes cast parsed JSON straight to IngestRequest, so wrong-typed
+  // fields arrive here at runtime despite the compile-time type. Each case
+  // must 400 naming the field, before anything reaches storage or DDB.
+  const wrongTyped: Array<{ body: unknown; field: string }> = [
+    { body: { gif: 123 }, field: "gif" },
+    { body: {}, field: "gif" },
+    { body: { gif: "aGk=", parent: 123 }, field: "parent" },
+    { body: { gif: "aGk=", prompt: 5 }, field: "prompt" },
+    { body: { gif: "aGk=", layers_json: {} }, field: "layers_json" },
+    { body: [1, 2, 3], field: "body" },
+    { body: null, field: "body" },
+  ];
+
+  for (const c of wrongTyped) {
+    test(`rejects ${JSON.stringify(c.body)} with 400 naming "${c.field}"`, async () => {
+      const h = makeHarness();
+      const res = await handleIngest(c.body as never, {
+        storage: h.storage,
+        publicBaseUrl: PUBLIC_BASE,
+        auth: AUTH,
+        drawingStore: h.drawingStore,
+      });
+      assert.equal(res.status, 400);
+      assert.equal((res.body as { error: string }).error, `invalid field: ${c.field}`);
+      assert.equal(h.storage.puts.length, 0, "nothing may reach storage");
+    });
+  }
+});
+
 describe("deferred -large.mp4 encode (#223)", () => {
   test("event guard accepts the self-invoke shape and rejects HTTP events", () => {
     const id = "a".repeat(64);

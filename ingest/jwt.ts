@@ -52,15 +52,18 @@ export function verifyJwt<T extends JwtClaims = JwtClaims>(
   }
   let claims: T;
   try {
-    // TODO (#type-safety): JSON.parse(...) as T trusts the payload shape.
-    // exp is checked below, but other consumer-specific claims (sub, un,
-    // purpose, tv) are read elsewhere without typeof guards. Add a
-    // runtime validator (typeof claims.sub === "string" etc.) at each
-    // verify site, or centralize per-purpose validators here.
     claims = JSON.parse(
       Buffer.from(payload, "base64url").toString("utf8"),
     ) as T;
   } catch {
+    throw new JwtError("bad payload");
+  }
+  // The payload must be a plain claims object — a signed `null`/array/
+  // primitive would otherwise flow out as T (or throw a raw TypeError on
+  // the exp read below). Consumer-specific claims (sub, un, purpose, tv)
+  // are typeof-guarded at each verify site: extractAuth in lambda.ts /
+  // dev-server.ts for sessions, the reset flow in auth-handler.ts.
+  if (typeof claims !== "object" || claims === null || Array.isArray(claims)) {
     throw new JwtError("bad payload");
   }
   if (typeof claims.exp !== "number" || claims.exp < now) {

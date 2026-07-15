@@ -4,6 +4,7 @@ import { PROMPT_SLUG_RE, promptForDate } from "../config/prompts.js";
 import { decodeGif } from "../src/editor/gif.js";
 import { encodeShareGif } from "../src/editor/share-gif.js";
 import { encodeShareMp4 } from "./share-mp4.js";
+import { shapeError } from "./handler-utils.js";
 import { validateGif, type GifValidation } from "./gif-validate.js";
 import type { Storage } from "./storage.js";
 import type { UserStatsStore } from "./user-stats-store.js";
@@ -125,6 +126,19 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   const now = cfg.now ? cfg.now() : new Date();
   const nowISO = now.toISOString();
   const shareUrlFor = (id: string): string => `${cfg.publicBaseUrl}/d/${id}`;
+
+  // -- 0. Shape check ---------------------------------------------------------
+  // The routes hand over parsed JSON with a compile-time-only cast, so
+  // nothing upstream guarantees the field types. Reject wrong-typed fields
+  // here, before any of them can reach storage (e.g. a numeric `parent`
+  // would otherwise land on the DDB row as-is).
+  const badField = shapeError(req, {
+    gif: "required",
+    parent: "optional",
+    prompt: "optional",
+    layers_json: "optional",
+  });
+  if (badField !== null) return err400(`invalid field: ${badField}`);
 
   // -- 1. Parse gif from base64 and validate structure -----------------------
   let gif: Uint8Array;
