@@ -226,11 +226,13 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   // The dynamic /d/<id> page is served by render-handlers.ts off the
   // drawing-store row above — no need to sync-render anything here.
 
-  // Fire-and-forget CloudFront invalidation. Failures are logged inside
-  // the invalidator; the publish has already committed so we return 202
-  // regardless of whether the cache flush succeeded.
+  // CloudFront invalidation, awaited because Lambda freezes the execution
+  // environment as soon as the handler returns — a fire-and-forget request
+  // may never be sent. Failures are logged inside the invalidator; the
+  // publish has already committed so we return 202 regardless of whether
+  // the cache flush succeeded.
   if (cfg.cacheInvalidator) {
-    void cfg.cacheInvalidator.invalidate(
+    await cfg.cacheInvalidator.invalidate(
       pathsToInvalidateOnPublish(author.username, { promptTagged: promptId !== undefined }),
     );
   }
