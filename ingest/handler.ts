@@ -181,59 +181,55 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     "public, max-age=31536000, immutable",
   );
 
-  await writeDrawingRow();
-
-  // 960×960 annotated share image written next to the original at
-  // public/tiles/<id>-large.gif. Used as og:image on the tile page.
-  // Wrapped in try/catch — the original gif is already committed and a
-  // share-image failure must not surface as a publish error. Log with
-  // the tile id so operators can backfill missing -large.gifs via
-  // scripts/backfill-large-gifs.ts.
-  let large: Uint8Array | null = null;
-  try {
-    const decoded = decodeGif(gif);
-    if (!decoded.activePalette) {
-      throw new Error("decoded gif has no active palette");
-    }
-    large = encodeShareGif({
-      frames: decoded.frames,
-      activePalette: decoded.activePalette,
-      delayMs: decoded.delayMs,
-    });
-    await cfg.storage.put(
-      `public/tiles/${id}-large.gif`,
-      large,
-      "image/gif",
-      "public, max-age=31536000, immutable",
-    );
-  } catch (e) {
-    console.error(`[ingest] -large.gif write failed for ${id}:`, e);
-  }
-
-  // Instagram-shareable MP4 sidecar at public/tiles/<id>-large.mp4.
-  // Same try/catch posture as -large.gif: failures are logged so an
-  // ffmpeg crash never surfaces as a publish error. Reuses the just-
-  // rendered -large.gif bytes as ffmpeg's input — all the chrome
-  // (plinth bg, swatch, wordmark) is already painted there. See
-  // scripts/backfill-share-mp4.ts for the legacy-drawing backfill path.
-  if (large) {
+  // Sidecar chain: the 960×960 annotated share image at
+  // public/tiles/<id>-large.gif (og:image on the tile page), then the
+  // Instagram-shareable MP4 at public/tiles/<id>-large.mp4 — sequential
+  // within this branch because ffmpeg consumes the just-rendered gif
+  // bytes. Each step wrapped in try/catch — the original gif is already
+  // committed and a sidecar failure must not surface as a publish error.
+  // Log with the tile id so operators can backfill via
+  // scripts/backfill-large-gifs.ts / scripts/backfill-share-mp4.ts.
+  const writeSidecars = async (): Promise<void> => {
+    let large: Uint8Array | null = null;
     try {
-      const mp4 = await encodeShareMp4(large);
+      const decoded = decodeGif(gif);
+      if (!decoded.activePalette) {
+        throw new Error("decoded gif has no active palette");
+      }
+      large = encodeShareGif({
+        frames: decoded.frames,
+        activePalette: decoded.activePalette,
+        delayMs: decoded.delayMs,
+      });
       await cfg.storage.put(
-        `public/tiles/${id}-large.mp4`,
-        mp4,
-        "video/mp4",
+        `public/tiles/${id}-large.gif`,
+        large,
+        "image/gif",
         "public, max-age=31536000, immutable",
       );
     } catch (e) {
-      console.error(`[ingest] -large.mp4 write failed for ${id}:`, e);
+      console.error(`[ingest] -large.gif write failed for ${id}:`, e);
     }
-  }
+    if (large) {
+      try {
+        const mp4 = await encodeShareMp4(large);
+        await cfg.storage.put(
+          `public/tiles/${id}-large.mp4`,
+          mp4,
+          "video/mp4",
+          "public, max-age=31536000, immutable",
+        );
+      } catch (e) {
+        console.error(`[ingest] -large.mp4 write failed for ${id}:`, e);
+      }
+    }
+  };
 
   // Streak / total counters (#115). Wrapped in try/catch because the gif
   // has already been persisted and a stats failure must not surface as a
   // publish failure.
-  if (cfg.userStatsStore) {
+  const recordStats = async (): Promise<void> => {
+    if (!cfg.userStatsStore) return;
     try {
       await cfg.userStatsStore.recordDailyDrawing({
         user_id: author.user_id,
@@ -243,10 +239,16 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     } catch (e) {
       console.error("[ingest] failed to record daily drawing stats", e);
     }
-  }
+  };
 
-  // The dynamic /d/<id> page is served by render-handlers.ts off the
-  // drawing-store row above — no need to sync-render anything here.
+  // The three post-commit branches are mutually independent — nothing
+  // reads another's output — so they run concurrently and the response
+  // latency is their max, not their sum. Each branch swallows its own
+  // errors (Promise.all can't reject), and all are awaited before return
+  // because Lambda freezes pending work at handler exit. The dynamic
+  // /d/<id> page is served by render-handlers.ts off the drawing-store
+  // row — no need to sync-render anything here.
+  await Promise.all([writeDrawingRow(), writeSidecars(), recordStats()]);
 
   // CloudFront invalidation, awaited because Lambda freezes the execution
   // environment as soon as the handler returns — a fire-and-forget request
