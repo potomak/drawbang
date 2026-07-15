@@ -320,11 +320,14 @@ export async function handleSetProfilePicture(
     throw e;
   }
 
-  // Fire-and-forget: refresh the profile so the new profile picture
-  // appears immediately. Drawing pages absorb the change on their own
-  // short s-maxage TTL (CC_DRAWING_PAGE in render-handlers.ts).
+  // Refresh the profile so the new profile picture appears immediately.
+  // Awaited because Lambda freezes the environment as soon as the handler
+  // returns — a fire-and-forget request may never be sent. The invalidator
+  // catches + logs its own failures, so this can't fail the response.
+  // Drawing pages absorb the change on their own short s-maxage TTL
+  // (CC_DRAWING_PAGE in render-handlers.ts).
   if (cfg.cacheInvalidator) {
-    void cfg.cacheInvalidator.invalidate(
+    await cfg.cacheInvalidator.invalidate(
       pathsToInvalidateOnProfileChange(updated.username),
     );
   }
@@ -437,8 +440,11 @@ export async function handleUpdateProfile(
     throw e;
   }
 
+  // Awaited because Lambda freezes the environment as soon as the handler
+  // returns — a fire-and-forget request may never be sent. The invalidator
+  // catches + logs its own failures, so this can't fail the response.
   if (cfg.cacheInvalidator) {
-    void cfg.cacheInvalidator.invalidate(
+    await cfg.cacheInvalidator.invalidate(
       pathsToInvalidateOnProfileChange(updated.username),
     );
   }

@@ -1,9 +1,10 @@
+import { MAX_LAYERS_JSON_BYTES } from "../config/constants.js";
 import { contentHashHex } from "../src/content-hash.js";
 import { PROMPT_SLUG_RE, promptForDate } from "../config/prompts.js";
 import { decodeGif } from "../src/editor/gif.js";
 import { encodeShareGif } from "../src/editor/share-gif.js";
 import { encodeShareMp4 } from "./share-mp4.js";
-import { validateGif } from "./gif-validate.js";
+import { validateGif, type GifValidation } from "./gif-validate.js";
 import type { Storage } from "./storage.js";
 import type { UserStatsStore } from "./user-stats-store.js";
 import type { DrawingStore } from "./drawing-store.js";
@@ -32,11 +33,12 @@ export interface IngestRequest {
   layers_json?: string;
 }
 
-// Hard ceiling for the layers sidecar. Matches the client soft cap so a
-// payload that squeezed past the client check (older client, attacker)
-// still gets rejected here. The GIF publishes regardless — only the
-// metadata is gated.
-export const MAX_LAYERS_JSON_BYTES = 64 * 1024;
+// MAX_LAYERS_JSON_BYTES (config/constants.ts) is the hard ceiling for the
+// layers sidecar. Re-checked server-side because a payload can squeeze
+// past the client soft cap (older client, attacker) — it still gets
+// rejected here. The GIF publishes regardless — only the metadata is
+// gated.
+export { MAX_LAYERS_JSON_BYTES };
 
 export interface IngestSuccess {
   status: 200 | 202;
@@ -85,8 +87,9 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   } catch (err) {
     return err400(`bad base64: ${errMsg(err)}`);
   }
+  let validation: GifValidation;
   try {
-    validateGif(gif);
+    validation = validateGif(gif);
   } catch (err) {
     return err400(`invalid gif: ${errMsg(err)}`);
   }
@@ -137,14 +140,16 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   // publish error; the builder picks the row up next time it sweeps.
   if (cfg.drawingStore) {
     try {
-      const decoded = decodeGif(gif);
       const layersJson =
         typeof req.layers_json === "string" && req.layers_json.length <= MAX_LAYERS_JSON_BYTES
           ? req.layers_json
           : undefined;
       await cfg.drawingStore.put({
         drawing_id: id,
-        size: decoded.size,
+        // size + frames come from the validateGif scan — no LZW decode
+        // needed for the metadata row, and the row can't diverge from
+        // what validation checked.
+        size: validation.size,
         created_at: nowISO,
         created_at_ms: now.getTime(),
         user_id: author.user_id,
@@ -152,7 +157,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
         parent_id: req.parent ?? null,
         // Optional-absent (never null) so GSI4 stays sparse.
         ...(promptId !== undefined ? { prompt_id: promptId } : {}),
-        frames: decoded.frames.length,
+        frames: validation.frameCount,
         gif_size_bytes: gif.length,
         ...(layersJson !== undefined ? { layers_json: layersJson } : {}),
       });
@@ -226,11 +231,13 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   // The dynamic /d/<id> page is served by render-handlers.ts off the
   // drawing-store row above — no need to sync-render anything here.
 
-  // Fire-and-forget CloudFront invalidation. Failures are logged inside
-  // the invalidator; the publish has already committed so we return 202
-  // regardless of whether the cache flush succeeded.
+  // CloudFront invalidation, awaited because Lambda freezes the execution
+  // environment as soon as the handler returns — a fire-and-forget request
+  // may never be sent. Failures are logged inside the invalidator; the
+  // publish has already committed so we return 202 regardless of whether
+  // the cache flush succeeded.
   if (cfg.cacheInvalidator) {
-    void cfg.cacheInvalidator.invalidate(
+    await cfg.cacheInvalidator.invalidate(
       pathsToInvalidateOnPublish(author.username, { promptTagged: promptId !== undefined }),
     );
   }

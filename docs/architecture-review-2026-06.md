@@ -220,13 +220,15 @@ prod bundles:
   `vite@8` (breaking; plugin API + config review needed).
 - **shell-quote 1.1.0–1.8.3** (critical, GHSA-w7jw-789q-3m8p) via
   `concurrently@9` — `quote()` doesn't escape newlines in `.op` values.
-  Fix is `concurrently@10` (major bump, likely drop-in for
-  `npm run dev:all`).
+  ✅ **Done** (d7102b6, 2026-07-15): bumped to `concurrently@10`, drop-in
+  for `npm run dev:all`; the shell-quote critical is gone from
+  `npm audit`.
 
-**Suggested fix.** Bump `concurrently` first (cheap, kills the
-critical). Schedule the `vite@8` migration separately — it drags the
-esbuild fix along and needs a real pass over `vite/plugins/*` and the
-build output. Exposure in both cases is local dev only.
+**Suggested fix.** ~~Bump `concurrently` first (cheap, kills the
+critical).~~ Done — see above. Schedule the `vite@8` migration
+separately — it drags the esbuild fix along and needs a real pass over
+`vite/plugins/*` and the build output. Exposure in both cases is local
+dev only.
 
 ---
 
@@ -237,9 +239,9 @@ build output. Exposure in both cases is local dev only.
 Inline `style="..."` attributes that should be CSS classes.
 
 **Files**
-- `src/main.ts:164` — the `<span style="margin-left:6px">` icon-label
-  spans on the Copy / Paste / Play / Pause editor buttons. Replace with
-  a `.btn-icon-label` rule in `src/style.css`.
+- ✅ **Done** (2026-07-15): the `<span style="margin-left:6px">`
+  icon-label spans in `src/main.ts` (Add layer / Copy / Paste /
+  Play / Pause) now use a `.btn-icon-label` rule in `src/style.css`.
 
 **Considered but kept as-is** (not flagged in code):
 - `lib/templates/design.ts` — the swatch/type/spacing rows use inline

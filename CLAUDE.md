@@ -112,7 +112,7 @@ asset, new tracking script) must consider every entry below.
 
 | URL                            | Rendered by                                       | Surface |
 |--------------------------------|---------------------------------------------------|---------|
-| `/`                            | `lib/templates/home.ts` via Lambda                | Dynamic — social feed (cards) |
+| `/`                            | `lib/templates/home.ts` via Lambda                | Dynamic — social feed (cards). `?sort=top` re-ranks today's publishes by like count ("Top today"). |
 | `/feed/items?cursor=…`         | `lib/templates/home.ts` (fragment-only)           | Dynamic (infinite scroll) |
 | `/draw`                        | `draw.html` + `src/main.ts`                       | Editor (Vite) |
 | `/gallery`                     | 301 → `/`                                         | CloudFront Function redirect |
@@ -126,6 +126,11 @@ asset, new tracking script) must consider every entry below.
 | `/u/<username>/followers/items?cursor=…` | follow-list fragment via Lambda          | Dynamic (infinite scroll) |
 | `/u/<username>/following`            | `lib/templates/follow-list.ts` via Lambda    | Dynamic — public card list of accounts `<username>` follows. |
 | `/u/<username>/following/items?cursor=…` | follow-list fragment via Lambda          | Dynamic (infinite scroll) |
+| `/u/<username>/streak`         | `lib/templates/streak.ts` via Lambda              | Dynamic — month-stacked calendar of the user's daily publishes. Public, edge-cached like the profile. |
+| `/prompts`                     | `lib/templates/prompts.ts` via Lambda             | Dynamic — daily-prompt archive. |
+| `/prompts/<slug>`              | `lib/templates/prompts.ts` via Lambda             | Dynamic — per-prompt submission grid (slug pattern mirrors `PROMPT_SLUG_RE` in `config/prompts.ts`). |
+| `/prompts/<slug>/items?cursor=…` | prompts fragment via Lambda                     | Dynamic (infinite scroll) |
+| `/admin`                       | `lib/templates/admin.ts` via Lambda               | Dynamic — hidden ops overview shell (no nav link, `private, no-store`). Unauthenticated shell; an inline boot script fetches `/admin/data` with the Bearer JWT — same pattern as `/u/<un>/bookmarks`. |
 | `/products`, `/products/p/<N>` | `lib/templates/products.ts` via Lambda            | Dynamic |
 | `/feed.rss`                    | `lib/templates/feed.ts` via Lambda                | Dynamic (RSS, no chrome) |
 | `/design`                      | `lib/templates/design.ts` via Lambda              | Dynamic — design-system kitchen-sink, paired with `docs/design-system.md` |
@@ -148,7 +153,10 @@ JSON endpoints (no caching at the edge — `Cache-Control: no-store`):
 | `/me/bookmarks/feed`           | GET           | required | HTML fragment of the caller's bookmarks. Loaded by the inline boot script on `/u/<un>/bookmarks`. |
 | `/users/<username>/follow`     | POST / DELETE | required | `ingest/follows-handler.ts` — follow/unfollow. Self-follow → 400, missing target → 404, duplicate → 409. Bumps `follower_count`/`following_count` on the users rows transactionally with the edge write. |
 | `/auth/*`                      | POST          | mixed | `ingest/auth-handler.ts` (register/login/forgot/reset/profile-picture). |
+| `/auth/profile`                | GET / POST    | required | `ingest/auth-handler.ts` — GET prefills the edit-profile form on `/account`; POST updates bio + link. |
 | `/users/<user_id>/stats`       | GET           | none | `ingest/user-stats-handler.ts` — public, short max-age. |
+| `/u/<username>/follow-thumbs?limit=N` | GET    | none | `renderFollowThumbsHandler` in `ingest/render-handlers.ts` — JSON of the first N follower/following usernames, feeds the left-rail thumb grids. |
+| `/admin/data`                  | GET           | required | `ingest/admin-handler.ts` — HTML fragment of ops counters + recent failures. Bearer JWT + `ADMIN_USERNAMES` allowlist, gated in `lambda.ts` before the handler runs. |
 | `/subscribe`                   | POST          | none | `ingest/subscribe-handler.ts` — email capture from the home-page hero. Honeypot field `website` → silent 200; idempotent on email (first-seen `created_at` wins). Write-only; digest sending is deferred. |
 
 **Adding a new "X is stale on the cached feed" field is a one-liner.** Don't invent another endpoint or another client script. Add the field to `HydrateBody` (in `ingest/hydrate-handler.ts`), populate it in the handler, add a case to the `apply` step in `static/hydrate.js` that updates the right DOM nodes. The SSR templates carry `data-*` attributes the hydrator reads; click handlers stay in their per-action scripts (`like.js`, `bookmark.js`, `follow.js`).
@@ -285,7 +293,11 @@ was the pre-#00ccff era.
 config/               Shared constants
   constants.ts        WIDTH=16, HEIGHT=16, MAX_FRAMES=16, PER_PAGE=36, etc.
   badges.ts           Per-account badge thresholds for #115/#116.
+  prompts.ts          Daily drawing prompts — pure isomorphic module,
+                      deterministic ET-day rotation + dated overrides.
+  palettes.ts         Pre-defined retro palettes for the editor picker.
   merch.json          Merch catalog (read by /products + merch picker).
+  mockups.json        Merch mockup metadata (pairs with static/mockups/).
 
 src/                  Vite + TypeScript editor + auth SPAs
   editor/             bitmap, canvas (PixelCanvas), frames, gif, history,
@@ -316,14 +328,38 @@ src/                  Vite + TypeScript editor + auth SPAs
 ingest/               Lambda + dev-server: ingest, render, auth
   handler.ts          POST /ingest: validate → content-id → write
                       public/tiles/<id>.gif + public/tiles/<id>-large.gif
-                      + dual-write a row into DrawingStore. Identity from
-                      cfg.auth ({user_id, username}) set by the route
-                      after JWT verification. Idempotent on drawing_id.
-  render-handlers.ts  GET /gallery, /gallery/items, /d/<id>, /u/<un>,
-                      /u/<un>/items, /products, /products/p/<n>,
-                      /feed.rss. Each queries DrawingStore (+ UserStore /
+                      + public/tiles/<id>-large.mp4 + dual-write a row
+                      into DrawingStore. Body also accepts `prompt` (slug
+                      stored only when it matches today's ET prompt) and
+                      `layers_json` (≤64 KiB layer sidecar, stored
+                      verbatim on the row). Identity from cfg.auth
+                      ({user_id, username}) set by the route after JWT
+                      verification. Idempotent on drawing_id.
+  render-handlers.ts  GET /, /feed/items, /d/<id>, /embed/<id>, /u/<un>
+                      (+ items/bookmarks/followers/following/streak/
+                      follow-thumbs), /prompts*, /products*, /feed.rss,
+                      /design. Each queries DrawingStore (+ UserStore /
                       UserStatsStore where relevant) and returns
                       {status, contentType, cacheControl, body}.
+  share-mp4.ts        Server-side ffmpeg transcode of the -large.gif into
+                      the Instagram-shareable 1080×1080 H.264 sidecar
+                      (public/tiles/<id>-large.mp4).
+  admin-handler.ts    GET /admin/data — HTML fragment of ops counters
+                      (DDB DescribeTable, CloudWatch Logs Insights,
+                      DrawingStore scan). Allowlist gate lives in
+                      lambda.ts.
+  cloudwatch-logs.ts  Logs Insights query runner for admin-handler.ts.
+  log-outcome.ts      One-JSON-line-per-request outcome log emitted by
+                      every route, for Logs Insights queries.
+  handler-utils.ts    Shared scaffolding for the toggle-style write
+                      handlers (likes/bookmarks/follows).
+  discover-handler.ts loadDiscover() — right-rail Most Liked · 30D +
+                      Trending Artists, folded in memory from the recent
+                      gallery window.
+  bookmarks-store.ts  DDB wrapper for drawbang-bookmarks (+ Memory
+                      variant); bookmarks-handler.ts toggles them.
+  follows-store.ts    DDB wrapper for drawbang-follows (+ Memory
+                      variant); follows-handler.ts toggles edges.
   drawing-store.ts    DDB wrapper for the dynamic gallery/drawing/profile/
                       forks queries. PK = drawing_id, plus GSI1 (gallery,
                       chronological), GSI2 (per-username chronological),
@@ -367,20 +403,26 @@ ingest/               Lambda + dev-server: ingest, render, auth
   email.ts            SES password-reset sender + ConsoleEmailSender
                       (dev stub).
   auth-handler.ts     POST /auth/{register,login,password/forgot,
-                      password/reset,profile-picture}.
+                      password/reset,profile-picture,profile} +
+                      GET /auth/profile (edit-profile prefill).
   gif-validate.ts     GIF89a header check, ≤16 frames, DRAWBANG ext.
   storage.ts          Storage interface + FsStorage (dev/tests).
   s3-storage.ts       S3Storage (Lambda + scripts).
   lambda.ts           API Gateway v2 entry point — routes /ingest,
-                      /gallery*, /d/*, /u/*, /feed.rss, /products*,
-                      /users/{id}/stats, /auth/*, /hydrate,
+                      /, /feed/items, /gallery* (301), /d/*, /embed/*,
+                      /u/* (incl. streak + follow-thumbs), /prompts*,
+                      /feed.rss, /design, /products*, /admin,
+                      /admin/data, /users/{id}/stats, /auth/*, /hydrate,
                       /drawings/{id}/{like,bookmark} (POST + DELETE),
                       /users/{un}/follow (POST + DELETE),
                       /me/bookmarks/feed, /subscribe (POST, public).
                       Verifies the Bearer JWT for every write route except
-                      /subscribe + for /me/bookmarks/feed. /hydrate
-                      treats the Bearer JWT as optional (viewer_* fields
-                      go null when absent).
+                      /subscribe + for /me/bookmarks/feed, /auth/profile
+                      (GET), and /admin/data (plus the ADMIN_USERNAMES
+                      allowlist there). /hydrate treats the Bearer JWT as
+                      optional (viewer_* fields go null when absent).
+                      Unknown paths fall through to 404, matching
+                      dev-server.ts.
   dev-server.ts       Node HTTP shim for `npm run ingest:dev` —
                       Memory* stores + ConsoleEmailSender (reset link
                       logged). Mirrors lambda.ts route table.
@@ -399,7 +441,18 @@ lib/templates/        Server-renderer (tagged-literal HTML)
                       shared with tile-page.ts + home.ts.
   products.ts         /products (merch catalog, ranked by popularity).
   feed.ts             /feed.rss.
+  prompts.ts          /prompts archive + /prompts/<slug> submission grid
+                      (+ items fragment).
+  streak.ts           /u/<username>/streak month-stacked calendar.
+  admin.ts            /admin shell + renderAdminInner() for /admin/data.
+  embed.ts            /embed/<id> bare iframe player.
+  design.ts           /design kitchen-sink page.
+  bookmarks.ts        /u/<username>/bookmarks page shell.
+  follow-list.ts      /u/<username>/{followers,following} card lists.
+  discover.ts         renderDiscover() — right-rail modules on /.
   not-found.ts        /404.html shell.
+  _escape.ts          esc() HTML-escaper for the tagged templates.
+  _html-shell.ts      renderHtmlShell() — shared <!doctype>/<head> wrap.
   _time.ts            formatItemDate() — shared by home + gallery +
                       anywhere else that wants short "May 28" / "May 28,
                       2025" date strings.
@@ -449,6 +502,13 @@ static/               Plain JS + CSS shipped as edge assets
   subscribe.js        Submit handler for the hero email-capture form
                       (`[data-subscribe-form]`) — POST /subscribe + flash
                       feedback. Loaded by home.ts.
+  infinite-scroll.js  Shared IntersectionObserver for the paginated
+                      Lambda templates (home, profile, follow lists).
+  toggle-handler.js   Shared factory behind like.js / bookmark.js /
+                      follow.js — JWT guard, optimistic toggle + revert,
+                      MutationObserver re-wiring, 401 → /login redirect.
+  fonts/              Akzidenz-Grotesk .ttf files.
+  mockups/            Merch mockup imagery (pairs with config/mockups.json).
   og-logo.png         OG fallback image.
 
 vite/plugins/
@@ -459,6 +519,8 @@ vite/plugins/
 test/                 node:test suites
 scripts/
   backfill-large-gifs.ts  npm run og:backfill — generate missing -large.gif.
+  backfill-share-mp4.ts   Generate missing -large.mp4 sidecars for legacy
+                          drawings.
   migrate-tiles.ts        One-shot DDB seeding from S3.
   recover-missing-tiles.ts One-shot for orphaned /tiles/<id>.gif rows.
   reassign-anonymous.ts   Reassigns migrated drawings to a real account.
@@ -591,6 +653,8 @@ Lambda (runtime, set via SAM):
   the ingest function fails loud at cold start if unset.
 - `SES_FROM_ADDRESS` — verified SES sender for reset emails. Optional;
   when empty, reset requests still 200 but no email is sent.
+- `ADMIN_USERNAMES` — comma-separated allowlist for `/admin/data`.
+  Optional; empty means nobody passes the gate.
 
 Backfill scripts:
 - `DRAWBANG_S3_BUCKET` — bucket the script reads/writes.

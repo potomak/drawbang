@@ -44,6 +44,12 @@ export const WIDTH = DEFAULT_SIZE;
 export const HEIGHT = DEFAULT_SIZE;
 export const MAX_GIF_BYTES = MAX_GIF_BYTES_BY_SIZE[DEFAULT_SIZE];
 
+// Byte cap for the optional layers_json publish sidecar. Shared by the
+// client soft cap (src/submit.ts drops the field rather than reject) and
+// the server hard ceiling (ingest/handler.ts re-checks for older clients
+// and attackers). One definition so they can't drift apart.
+export const MAX_LAYERS_JSON_BYTES = 64 * 1024;
+
 export const DRAWBANG_APP_IDENTIFIER = "DRAWBANG";
 // GIF89a requires exactly 3 bytes for the authentication code. "1.0"
 // identifies this as v1 of the Drawbang application extension.

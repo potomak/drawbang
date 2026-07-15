@@ -17,6 +17,10 @@ export interface TilePageView {
   drawing_id: string;
   id_short: string;
   created_at: string;
+  // Frame count from the DrawingRow. Optional: legacy rows (pre-dating
+  // the frames attribute) don't have it, and the Created line renders
+  // without the suffix.
+  frames?: number;
   parent: { parent: string; parent_short: string } | null;
   // null on legacy tiles (published by an anonymous keypair before the
   // account system). They render as "anonymous" with no profile link.
@@ -89,6 +93,12 @@ export default function renderTilePage(v: TilePageView): string {
     ? `<dt>Author</dt><dd><a class="dr-author" href="/u/${esc(v.author.username)}">${renderProfilePicture(v.author.profile_picture_drawing_id, v.author.username, 20)}${esc(v.author.username)}</a></dd>`
     : `<dt>Author</dt><dd>anonymous</dd>`;
   const created = formatCreatedAt(v.created_at);
+  // typeof guard (not just optional-chaining) because legacy DDB rows can
+  // feed undefined through the required-typed DrawingRow.frames at runtime.
+  const framesSuffix =
+    typeof v.frames === "number" && v.frames > 0
+      ? ` · ${v.frames} ${v.frames === 1 ? "frame" : "frames"}`
+      : "";
   const forks = v.forks ?? [];
   const forksSection = forks.length > 0
     ? `      <section class="dr-forks">
@@ -128,7 +138,7 @@ ${forks.map(renderItem).join("\n")}
         <div>
           <dl class="dr-meta">
             <dt>Created</dt>
-            <dd><time datetime="${esc(v.created_at)}">${esc(created)}</time></dd>
+            <dd><time datetime="${esc(v.created_at)}">${esc(created)}</time>${esc(framesSuffix)}</dd>
             ${authorBlock}
             ${parentBlock}
             <dt>ID</dt>

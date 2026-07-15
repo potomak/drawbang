@@ -414,6 +414,7 @@ export async function renderDrawingPageHandler(
     drawing_id: row.drawing_id,
     id_short: row.drawing_id.slice(0, 8),
     created_at: row.created_at,
+    frames: row.frames,
     parent: row.parent_id
       ? { parent: row.parent_id, parent_short: row.parent_id.slice(0, 8) }
       : null,

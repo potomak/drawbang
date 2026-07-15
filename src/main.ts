@@ -208,7 +208,7 @@ app.innerHTML = /* html */ `
     <div class="ed-layers">
       <div class="ed-layers-head">
         <span class="panel-h" id="layersHeading">Layers — 1</span>
-        <button class="btn xs" data-action="add-layer" id="addLayerBtn" title="Add layer">${ICON.plus}<span style="margin-left:6px">Add layer</span></button>
+        <button class="btn xs" data-action="add-layer" id="addLayerBtn" title="Add layer">${ICON.plus}<span class="btn-icon-label">Add layer</span></button>
       </div>
       <div id="layerList" class="ed-layers-list"></div>
     </div>
@@ -217,16 +217,12 @@ app.innerHTML = /* html */ `
       <div class="ed-frames-head">
         <span class="panel-h" id="framesHeading">Frames — 1</span>
         <div class="ed-frames-meta">
-          <!-- TODO (#inline-styles): the icon+label "margin-left:6px" pattern
-               appears here, on the Paste/Play buttons below, and at the bottom
-               of this file when toggling Play↔Pause. Replace with a small
-               .btn-icon-label class in src/style.css. -->
-          <button class="btn xs" data-action="copy-frame" title="Copy current frame">${ICON.copy}<span style="margin-left:6px">Copy</span></button>
-          <button class="btn xs" data-action="paste-frame" id="pasteBtn" title="Paste copied frame as a new frame" disabled>${ICON.paste}<span style="margin-left:6px">Paste</span></button>
+          <button class="btn xs" data-action="copy-frame" title="Copy current frame">${ICON.copy}<span class="btn-icon-label">Copy</span></button>
+          <button class="btn xs" data-action="paste-frame" id="pasteBtn" title="Paste copied frame as a new frame" disabled>${ICON.paste}<span class="btn-icon-label">Paste</span></button>
           <button class="btn xs" data-action="copy-png" title="Copy current frame to the system clipboard as a PNG">Copy PNG</button>
           <button class="btn xs" data-action="toggle-onion" id="onionBtn" aria-pressed="false" title="Onion skin (preview previous frame)">Onion</button>
           <button class="btn xs" data-action="toggle-grid" id="gridBtn" aria-pressed="true" title="Pixel grid + transparency markers">Grid</button>
-          <button class="btn xs" data-action="play" id="playBtn" title="Play animation">${ICON.play}<span style="margin-left:6px">Play</span></button>
+          <button class="btn xs" data-action="play" id="playBtn" title="Play animation">${ICON.play}<span class="btn-icon-label">Play</span></button>
           <label class="ed-fps" title="Animation speed (frames per second)">
             <span class="ed-fps-label">FPS</span>
             <input type="range" id="fpsRange" min="0" max="${FPS_STEPS.length - 1}" step="1" value="${DEFAULT_FPS_INDEX}" aria-label="Animation speed in frames per second" />
@@ -967,8 +963,8 @@ function stopPlay(): void {
 function updatePlayButton(): void {
   if (!playBtnEl) return;
   playBtnEl.innerHTML = playing
-    ? `${ICON.pause}<span style="margin-left:6px">Pause</span>`
-    : `${ICON.play}<span style="margin-left:6px">Play</span>`;
+    ? `${ICON.pause}<span class="btn-icon-label">Pause</span>`
+    : `${ICON.play}<span class="btn-icon-label">Play</span>`;
   playBtnEl.setAttribute("aria-pressed", playing ? "true" : "false");
   playBtnEl.setAttribute("title", playing ? "Pause animation" : "Play animation");
 }
