@@ -22,30 +22,21 @@ with the commit SHA.
 
 ## #dev-server-drift — high
 
-`ingest/lambda.ts` (752 lines) and `ingest/dev-server.ts` (582 lines)
-hand-mirror the same route table: every dynamic route's regex, auth
-gating, and dispatch logic is written twice. Beyond the routes,
-`extractAuth()` and the `json()` / `jsonWithHeaders()` response helpers
-are duplicated near-verbatim. The "Adding a new Lambda-rendered route"
-checklist in CLAUDE.md exists *because* of this drift hazard — a route
-added to one entry point but not the other works in prod and 404s in
-dev (or vice versa), which is exactly the class of bug that's hard to
-notice until it bites.
-
-**Files**
-- `ingest/lambda.ts` (route table ~lines 213–380, `extractAuth` ~619,
-  `json` helpers ~711)
-- `ingest/dev-server.ts` (route table ~lines 135–482, `extractAuth`
-  ~498, helpers ~514)
-
-**Suggested fix.** Extract a shared route-definition module
-(`ingest/routes.ts`): an ordered list of
-`{ method, pattern, auth: "required" | "optional" | "none", handler }`
-entries plus the shared `extractAuth()` and JSON helpers. `lambda.ts`
-and `dev-server.ts` keep only their event-adaptation layers (API
-Gateway event vs Node `http.IncomingMessage`). A new route then lands
-in one file and both servers pick it up — and a single route-table test
-covers both (see `#test-gaps`).
+✅ **Done** (2026-07-15). `ingest/routes.ts` is now the single source of
+truth: an ordered `{ methods, pattern, auth, handler }` table built by
+`createRoutes(deps)`, a shared `dispatch()` (auth-required 401s before
+the handler, 404 fallthrough), the shared `authFromBearer()` verifier,
+and the previously-duplicated ingest / auth / admin logging flows.
+`lambda.ts` and `dev-server.ts` keep only wiring + event adaptation
+(API Gateway event vs Node `http.IncomingMessage`); a new route lands
+in one file and both servers pick it up. Deliberate per-server
+differences survive as injected deps, not forked code: the admin
+allowlist policy (prod empty = locked, dev empty = open), the optional
+stats store (dev has none → `/users/{id}/stats` still 404s locally),
+and `deferShareMp4` (dev encodes inline). `test/routes.test.ts` is the
+route-table test from `#test-gaps`: per-route 401-before-handler, method
+matching, param extraction, admin 403, and the 404 fallthrough — one
+suite covering both servers.
 
 ---
 
