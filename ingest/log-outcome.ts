@@ -48,6 +48,7 @@ export function logOutcome(f: OutcomeFields): void {
 export function ingestErrorCode(message: string): string {
   if (message.startsWith("bad base64")) return "bad_base64";
   if (message.startsWith("invalid gif")) return "invalid_gif";
+  if (message.startsWith("invalid field")) return "invalid_field";
   if (message === "bad json body" || message === "bad json") return "bad_json";
   return "other";
 }

@@ -79,6 +79,36 @@ describe("auth: register", () => {
   });
 });
 
+describe("auth: wrong-typed body fields 4xx cleanly (#type-safety)", () => {
+  // The routes cast parsed JSON straight to the request types, so numbers/
+  // objects/arrays arrive at the handlers at runtime. Every field read is
+  // typeof-guarded (normalizeEmail/normalizeUsername/password checks), so
+  // these must produce clean 4xx responses, never a thrown TypeError.
+  let cfg: AuthHandlerConfig;
+  beforeEach(() => {
+    cfg = makeCfg().cfg;
+  });
+
+  test("register", async () => {
+    assert.equal((await handleRegister({ email: 123, username: "alice", password: "password123" } as never, cfg)).status, 400);
+    assert.equal((await handleRegister({ email: "a@b.com", username: { x: 1 }, password: "password123" } as never, cfg)).status, 400);
+    assert.equal((await handleRegister({ email: "a@b.com", username: "alice", password: 42 } as never, cfg)).status, 400);
+  });
+
+  test("login", async () => {
+    assert.equal((await handleLogin({ email: ["a@b.com"], password: "password123" } as never, cfg)).status, 401);
+    assert.equal((await handleLogin({ email: "a@b.com", password: null } as never, cfg)).status, 401);
+  });
+
+  test("forgot + reset", async () => {
+    // Forgot always answers 200 (no email enumeration) — a wrong-typed
+    // email must not break that contract.
+    assert.equal((await handleForgotPassword({ email: 7 } as never, cfg)).status, 200);
+    assert.equal((await handleResetPassword({ token: 99, password: "password123" } as never, cfg)).status, 400);
+    assert.equal((await handleResetPassword({ token: "x.y.z", password: {} } as never, cfg)).status, 400);
+  });
+});
+
 describe("auth: login", () => {
   test("succeeds with right password, fails otherwise", async () => {
     const cfg = makeCfg().cfg;

@@ -1,6 +1,11 @@
 import { strict as assert } from "node:assert";
 import { describe, test } from "node:test";
-import { handleIngest, type AuthedUser } from "../ingest/handler.js";
+import {
+  encodeShareMp4FromStorage,
+  handleIngest,
+  isEncodeShareMp4Event,
+  type AuthedUser,
+} from "../ingest/handler.js";
 import type { Storage } from "../ingest/storage.js";
 import { MemoryDrawingStore } from "../ingest/drawing-store.js";
 import { NoopInvalidator } from "../ingest/cache-invalidation.js";
@@ -161,6 +166,31 @@ describe("handleIngest", () => {
     assert.equal(h.storage.puts.length, writesAfterFirst, "idempotent re-publish should not write again");
   });
 
+  test("re-publish self-heals a missing DDB row without re-writing storage", async () => {
+    const h = makeHarness();
+    const gif = makeGif(10);
+    const id = await contentHashHex(gif);
+    // The original publish's row write is non-fatal — simulate it having
+    // failed by seeding storage with the gif but leaving the store empty.
+    await h.storage.put(`public/tiles/${id}.gif`, gif, "image/gif");
+    const putsBefore = h.storage.puts.length;
+
+    const res = await handleIngest(
+      { gif: Buffer.from(gif).toString("base64") },
+      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore },
+    );
+    assert.equal(res.status, 200);
+    const row = await h.drawingStore.get(id);
+    assert.ok(row, "self-heal should have written the missing row");
+    assert.equal(row!.username, AUTH.username);
+    assert.equal(row!.frames, 1);
+    assert.equal(
+      h.storage.puts.length,
+      putsBefore,
+      "self-heal must not regenerate the gif or sidecars",
+    );
+  });
+
   test("writes a DrawingRow with user_id + username + size + parent_id from the request", async () => {
     const h = makeHarness();
     const gif = makeGif(2);
@@ -267,6 +297,113 @@ describe("handleIngest", () => {
     const id = (res.body as { id: string }).id;
     const row = await h.drawingStore.get(id);
     assert.equal(row!.layers_json, undefined);
+  });
+});
+
+describe("handleIngest body shape validation (#type-safety)", () => {
+  // The routes cast parsed JSON straight to IngestRequest, so wrong-typed
+  // fields arrive here at runtime despite the compile-time type. Each case
+  // must 400 naming the field, before anything reaches storage or DDB.
+  const wrongTyped: Array<{ body: unknown; field: string }> = [
+    { body: { gif: 123 }, field: "gif" },
+    { body: {}, field: "gif" },
+    { body: { gif: "aGk=", parent: 123 }, field: "parent" },
+    { body: { gif: "aGk=", prompt: 5 }, field: "prompt" },
+    { body: { gif: "aGk=", layers_json: {} }, field: "layers_json" },
+    { body: [1, 2, 3], field: "body" },
+    { body: null, field: "body" },
+  ];
+
+  for (const c of wrongTyped) {
+    test(`rejects ${JSON.stringify(c.body)} with 400 naming "${c.field}"`, async () => {
+      const h = makeHarness();
+      const res = await handleIngest(c.body as never, {
+        storage: h.storage,
+        publicBaseUrl: PUBLIC_BASE,
+        auth: AUTH,
+        drawingStore: h.drawingStore,
+      });
+      assert.equal(res.status, 400);
+      assert.equal((res.body as { error: string }).error, `invalid field: ${c.field}`);
+      assert.equal(h.storage.puts.length, 0, "nothing may reach storage");
+    });
+  }
+});
+
+describe("deferred -large.mp4 encode (#223)", () => {
+  test("event guard accepts the self-invoke shape and rejects HTTP events", () => {
+    const id = "a".repeat(64);
+    assert.ok(isEncodeShareMp4Event({ kind: "encode-share-mp4", drawing_id: id }));
+    assert.ok(!isEncodeShareMp4Event({ kind: "encode-share-mp4", drawing_id: "nope" }));
+    assert.ok(!isEncodeShareMp4Event({ kind: "encode-share-mp4" }));
+    assert.ok(!isEncodeShareMp4Event({ requestContext: { http: { method: "GET" } } }));
+    assert.ok(!isEncodeShareMp4Event(null));
+    assert.ok(!isEncodeShareMp4Event("encode-share-mp4"));
+  });
+
+  test("publish with deferShareMp4 set queues the encode instead of writing the mp4 inline", async () => {
+    const h = makeHarness();
+    const deferred: string[] = [];
+    const gif = makeGif(11);
+    const res = await handleIngest(
+      { gif: Buffer.from(gif).toString("base64") },
+      {
+        storage: h.storage,
+        publicBaseUrl: PUBLIC_BASE,
+        auth: AUTH,
+        drawingStore: h.drawingStore,
+        deferShareMp4: async (id) => { deferred.push(id); },
+      },
+    );
+    assert.equal(res.status, 202);
+    const id = (res.body as { id: string }).id;
+    assert.deepEqual(deferred, [id]);
+    const keys = h.storage.puts.map((p) => p.key);
+    assert.ok(keys.includes(`public/tiles/${id}-large.gif`), "-large.gif still written inline");
+    assert.ok(!keys.includes(`public/tiles/${id}-large.mp4`), "mp4 must not be written on the sync path");
+  });
+
+  test("a failing deferShareMp4 never fails the publish", async () => {
+    const h = makeHarness();
+    const gif = makeGif(12);
+    const res = await handleIngest(
+      { gif: Buffer.from(gif).toString("base64") },
+      {
+        storage: h.storage,
+        publicBaseUrl: PUBLIC_BASE,
+        auth: AUTH,
+        drawingStore: h.drawingStore,
+        deferShareMp4: async () => { throw new Error("lambda invoke down"); },
+      },
+    );
+    assert.equal(res.status, 202);
+  });
+
+  test("encodeShareMp4FromStorage transcodes the stored -large.gif into the mp4 sidecar", async () => {
+    const storage = new MemoryStorage();
+    const id = "b".repeat(64);
+    const largeBytes = new Uint8Array([1, 2, 3]);
+    await storage.put(`public/tiles/${id}-large.gif`, largeBytes, "image/gif");
+    const seen: Uint8Array[] = [];
+    await encodeShareMp4FromStorage(storage, id, async (gifBytes) => {
+      seen.push(gifBytes);
+      return new Uint8Array([9, 9]);
+    });
+    assert.equal(seen.length, 1);
+    assert.deepEqual(seen[0], largeBytes);
+    const mp4 = await storage.getBytes(`public/tiles/${id}-large.mp4`);
+    assert.deepEqual(mp4, new Uint8Array([9, 9]));
+  });
+
+  test("encodeShareMp4FromStorage logs (never throws) when the -large.gif is missing", async () => {
+    const storage = new MemoryStorage();
+    const encodeCalls: number[] = [];
+    await encodeShareMp4FromStorage(storage, "c".repeat(64), async () => {
+      encodeCalls.push(1);
+      return new Uint8Array();
+    });
+    assert.equal(encodeCalls.length, 0, "encoder must not run without input bytes");
+    assert.equal(storage.puts.length, 0);
   });
 });
 

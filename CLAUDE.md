@@ -81,10 +81,12 @@ before Lambda runs; CloudFront 404s before API Gateway runs).
 
 1. **Handler** in `ingest/render-handlers.ts` (or a sibling handler
    file) returning `{ status, contentType, cacheControl, body }`.
-2. **Lambda route table** in `ingest/lambda.ts` — add the regex match
-   block and call `adaptRender(...)`.
-3. **Dev mirror** in `ingest/dev-server.ts` — keep the dev `:8787`
-   server in sync so `npm run dev:all` exercises the path.
+2. **Shared route table** in `ingest/routes.ts` — add one
+   `{ methods, pattern, auth, handler }` entry to `createRoutes()`.
+   Both `lambda.ts` and the dev `:8787` server dispatch through this
+   table, so `npm run dev:all` exercises the path with no second edit.
+3. **Route test** in `test/routes.test.ts` — extend the table test if
+   the new route has an auth gate or params worth pinning.
 4. **API Gateway event** in `infra/aws/template.yaml` under the
    ingest function's `Events:` block — every path is registered
    explicitly (`Type: HttpApi`, `Path: /your/{param}/path`). Without
@@ -102,8 +104,8 @@ before Lambda runs; CloudFront 404s before API Gateway runs).
    those.
 
 Quick mental check before pushing: grep the new path in
-`ingest/lambda.ts`, `ingest/dev-server.ts`, and `infra/aws/template.yaml`
-— it must appear in all three.
+`ingest/routes.ts` and `infra/aws/template.yaml` — it must appear in
+both.
 
 ## Pages of the app
 
@@ -408,24 +410,29 @@ ingest/               Lambda + dev-server: ingest, render, auth
   gif-validate.ts     GIF89a header check, ≤16 frames, DRAWBANG ext.
   storage.ts          Storage interface + FsStorage (dev/tests).
   s3-storage.ts       S3Storage (Lambda + scripts).
-  lambda.ts           API Gateway v2 entry point — routes /ingest,
+  routes.ts           **The** route table, shared by lambda.ts +
+                      dev-server.ts: createRoutes(deps) builds the ordered
+                      { methods, pattern, auth, handler } list — /ingest,
                       /, /feed/items, /gallery* (301), /d/*, /embed/*,
                       /u/* (incl. streak + follow-thumbs), /prompts*,
-                      /feed.rss, /design, /products*, /admin,
-                      /admin/data, /users/{id}/stats, /auth/*, /hydrate,
+                      /feed.rss, /design, /products*, /admin, /admin/data,
+                      /users/{id}/stats, /auth/*, /hydrate,
                       /drawings/{id}/{like,bookmark} (POST + DELETE),
                       /users/{un}/follow (POST + DELETE),
-                      /me/bookmarks/feed, /subscribe (POST, public).
-                      Verifies the Bearer JWT for every write route except
-                      /subscribe + for /me/bookmarks/feed, /auth/profile
-                      (GET), and /admin/data (plus the ADMIN_USERNAMES
-                      allowlist there). /hydrate treats the Bearer JWT as
-                      optional (viewer_* fields go null when absent).
-                      Unknown paths fall through to 404, matching
-                      dev-server.ts.
+                      /me/bookmarks/feed, /subscribe (POST, public) —
+                      plus dispatch() (auth-required routes 401 before the
+                      handler; unknown paths 404) and authFromBearer()
+                      (Bearer JWT → {user_id, username}). /hydrate treats
+                      the JWT as optional (viewer_* fields go null when
+                      absent); /admin/data adds the ADMIN_USERNAMES
+                      allowlist via injected deps.
+  lambda.ts           API Gateway v2 entry point — Dynamo/S3/SES wiring +
+                      event adaptation around the routes.ts table; also
+                      detects the async encode-share-mp4 self-invoke
+                      event before HTTP routing.
   dev-server.ts       Node HTTP shim for `npm run ingest:dev` —
                       Memory* stores + ConsoleEmailSender (reset link
-                      logged). Mirrors lambda.ts route table.
+                      logged) wired into the same routes.ts table.
 
 lib/templates/        Server-renderer (tagged-literal HTML)
   home.ts             / (the social feed) + /feed/items fragment

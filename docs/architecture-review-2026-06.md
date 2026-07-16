@@ -22,30 +22,21 @@ with the commit SHA.
 
 ## #dev-server-drift — high
 
-`ingest/lambda.ts` (752 lines) and `ingest/dev-server.ts` (582 lines)
-hand-mirror the same route table: every dynamic route's regex, auth
-gating, and dispatch logic is written twice. Beyond the routes,
-`extractAuth()` and the `json()` / `jsonWithHeaders()` response helpers
-are duplicated near-verbatim. The "Adding a new Lambda-rendered route"
-checklist in CLAUDE.md exists *because* of this drift hazard — a route
-added to one entry point but not the other works in prod and 404s in
-dev (or vice versa), which is exactly the class of bug that's hard to
-notice until it bites.
-
-**Files**
-- `ingest/lambda.ts` (route table ~lines 213–380, `extractAuth` ~619,
-  `json` helpers ~711)
-- `ingest/dev-server.ts` (route table ~lines 135–482, `extractAuth`
-  ~498, helpers ~514)
-
-**Suggested fix.** Extract a shared route-definition module
-(`ingest/routes.ts`): an ordered list of
-`{ method, pattern, auth: "required" | "optional" | "none", handler }`
-entries plus the shared `extractAuth()` and JSON helpers. `lambda.ts`
-and `dev-server.ts` keep only their event-adaptation layers (API
-Gateway event vs Node `http.IncomingMessage`). A new route then lands
-in one file and both servers pick it up — and a single route-table test
-covers both (see `#test-gaps`).
+✅ **Done** (2026-07-15). `ingest/routes.ts` is now the single source of
+truth: an ordered `{ methods, pattern, auth, handler }` table built by
+`createRoutes(deps)`, a shared `dispatch()` (auth-required 401s before
+the handler, 404 fallthrough), the shared `authFromBearer()` verifier,
+and the previously-duplicated ingest / auth / admin logging flows.
+`lambda.ts` and `dev-server.ts` keep only wiring + event adaptation
+(API Gateway event vs Node `http.IncomingMessage`); a new route lands
+in one file and both servers pick it up. Deliberate per-server
+differences survive as injected deps, not forked code: the admin
+allowlist policy (prod empty = locked, dev empty = open), the optional
+stats store (dev has none → `/users/{id}/stats` still 404s locally),
+and `deferShareMp4` (dev encodes inline). `test/routes.test.ts` is the
+route-table test from `#test-gaps`: per-route 401-before-handler, method
+matching, param extraction, admin 403, and the 404 fallthrough — one
+suite covering both servers.
 
 ---
 
@@ -53,25 +44,24 @@ covers both (see `#test-gaps`).
 
 *(Carried over from the 2026-06-07 pass.)*
 
-`JSON.parse(...) as T` casts at request/JWT boundaries trust shape
-blindly. A malformed body with the right keys still flows through to
-handlers.
+✅ **Done** (2026-07-15). Validators landed in the shared handlers, so
+both servers get them for free:
 
-**Files**
-- `ingest/dev-server.ts:150` — `let parsed: any` + `JSON.parse(body)` →
-  handler. Validate the parsed object shape before dispatch.
-- `ingest/lambda.ts:526` — `parseJson(event) as IngestRequest` (and the
-  register/login/profile-picture analogues). Each route should validate
-  its expected keys' types.
-- `ingest/jwt.ts:55` — `JSON.parse(payload) as T` trusts the claims
-  shape. `exp` is checked, but `sub` / `un` / `purpose` / `tv` are read
-  elsewhere without `typeof` guards.
+- `handleIngest` shape-checks every body field via `shapeError()` in
+  `ingest/handler-utils.ts` (plain `typeof`, no new dependency) and
+  400s naming the offending field; the `as IngestRequest` casts in
+  `lambda.ts` / `dev-server.ts` are now compile-time only.
+- The auth handlers already typeof-guarded every field they read
+  (`normalizeEmail` / `normalizeUsername` / password / token checks) —
+  now pinned by wrong-typed-field tests in `test/auth.test.ts`.
+- `ingest/jwt.ts` rejects correctly-signed payloads that aren't plain
+  claims objects (a signed `null` previously threw a raw TypeError);
+  consumer-specific claims stay guarded at each verify site
+  (`extractAuth`, the reset flow).
 
-**Suggested fix.** Lightweight per-route validators (`typeof` checks,
-no new dependency) or one shared `assertShape(input, schema)` helper.
-Keep validators colocated with their request types. Pairs naturally
-with `#dev-server-drift`: validators attached to the shared route
-definitions run identically in both servers.
+The `TODO (#type-safety)` markers are gone. If `#dev-server-drift`
+lands a shared route table later, these handler-level validators ride
+along unchanged.
 
 ---
 
