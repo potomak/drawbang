@@ -98,5 +98,8 @@ metadata but have no `username`; they were migrated under the same
 with an unlinked "anonymous" byline and no profile page. Because
 `drawing_id` is content-addressed, there is no path to claim either one after
 the fact — re-publishing the same bytes while signed in hits the idempotency
-short-circuit and keeps the original author. Attributed publishes carry
-`user_id` + `username` and roll up under `/u/<username>`.
+short-circuit and keeps the original author — and because the GIF is served
+publicly at `/tiles/<id>.gif`, "produces the same bytes" can never be the
+proof of authorship. A design for an explicit claim capability is in
+`docs/claim-flow-proposal.md` (proposed, not built). Attributed publishes
+carry `user_id` + `username` and roll up under `/u/<username>`.

@@ -272,8 +272,10 @@ How it works:
 **Known limitation.** Because `drawing_id` is content-addressed, an
 anonymous publish can't be retroactively claimed: re-publishing the same
 bytes while logged in hits the idempotency short-circuit and the row keeps
-its original author. Claiming would need an explicit flow (and a decision
-about who's allowed to claim what), so it's deliberately not built.
+its original author. Claiming needs an explicit capability handed to the
+publisher — the GIF itself is public, so possession of the bytes proves
+nothing. A design for it is written up in
+`docs/claim-flow-proposal.md` (proposed, not built).
 
 ## Design system
 
@@ -580,6 +582,8 @@ scripts/
 docs/
   identity-considerations.md  Account model: JWT sessions, scrypt, reset
                               flow, and the security trade-offs.
+  claim-flow-proposal.md      Proposed (not built) flow for attributing an
+                              anonymous drawing to an account after signup.
   gotchas.md                  Build / deploy / SDK quirks worth knowing.
   auth-setup.md               SES + secrets bootstrap.
 
