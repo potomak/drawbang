@@ -12,9 +12,11 @@ bucket for the gif assets, and CloudFront in front of all of it.
 
 Identity is an **email/password account**. Sessions are stateless HS256
 JWTs kept in `localStorage`; the public handle is a chosen **username**
-(profiles live at `/u/<username>`). Publishing a drawing requires a
-logged-in account. The gallery is publicly viewable and you can draw
-locally without an account. See "Identity model".
+(profiles live at `/u/<username>`). **Publishing does not require an
+account** — a drawing published without a session is attributed to the
+`anonymous` sentinel, which is a byline, not a profile. The gallery is
+publicly viewable and you can draw locally without an account. See
+"Identity model" and "Anonymous publishing".
 
 History: the original Ruby/Sinatra/Redis/RMagick app is archived under
 `legacy/` and is not imported by any current code. Several earlier
@@ -43,8 +45,8 @@ content-addressed by sha256 of the gif bytes:
   (legacy migrations, encoder failures), use
   `scripts/backfill-large-gifs.ts` (`npm run og:backfill`).
 
-`drawing_id` is keyed by content; **PoW is gone** — the requirement
-that gated it is replaced by login.
+`drawing_id` is keyed by content; **PoW is gone**, and so is the login
+gate that briefly replaced it — see "Anonymous publishing".
 
 ## Deployment shape
 
@@ -121,7 +123,7 @@ asset, new tracking script) must consider every entry below.
 | `/gallery/items`               | 301 → `/feed/items`                               | CloudFront Function redirect |
 | `/d/<64hex>`                   | `lib/templates/tile-page.ts` via Lambda           | Dynamic |
 | `/embed/<64hex>`               | `lib/templates/embed.ts` via Lambda               | Dynamic — bare iframe player (no chrome, no scripts), click-through to `/d/<id>`, long edge TTL. |
-| `/u/<username>`                | `lib/templates/owner.ts` via Lambda               | Dynamic |
+| `/u/<username>`                | `lib/templates/owner.ts` via Lambda               | Dynamic — 404s for the `anonymous` sentinel (no account behind it). |
 | `/u/<username>/items?cursor=…` | gallery fragment via Lambda                       | Dynamic (infinite scroll) |
 | `/u/<username>/bookmarks`      | `lib/templates/bookmarks.ts` via Lambda           | Dynamic — owner-only page shell. The body is hydrated client-side via `/me/bookmarks/feed` because browser navs don't carry the Bearer JWT. |
 | `/u/<username>/followers`            | `lib/templates/follow-list.ts` via Lambda    | Dynamic — public card list of accounts following `<username>`. |
@@ -231,10 +233,47 @@ left rail carries the New-drawing CTA and the secondary links.
 - **Auth surface**: `src/auth.ts` (client),
   `ingest/auth-handler.ts` (server), routes
   `POST /auth/{register,login,password/forgot,password/reset,profile-picture}`.
-- Drawing rows store `user_id` + `username` (denormalized). Legacy
-  pre-account-system drawings were migrated under the sentinel
-  username `anonymous`, reserved both in the users table and in
+- Drawing rows store `user_id` + `username` (denormalized). Drawings
+  published without a session — plus the legacy pre-account-system rows
+  `scripts/migrate-tiles.ts` migrated — sit under the sentinel username
+  `anonymous`, reserved both in the users table and in
   `RESERVED_USERNAMES` so no real account can claim it.
+
+## Anonymous publishing
+
+Signing up is an invitation *after* a drawing is live, never a toll gate
+in front of Publish. The sentinel identity is defined once in
+`config/constants.ts` (`ANONYMOUS_USERNAME` / `ANONYMOUS_USER_ID` /
+`isAnonymousUsername`) — don't re-introduce the bare `"anonymous"` string
+comparison it replaced.
+
+How it works:
+
+- `POST /ingest` is `auth: "optional"`. No `Authorization` header → the
+  publish is attributed to the sentinel. A header that *is* present but
+  fails verification is still a **401** (`ingestRoute` checks
+  `req.hasAuthHeader()`), so a rotated secret or forged token can never
+  silently downgrade an attributed publish to an anonymous one.
+- An anonymous drawing is an ordinary drawing everywhere it's *read*: it
+  appears in `/`, `/feed.rss`, the discover rail and remix chains, has a
+  normal `/d/<id>` page, and **can be liked and bookmarked** (those are
+  keyed by the viewer's `user_id`, so they never touch the author).
+- What the sentinel does NOT get is an account. `/u/anonymous` and every
+  route hanging off it (`/items`, `/streak`, `/bookmarks`,
+  `/followers`, `/following`) **404** — see `isProfileRoutable()` in
+  `ingest/render-handlers.ts`, which every `/u/` handler goes through
+  instead of a bare `USERNAME_RE` test. Bylines render unlinked, no
+  per-account streak/total counters are recorded, and publish-time
+  invalidation drops the `/u/<username>*` path.
+- Profile pictures stay safe for free: `handleSetProfilePicture` requires
+  `drawing.username === auth.username`, and no real account can ever hold
+  the reserved `anonymous` handle.
+
+**Known limitation.** Because `drawing_id` is content-addressed, an
+anonymous publish can't be retroactively claimed: re-publishing the same
+bytes while logged in hits the idempotency short-circuit and the row keeps
+its original author. Claiming would need an explicit flow (and a decision
+about who's allowed to claim what), so it's deliberately not built.
 
 ## Design system
 
@@ -322,9 +361,10 @@ src/                  Vite + TypeScript editor + auth SPAs
                       sets it from $GITHUB_SHA.
   login.ts/signup.ts/password-forgot.ts/password-reset.ts/account.ts
                       Auth page controllers (Vite entries)
-  submit.ts           POST /ingest with the gif + Bearer auth.
+  submit.ts           POST /ingest with the gif; sends Bearer auth when a
+                      session exists, publishes anonymously when it doesn't.
   merch.ts/merch-preview.ts/order.ts  Merch picker + order status
-  main.ts             Editor UI (publish gated on a logged-in session)
+  main.ts             Editor UI (publish works with or without a session)
   layout/             chrome.ts (header/footer), flash.ts, tracking.ts
 
 ingest/               Lambda + dev-server: ingest, render, auth
@@ -336,7 +376,8 @@ ingest/               Lambda + dev-server: ingest, render, auth
                       `layers_json` (≤64 KiB layer sidecar, stored
                       verbatim on the row). Identity from cfg.auth
                       ({user_id, username}) set by the route after JWT
-                      verification. Idempotent on drawing_id.
+                      verification, or null → the anonymous sentinel.
+                      Idempotent on drawing_id.
   render-handlers.ts  GET /, /feed/items, /d/<id>, /embed/<id>, /u/<un>
                       (+ items/bookmarks/followers/following/streak/
                       follow-thumbs), /prompts*, /products*, /feed.rss,
@@ -422,9 +463,12 @@ ingest/               Lambda + dev-server: ingest, render, auth
                       /me/bookmarks/feed, /subscribe (POST, public) —
                       plus dispatch() (auth-required routes 401 before the
                       handler; unknown paths 404) and authFromBearer()
-                      (Bearer JWT → {user_id, username}). /hydrate treats
-                      the JWT as optional (viewer_* fields go null when
-                      absent); /admin/data adds the ADMIN_USERNAMES
+                      (Bearer JWT → {user_id, username}). /hydrate and
+                      /ingest treat the JWT as optional (/hydrate's
+                      viewer_* fields go null; /ingest falls back to the
+                      anonymous sentinel, but still 401s on a token that
+                      was sent and failed to verify); /admin/data adds
+                      the ADMIN_USERNAMES
                       allowlist via injected deps.
   lambda.ts           API Gateway v2 entry point — Dynamo/S3/SES wiring +
                       event adaptation around the routes.ts table; also
@@ -558,8 +602,11 @@ legacy/               Archived Ruby app; read-only reference, never imported
 - **Identity comes from the verified session JWT, never the request body.**
   The route (`ingest/lambda.ts` / `ingest/dev-server.ts`) verifies the
   Bearer JWT and passes `{ user_id, username }` into `handleIngest` /
-  `handleSetProfilePicture` via `cfg.auth`. A missing/invalid token is
-  a 401 before the handler runs.
+  `handleSetProfilePicture` via `cfg.auth`. An *invalid* token is a 401
+  before the handler runs. The one place a *missing* token isn't a 401 is
+  `POST /ingest`, where `cfg.auth: null` means "attribute this to the
+  anonymous sentinel" — see "Anonymous publishing". Everywhere else,
+  missing still means 401.
 - **Profile pictures only point at drawings the caller owns.**
   `handleSetProfilePicture` requires `drawing.username === auth.username`.
   Anonymous-bucketed drawings can't be claimed by anyone since `anonymous`
@@ -605,10 +652,13 @@ stores:
 1. Open http://localhost:5173 — visit `/signup` and create an account
    (the dev server uses `MemoryUserStore` + `MemoryDrawingStore`, so
    accounts and drawings reset on restart).
-2. Draw, then **Publish** (requires a session; otherwise you're sent
-   to `/login`). The ingest server writes the gif to `./dev-bucket/`,
-   adds the row to `MemoryDrawingStore`, and the next `/gallery` /
-   `/d/<id>` / `/u/<username>` GET picks it up.
+2. Draw, then **Publish** — with or without a session. The ingest
+   server writes the gif to `./dev-bucket/`, adds the row to
+   `MemoryDrawingStore`, and the next `/` / `/d/<id>` /
+   `/u/<username>` GET picks it up. Publishing while signed out is
+   worth exercising too: the drawing should land in the feed with an
+   unlinked "anonymous" byline, `/u/anonymous` should 404, and the
+   success flash should offer "Claim a profile".
 3. Visit `/d/<id>` while logged in — the **Set as profile picture**
    button appears next to the other actions and POSTs
    `/auth/profile-picture`. Visit your profile to confirm.

@@ -47,10 +47,11 @@ import { decodeShare, encodeShare } from "./share.js";
 import { promptFromQuery, promptGuidanceHint } from "./prompt-query.js";
 import type { Prompt } from "../config/prompts.js";
 import * as local from "./local.js";
-import { isLoggedIn } from "./auth.js";
+import { logout } from "./auth.js";
 import {
   MissingSessionError,
   submit,
+  willPublishAnonymously,
 } from "./submit.js";
 import { showFlash } from "./layout/flash.js";
 import { createExportDialog } from "./export-dialog.js";
@@ -1180,24 +1181,24 @@ lospecInputEl.addEventListener("keydown", (e) => {
 
 // -- Publishing / export ----------------------------------------------------
 
-function redirectToLogin(): void {
+// Sign-in link that returns to the editor with the current fork/prompt
+// state intact. Rendered as a flash action rather than an automatic
+// redirect — publishing never navigates the user away from their drawing.
+function signInHref(): string {
   const next = encodeURIComponent(
     location.pathname + location.search + location.hash,
   );
-  location.assign(`/login?next=${next}`);
+  return `/login?next=${next}`;
 }
 
 async function handlePublish(): Promise<void> {
-  if (!isLoggedIn()) {
-    redirectToLogin();
-    return;
-  }
   tracker.publishClick(state.frames.length);
   showFlash({ kind: "info", message: "Publishing…" });
-  // Captured before the await so the remix flag and prompt tag reflect
-  // what was actually sent, even if state resets mid-flight.
+  // Captured before the await so the remix flag, prompt tag, and anonymity
+  // reflect what was actually sent, even if state resets mid-flight.
   const publishedParentId = parentId;
   const publishedPromptSlug = promptSlug;
+  const publishedAnonymously = willPublishAnonymously();
   try {
     const flattened = state.frames.map((f) => composeFrame(state.layers, f));
     const result = await submit({
@@ -1207,7 +1208,7 @@ async function handlePublish(): Promise<void> {
       prompt: publishedPromptSlug ?? undefined,
       layers: state.layers.length > 1 ? buildLayersPayload() : undefined,
     });
-    flashPublished(result.share_url);
+    flashPublished(result.share_url, publishedAnonymously);
     tracker.publishSuccess({
       frames: state.frames.length,
       solve_ms: 0,
@@ -1232,8 +1233,16 @@ async function handlePublish(): Promise<void> {
     resetEditor({ keepPublishedId: true });
   } catch (err) {
     if (err instanceof MissingSessionError) {
-      showFlash({ kind: "error", message: "Sign in to publish." });
-      redirectToLogin();
+      // The server rejected our token (rotated secret, clock skew, forgery).
+      // Don't navigate away — that would strand the drawing. Drop the dead
+      // session so a second Publish click goes through anonymously, and
+      // offer signing back in as the alternative.
+      logout();
+      showFlash({
+        kind: "error",
+        message: "Your session expired. Publish again to post anonymously, or sign in first.",
+        action: { label: "Sign in", href: signInHref() },
+      });
       return;
     }
     showFlash({
@@ -1264,13 +1273,39 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(bin);
 }
 
-function flashPublished(shareUrl: string): void {
+// Same-origin path of a share URL, for use as a ?next= destination. The
+// server always sends an absolute URL, but this runs after a *successful*
+// publish — a throw here would surface as "Publish failed" on a drawing
+// that is already live, so an unparseable URL falls back to the feed.
+function sharePath(shareUrl: string): string {
+  try {
+    return new URL(shareUrl, location.origin).pathname;
+  } catch {
+    return "/";
+  }
+}
+
+function flashPublished(shareUrl: string, anonymous: boolean): void {
   const link = document.createElement("a");
   link.href = shareUrl;
   link.textContent = shareUrl;
   link.target = "_blank";
   link.rel = "noopener";
-  showFlash({ kind: "success", message: ["Published: ", link] });
+  // The drawing is already live either way; signing up is an invitation
+  // attached to the success, not a condition of it. Deliberately NOT worded
+  // as "claim this drawing" — ids are content-addressed, so an anonymous
+  // publish can't be reattributed after the fact. What an account buys is
+  // authorship of what you draw next.
+  const action = anonymous
+    ? { label: "Create an account", href: `/signup?next=${encodeURIComponent(sharePath(shareUrl))}` }
+    : undefined;
+  showFlash({
+    kind: "success",
+    message: anonymous
+      ? ["Published anonymously: ", link]
+      : ["Published: ", link],
+    ...(action ? { action } : {}),
+  });
 }
 
 // -- Size picker -----------------------------------------------------------

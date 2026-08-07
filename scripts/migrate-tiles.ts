@@ -13,6 +13,7 @@
 //   DRAWBANG_DRAWINGS_TABLE=drawbang-drawings \
 //   npx tsx scripts/migrate-tiles.ts [--dry-run] [--skip-existing]
 
+import { ANONYMOUS_USER_ID, ANONYMOUS_USERNAME } from "../config/constants.js";
 import { S3Storage } from "../ingest/s3-storage.js";
 import {
   DynamoDrawingStore,
@@ -33,8 +34,10 @@ const drawingsTable = required("DRAWBANG_DRAWINGS_TABLE");
 const dryRun = process.argv.includes("--dry-run");
 const skipExisting = process.argv.includes("--skip-existing");
 
-const LEGACY_USERNAME = "anonymous";
-const LEGACY_USER_ID = "0".repeat(64);
+// Legacy pre-account drawings share the same sentinel identity as
+// present-day anonymous publishes — one bucket, one code path.
+const LEGACY_USERNAME = ANONYMOUS_USERNAME;
+const LEGACY_USER_ID = ANONYMOUS_USER_ID;
 
 function required(name: string): string {
   const v = process.env[name];

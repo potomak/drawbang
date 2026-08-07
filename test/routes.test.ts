@@ -90,6 +90,10 @@ function makeReq(partial: {
   auth?: AuthedUser | null;
   body?: string;
   query?: Record<string, string>;
+  // Models "an Authorization header arrived but didn't verify". Defaults to
+  // whether `auth` resolved, so an unauthenticated request looks like one
+  // that simply sent no header.
+  hasAuthHeader?: boolean;
 }): RouteRequest {
   return {
     method: partial.method,
@@ -97,6 +101,7 @@ function makeReq(partial: {
     query: (name) => partial.query?.[name] ?? null,
     body: async () => partial.body ?? "",
     auth: () => partial.auth ?? null,
+    hasAuthHeader: () => partial.hasAuthHeader ?? partial.auth != null,
     requestId: "test-req",
     t0: Date.now(),
   };
@@ -122,7 +127,6 @@ describe("shared route table", () => {
   test("every auth-required route answers 401 before its handler runs", async () => {
     const id = "f".repeat(64);
     const requests = [
-      { method: "POST", path: "/ingest" },
       { method: "GET", path: "/admin/data" },
       { method: "POST", path: `/drawings/${id}/like` },
       { method: "DELETE", path: `/drawings/${id}/like` },
@@ -145,6 +149,36 @@ describe("shared route table", () => {
         `${r.method} ${r.path}`,
       );
     }
+  });
+
+  test("POST /ingest publishes without a session instead of 401ing", async () => {
+    // Reaching the handler is the point: it 400s on the missing gif field,
+    // which proves the route no longer gates the publish on a session.
+    const res = await dispatch(
+      routes,
+      makeReq({ method: "POST", path: "/ingest", auth: null, body: "{}" }),
+    );
+    assert.equal(res.kind, "json");
+    assert.equal((res as { status: number }).status, 400);
+    assert.match((res as { body: { error: string } }).body.error, /gif/);
+  });
+
+  test("POST /ingest 401s when a token was sent but didn't verify", async () => {
+    // An expired/forged token must not silently downgrade to an anonymous
+    // publish — the caller thinks it's signed in.
+    const res = await dispatch(
+      routes,
+      makeReq({
+        method: "POST",
+        path: "/ingest",
+        auth: null,
+        hasAuthHeader: true,
+        body: "{}",
+      }),
+    );
+    assert.equal(res.kind, "json");
+    assert.equal((res as { status: number }).status, 401);
+    assert.deepEqual((res as { body: unknown }).body, { error: "authentication required" });
   });
 
   test("public pages render without a session", async () => {

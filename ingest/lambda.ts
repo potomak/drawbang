@@ -221,6 +221,8 @@ export async function handler(
   // Memoized so the Bearer JWT is verified at most once per request even
   // when the matched route and its handler both ask for the session.
   let authMemo: ReturnType<typeof authFromBearer> | undefined;
+  const authHeader = () =>
+    event.headers?.authorization ?? event.headers?.Authorization ?? null;
   const req: RouteRequest = {
     method,
     path,
@@ -228,13 +230,11 @@ export async function handler(
     body: async () => rawBody(event),
     auth: () => {
       if (authMemo === undefined) {
-        authMemo = authFromBearer(
-          event.headers?.authorization ?? event.headers?.Authorization,
-          jwtSecret,
-        );
+        authMemo = authFromBearer(authHeader(), jwtSecret);
       }
       return authMemo;
     },
+    hasAuthHeader: () => (authHeader() ?? "").trim().length > 0,
     requestId: event.requestContext.requestId,
     t0: Date.now(),
   };

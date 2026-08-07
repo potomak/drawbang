@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, test } from "node:test";
+import { ANONYMOUS_USER_ID, ANONYMOUS_USERNAME } from "../config/constants.js";
 import { MemoryDrawingStore, type DrawingRow } from "../ingest/drawing-store.js";
 import {
   renderDrawingPageHandler,
@@ -7,8 +8,10 @@ import {
   renderFeedHandler,
   renderFeedItemsHandler,
   renderHomePageHandler,
+  renderBookmarksPageHandler,
   renderProfileItemsHandler,
   renderProfilePageHandler,
+  renderStreakPageHandler,
   renderPromptItemsHandler,
   renderPromptPageHandler,
   renderPromptsArchiveHandler,
@@ -646,5 +649,75 @@ describe("renderPromptItemsHandler", () => {
     const second = await renderPromptItemsHandler(cfg, "slime-bounce", match![1]);
     assert.ok(second.body.includes("0".padStart(64, "b")), "expected the oldest row on page 2");
     assert.doesNotMatch(second.body, /data-next=/);
+  });
+});
+
+// -- The anonymous sentinel has no account surface ---------------------------
+//
+// Anonymous drawings are ordinary drawings: they show in the feed, on their
+// own /d/<id> page, and they can be liked and bookmarked. What the sentinel
+// must never grow is an account: /u/anonymous and everything hanging off it
+// 404s, and no byline links there.
+
+describe("anonymous drawings have no profile page", () => {
+  const anon = { username: ANONYMOUS_USERNAME, user_id: ANONYMOUS_USER_ID };
+
+  test("/u/anonymous 404s even when the bucket holds drawings", async () => {
+    const { store, cfg } = makeConfig();
+    await store.put(row({ drawing_id: "b".repeat(64), ...anon }));
+    const res = await renderProfilePageHandler(cfg, ANONYMOUS_USERNAME);
+    assert.equal(res.status, 404);
+  });
+
+  test("/u/anonymous/items 404s too, so the feed can't be paged into existence", async () => {
+    const { store, cfg } = makeConfig();
+    await store.put(row({ drawing_id: "c".repeat(64), ...anon }));
+    const res = await renderProfileItemsHandler(cfg, ANONYMOUS_USERNAME, null);
+    assert.equal(res.status, 404);
+  });
+
+  test("/u/anonymous/streak and /bookmarks 404 as well", async () => {
+    const { cfg } = makeConfig();
+    for (const res of [
+      await renderStreakPageHandler(cfg, ANONYMOUS_USERNAME),
+      await renderBookmarksPageHandler(cfg, ANONYMOUS_USERNAME),
+    ]) {
+      assert.equal(res.status, 404);
+    }
+  });
+
+  test("a real account's profile still renders — the guard is sentinel-only", async () => {
+    const { store, cfg } = makeConfig();
+    await store.put(row({ drawing_id: "d".repeat(64), username: "alice" }));
+    const res = await renderProfilePageHandler(cfg, "alice");
+    assert.equal(res.status, 200);
+  });
+
+  test("/d/<id> renders an unlinked byline, never a link to /u/anonymous", async () => {
+    const { store, cfg } = makeConfig();
+    const id = "e".repeat(64);
+    await store.put(row({ drawing_id: id, ...anon }));
+    const res = await renderDrawingPageHandler(cfg, id);
+    assert.equal(res.status, 200);
+    assert.match(res.body, /<dt>Author<\/dt><dd>anonymous<\/dd>/);
+    assert.doesNotMatch(res.body, /href="\/u\/anonymous"/);
+  });
+
+  test("/d/<id> keeps the like and bookmark controls on an anonymous drawing", async () => {
+    const { store, cfg } = makeConfig();
+    const id = "f".repeat(64);
+    await store.put(row({ drawing_id: id, ...anon, like_count: 3 }));
+    const res = await renderDrawingPageHandler(cfg, id);
+    assert.match(res.body, new RegExp(`data-like-target="${id}"`));
+    assert.match(res.body, new RegExp(`data-bookmark-target="${id}"`));
+    assert.match(res.body, /data-like-count>3</);
+  });
+
+  test("an attributed drawing still links its author", async () => {
+    const { store, cfg } = makeConfig();
+    const id = "1".repeat(64);
+    await store.put(row({ drawing_id: id, username: "alice" }));
+    const res = await renderDrawingPageHandler(cfg, id);
+    assert.match(res.body, /href="\/u\/alice"/);
   });
 });

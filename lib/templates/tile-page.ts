@@ -22,10 +22,11 @@ export interface TilePageView {
   // without the suffix.
   frames?: number;
   parent: { parent: string; parent_short: string } | null;
-  // null on legacy tiles (published by an anonymous keypair before the
-  // account system). They render as "anonymous" with no profile link.
+  // null when the drawing was published without a session (or is a legacy
+  // pre-account row). Renders as an unlinked "anonymous" byline — there's
+  // no account behind the sentinel and /u/anonymous 404s.
   // profile_picture_drawing_id is null when the author hasn't picked a
-  // profile picture yet (or doesn't have a real account row).
+  // profile picture yet.
   author: {
     user_id: string;
     username: string;

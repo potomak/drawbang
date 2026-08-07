@@ -14,6 +14,8 @@ import { Bitmap } from "../src/editor/bitmap.js";
 import { encodeGif } from "../src/editor/gif.js";
 import { DEFAULT_ACTIVE_PALETTE } from "../src/editor/palette.js";
 import { contentHashHex } from "../src/content-hash.js";
+import { MemoryUserStatsStore } from "../ingest/user-stats-store.js";
+import { ANONYMOUS_USER_ID, ANONYMOUS_USERNAME } from "../config/constants.js";
 
 // In-memory Storage that records every put() call. Avoids touching the
 // filesystem from tests and lets assertions reach into `puts` to check
@@ -523,3 +525,119 @@ function stripDrawbangExtension(bytes: Uint8Array): Uint8Array {
   }
   throw new Error("test fixture: DRAWBANG extension not found in gif");
 }
+
+// -- Anonymous publishing ----------------------------------------------------
+//
+// Publishing without a session is a first-class path, not a degraded one:
+// the drawing lands in the feed, likeable and bookmarkable like any other.
+// What it must NOT do is manufacture an account — no profile page, no
+// per-account streak, no /u/ invalidation.
+
+describe("handleIngest without a session", () => {
+  test("publishes under the anonymous sentinel instead of failing", async () => {
+    const h = makeHarness();
+    const gif = makeGif(21);
+    const res = await handleIngest(
+      { gif: Buffer.from(gif).toString("base64") },
+      {
+        storage: h.storage,
+        publicBaseUrl: PUBLIC_BASE,
+        auth: null,
+        drawingStore: h.drawingStore,
+      },
+    );
+    assert.equal(res.status, 202);
+    const id = (res.body as { id: string }).id;
+    // Same content-addressing rule as an attributed publish.
+    assert.equal(id, await contentHashHex(gif));
+    const row = await h.drawingStore.get(id);
+    assert.equal(row!.username, ANONYMOUS_USERNAME);
+    assert.equal(row!.user_id, ANONYMOUS_USER_ID);
+    // The gif is really persisted — the drawing is live, not a stub.
+    assert.ok(h.storage.puts.some((p) => p.key === `public/tiles/${id}.gif`));
+  });
+
+  test("records no per-account stats for an anonymous publish", async () => {
+    const h = makeHarness();
+    const stats = new MemoryUserStatsStore();
+    const res = await handleIngest(
+      { gif: Buffer.from(makeGif(22)).toString("base64") },
+      {
+        storage: h.storage,
+        publicBaseUrl: PUBLIC_BASE,
+        auth: null,
+        drawingStore: h.drawingStore,
+        userStatsStore: stats,
+      },
+    );
+    assert.equal(res.status, 202);
+    // The sentinel user_id is shared by every anonymous publish; crediting
+    // it would build a streak that belongs to nobody.
+    assert.equal(await stats.get(ANONYMOUS_USER_ID), null);
+  });
+
+  test("still records stats when a session IS present", async () => {
+    const h = makeHarness();
+    const stats = new MemoryUserStatsStore();
+    await handleIngest(
+      { gif: Buffer.from(makeGif(23)).toString("base64") },
+      {
+        storage: h.storage,
+        publicBaseUrl: PUBLIC_BASE,
+        auth: AUTH,
+        drawingStore: h.drawingStore,
+        userStatsStore: stats,
+      },
+    );
+    assert.ok(await stats.get(AUTH.user_id), "an attributed publish must still count");
+  });
+
+  test("skips the /u/ invalidation path — there's no anonymous profile", async () => {
+    const h = makeHarness();
+    const inv = new NoopInvalidator();
+    await handleIngest(
+      { gif: Buffer.from(makeGif(24)).toString("base64") },
+      {
+        storage: h.storage,
+        publicBaseUrl: PUBLIC_BASE,
+        auth: null,
+        drawingStore: h.drawingStore,
+        cacheInvalidator: inv,
+      },
+    );
+    assert.deepEqual(inv.calls, [["/", "/feed/items*", "/gallery*", "/feed.rss"]]);
+  });
+
+  test("anonymous drawings appear in the gallery feed", async () => {
+    const h = makeHarness();
+    const cfg = {
+      storage: h.storage,
+      publicBaseUrl: PUBLIC_BASE,
+      drawingStore: h.drawingStore,
+    };
+    await handleIngest({ gif: Buffer.from(makeGif(25)).toString("base64") }, { ...cfg, auth: null });
+    await handleIngest({ gif: Buffer.from(makeGif(26)).toString("base64") }, { ...cfg, auth: AUTH });
+    const page = await h.drawingStore.queryGallery({ limit: 10 });
+    assert.equal(page.items.length, 2);
+    assert.deepEqual(
+      new Set(page.items.map((r) => r.username)),
+      new Set([ANONYMOUS_USERNAME, AUTH.username]),
+    );
+  });
+
+  test("an anonymous publish can still be remixed from a parent", async () => {
+    const h = makeHarness();
+    const parent = "a".repeat(64);
+    const res = await handleIngest(
+      { gif: Buffer.from(makeGif(27)).toString("base64"), parent },
+      {
+        storage: h.storage,
+        publicBaseUrl: PUBLIC_BASE,
+        auth: null,
+        drawingStore: h.drawingStore,
+      },
+    );
+    const row = await h.drawingStore.get((res.body as { id: string }).id);
+    assert.equal(row!.parent_id, parent);
+  });
+});

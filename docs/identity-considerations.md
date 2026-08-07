@@ -56,9 +56,47 @@ trade-offs deliberately taken.
   only reach pre-verified recipients. `SES_FROM_ADDRESS` empty → reset requests
   still 200, but nothing is sent (logged for operators).
 
+## Anonymous publishing
+
+Publishing does not require an account. `POST /ingest` is `auth: "optional"`:
+with no `Authorization` header the drawing is stored under the sentinel
+identity `ANONYMOUS_USERNAME` / `ANONYMOUS_USER_ID` (`config/constants.ts`).
+
+The security properties that matter here:
+
+- **No silent downgrade.** A request that carries an `Authorization` header
+  which fails verification gets a 401, not an anonymous publish. `auth()`
+  collapses "absent" and "invalid" into `null`, so the ingest route consults
+  `req.hasAuthHeader()` to tell them apart. Without that, rotating
+  `JWT_SECRET` would quietly re-attribute every in-flight publish to the
+  sentinel.
+- **The sentinel is not an account.** `anonymous` is in `RESERVED_USERNAMES`
+  with a matching row in `drawbang-usernames`, so the registration
+  `TransactWriteItems` condition blocks anyone from claiming the handle and
+  inheriting the byline. `/u/anonymous` and its sub-routes 404.
+- **Nothing accrues to it.** No per-account streak/total counters are
+  recorded against the shared sentinel `user_id`, and no `/u/` cache
+  invalidation is issued on an anonymous publish.
+- **Likes and bookmarks are unaffected.** Both are keyed by the *viewer's*
+  `user_id` against a `drawing_id`, so an anonymous drawing is liked and
+  bookmarked exactly like any other. Those actions still require a session —
+  it's the author who may be anonymous, not the actor.
+- **Profile pictures stay owner-gated.** `handleSetProfilePicture` requires
+  `drawing.username === auth.username`; since no account can hold
+  `anonymous`, anonymous drawings can't be adopted as anyone's avatar.
+
+**Abuse surface.** Removing the login gate removes the main cost of
+publishing junk. There is no rate limiting on `POST /ingest` today — content
+addressing dedupes byte-identical spam, but not varied spam. If it becomes a
+problem the lever is a per-IP limit at the edge, not restoring the gate.
+
 ## Migration note (fresh start)
 
 Drawings published under the old keypair scheme keep their `pubkey`-era inbox
-metadata but have no `username`; the builder renders them as "anonymous" with no
-profile page and provides no path to claim them. New publishes carry
+metadata but have no `username`; they were migrated under the same
+`anonymous` sentinel that present-day anonymous publishes use, so both render
+with an unlinked "anonymous" byline and no profile page. Because
+`drawing_id` is content-addressed, there is no path to claim either one after
+the fact — re-publishing the same bytes while signed in hits the idempotency
+short-circuit and keeps the original author. Attributed publishes carry
 `user_id` + `username` and roll up under `/u/<username>`.

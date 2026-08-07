@@ -22,8 +22,8 @@ export interface FeedItem {
   href: string;          // /d/<id>
   created_at: string;    // ISO 8601
   like_count: number;    // SSR initial value; client hydrates filled state
-  // null for legacy "anonymous" rows that predate accounts. Render the
-  // card without a profile link in that case.
+  // null for drawings published without a session (and legacy pre-account
+  // rows). Render the card without a profile link in that case.
   author: FeedAuthor | null;
 }
 

@@ -83,12 +83,11 @@ describe("profile renders social block", () => {
     assert.match(res.body, /data-following-count>1</);
   });
 
-  test("anonymous profile bucket suppresses the social block", async () => {
+  test("anonymous profile bucket has no page to put a social block on", async () => {
     const { cfg } = await makeConfig();
-    // The drawing store is empty so /u/anonymous resolves only if there's
-    // a registered account row. None exists → 404 expected. Re-check with
-    // a registered "anonymous" account would still suppress, but that
-    // user is reserved.
+    // The sentinel isn't an account: nobody can register it (it's in
+    // RESERVED_USERNAMES) and nobody can follow it, so the whole /u/
+    // surface 404s rather than rendering a followable profile.
     const res = await renderProfilePageHandler(cfg, "anonymous");
     assert.equal(res.status, 404);
   });

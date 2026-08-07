@@ -2,6 +2,7 @@ import { assetUrl } from "../../src/layout/asset-version.js";
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import type { BadgeDef } from "../../config/badges.js";
 import type { GalleryItem } from "./gallery.js";
+import { isAnonymousUsername } from "../../config/constants.js";
 import { esc } from "./_escape.js";
 import { renderHtmlShell } from "./_html-shell.js";
 
@@ -110,7 +111,7 @@ function renderSocialBlock(v: OwnerView): string {
   // The "anonymous" sentinel bucket holds legacy migrated drawings and
   // can't be followed — there's no real account behind it. Skip the
   // social row entirely there.
-  if (v.username === "anonymous") return "";
+  if (isAnonymousUsername(v.username)) return "";
   const followers = v.follower_count ?? 0;
   const following = v.following_count ?? 0;
   return `      <div class="ow-social" data-profile-username="${esc(v.username)}">
@@ -134,7 +135,7 @@ function renderSocialBlock(v: OwnerView): string {
 function renderAboutBlock(v: OwnerView): string {
   // Same defensive bail-out as renderSocialBlock — the "anonymous"
   // sentinel bucket can't own a real profile.
-  if (v.username === "anonymous") return "";
+  if (isAnonymousUsername(v.username)) return "";
   const bio = typeof v.bio === "string" && v.bio.length > 0 ? v.bio : null;
   const link = typeof v.link === "string" && v.link.length > 0 ? v.link : null;
   if (!bio && !link) return "";

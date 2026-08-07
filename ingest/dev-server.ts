@@ -131,6 +131,7 @@ const server = http.createServer(async (req, res) => {
         }
         return authMemo;
       },
+      hasAuthHeader: () => (req.headers.authorization ?? "").trim().length > 0,
       requestId: devRequestId(),
       t0: Date.now(),
     };

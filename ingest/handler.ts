@@ -1,4 +1,9 @@
-import { DRAWING_ID_RE, MAX_LAYERS_JSON_BYTES } from "../config/constants.js";
+import {
+  ANONYMOUS_USER_ID,
+  ANONYMOUS_USERNAME,
+  DRAWING_ID_RE,
+  MAX_LAYERS_JSON_BYTES,
+} from "../config/constants.js";
 import { contentHashHex } from "../src/content-hash.js";
 import { PROMPT_SLUG_RE, promptForDate } from "../config/prompts.js";
 import { decodeGif } from "../src/editor/gif.js";
@@ -20,6 +25,14 @@ export interface AuthedUser {
   user_id: string; // 64-hex stable account id
   username: string; // public handle, used in /u/<username>
 }
+
+// Identity written on a publish that arrived with no session. Shaped like
+// an AuthedUser so the row write is one code path, but it is a sentinel,
+// not an account — see the ANONYMOUS_* block in config/constants.ts.
+const ANONYMOUS_AUTHOR: AuthedUser = {
+  user_id: ANONYMOUS_USER_ID,
+  username: ANONYMOUS_USERNAME,
+};
 
 export interface IngestRequest {
   gif: string; // base64
@@ -57,9 +70,11 @@ export type IngestHandlerResult = IngestSuccess | IngestError;
 export interface HandlerConfig {
   storage: Storage;
   publicBaseUrl: string; // e.g. https://drawbang.example
-  // Authenticated publisher (from the verified session JWT). The route
-  // returns 401 before reaching here when the token is missing/invalid.
-  auth: AuthedUser;
+  // Authenticated publisher (from the verified session JWT), or null when
+  // the request carried no session — the publish is then attributed to the
+  // anonymous sentinel. An *invalid* token is still a 401 at the route;
+  // null here only ever means "no Authorization header".
+  auth: AuthedUser | null;
   repoUrl?: string;
   now?: () => Date;
   // Per-account streak / total counters (#115, #116). Optional so dev/tests
@@ -157,7 +172,8 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   // -- 2. Content-addressed id -----------------------------------------------
   // id is derived from the gif bytes alone: same drawing => same id.
   const id = await contentHashHex(gif);
-  const author = cfg.auth;
+  const author = cfg.auth ?? ANONYMOUS_AUTHOR;
+  const isAnonymous = cfg.auth === null;
 
   // Daily-prompt tag: stored ONLY when the submitted slug is well-formed
   // AND equals today's ET prompt. Anything else (stale slug, garbage, a
@@ -300,7 +316,10 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   // has already been persisted and a stats failure must not surface as a
   // publish failure.
   const recordStats = async (): Promise<void> => {
-    if (!cfg.userStatsStore) return;
+    // Anonymous publishes have no account to credit, and the sentinel
+    // user_id is shared by every one of them — recording against it would
+    // build a meaningless streak nobody can see.
+    if (!cfg.userStatsStore || isAnonymous) return;
     try {
       await cfg.userStatsStore.recordDailyDrawing({
         user_id: author.user_id,
@@ -328,7 +347,9 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   // the cache flush succeeded.
   if (cfg.cacheInvalidator) {
     await cfg.cacheInvalidator.invalidate(
-      pathsToInvalidateOnPublish(author.username, { promptTagged: promptId !== undefined }),
+      pathsToInvalidateOnPublish(isAnonymous ? null : author.username, {
+        promptTagged: promptId !== undefined,
+      }),
     );
   }
 

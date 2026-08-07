@@ -56,6 +56,29 @@ export const DRAWBANG_APP_IDENTIFIER = "DRAWBANG";
 export const DRAWBANG_APP_AUTH_CODE = new Uint8Array([0x31, 0x2e, 0x30]);
 
 // =====================================================================
+// Anonymous publishing. A drawing published without a session is stored
+// under this sentinel identity rather than being rejected — signing up is
+// an invitation after the fact, not a toll gate in front of Publish.
+//
+// The sentinel is deliberately the same one scripts/migrate-tiles.ts used
+// to bucket pre-account-system drawings, so legacy rows and new anonymous
+// publishes share a single code path. It is NOT an account: "anonymous"
+// sits in RESERVED_USERNAMES (ingest/auth-handler.ts) with a matching
+// sentinel row in drawbang-usernames, so nobody can register it, and the
+// /u/<username> family 404s for it — there is no anonymous profile page,
+// no follow edges, and no per-account stats.
+// =====================================================================
+
+export const ANONYMOUS_USERNAME = "anonymous";
+// All-zero 64-hex. Never collides with a real user_id (those come from
+// crypto.randomBytes) and matches what migrate-tiles.ts wrote.
+export const ANONYMOUS_USER_ID = "0".repeat(64);
+
+export function isAnonymousUsername(username: string): boolean {
+  return username === ANONYMOUS_USERNAME;
+}
+
+// =====================================================================
 // Shared request-validation regexes. Every handler that takes a drawing
 // id / username / email in the URL or body checks against one of these,
 // so they live here as a single source of truth.

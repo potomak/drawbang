@@ -42,17 +42,26 @@ export interface SubmitOptions {
 // even at the worst-case canvas size. Anything larger drops the layer
 // field client-side (the GIF still publishes).
 
+// Publishing no longer requires an account: with no session the server
+// files the drawing under the anonymous sentinel. This error therefore only
+// surfaces on a 401, which now means "a token was sent and it didn't
+// verify" — a session that expired mid-draw. getSession() drops expired
+// tokens before authHeader() reads them, so it should be rare.
 export class MissingSessionError extends Error {
   constructor() {
-    super("sign in to publish");
+    super("your session expired — sign in again to publish");
     this.name = "MissingSessionError";
   }
 }
 
-export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
-  const session = getSession();
-  if (!session) throw new MissingSessionError();
+// True when the publish will be attributed to the anonymous sentinel rather
+// than an account. The caller uses it to decide whether to invite sign-up
+// after a successful publish.
+export function willPublishAnonymously(): boolean {
+  return getSession() === null;
+}
 
+export async function submit(opts: SubmitOptions): Promise<IngestResponse> {
   let layers_json: string | undefined;
   if (opts.layers) {
     const encoded = JSON.stringify(opts.layers);

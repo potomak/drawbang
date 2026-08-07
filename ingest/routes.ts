@@ -4,6 +4,7 @@ import {
   type HandlerConfig,
   type IngestRequest,
 } from "./handler.js";
+import { ANONYMOUS_USER_ID, ANONYMOUS_USERNAME } from "../config/constants.js";
 import { JwtError, verifyJwt } from "./jwt.js";
 import {
   authErrorCode,
@@ -78,6 +79,12 @@ export interface RouteRequest {
   query(name: string): string | null;
   body(): Promise<string>;
   auth(): AuthedUser | null;
+  // Whether the request carried an Authorization header at all. `auth()`
+  // collapses "absent" and "invalid" into null; routes that treat the
+  // absent case as a legitimate anonymous caller (POST /ingest) need to
+  // tell them apart so a broken token 401s instead of silently publishing
+  // under the anonymous sentinel.
+  hasAuthHeader(): boolean;
   requestId: string;
   t0: number;
 }
@@ -144,12 +151,17 @@ export function createRoutes(deps: RouteDeps): Route[] {
   ): RouteResult => ({ kind: "json", status, body, headers });
 
   const routes: Route[] = [
+    // Publishing does NOT require an account. With a session the drawing is
+    // attributed to it; with no Authorization header at all it lands under
+    // the anonymous sentinel (see config/constants.ts). A header that IS
+    // present but fails verification still 401s inside ingestRoute — a
+    // broken token is an error, never a silent downgrade to anonymous.
     {
       methods: ["POST"],
       pattern: /^\/ingest$/,
-      auth: "required",
+      auth: "optional",
       logName: "POST /ingest",
-      handler: (req, _params, auth) => ingestRoute(req, auth!, deps),
+      handler: (req, _params, auth) => ingestRoute(req, auth, deps),
     },
     // /admin — public shell. Carries no per-user data, so it ships
     // unauthenticated; an inline boot script reads the JWT from
@@ -515,10 +527,26 @@ export function authFromBearer(
 // POST /ingest — publish flow + the outcome log line operators report on.
 async function ingestRoute(
   req: RouteRequest,
-  auth: AuthedUser,
+  auth: AuthedUser | null,
   deps: RouteDeps,
 ): Promise<RouteResult> {
   const route = "POST /ingest";
+  // No session → anonymous publish. A supplied-but-unverifiable token is a
+  // different story: the caller believes it's signed in, so failing loudly
+  // beats attributing their drawing to the anonymous sentinel.
+  if (!auth && req.hasAuthHeader()) {
+    logOutcome({
+      requestId: req.requestId, route, status: 401,
+      duration_ms: Date.now() - req.t0,
+      error_code: "unauthorized",
+    });
+    return { kind: "json", status: 401, body: { error: "authentication required" } };
+  }
+  // Anonymous publishes log under the sentinel rather than an empty
+  // identity, so the outcome stream can tell them apart from a request
+  // whose identity simply failed to resolve.
+  const logUserId = auth?.user_id ?? ANONYMOUS_USER_ID;
+  const logUsername = auth?.username ?? ANONYMOUS_USERNAME;
   let body: IngestRequest;
   try {
     // The cast is compile-time only; handleIngest shape-checks every field
@@ -530,7 +558,7 @@ async function ingestRoute(
     logOutcome({
       requestId: req.requestId, route, status: 400,
       duration_ms: Date.now() - req.t0,
-      user_id: auth.user_id, username: auth.username,
+      user_id: logUserId, username: logUsername,
       error_code: "bad_json", error_message: "bad json body",
     });
     return { kind: "json", status: 400, body: { error: "bad json body" } };
@@ -542,7 +570,7 @@ async function ingestRoute(
   logOutcome({
     requestId: req.requestId, route, status: result.status,
     duration_ms: Date.now() - req.t0,
-    user_id: auth.user_id, username: auth.username,
+    user_id: logUserId, username: logUsername,
     drawing_id: success ? (result.body as { id: string }).id : undefined,
     parent_id: body.parent ?? null,
     gif_size_bytes: gifSize,

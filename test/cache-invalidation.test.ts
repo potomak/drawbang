@@ -15,6 +15,17 @@ test("pathsToInvalidateOnPublish: home feed + gallery + that user's profile + RS
   ]);
 });
 
+test("pathsToInvalidateOnPublish: a null username drops the profile path", () => {
+  // Anonymous publish — there is no /u/<username> page to flush, and the
+  // sentinel must never be interpolated into an invalidation path.
+  assert.deepEqual(pathsToInvalidateOnPublish(null), [
+    "/",
+    "/feed/items*",
+    "/gallery*",
+    "/feed.rss",
+  ]);
+});
+
 test("NoopInvalidator records calls; skips empty", async () => {
   const inv = new NoopInvalidator();
   await inv.invalidate([]);

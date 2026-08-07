@@ -10,6 +10,7 @@ import {
   PER_PAGE,
   DRAWING_ID_RE,
   USERNAME_RE,
+  isAnonymousUsername,
   CC_GALLERY,
   CC_DRAWING_PAGE,
   CC_PROFILE,
@@ -161,6 +162,15 @@ function buildFragmentUrl(
   return `${basePath}?cursor=${encodeCursor(cursor)}`;
 }
 
+// Every /u/<username> surface goes through this instead of a bare
+// USERNAME_RE test. The anonymous sentinel passes the regex but has no
+// account behind it — publishing without a session must not conjure a
+// profile page, a streak, or a bookmarks shell for a user who doesn't
+// exist, so the whole family 404s for it.
+function isProfileRoutable(username: string): boolean {
+  return USERNAME_RE.test(username) && !isAnonymousUsername(username);
+}
+
 // -- / (feed home) + /feed/items ---------------------------------------------
 
 async function loadFeedItems(
@@ -172,7 +182,7 @@ async function loadFeedItems(
   // userStore (dev/tests) the profile pictures are simply null.
   const usernames = new Set<string>();
   for (const r of rows) {
-    if (r.username !== "anonymous") usernames.add(r.username);
+    if (!isAnonymousUsername(r.username)) usernames.add(r.username);
   }
   const pictures = new Map<string, string | null>();
   if (cfg.userStore && usernames.size > 0) {
@@ -191,7 +201,7 @@ async function loadFeedItems(
     created_at: r.created_at,
     like_count: r.like_count ?? 0,
     author:
-      r.username === "anonymous"
+      isAnonymousUsername(r.username)
         ? null
         : {
             username: r.username,
@@ -402,14 +412,13 @@ export async function renderDrawingPageHandler(
     limit: cfg.perPage ?? PER_PAGE,
   });
   const ancestors = await loadAncestorChain(cfg.drawingStore, row);
-  // Author profile picture: optional lookup so legacy "anonymous" /
-  // unregistered usernames just render without one. Short-circuit for
-  // the "anonymous" bucket since RESERVED_USERNAMES guarantees no real
-  // account row exists for it.
+  // Anonymous drawings render an unlinked "anonymous" byline: there's no
+  // account behind the sentinel and /u/anonymous 404s, so linking it would
+  // be a dead end. The account lookup is skipped for the same reason —
+  // RESERVED_USERNAMES guarantees no real row exists for it.
+  const isAnonymous = isAnonymousUsername(row.username);
   const authorAccount =
-    cfg.userStore && row.username !== "anonymous"
-      ? await cfg.userStore.getByUsername(row.username)
-      : null;
+    cfg.userStore && !isAnonymous ? await cfg.userStore.getByUsername(row.username) : null;
   const body = renderTilePage({
     drawing_id: row.drawing_id,
     id_short: row.drawing_id.slice(0, 8),
@@ -418,11 +427,13 @@ export async function renderDrawingPageHandler(
     parent: row.parent_id
       ? { parent: row.parent_id, parent_short: row.parent_id.slice(0, 8) }
       : null,
-    author: {
-      user_id: row.user_id,
-      username: row.username,
-      profile_picture_drawing_id: authorAccount?.profile_picture_drawing_id ?? null,
-    },
+    author: isAnonymous
+      ? null
+      : {
+          user_id: row.user_id,
+          username: row.username,
+          profile_picture_drawing_id: authorAccount?.profile_picture_drawing_id ?? null,
+        },
     forks: forks.items.map(itemFromRow),
     ancestors,
     like_count: row.like_count ?? 0,
@@ -443,7 +454,7 @@ export async function renderProfilePageHandler(
   cfg: RenderHandlersConfig,
   username: string,
 ): Promise<RenderResponse> {
-  if (!USERNAME_RE.test(username)) return notFound(cfg);
+  if (!isProfileRoutable(username)) return notFound(cfg);
   const perPage = cfg.perPage ?? PER_PAGE;
   const page = await cfg.drawingStore.queryByUsername(username, { limit: perPage });
   // Account lookup: needed for the profile-picture field on every render,
@@ -451,7 +462,7 @@ export async function renderProfilePageHandler(
   // user_id. The "anonymous" bucket has no real account row, so skip
   // the lookup.
   const account =
-    cfg.userStore && username !== "anonymous"
+    cfg.userStore && !isAnonymousUsername(username)
       ? await cfg.userStore.getByUsername(username)
       : null;
   let userId: string;
@@ -505,9 +516,9 @@ export async function renderStreakPageHandler(
   cfg: RenderHandlersConfig,
   username: string,
 ): Promise<RenderResponse> {
-  if (!USERNAME_RE.test(username)) return notFound(cfg);
+  if (!isProfileRoutable(username)) return notFound(cfg);
   const account =
-    cfg.userStore && username !== "anonymous"
+    cfg.userStore && !isAnonymousUsername(username)
       ? await cfg.userStore.getByUsername(username)
       : null;
 
@@ -674,7 +685,7 @@ export async function renderBookmarksPageHandler(
   cfg: RenderHandlersConfig,
   username: string,
 ): Promise<RenderResponse> {
-  if (!USERNAME_RE.test(username)) return notFound(cfg);
+  if (!isProfileRoutable(username)) return notFound(cfg);
   return {
     status: 200,
     contentType: "text/html; charset=utf-8",
@@ -727,7 +738,7 @@ export async function renderProfileItemsHandler(
   username: string,
   rawCursor: string | null,
 ): Promise<RenderResponse> {
-  if (!USERNAME_RE.test(username)) return notFound(cfg);
+  if (!isProfileRoutable(username)) return notFound(cfg);
   const perPage = cfg.perPage ?? PER_PAGE;
   const cursor = decodeCursor(rawCursor) ?? undefined;
   const page = await cfg.drawingStore.queryByUsername(username, { limit: perPage, cursor });
@@ -752,7 +763,7 @@ async function renderFollowListPage(
   kind: FollowListKind,
   rawCursor: string | null,
 ): Promise<RenderResponse> {
-  if (!USERNAME_RE.test(ownerUsername)) return notFound(cfg);
+  if (!isProfileRoutable(ownerUsername)) return notFound(cfg);
   if (!cfg.followsStore || !cfg.userStore) return notFound(cfg);
   const owner = await cfg.userStore.getByUsername(ownerUsername);
   if (!owner) return notFound(cfg);
@@ -787,7 +798,7 @@ async function renderFollowListItems(
   kind: FollowListKind,
   rawCursor: string | null,
 ): Promise<RenderResponse> {
-  if (!USERNAME_RE.test(ownerUsername)) return notFound(cfg);
+  if (!isProfileRoutable(ownerUsername)) return notFound(cfg);
   if (!cfg.followsStore || !cfg.userStore) return notFound(cfg);
   const owner = await cfg.userStore.getByUsername(ownerUsername);
   if (!owner) return notFound(cfg);
@@ -881,7 +892,7 @@ export async function renderFollowThumbsHandler(
   ownerUsername: string,
   rawLimit: string | null,
 ): Promise<RenderResponse> {
-  if (!USERNAME_RE.test(ownerUsername)) return notFound(cfg);
+  if (!isProfileRoutable(ownerUsername)) return notFound(cfg);
   if (!cfg.followsStore || !cfg.userStore) return notFound(cfg);
   const owner = await cfg.userStore.getByUsername(ownerUsername);
   if (!owner) return notFound(cfg);

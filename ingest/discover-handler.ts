@@ -6,6 +6,7 @@
 // drawing with many likes won't appear — which is fine for the
 // "discover" framing, and easy to upgrade to a precompute job later.
 
+import { isAnonymousUsername } from "../config/constants.js";
 import type { DrawingStore } from "./drawing-store.js";
 import type { UserStore } from "./user-store.js";
 
@@ -54,7 +55,7 @@ export async function loadDiscover(
       drawing_id: r.drawing_id,
       thumb_url: `/tiles/${r.drawing_id}.gif`,
       drawing_url: `/d/${r.drawing_id}`,
-      author_username: r.username === "anonymous" ? null : r.username,
+      author_username: isAnonymousUsername(r.username) ? null : r.username,
       like_count: r.like_count ?? 0,
     }));
 
@@ -63,7 +64,7 @@ export async function loadDiscover(
   // (newest-first), which is a reasonable tiebreak.
   const counts = new Map<string, number>();
   for (const r of recent) {
-    if (r.username === "anonymous") continue;
+    if (isAnonymousUsername(r.username)) continue;
     counts.set(r.username, (counts.get(r.username) ?? 0) + 1);
   }
   const topPairs = [...counts.entries()]
