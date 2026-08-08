@@ -201,7 +201,7 @@ JSON endpoints (no caching at the edge — `Cache-Control: no-store`):
 | URL                            | Method        | Auth | Handler |
 |--------------------------------|---------------|------|---------|
 | `/hydrate?drawings=<csv>&users=<csv>` | GET    | optional | `ingest/hydrate-handler.ts` — **the** read-side hydration channel. Returns `{drawings: {<id>: {like_count, viewer_liked, viewer_bookmarked}}, users: {<un>: {profile_picture_drawing_id, follower_count, following_count, viewer_follows}}}`. `viewer_*` fields populate when a Bearer JWT is sent, otherwise they're `null`. Every Lambda-rendered page fires one of these via `/hydrate.js` to overlay fresh values on the edge-cached SSR markup. |
-| `/backfill/sidecars`           | POST          | required | `ingest/backfill-handler.ts` — regenerate missing `-large.gif`/`-large.mp4`. Own drawings by default; `?scope=all` is operator-only. **API origin only.** See "Backfilling share sidecars". |
+| `/backfill/sidecars`           | POST          | required | `ingest/backfill-handler.ts` — regenerate missing `-large.gif`/`-large.mp4`. `?drawing=<id>` repairs one (any caller); own drawings by default; `?scope=all` is operator-only. **API origin only.** See "Backfilling share sidecars". |
 | `/drawings/<id>`               | DELETE        | required | `ingest/delete-handler.ts` — remove a drawing. Author **or** `ADMIN_USERNAMES`; anonymous drawings are operator-only. **API origin only** — see "Deleting a drawing". |
 | `/drawings/<id>/like`          | POST / DELETE | required | `ingest/likes-handler.ts` — toggle a like (write only). |
 | `/drawings/<id>/bookmark`      | POST / DELETE | required | `ingest/bookmarks-handler.ts` — toggle a bookmark (write only). |
@@ -398,6 +398,15 @@ they're flushed at all.
 
 Scope is the security boundary:
 
+- **`?drawing=<id>`** — exactly one drawing, any signed-in caller, no
+  ownership check. That's safe because the operation only ever *creates*
+  derived data that should already exist: it never deletes, mutates, or
+  discloses anything (the report names the missing sidecar, which anyone
+  can already determine with two HEAD requests), it's idempotent so a
+  healthy drawing produces no work, and its total capacity across the
+  gallery is bounded by the number of genuinely broken drawings. The
+  clincher: it is strictly **less** powerful than publishing, which is
+  open to anonymous callers and runs the very same encode pipeline.
 - **default** — the caller's own drawings. Anyone signed in can repair
   their own work: it only ever creates derived data that should already
   exist, and it's bounded by what they published.

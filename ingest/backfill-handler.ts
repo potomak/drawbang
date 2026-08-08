@@ -1,4 +1,4 @@
-import { isAnonymousUsername } from "../config/constants.js";
+import { DRAWING_ID_RE, isAnonymousUsername } from "../config/constants.js";
 import type { AuthedUser, PostPublishJob } from "./handler.js";
 import type { DrawingCursor, DrawingRow, DrawingStore } from "./drawing-store.js";
 import type { Storage } from "./storage.js";
@@ -14,11 +14,23 @@ import type { Storage } from "./storage.js";
 // the two tile URLs get invalidated rather than the whole feed set.
 //
 // Scope is the security boundary:
+//   - `?drawing=<id>`: exactly one drawing, any signed-in caller. See the
+//     note on why that's safe below.
 //   - default: the CALLER'S OWN drawings. Anyone signed in can repair
 //     their own work; it can only ever create derived data that should
 //     already exist, and it's bounded by what they published.
 //   - `scope=all`: the whole gallery. Operators on ADMIN_USERNAMES only,
-//     because it can fan out across everyone's drawings.
+//     because it can fan out across everyone's drawings unattended.
+//
+// Why targeting one drawing needs no ownership check: the operation can
+// only CREATE derived data that should already exist — it never deletes,
+// mutates, or discloses anything (the report says which sidecar is
+// missing, which anyone can already learn with two HEAD requests). It is
+// idempotent, so a healthy drawing produces no work at all, and its total
+// capacity across the whole gallery is bounded by the number of genuinely
+// broken drawings — once repaired, further calls do nothing. Decisively:
+// it is strictly LESS powerful than publishing, which is open to
+// anonymous callers and runs the very same encode pipeline on demand.
 //
 // Anonymous drawings have no owner, so they're only reachable via
 // scope=all — same rule as the drawing delete.
@@ -39,6 +51,8 @@ export interface BackfillHandlerConfig {
 }
 
 export interface BackfillOptions {
+  // When set, repair just this drawing and ignore `scope` entirely.
+  target: string | null;
   scope: BackfillScope;
   // Cap on drawings actually enqueued, so one call can't fan out across
   // the whole gallery by accident.
@@ -51,7 +65,7 @@ export interface BackfillOptions {
 }
 
 export interface BackfillReport {
-  scope: BackfillScope;
+  scope: BackfillScope | "one";
   scanned: number;
   // `username` is null for anonymous drawings — matches what gets put on
   // the enqueued job.
@@ -65,7 +79,7 @@ export interface BackfillReport {
 
 export type BackfillResult =
   | { status: 200; body: BackfillReport }
-  | { status: 400 | 403; body: { error: string } };
+  | { status: 400 | 403 | 404; body: { error: string } };
 
 export const DEFAULT_LIMIT = 25;
 export const MAX_LIMIT = 100;
@@ -75,13 +89,16 @@ export const MAX_SCAN_LIMIT = 1000;
 // Parses + clamps the query string. Exported so the bounds are testable
 // without standing up a store.
 export function parseBackfillOptions(q: {
+  drawing: string | null;
   scope: string | null;
   limit: string | null;
   scan: string | null;
   dry: string | null;
 }): BackfillOptions {
   const scope: BackfillScope = q.scope === "all" ? "all" : "mine";
+  const target = q.drawing !== null && DRAWING_ID_RE.test(q.drawing) ? q.drawing : null;
   return {
+    target,
     scope,
     limit: clamp(q.limit, DEFAULT_LIMIT, 1, MAX_LIMIT),
     scanLimit: clamp(q.scan, DEFAULT_SCAN_LIMIT, 1, MAX_SCAN_LIMIT),
@@ -104,6 +121,37 @@ export async function handleBackfillSidecars(
   auth: AuthedUser,
   cfg: BackfillHandlerConfig,
 ): Promise<BackfillResult> {
+  // Single-drawing repair: no ownership check, for the reasons in the
+  // header comment. Bounded to one job by construction.
+  if (opts.target !== null) {
+    const row = await cfg.drawingStore.get(opts.target);
+    if (!row) return { status: 404, body: { error: "drawing not found" } };
+    const entry = await needsFor(cfg.storage, row);
+    const enqueuedOne: string[] = [];
+    if (entry.needs.length > 0) {
+      if (!opts.dryRun) {
+        await cfg.enqueue({
+          drawing_id: entry.drawing_id,
+          username: entry.username,
+          prompt_tagged: false,
+          mode: "backfill",
+        });
+      }
+      enqueuedOne.push(entry.drawing_id);
+    }
+    return {
+      status: 200,
+      body: {
+        scope: "one",
+        scanned: 1,
+        missing: entry.needs.length > 0 ? [entry] : [],
+        enqueued: enqueuedOne,
+        dry_run: opts.dryRun,
+        truncated: false,
+      },
+    };
+  }
+
   if (opts.scope === "all" && !cfg.isAdmin(auth.username)) {
     return { status: 403, body: { error: "scope=all requires an operator account" } };
   }

@@ -405,6 +405,7 @@ export function createRoutes(deps: RouteDeps): Route[] {
       logName: "POST /backfill/sidecars",
       handler: async (req, _params, auth) => {
         const opts = parseBackfillOptions({
+          drawing: req.query("drawing"),
           scope: req.query("scope"),
           limit: req.query("limit"),
           scan: req.query("scan"),
