@@ -201,6 +201,7 @@ JSON endpoints (no caching at the edge — `Cache-Control: no-store`):
 | URL                            | Method        | Auth | Handler |
 |--------------------------------|---------------|------|---------|
 | `/hydrate?drawings=<csv>&users=<csv>` | GET    | optional | `ingest/hydrate-handler.ts` — **the** read-side hydration channel. Returns `{drawings: {<id>: {like_count, viewer_liked, viewer_bookmarked}}, users: {<un>: {profile_picture_drawing_id, follower_count, following_count, viewer_follows}}}`. `viewer_*` fields populate when a Bearer JWT is sent, otherwise they're `null`. Every Lambda-rendered page fires one of these via `/hydrate.js` to overlay fresh values on the edge-cached SSR markup. |
+| `/drawings/<id>`               | DELETE        | required | `ingest/delete-handler.ts` — remove a drawing. Author **or** `ADMIN_USERNAMES`; anonymous drawings are operator-only. **API origin only** — see "Deleting a drawing". |
 | `/drawings/<id>/like`          | POST / DELETE | required | `ingest/likes-handler.ts` — toggle a like (write only). |
 | `/drawings/<id>/bookmark`      | POST / DELETE | required | `ingest/bookmarks-handler.ts` — toggle a bookmark (write only). |
 | `/me/bookmarks/feed`           | GET           | required | HTML fragment of the caller's bookmarks. Loaded by the inline boot script on `/u/<un>/bookmarks`. |
@@ -344,6 +345,40 @@ publisher — the GIF itself is public, so possession of the bytes proves
 nothing. A design for it is written up in
 `docs/claim-flow-proposal.md` (proposed, not built).
 
+## Deleting a drawing
+
+`DELETE /drawings/<id>` is the only path in the app that removes a
+drawing. It exists for moderation and for cleaning up test publishes
+(there is otherwise no way to unpublish, since ids are content-addressed
+and the editor has no delete affordance).
+
+Allowed callers: **the drawing's author**, or **an operator on
+`ADMIN_USERNAMES`**. Anonymous drawings have no author, so only operators
+can remove them — otherwise anyone could delete anything published
+without a session.
+
+**It is not routed through CloudFront, and that is not the security
+boundary.** A `/drawings/*` cache behaviour would also capture the legacy
+`/drawings/<id>.gif` asset URLs that the edge function rewrites to
+`/tiles/<id>.gif`, breaking them — so the route is registered at API
+Gateway only and is reachable at the `execute-api` origin. It is still
+publicly reachable there; the Bearer JWT plus the author/allowlist check
+in `ingest/delete-handler.ts` is what protects it. Don't add a "hidden
+path" and call it a gate.
+
+The delete is **hard, not a tombstone**: the DrawingStore row goes first
+(that's what makes the drawing disappear from every dynamic page), then
+the three S3 objects, then a cache invalidation that includes `/d/<id>*`
+on top of the usual publish set. Row-before-objects is deliberate — the
+reverse order would briefly leave a row pointing at a missing gif, which
+renders as a broken image on the feed.
+
+Like and bookmark rows for the deleted id are **left behind on purpose**.
+They're inert once nothing renders the drawing, and both read paths
+already tolerate a missing row (`renderMyBookmarksFeedHandler` filters
+nulls; `loadAncestorChain` stops at the first unresolvable parent).
+Sweeping them would turn one delete into an unbounded fan-out of writes.
+
 ## Design system
 
 The design system lives in three places, one source per surface:
@@ -469,6 +504,8 @@ ingest/               Lambda + dev-server: ingest, render, auth
                       every route, for Logs Insights queries.
   handler-utils.ts    Shared scaffolding for the toggle-style write
                       handlers (likes/bookmarks/follows).
+  delete-handler.ts   DELETE /drawings/{id} — author-or-operator drawing
+                      removal (row + S3 objects + invalidation).
   discover-handler.ts loadDiscover() — right-rail Most Liked · 30D +
                       Trending Artists, folded in memory from the recent
                       gallery window.

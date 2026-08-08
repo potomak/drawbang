@@ -33,6 +33,7 @@ import {
   type BookmarksHandlerConfig,
 } from "./bookmarks-handler.js";
 import { handleFollow, handleUnfollow, type FollowsHandlerConfig } from "./follows-handler.js";
+import { handleDeleteDrawing, type DeleteHandlerConfig } from "./delete-handler.js";
 import { handleHydrate, type HydrateHandlerConfig } from "./hydrate-handler.js";
 import { handleSubscribe, type SubscribeHandlerConfig } from "./subscribe-handler.js";
 import { parseRange } from "./admin-handler.js";
@@ -124,6 +125,9 @@ export interface RouteDeps {
   followsConfig: FollowsHandlerConfig;
   hydrateConfig: HydrateHandlerConfig;
   subscribeConfig: SubscribeHandlerConfig;
+  // Everything except the allowlist check, which createRoutes fills in from
+  // deps.admin so there is one definition of "operator".
+  deleteConfig: Omit<DeleteHandlerConfig, "isAdmin">;
   authConfig: AuthHandlerConfig;
   // Base publish config; the route injects the verified `auth` per call.
   ingestConfig: Omit<HandlerConfig, "auth">;
@@ -381,6 +385,36 @@ export function createRoutes(deps: RouteDeps): Route[] {
           } satisfies Route,
         ]
       : []),
+    // DELETE /drawings/{id} — remove a drawing. Author or ADMIN_USERNAMES
+    // only (gate lives in handleDeleteDrawing). Deliberately has no
+    // CloudFront behaviour: a `/drawings/*` pattern would also swallow the
+    // legacy `/drawings/<id>.gif` asset rewrite, so this is reachable on
+    // the API origin only. Listed before the /like and /bookmark routes
+    // for readability; the patterns are disjoint either way.
+    {
+      methods: ["DELETE"],
+      pattern: new RegExp(`^\\/drawings\\/(${HEX64})$`),
+      auth: "required",
+      logName: "DELETE /drawings/{id}",
+      handler: async (req, [id], auth) => {
+        const result = await handleDeleteDrawing(id, auth!, {
+          ...deps.deleteConfig,
+          isAdmin: (username) => deps.admin.isAllowed(username),
+        });
+        logOutcome({
+          requestId: req.requestId,
+          route: "DELETE /drawings/{id}",
+          status: result.status,
+          duration_ms: Date.now() - req.t0,
+          user_id: auth!.user_id,
+          username: auth!.username,
+          drawing_id: id,
+          error_code:
+            result.status === 200 ? undefined : (result.body as { error: string }).error,
+        });
+        return json(result.status, result.body);
+      },
+    },
     {
       methods: ["POST", "DELETE"],
       pattern: new RegExp(`^\\/drawings\\/(${HEX64})\\/like$`),

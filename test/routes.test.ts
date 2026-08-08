@@ -58,6 +58,7 @@ function makeDeps(opts: { userStats?: boolean } = {}): RouteDeps {
     followsConfig: { followsStore, userStore },
     hydrateConfig: { likesStore, bookmarksStore, followsStore, userStore },
     subscribeConfig: { subscribersStore: new MemorySubscribersStore() },
+    deleteConfig: { drawingStore, storage: new NullStorage() },
     authConfig: {
       userStore,
       email: new ConsoleEmailSender(),
@@ -179,6 +180,47 @@ describe("shared route table", () => {
     assert.equal(res.kind, "json");
     assert.equal((res as { status: number }).status, 401);
     assert.deepEqual((res as { body: unknown }).body, { error: "authentication required" });
+  });
+
+  test("DELETE /drawings/{id} requires a session", async () => {
+    const res = await dispatch(
+      routes,
+      makeReq({ method: "DELETE", path: `/drawings/${"a".repeat(64)}` }),
+    );
+    assert.equal(res.kind, "json");
+    assert.equal((res as { status: number }).status, 401);
+  });
+
+  test("DELETE /drawings/{id} does not shadow the like/bookmark toggles", async () => {
+    // The bare-id pattern must not swallow /drawings/<id>/like — a
+    // DELETE there is an unlike, not a drawing removal.
+    const id = "a".repeat(64);
+    const res = await dispatch(
+      routes,
+      makeReq({ method: "DELETE", path: `/drawings/${id}/like`, auth: VIEWER }),
+    );
+    assert.equal((res as { status: number }).status, 404, "unlike of a missing drawing");
+    assert.deepEqual((res as { body: unknown }).body, { error: "drawing not found" });
+  });
+
+  test("DELETE /drawings/{id} refuses a non-owner who isn't on the allowlist", async () => {
+    const deps = makeDeps();
+    const id = "b".repeat(64);
+    await deps.renderConfig.drawingStore.put({
+      drawing_id: id,
+      size: 16,
+      created_at: "2026-07-01T00:00:00.000Z",
+      created_at_ms: Date.parse("2026-07-01T00:00:00.000Z"),
+      user_id: "o".repeat(64),
+      username: "someoneelse",
+      parent_id: null,
+      frames: 1,
+      gif_size_bytes: 100,
+    });
+    const res = await dispatch(createRoutes(deps), makeReq({
+      method: "DELETE", path: `/drawings/${id}`, auth: VIEWER,
+    }));
+    assert.equal((res as { status: number }).status, 403);
   });
 
   test("public pages render without a session", async () => {

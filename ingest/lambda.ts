@@ -185,6 +185,7 @@ const routes = createRoutes({
   followsConfig,
   hydrateConfig,
   subscribeConfig,
+  deleteConfig: { drawingStore, storage, cacheInvalidator },
   authConfig,
   ingestConfig: {
     storage,

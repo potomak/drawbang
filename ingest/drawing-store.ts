@@ -1,5 +1,6 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
+  DeleteCommand,
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
@@ -77,6 +78,9 @@ export interface QueryOpts {
 export interface DrawingStore {
   put(row: DrawingRow): Promise<void>;
   get(drawing_id: string): Promise<DrawingRow | null>;
+  // Hard-deletes a row. Used only by the admin/owner delete endpoint
+  // (ingest/delete-handler.ts) — publishing never removes anything.
+  remove(drawing_id: string): Promise<void>;
   queryGallery(opts: QueryOpts): Promise<QueryPage>;
   queryByUsername(username: string, opts: QueryOpts): Promise<QueryPage>;
   queryForks(parent_id: string, opts: QueryOpts): Promise<QueryPage>;
@@ -160,6 +164,12 @@ export class DynamoDrawingStore implements DrawingStore {
     await this.doc.send(new PutCommand({ TableName: this.table, Item: item }));
   }
 
+  async remove(drawing_id: string): Promise<void> {
+    await this.doc.send(
+      new DeleteCommand({ TableName: this.table, Key: { drawing_id } }),
+    );
+  }
+
   async get(drawing_id: string): Promise<DrawingRow | null> {
     const r = await this.doc.send(
       new GetCommand({ TableName: this.table, Key: { drawing_id } }),
@@ -240,6 +250,10 @@ export class MemoryDrawingStore implements DrawingStore {
 
   async put(row: DrawingRow): Promise<void> {
     this.byId.set(row.drawing_id, { ...row });
+  }
+
+  async remove(drawing_id: string): Promise<void> {
+    this.byId.delete(drawing_id);
   }
 
   async get(drawing_id: string): Promise<DrawingRow | null> {

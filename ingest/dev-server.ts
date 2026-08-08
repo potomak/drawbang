@@ -88,6 +88,7 @@ const routes = createRoutes({
   followsConfig,
   hydrateConfig,
   subscribeConfig,
+  deleteConfig: { drawingStore, storage },
   authConfig,
   ingestConfig: {
     storage,
@@ -174,7 +175,7 @@ function writeResult(res: http.ServerResponse, result: RouteResult, u: URL): voi
 
 function cors(res: http.ServerResponse): void {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 }
 

@@ -81,6 +81,18 @@ export function pathsToInvalidateOnProfileChange(
   return [`/u/${username}*`];
 }
 
+// Deleting a drawing has to flush everywhere it could still be rendered,
+// which is the publish set PLUS the drawing's own page — a publish never
+// needs `/d/<id>` (the page can't be cached before the id exists), but a
+// delete very much does, or the removed drawing keeps serving from the
+// edge for up to its s-maxage.
+export function pathsToInvalidateOnDelete(
+  username: string | null,
+  drawing_id: string,
+): string[] {
+  return [...pathsToInvalidateOnPublish(username), `/d/${drawing_id}*`];
+}
+
 // Note on follows: follower_count / following_count on the profile page
 // ride the same long CC_PROFILE TTL, but we DON'T invalidate on each
 // follow event. Instead `/follows/counts?targets=<csv>` ships fresh

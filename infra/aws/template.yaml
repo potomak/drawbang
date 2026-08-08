@@ -981,6 +981,20 @@ Resources:
             ApiId: !Ref IngestApi
             Method: ANY
             Path: /products/p/{page}
+        # DELETE /drawings/{id} — author-or-operator drawing removal.
+        # Deliberately has NO CloudFront cache behaviour: a `/drawings/*`
+        # pattern would also capture the legacy `/drawings/<id>.gif` asset
+        # URLs that the default behaviour's CloudFront Function rewrites to
+        # `/tiles/<id>.gif`, breaking them. So this route is reachable on
+        # the API origin only. Access control is the Bearer JWT + the
+        # author/ADMIN_USERNAMES check in ingest/delete-handler.ts — not
+        # the routing.
+        DrawingDelete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: DELETE
+            Path: /drawings/{id}
         LikeCreate:
           Type: HttpApi
           Properties:
