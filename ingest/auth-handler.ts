@@ -83,6 +83,10 @@ interface ResetPasswordRequest {
   password?: unknown;
 }
 
+export interface DeleteAccountRequest {
+  password?: unknown;
+}
+
 interface PasswordResetClaims extends JwtClaims {
   email: string;
   tv: number;
@@ -413,6 +417,77 @@ export async function handleGetProfile(
       link: account.link ?? null,
     },
   };
+}
+
+// POST /auth/account/delete — self-service account removal.
+//
+// Deletes ONLY the caller's own account: the target comes from the verified
+// session JWT via resolveSelf(), never from the request body, so there is no
+// parameter an attacker could point at someone else.
+//
+// The current password is required on top of a valid session. Account
+// deletion is irreversible, so a leaked or borrowed JWT alone must not be
+// enough to trigger it.
+//
+// **Refuses while the account still owns drawings** (409). Reassigning them
+// to the anonymous sentinel or cascading a delete across them would be an
+// unbounded write fan-out on a request path, and it's a product decision
+// about people's published work that shouldn't be made implicitly here.
+// Delete the drawings first (DELETE /drawings/{id}), then the account. A
+// real user-facing "delete my account" flow needs that cascade designed
+// properly — see the note in CLAUDE.md.
+//
+// Rows left behind on purpose: the per-account stats row keys on user_id,
+// which is random and never reused, so nothing can ever read it again.
+// Follow edges, likes given, and bookmarks are the same unbounded fan-out
+// problem as the drawings and are documented rather than swept.
+export async function handleDeleteAccount(
+  req: DeleteAccountRequest,
+  auth: ProfileAuth,
+  cfg: AuthHandlerConfig,
+): Promise<AuthResult> {
+  if (typeof req.password !== "string" || req.password.length === 0) {
+    return err(400, "password required to delete the account");
+  }
+  const resolved = await resolveSelf(auth, cfg);
+  if (!resolved.ok) return err(401, "authentication required");
+  const account = resolved.account;
+
+  if (!(await verifyPassword(req.password, account.password_hash))) {
+    return err(403, "password does not match");
+  }
+
+  // Bounded check: one row is enough to know the account still owns work.
+  if (cfg.drawingStore) {
+    const owned = await cfg.drawingStore.queryByUsername(account.username, { limit: 1 });
+    if (owned.items.length > 0) {
+      return err(
+        409,
+        "account still has published drawings — delete them first (DELETE /drawings/{id})",
+      );
+    }
+  }
+
+  try {
+    await cfg.userStore.deleteAccount({
+      email: account.email,
+      username: account.username,
+      user_id: account.user_id,
+    });
+  } catch (e) {
+    if (e instanceof UserNotFoundError) return err(401, "authentication required");
+    throw e;
+  }
+
+  // The profile page 404s once the row is gone; flush it so the edge stops
+  // serving the cached version. Awaited because Lambda freezes on return.
+  if (cfg.cacheInvalidator) {
+    await cfg.cacheInvalidator.invalidate(
+      pathsToInvalidateOnProfileChange(account.username),
+    );
+  }
+
+  return { status: 200, body: { deleted: account.username } };
 }
 
 export async function handleUpdateProfile(

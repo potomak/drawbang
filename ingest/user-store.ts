@@ -72,6 +72,16 @@ export interface UserStore {
   // Atomically reserves email + username. Throws EmailTakenError /
   // UsernameTakenError on conflict.
   register(rec: UserRecord): Promise<UserRecord>;
+  // Mirror of register(): drops the account row and frees the username
+  // reservation in one transaction. Conditioned on user_id so a stale
+  // session can never delete an account that was already deleted and
+  // re-registered under the same email. Throws UserNotFoundError when the
+  // row is missing or the user_id no longer matches.
+  deleteAccount(args: {
+    email: string;
+    username: string;
+    user_id: string;
+  }): Promise<void>;
   getByEmail(email: string): Promise<UserRecord | null>;
   // Resolves a public handle to the underlying account. Returns null when
   // the handle is unregistered. Used by the dynamic /u/<username> profile
@@ -154,6 +164,47 @@ export class DynamoUserStore implements UserStore {
         if (reasons[1]?.Code === "ConditionalCheckFailed") {
           throw new UsernameTakenError();
         }
+      }
+      throw e;
+    }
+  }
+
+  async deleteAccount(args: {
+    email: string;
+    username: string;
+    user_id: string;
+  }): Promise<void> {
+    try {
+      await this.doc.send(
+        new TransactWriteCommand({
+          TransactItems: [
+            {
+              Delete: {
+                TableName: this.usersTable,
+                Key: { email: args.email },
+                ConditionExpression: "user_id = :uid",
+                ExpressionAttributeValues: { ":uid": args.user_id },
+              },
+            },
+            {
+              // Freeing the handle is safe: follow edges key on user_id, so
+              // a future account claiming the same username inherits
+              // nothing from this one.
+              Delete: {
+                TableName: this.usernamesTable,
+                Key: { username: args.username },
+                ConditionExpression: "email = :email",
+                ExpressionAttributeValues: { ":email": args.email },
+              },
+            },
+          ],
+        }),
+      );
+    } catch (e) {
+      const reasons = (e as { CancellationReasons?: { Code?: string }[] })
+        .CancellationReasons;
+      if (Array.isArray(reasons) && reasons.some((r) => r?.Code === "ConditionalCheckFailed")) {
+        throw new UserNotFoundError();
       }
       throw e;
     }
@@ -319,6 +370,17 @@ export class MemoryUserStore implements UserStore {
     this.byEmail.set(rec.email, { ...rec });
     this.usernames.add(rec.username);
     return rec;
+  }
+
+  async deleteAccount(args: {
+    email: string;
+    username: string;
+    user_id: string;
+  }): Promise<void> {
+    const rec = this.byEmail.get(args.email);
+    if (!rec || rec.user_id !== args.user_id) throw new UserNotFoundError();
+    this.byEmail.delete(args.email);
+    this.usernames.delete(args.username);
   }
 
   async getByEmail(email: string): Promise<UserRecord | null> {

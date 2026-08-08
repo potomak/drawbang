@@ -208,6 +208,7 @@ JSON endpoints (no caching at the edge — `Cache-Control: no-store`):
 | `/users/<username>/follow`     | POST / DELETE | required | `ingest/follows-handler.ts` — follow/unfollow. Self-follow → 400, missing target → 404, duplicate → 409. Bumps `follower_count`/`following_count` on the users rows transactionally with the edge write. |
 | `/auth/*`                      | POST          | mixed | `ingest/auth-handler.ts` (register/login/forgot/reset/profile-picture). |
 | `/auth/profile`                | GET / POST    | required | `ingest/auth-handler.ts` — GET prefills the edit-profile form on `/account`; POST updates bio + link. |
+| `/auth/account/delete`         | POST          | required | `ingest/auth-handler.ts` — self-service account deletion. Target is always the caller; current password required. 409 while the account still owns drawings. See "Deleting an account". |
 | `/users/<user_id>/stats`       | GET           | none | `ingest/user-stats-handler.ts` — public, short max-age. |
 | `/u/<username>/follow-thumbs?limit=N` | GET    | none | `renderFollowThumbsHandler` in `ingest/render-handlers.ts` — JSON of the first N follower/following usernames, feeds the left-rail thumb grids. |
 | `/admin/data`                  | GET           | required | `ingest/admin-handler.ts` — HTML fragment of ops counters + recent failures. Bearer JWT + `ADMIN_USERNAMES` allowlist, gated in `lambda.ts` before the handler runs. |
@@ -378,6 +379,41 @@ They're inert once nothing renders the drawing, and both read paths
 already tolerate a missing row (`renderMyBookmarksFeedHandler` filters
 nulls; `loadAncestorChain` stops at the first unresolvable parent).
 Sweeping them would turn one delete into an unbounded fan-out of writes.
+
+## Deleting an account
+
+`POST /auth/account/delete` removes the caller's own account. Not linked
+from any UI; same reasoning as the drawing delete — it exists so an
+operator (or an automated end-to-end check) can clean up after itself,
+and obscurity is not the gate.
+
+Two properties hold it together:
+
+- **The target is always the caller.** It comes from `resolveSelf()` —
+  the verified JWT's `user_id` + `username`, cross-checked against the
+  stored row. There is no body field naming an account, so there is
+  nothing to point somewhere else.
+- **The current password is required** on top of a valid session.
+  Deletion is irreversible, so a leaked or borrowed JWT alone must not be
+  enough.
+
+The store side mirrors `register()`: one `TransactWriteItems` dropping the
+users row and the username reservation together, conditioned on `user_id`
+so a stale session can't delete an account that was already deleted and
+re-registered under the same email. Freeing the handle is safe — follow
+edges key on `user_id`, so a new account taking the name inherits nothing.
+
+**It refuses (409) while the account still owns drawings.** Reassigning
+them to the anonymous sentinel or cascading a delete across them is an
+unbounded write fan-out on a request path, and it's a product decision
+about people's published work that shouldn't be made implicitly by a
+cleanup endpoint. Delete the drawings first, then the account. A real
+user-facing "delete my account" flow needs that cascade — plus follow
+edges, likes given, and bookmarks — designed on purpose; this endpoint
+deliberately isn't that.
+
+The per-account stats row is left behind: it keys on `user_id`, which is
+random and never reused, so nothing can ever read it again.
 
 ## Design system
 

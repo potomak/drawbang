@@ -139,6 +139,7 @@ describe("shared route table", () => {
       { method: "GET", path: "/auth/profile" },
       { method: "POST", path: "/auth/profile-picture" },
       { method: "POST", path: "/auth/profile" },
+      { method: "POST", path: "/auth/account/delete" },
     ];
     for (const r of requests) {
       const res = await dispatch(routes, makeReq({ ...r, auth: null, body: "{}" }));

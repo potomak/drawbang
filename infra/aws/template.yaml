@@ -903,6 +903,12 @@ Resources:
             ApiId: !Ref IngestApi
             Method: POST
             Path: /auth/profile-picture
+        AuthAccountDelete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: POST
+            Path: /auth/account/delete
         AuthGetProfile:
           Type: HttpApi
           Properties:

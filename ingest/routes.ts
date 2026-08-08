@@ -20,6 +20,7 @@ import {
   handleResetPassword,
   handleSetProfilePicture,
   handleUpdateProfile,
+  handleDeleteAccount,
   type AuthHandlerConfig,
   type ProfileAuth,
   type SetProfilePictureAuth,
@@ -659,6 +660,25 @@ async function authRoute(req: RouteRequest, deps: RouteDeps): Promise<RouteResul
         username: auth.username,
       };
       result = await handleSetProfilePicture(body, setPpAuth, deps.authConfig);
+      break;
+    }
+    // Self-service account deletion. Session-gated like the profile routes
+    // — the target is always the caller (resolveSelf), never a body field.
+    case "/auth/account/delete": {
+      auth = req.auth();
+      if (!auth) {
+        logOutcome({
+          requestId: req.requestId, route, status: 401,
+          duration_ms: Date.now() - req.t0,
+          error_code: "unauthorized",
+        });
+        return { kind: "json", status: 401, body: { error: "authentication required" } };
+      }
+      result = await handleDeleteAccount(
+        body,
+        { user_id: auth.user_id, username: auth.username },
+        deps.authConfig,
+      );
       break;
     }
     case "/auth/profile": {
