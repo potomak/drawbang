@@ -22,6 +22,11 @@ export function wireFormSubmit<R extends FormResult>(opts: {
   guard?: () => boolean;
   handler: () => Promise<R>;
   onSuccess: (res: Extract<R, { ok: true }>) => void;
+  // Where failures surface. Defaults to the global flash, which is right
+  // for a full-page form. Forms inside a <dialog> must override it: the
+  // flash host sits below the dialog's top layer, so a flashed error is
+  // invisible until the dialog closes.
+  onError?: (message: string) => void;
 }): void {
   const form = document.getElementById(opts.formId);
   if (!(form instanceof HTMLFormElement)) return;
@@ -43,6 +48,7 @@ export function wireFormSubmit<R extends FormResult>(opts: {
       opts.onSuccess(res as Extract<R, { ok: true }>);
       return;
     }
-    showFlash({ kind: "error", message: res.error });
+    if (opts.onError) opts.onError(res.error);
+    else showFlash({ kind: "error", message: res.error });
   });
 }

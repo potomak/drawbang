@@ -247,6 +247,24 @@ in front of Publish. The sentinel identity is defined once in
 `isAnonymousUsername`) — don't re-introduce the bare `"anonymous"` string
 comparison it replaced.
 
+The editor asks rather than assumes. Clicking **Publish** while signed
+out opens `#publishDialog` (`src/publish-dialog.ts`) offering "Publish
+anonymously" or "Log in or sign up"; cancelling aborts the publish. The
+sign-in branch runs **inline** — `register()`/`login()` are plain fetches,
+so authenticating never navigates away and the drawing on the canvas is
+never at risk, then the publish proceeds attributed. Redirecting to
+`/login?next=/draw` was the old behaviour and losing work to it is the
+problem this replaced, so don't reintroduce a navigation here.
+
+Two things that bite when editing this dialog:
+- Errors must render **in** the dialog (`#publishStatus`), not via
+  `showFlash` — the flash host sits below the dialog's top layer and is
+  invisible while it's open. `wireFormSubmit` takes an `onError` override
+  for exactly this.
+- Any conditionally-hidden `.auth-field` needs `[hidden] { display: none }`
+  (already in `src/style.css`): the author `display: flex` otherwise beats
+  the UA's `[hidden]` rule and the field stays visible.
+
 How it works:
 
 - `POST /ingest` is `auth: "optional"`. No `Authorization` header → the
@@ -367,6 +385,8 @@ src/                  Vite + TypeScript editor + auth SPAs
                       session exists, publishes anonymously when it doesn't.
   merch.ts/merch-preview.ts/order.ts  Merch picker + order status
   main.ts             Editor UI (publish works with or without a session)
+  publish-dialog.ts   Signed-out publish choice: publish anonymously vs
+                      inline log in / sign up, then publish attributed.
   layout/             chrome.ts (header/footer), flash.ts, tracking.ts
 
 ingest/               Lambda + dev-server: ingest, render, auth
@@ -656,13 +676,18 @@ stores:
 1. Open http://localhost:5173 — visit `/signup` and create an account
    (the dev server uses `MemoryUserStore` + `MemoryDrawingStore`, so
    accounts and drawings reset on restart).
-2. Draw, then **Publish** — with or without a session. The ingest
-   server writes the gif to `./dev-bucket/`, adds the row to
-   `MemoryDrawingStore`, and the next `/` / `/d/<id>` /
-   `/u/<username>` GET picks it up. Publishing while signed out is
-   worth exercising too: the drawing should land in the feed with an
-   unlinked "anonymous" byline, `/u/anonymous` should 404, and the
-   success flash should offer "Claim a profile".
+2. Draw, then **Publish**. Signed in, it publishes straight away.
+   Signed out, the publish dialog opens: "Publish anonymously" lands the
+   drawing with an unlinked "anonymous" byline (and `/u/anonymous`
+   404s), while "Log in or sign up" authenticates inline and then
+   publishes it attributed. The ingest server writes the gif to
+   `./dev-bucket/`, adds the row to `MemoryDrawingStore`, and the next
+   `/` / `/d/<id>` / `/u/<username>` GET picks it up.
+
+   Note: the dev-bucket middleware runs ahead of Vite's proxy, so the
+   proxied GET routes (`/d/<id>`, `/u/<un>`, `/`) are still shadowed by
+   its clean-URL 404 — read those off `localhost:8787` directly when
+   verifying a publish locally.
 3. Visit `/d/<id>` while logged in — the **Set as profile picture**
    button appears next to the other actions and POSTs
    `/auth/profile-picture`. Visit your profile to confirm.

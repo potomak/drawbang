@@ -47,7 +47,8 @@ import { decodeShare, encodeShare } from "./share.js";
 import { promptFromQuery, promptGuidanceHint } from "./prompt-query.js";
 import type { Prompt } from "../config/prompts.js";
 import * as local from "./local.js";
-import { logout } from "./auth.js";
+import { isLoggedIn, login, logout, register } from "./auth.js";
+import { createPublishDialog } from "./publish-dialog.js";
 import {
   MissingSessionError,
   submit,
@@ -266,6 +267,46 @@ app.innerHTML = /* html */ `
       <button type="button" class="btn primary" id="exportConfirm">Export</button>
     </menu>
   </dialog>
+
+  <dialog id="publishDialog" class="ed-publish-dialog">
+    <h2 class="ed-export-title">Publish drawing</h2>
+
+    <div id="publishChoose">
+      <p class="ed-publish-lede">You're not signed in. Publish anonymously, or sign in first so this
+        drawing lands on your profile — an anonymous drawing can't be moved to an account later.</p>
+      <menu class="ed-export-menu">
+        <button type="button" class="btn" id="publishCancel">Cancel</button>
+        <button type="button" class="btn" id="publishAnon">Publish anonymously</button>
+        <button type="button" class="btn primary" id="publishToAuth">Log in or sign up</button>
+      </menu>
+    </div>
+
+    <div id="publishAuthStep" hidden>
+      <div class="ed-publish-tabs" role="tablist" aria-label="Log in or sign up">
+        <button type="button" class="btn sm" id="publishTabLogin" role="tab" aria-selected="true">Log in</button>
+        <button type="button" class="btn sm" id="publishTabSignup" role="tab" aria-selected="false">Sign up</button>
+      </div>
+      <form class="auth-form ed-publish-form" id="publishAuthForm">
+        <label class="auth-field">
+          <span>Email</span>
+          <input type="email" id="publishEmail" name="email" autocomplete="email" required />
+        </label>
+        <label class="auth-field" id="publishUsernameField" hidden>
+          <span>Username</span>
+          <input type="text" id="publishUsername" name="username" autocomplete="username" minlength="3" maxlength="20" />
+        </label>
+        <label class="auth-field">
+          <span>Password</span>
+          <input type="password" id="publishPassword" name="password" autocomplete="current-password" minlength="8" required />
+        </label>
+        <p class="ed-export-status" id="publishStatus" role="alert" hidden></p>
+        <menu class="ed-export-menu">
+          <button type="button" class="btn" id="publishBack">Back</button>
+          <button type="submit" class="btn primary" id="publishSubmit">Log in &amp; publish</button>
+        </menu>
+      </form>
+    </div>
+  </dialog>
 `;
 
 const mainCanvasEl = document.getElementById("main") as HTMLCanvasElement;
@@ -300,6 +341,28 @@ const exportFooterEl = document.getElementById("exportFooter") as HTMLInputEleme
 const exportConfirmEl = document.getElementById("exportConfirm") as HTMLButtonElement;
 const exportCancelEl = document.getElementById("exportCancel") as HTMLButtonElement;
 const exportStatusEl = document.getElementById("exportStatus")!;
+
+const publishDialog = createPublishDialog({
+  dialog: document.getElementById("publishDialog") as HTMLDialogElement,
+  chooseStep: document.getElementById("publishChoose")!,
+  authStep: document.getElementById("publishAuthStep")!,
+  anonButton: document.getElementById("publishAnon") as HTMLButtonElement,
+  toAuthButton: document.getElementById("publishToAuth") as HTMLButtonElement,
+  cancelButton: document.getElementById("publishCancel") as HTMLButtonElement,
+  backButton: document.getElementById("publishBack") as HTMLButtonElement,
+  loginTab: document.getElementById("publishTabLogin") as HTMLButtonElement,
+  signupTab: document.getElementById("publishTabSignup") as HTMLButtonElement,
+  usernameField: document.getElementById("publishUsernameField")!,
+  emailInput: document.getElementById("publishEmail") as HTMLInputElement,
+  usernameInput: document.getElementById("publishUsername") as HTMLInputElement,
+  passwordInput: document.getElementById("publishPassword") as HTMLInputElement,
+  submitButton: document.getElementById("publishSubmit") as HTMLButtonElement,
+  statusEl: document.getElementById("publishStatus")!,
+  formId: "publishAuthForm",
+  submitId: "publishSubmit",
+  loginFn: login,
+  registerFn: register,
+});
 
 // Per-session timelapse recorder. Captures one op per pointer stroke
 // + frame/transform/palette/clear/size actions, capped at MAX_OPS /
@@ -1193,6 +1256,13 @@ function signInHref(): string {
 
 async function handlePublish(): Promise<void> {
   tracker.publishClick(state.frames.length);
+  // Signed-out publishers get the choice up front rather than having one
+  // picked for them. Signing in happens inside the dialog, so either
+  // branch lands back here with the drawing still on the canvas.
+  if (!isLoggedIn()) {
+    const decision = await publishDialog.decide();
+    if (decision === "cancelled") return;
+  }
   showFlash({ kind: "info", message: "Publishing…" });
   // Captured before the await so the remix flag, prompt tag, and anonymity
   // reflect what was actually sent, even if state resets mid-flight.
@@ -1273,38 +1343,19 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(bin);
 }
 
-// Same-origin path of a share URL, for use as a ?next= destination. The
-// server always sends an absolute URL, but this runs after a *successful*
-// publish — a throw here would surface as "Publish failed" on a drawing
-// that is already live, so an unparseable URL falls back to the feed.
-function sharePath(shareUrl: string): string {
-  try {
-    return new URL(shareUrl, location.origin).pathname;
-  } catch {
-    return "/";
-  }
-}
-
 function flashPublished(shareUrl: string, anonymous: boolean): void {
   const link = document.createElement("a");
   link.href = shareUrl;
   link.textContent = shareUrl;
   link.target = "_blank";
   link.rel = "noopener";
-  // The drawing is already live either way; signing up is an invitation
-  // attached to the success, not a condition of it. Deliberately NOT worded
-  // as "claim this drawing" — ids are content-addressed, so an anonymous
-  // publish can't be reattributed after the fact. What an account buys is
-  // authorship of what you draw next.
-  const action = anonymous
-    ? { label: "Create an account", href: `/signup?next=${encodeURIComponent(sharePath(shareUrl))}` }
-    : undefined;
+  // No sign-up prompt here on purpose: the publish dialog already offered
+  // the choice, and nagging someone who just deliberately picked anonymous
+  // is the friction this flow exists to remove. The wording still reflects
+  // which way it went so the byline is never a surprise.
   showFlash({
     kind: "success",
-    message: anonymous
-      ? ["Published anonymously: ", link]
-      : ["Published: ", link],
-    ...(action ? { action } : {}),
+    message: anonymous ? ["Published anonymously: ", link] : ["Published: ", link],
   });
 }
 

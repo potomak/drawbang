@@ -147,6 +147,11 @@ function viteEntryRewrite(uri: string): string | null {
 // 404 handling still kicks in for dev-time bundle misses.
 function looksLikeCleanUrl(uri: string): boolean {
   if (uri === "/" || uri === "") return false;
+  // Vite's own dev endpoints (/@vite/client, /@react-refresh, /@fs/...)
+  // are extensionless and would otherwise be served a 404 page — which
+  // breaks HMR and, because the client is injected into every module
+  // graph, stops page scripts evaluating at all.
+  if (uri.startsWith("/@")) return false;
   const last = uri.split("/").pop() ?? "";
   return !last.includes(".");
 }
@@ -218,7 +223,14 @@ export function devBucketPlugin(opts: DevBucketPluginOptions = {}): Plugin {
         }
 
         // 3. Unmatched clean URLs (e.g. /murale typo, /404 itself) → /404.html.
-        if (pathOnly === "/404" || looksLikeCleanUrl(pathOnly)) {
+        // GET/HEAD only: this middleware runs ahead of vite's proxy, so
+        // without the method check an extensionless API path like
+        // `POST /ingest` gets a 404 page instead of being forwarded to the
+        // ingest dev-server — which broke the whole `npm run dev:all`
+        // publish loop. A non-GET request is never a page navigation.
+        const method = (req.method ?? "GET").toUpperCase();
+        const isPageRequest = method === "GET" || method === "HEAD";
+        if (isPageRequest && (pathOnly === "/404" || looksLikeCleanUrl(pathOnly))) {
           return serveNotFound(publicRoot, res, next, pathOnly);
         }
 

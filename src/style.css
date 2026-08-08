@@ -525,6 +525,32 @@ dialog form menu button:hover { border-color: var(--border-strong); }
   margin: 16px 0 0;
 }
 
+/* Publish dialog — anonymous-vs-sign-in choice shown to signed-out
+   publishers, driven by src/publish-dialog.ts. Inherits the global
+   `dialog` shell and reuses .ed-export-title/.ed-export-menu/
+   .ed-export-status plus the shared .auth-form/.auth-field fields. */
+.ed-publish-dialog {
+  width: min(400px, 95vw);
+}
+.ed-publish-lede {
+  margin: 0 0 16px;
+  font-size: var(--t-sm);
+  color: var(--fg-muted);
+}
+.ed-publish-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.ed-publish-tabs .btn[aria-selected="true"] {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.ed-publish-form {
+  max-width: none;
+  margin: 0;
+}
+
 /* =====================================================================
    MERCH PICKER (/merch?d=<id>)
    ===================================================================== */
@@ -722,6 +748,10 @@ dialog form menu button:hover { border-color: var(--border-strong); }
 .auth-form { display: flex; flex-direction: column; gap: 14px; max-width: 360px; margin: 0 0 16px; }
 .auth-form h2 { margin: 0; }
 .auth-field { display: flex; flex-direction: column; gap: 4px; }
+/* Author `display: flex` beats the UA's `[hidden] { display: none }`, so a
+   conditionally-shown field (the publish dialog's signup-only username)
+   would stay visible without this. Same pattern as .btn[hidden] etc. */
+.auth-field[hidden] { display: none; }
 .auth-field > span { font-size: var(--t-sm); color: var(--fg); }
 .auth-field input {
   height: var(--tap);
