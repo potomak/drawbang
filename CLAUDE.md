@@ -201,6 +201,7 @@ JSON endpoints (no caching at the edge — `Cache-Control: no-store`):
 | URL                            | Method        | Auth | Handler |
 |--------------------------------|---------------|------|---------|
 | `/hydrate?drawings=<csv>&users=<csv>` | GET    | optional | `ingest/hydrate-handler.ts` — **the** read-side hydration channel. Returns `{drawings: {<id>: {like_count, viewer_liked, viewer_bookmarked}}, users: {<un>: {profile_picture_drawing_id, follower_count, following_count, viewer_follows}}}`. `viewer_*` fields populate when a Bearer JWT is sent, otherwise they're `null`. Every Lambda-rendered page fires one of these via `/hydrate.js` to overlay fresh values on the edge-cached SSR markup. |
+| `/backfill/sidecars`           | POST          | required | `ingest/backfill-handler.ts` — regenerate missing `-large.gif`/`-large.mp4`. Own drawings by default; `?scope=all` is operator-only. **API origin only.** See "Backfilling share sidecars". |
 | `/drawings/<id>`               | DELETE        | required | `ingest/delete-handler.ts` — remove a drawing. Author **or** `ADMIN_USERNAMES`; anonymous drawings are operator-only. **API origin only** — see "Deleting a drawing". |
 | `/drawings/<id>/like`          | POST / DELETE | required | `ingest/likes-handler.ts` — toggle a like (write only). |
 | `/drawings/<id>/bookmark`      | POST / DELETE | required | `ingest/bookmarks-handler.ts` — toggle a bookmark (write only). |
@@ -380,6 +381,42 @@ already tolerate a missing row (`renderMyBookmarksFeedHandler` filters
 nulls; `loadAncestorChain` stops at the first unresolvable parent).
 Sweeping them would turn one delete into an unbounded fan-out of writes.
 
+## Backfilling share sidecars
+
+`POST /backfill/sidecars` regenerates missing `-large.gif` / `-large.mp4`
+objects. It's the endpoint form of `scripts/backfill-large-gifs.ts` +
+`scripts/backfill-share-mp4.ts`, so gaps can be repaired without AWS
+credentials.
+
+It does **not** re-implement the encoders. It finds drawings with a
+missing sidecar and enqueues the ordinary post-publish tail
+(`PostPublishEvent` → `runPostPublish`) for each, with `mode: "backfill"`
+so only the two `/tiles/<id>-large.*` paths get invalidated instead of the
+whole feed set — the drawing is already live, and invalidation paths cost
+money past the free tier. The negative cache on those URLs is the reason
+they're flushed at all.
+
+Scope is the security boundary:
+
+- **default** — the caller's own drawings. Anyone signed in can repair
+  their own work: it only ever creates derived data that should already
+  exist, and it's bounded by what they published.
+- **`?scope=all`** — the whole gallery, `ADMIN_USERNAMES` only, because it
+  fans out across everyone's drawings. Anonymous drawings have no owner,
+  so they're reachable only this way.
+
+Bounds, all clamped in `parseBackfillOptions`: `limit` caps how many jobs
+one call enqueues (default 25, max 100), `scan` caps rows examined
+(default 200, max 1000) so the S3 HEADs can't run past the Lambda
+timeout. `dry=1` reports without enqueuing. When the scan stops early the
+report sets `truncated: true` — run it again.
+
+**How reliable is the tail, actually?** Measured, not assumed: 96 of 97
+drawings in the gallery had their `-large.mp4`, and a controlled batch of
+8 fresh publishes produced both sidecars 8/8. The tail is not a
+frequently-failing path — treat a missing sidecar as a rare gap to
+backfill, not a symptom to re-architect around.
+
 ## Deleting an account
 
 `POST /auth/account/delete` removes the caller's own account. Not linked
@@ -540,6 +577,10 @@ ingest/               Lambda + dev-server: ingest, render, auth
                       every route, for Logs Insights queries.
   handler-utils.ts    Shared scaffolding for the toggle-style write
                       handlers (likes/bookmarks/follows).
+  backfill-handler.ts POST /backfill/sidecars — find drawings with a
+                      missing -large.gif/-large.mp4 and enqueue the
+                      post-publish tail for each (own drawings by
+                      default, ?scope=all for operators).
   delete-handler.ts   DELETE /drawings/{id} — author-or-operator drawing
                       removal (row + S3 objects + invalidation).
   discover-handler.ts loadDiscover() — right-rail Most Liked · 30D +

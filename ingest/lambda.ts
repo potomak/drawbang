@@ -186,6 +186,7 @@ const routes = createRoutes({
   hydrateConfig,
   subscribeConfig,
   deleteConfig: { drawingStore, storage, cacheInvalidator },
+  backfillConfig: { drawingStore, storage, enqueue: deferPostPublish },
   authConfig,
   ingestConfig: {
     storage,

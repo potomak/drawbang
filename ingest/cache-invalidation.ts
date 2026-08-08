@@ -81,6 +81,15 @@ export function pathsToInvalidateOnProfileChange(
   return [`/u/${username}*`];
 }
 
+// A sidecar backfill doesn't change any page — the drawing was already
+// live — so the feed/profile set would be pure waste (and invalidation
+// paths cost money past the free tier). What DOES need flushing is the two
+// sidecar URLs themselves: they previously 404'd, and the edge may have
+// cached that negative response.
+export function pathsToInvalidateOnSidecarBackfill(drawing_id: string): string[] {
+  return [`/tiles/${drawing_id}-large.gif`, `/tiles/${drawing_id}-large.mp4`];
+}
+
 // Deleting a drawing has to flush everywhere it could still be rendered,
 // which is the publish set PLUS the drawing's own page — a publish never
 // needs `/d/<id>` (the page can't be cached before the id exists), but a

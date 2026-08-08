@@ -995,6 +995,16 @@ Resources:
         # the API origin only. Access control is the Bearer JWT + the
         # author/ADMIN_USERNAMES check in ingest/delete-handler.ts — not
         # the routing.
+        # POST /backfill/sidecars — regenerate missing share sidecars.
+        # Same routing story as DrawingDelete: no CloudFront behaviour,
+        # API origin only. Scope is enforced in the handler (own drawings
+        # by default, ?scope=all for operators).
+        BackfillSidecars:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: POST
+            Path: /backfill/sidecars
         DrawingDelete:
           Type: HttpApi
           Properties:

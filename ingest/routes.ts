@@ -35,6 +35,11 @@ import {
 } from "./bookmarks-handler.js";
 import { handleFollow, handleUnfollow, type FollowsHandlerConfig } from "./follows-handler.js";
 import { handleDeleteDrawing, type DeleteHandlerConfig } from "./delete-handler.js";
+import {
+  handleBackfillSidecars,
+  parseBackfillOptions,
+  type BackfillHandlerConfig,
+} from "./backfill-handler.js";
 import { handleHydrate, type HydrateHandlerConfig } from "./hydrate-handler.js";
 import { handleSubscribe, type SubscribeHandlerConfig } from "./subscribe-handler.js";
 import { parseRange } from "./admin-handler.js";
@@ -129,6 +134,9 @@ export interface RouteDeps {
   // Everything except the allowlist check, which createRoutes fills in from
   // deps.admin so there is one definition of "operator".
   deleteConfig: Omit<DeleteHandlerConfig, "isAdmin">;
+  // Same pattern as deleteConfig: the allowlist check is filled in from
+  // deps.admin so "operator" has one definition.
+  backfillConfig: Omit<BackfillHandlerConfig, "isAdmin">;
   authConfig: AuthHandlerConfig;
   // Base publish config; the route injects the verified `auth` per call.
   ingestConfig: Omit<HandlerConfig, "auth">;
@@ -386,6 +394,39 @@ export function createRoutes(deps: RouteDeps): Route[] {
           } satisfies Route,
         ]
       : []),
+    // POST /backfill/sidecars — regenerate missing -large.gif/-large.mp4.
+    // Defaults to the caller's own drawings; ?scope=all sweeps the whole
+    // gallery and is operator-only (enforced in the handler). API origin
+    // only, like the drawing delete.
+    {
+      methods: ["POST"],
+      pattern: /^\/backfill\/sidecars$/,
+      auth: "required",
+      logName: "POST /backfill/sidecars",
+      handler: async (req, _params, auth) => {
+        const opts = parseBackfillOptions({
+          scope: req.query("scope"),
+          limit: req.query("limit"),
+          scan: req.query("scan"),
+          dry: req.query("dry"),
+        });
+        const result = await handleBackfillSidecars(opts, auth!, {
+          ...deps.backfillConfig,
+          isAdmin: (username) => deps.admin.isAllowed(username),
+        });
+        logOutcome({
+          requestId: req.requestId,
+          route: "POST /backfill/sidecars",
+          status: result.status,
+          duration_ms: Date.now() - req.t0,
+          user_id: auth!.user_id,
+          username: auth!.username,
+          error_code:
+            result.status === 200 ? undefined : (result.body as { error: string }).error,
+        });
+        return json(result.status, result.body);
+      },
+    },
     // DELETE /drawings/{id} — remove a drawing. Author or ADMIN_USERNAMES
     // only (gate lives in handleDeleteDrawing). Deliberately has no
     // CloudFront behaviour: a `/drawings/*` pattern would also swallow the

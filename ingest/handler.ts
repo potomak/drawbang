@@ -16,6 +16,7 @@ import type { UserStatsStore } from "./user-stats-store.js";
 import type { DrawingStore } from "./drawing-store.js";
 import {
   pathsToInvalidateOnPublish,
+  pathsToInvalidateOnSidecarBackfill,
   type CacheInvalidator,
 } from "./cache-invalidation.js";
 
@@ -103,6 +104,13 @@ export interface PostPublishJob {
   drawing_id: string;
   username: string | null;
   prompt_tagged: boolean;
+  // What the job is for, which decides what gets invalidated.
+  // "publish" (default) flushes the feed + profile set because a new
+  // drawing appeared. "backfill" means the drawing is already live and
+  // only its sidecar objects changed — those URLs previously 404'd and
+  // the edge may have cached that, so just the two tile paths are flushed.
+  // Optional so events queued before this field existed still validate.
+  mode?: "publish" | "backfill";
 }
 
 // Async self-invoke event carrying a PostPublishJob. The Lambda detects
@@ -119,7 +127,8 @@ export function isPostPublishEvent(event: unknown): event is PostPublishEvent {
     typeof e.drawing_id === "string" &&
     DRAWING_ID_RE.test(e.drawing_id) &&
     (e.username === null || typeof e.username === "string") &&
-    typeof e.prompt_tagged === "boolean"
+    typeof e.prompt_tagged === "boolean" &&
+    (e.mode === undefined || e.mode === "publish" || e.mode === "backfill")
   );
 }
 
@@ -220,9 +229,11 @@ export async function runPostPublish(
 ): Promise<void> {
   const invalidate = async (): Promise<void> => {
     if (!cfg.cacheInvalidator) return;
-    await cfg.cacheInvalidator.invalidate(
-      pathsToInvalidateOnPublish(job.username, { promptTagged: job.prompt_tagged }),
-    );
+    const paths =
+      job.mode === "backfill"
+        ? pathsToInvalidateOnSidecarBackfill(job.drawing_id)
+        : pathsToInvalidateOnPublish(job.username, { promptTagged: job.prompt_tagged });
+    await cfg.cacheInvalidator.invalidate(paths);
   };
   const sidecars = async (): Promise<void> => {
     // Sequential by necessity: ffmpeg transcodes the gif this step renders.

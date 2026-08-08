@@ -2,6 +2,7 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { FsStorage } from "./storage.js";
+import { runPostPublish } from "./handler.js";
 import { MemoryUserStore } from "./user-store.js";
 import { MemoryDrawingStore } from "./drawing-store.js";
 import { MemoryLikesStore } from "./likes-store.js";
@@ -89,6 +90,13 @@ const routes = createRoutes({
   hydrateConfig,
   subscribeConfig,
   deleteConfig: { drawingStore, storage },
+  // No Lambda to self-invoke locally, so the tail runs inline — slower,
+  // but it makes the backfill loop testable end to end in dev.
+  backfillConfig: {
+    drawingStore,
+    storage,
+    enqueue: (job) => runPostPublish(job, { storage }),
+  },
   authConfig,
   ingestConfig: {
     storage,
