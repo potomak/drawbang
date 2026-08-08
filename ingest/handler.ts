@@ -89,15 +89,43 @@ export interface HandlerConfig {
   // still works, but the gallery + profile take up to s-maxage seconds
   // to show the new drawing.
   cacheInvalidator?: CacheInvalidator;
-  // Defers the -large.mp4 ffmpeg encode off the synchronous publish path.
-  // The Lambda wires this to an async self-invoke (see EncodeShareMp4Event
-  // in lambda.ts); when absent (dev server, tests) the encode runs inline.
-  deferShareMp4?: (drawing_id: string) => Promise<void>;
+  // Hands the whole post-publish tail (share sidecars + CloudFront
+  // invalidation) to an async self-invoke so none of it sits on the
+  // response path. The Lambda wires this to PostPublishEvent; when absent
+  // (dev server, tests) the work runs inline instead, so the local publish
+  // loop still produces sidecars.
+  deferPostPublish?: (job: PostPublishJob) => Promise<void>;
 }
 
-// Async self-invoke event for the deferred -large.mp4 encode (#223). The
-// Lambda detects this shape before HTTP routing (async-invoke events carry
-// no requestContext.http) and runs encodeShareMp4FromStorage.
+// What the post-publish tail needs to know. `username` is null for an
+// anonymous publish (no /u/<username> page to flush).
+export interface PostPublishJob {
+  drawing_id: string;
+  username: string | null;
+  prompt_tagged: boolean;
+}
+
+// Async self-invoke event carrying a PostPublishJob. The Lambda detects
+// this shape before HTTP routing (async-invoke events carry no
+// requestContext.http) and runs runPostPublish.
+export interface PostPublishEvent extends PostPublishJob {
+  kind: "post-publish";
+}
+
+export function isPostPublishEvent(event: unknown): event is PostPublishEvent {
+  const e = event as PostPublishEvent | null | undefined;
+  if (e?.kind !== "post-publish") return false;
+  return (
+    typeof e.drawing_id === "string" &&
+    DRAWING_ID_RE.test(e.drawing_id) &&
+    (e.username === null || typeof e.username === "string") &&
+    typeof e.prompt_tagged === "boolean"
+  );
+}
+
+// Superseded by PostPublishEvent, still accepted so events queued by the
+// previous version keep working through a deploy. Drop once no in-flight
+// invocations can be carrying it.
 export interface EncodeShareMp4Event {
   kind: "encode-share-mp4";
   drawing_id: string;
@@ -135,6 +163,74 @@ export async function encodeShareMp4FromStorage(
   } catch (e) {
     console.error(`[ingest] deferred -large.mp4 write failed for ${drawing_id}:`, e);
   }
+}
+
+// Renders the 960x960 annotated share GIF (og:image on /d/<id>) from the
+// published gif bytes. Extracted so both the deferred worker and
+// scripts/backfill-large-gifs.ts describe the same transform.
+export async function writeLargeGifFromStorage(
+  storage: Storage,
+  drawing_id: string,
+): Promise<Uint8Array | null> {
+  try {
+    const gif = await storage.getBytes(`public/tiles/${drawing_id}.gif`);
+    if (!gif) throw new Error("published gif not found in storage");
+    const decoded = decodeGif(gif);
+    if (!decoded.activePalette) throw new Error("decoded gif has no active palette");
+    const large = encodeShareGif({
+      frames: decoded.frames,
+      activePalette: decoded.activePalette,
+      delayMs: decoded.delayMs,
+    });
+    await storage.put(
+      `public/tiles/${drawing_id}-large.gif`,
+      large,
+      "image/gif",
+      "public, max-age=31536000, immutable",
+    );
+    return large;
+  } catch (e) {
+    console.error(`[ingest] -large.gif write failed for ${drawing_id}:`, e);
+    return null;
+  }
+}
+
+export interface PostPublishConfig {
+  storage: Storage;
+  cacheInvalidator?: CacheInvalidator;
+  encodeMp4?: (gif: Uint8Array) => Promise<Uint8Array>;
+}
+
+// The post-publish tail, off the response path.
+//
+// Everything here is derived data: the share sidecars can be rebuilt by
+// scripts/backfill-*.ts and a skipped invalidation self-heals when the
+// edge TTL expires. None of it is worth making a publisher wait on —
+// encodeShareGif alone is ~0.5s for a 16-frame drawing, which was the
+// single largest term in the publish response time.
+//
+// The invalidation runs CONCURRENTLY with the encodes rather than after
+// them: it's what makes the new drawing appear on the feed, so it should
+// not queue behind ~2s of image and video work.
+//
+// Never throws — an async invocation has no caller to surface errors to.
+export async function runPostPublish(
+  job: PostPublishJob,
+  cfg: PostPublishConfig,
+): Promise<void> {
+  const invalidate = async (): Promise<void> => {
+    if (!cfg.cacheInvalidator) return;
+    await cfg.cacheInvalidator.invalidate(
+      pathsToInvalidateOnPublish(job.username, { promptTagged: job.prompt_tagged }),
+    );
+  };
+  const sidecars = async (): Promise<void> => {
+    // Sequential by necessity: ffmpeg transcodes the gif this step renders.
+    const large = await writeLargeGifFromStorage(cfg.storage, job.drawing_id);
+    if (!large) return;
+    await encodeShareMp4FromStorage(cfg.storage, job.drawing_id, cfg.encodeMp4);
+  };
+  await Promise.all([invalidate(), sidecars()]);
 }
 
 export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Promise<IngestHandlerResult> {
@@ -257,59 +353,33 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     "public, max-age=31536000, immutable",
   );
 
-  // Sidecar chain: the 960×960 annotated share image at
-  // public/tiles/<id>-large.gif (og:image on the tile page), then the
-  // Instagram-shareable MP4 at public/tiles/<id>-large.mp4 — sequential
-  // within this branch because ffmpeg consumes the just-rendered gif
-  // bytes. Each step wrapped in try/catch — the original gif is already
-  // committed and a sidecar failure must not surface as a publish error.
-  // Log with the tile id so operators can backfill via
-  // scripts/backfill-large-gifs.ts / scripts/backfill-share-mp4.ts.
-  const writeSidecars = async (): Promise<void> => {
-    let large: Uint8Array | null = null;
-    try {
-      const decoded = decodeGif(gif);
-      if (!decoded.activePalette) {
-        throw new Error("decoded gif has no active palette");
-      }
-      large = encodeShareGif({
-        frames: decoded.frames,
-        activePalette: decoded.activePalette,
-        delayMs: decoded.delayMs,
-      });
-      await cfg.storage.put(
-        `public/tiles/${id}-large.gif`,
-        large,
-        "image/gif",
-        "public, max-age=31536000, immutable",
-      );
-    } catch (e) {
-      console.error(`[ingest] -large.gif write failed for ${id}:`, e);
-    }
-    if (large) {
-      if (cfg.deferShareMp4) {
-        // Nothing in the publish response depends on the mp4 — hand the
-        // ~1s ffmpeg transcode to an async self-invoke and return. The
-        // Event-type invoke resolves as soon as Lambda queues the payload.
-        try {
-          await cfg.deferShareMp4(id);
-        } catch (e) {
-          console.error(`[ingest] deferring -large.mp4 encode failed for ${id}:`, e);
-        }
-      } else {
-        try {
-          const mp4 = await encodeShareMp4(large);
-          await cfg.storage.put(
-            `public/tiles/${id}-large.mp4`,
-            mp4,
-            "video/mp4",
-            "public, max-age=31536000, immutable",
-          );
-        } catch (e) {
-          console.error(`[ingest] -large.mp4 write failed for ${id}:`, e);
-        }
+  // Post-publish tail: share sidecars + CloudFront invalidation. All of it
+  // is derived data (rebuildable by scripts/backfill-*.ts, and a skipped
+  // invalidation self-heals at the edge TTL), so none of it belongs on the
+  // response path — encodeShareGif alone is ~0.5s for a 16-frame drawing.
+  //
+  // The Event-type self-invoke resolves as soon as Lambda queues the
+  // payload. If queueing fails we fall back to running the work inline:
+  // slow, but a rare error path, and better than silently dropping the
+  // OG image and the cache flush.
+  const job: PostPublishJob = {
+    drawing_id: id,
+    username: isAnonymous ? null : author.username,
+    prompt_tagged: promptId !== undefined,
+  };
+  const postPublish = async (): Promise<void> => {
+    if (cfg.deferPostPublish) {
+      try {
+        await cfg.deferPostPublish(job);
+        return;
+      } catch (e) {
+        console.error(`[ingest] deferring post-publish failed for ${id}, running inline:`, e);
       }
     }
+    await runPostPublish(job, {
+      storage: cfg.storage,
+      cacheInvalidator: cfg.cacheInvalidator,
+    });
   };
 
   // Streak / total counters (#115). Wrapped in try/catch because the gif
@@ -335,23 +405,11 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   // reads another's output — so they run concurrently and the response
   // latency is their max, not their sum. Each branch swallows its own
   // errors (Promise.all can't reject), and all are awaited before return
-  // because Lambda freezes pending work at handler exit. The dynamic
-  // /d/<id> page is served by render-handlers.ts off the drawing-store
-  // row — no need to sync-render anything here.
-  await Promise.all([writeDrawingRow(), writeSidecars(), recordStats()]);
-
-  // CloudFront invalidation, awaited because Lambda freezes the execution
-  // environment as soon as the handler returns — a fire-and-forget request
-  // may never be sent. Failures are logged inside the invalidator; the
-  // publish has already committed so we return 202 regardless of whether
-  // the cache flush succeeded.
-  if (cfg.cacheInvalidator) {
-    await cfg.cacheInvalidator.invalidate(
-      pathsToInvalidateOnPublish(isAnonymous ? null : author.username, {
-        promptTagged: promptId !== undefined,
-      }),
-    );
-  }
+  // because Lambda freezes pending work at handler exit — including the
+  // self-invoke that queues the post-publish tail. The dynamic /d/<id>
+  // page is served by render-handlers.ts off the drawing-store row — no
+  // need to sync-render anything here.
+  await Promise.all([writeDrawingRow(), recordStats(), postPublish()]);
 
   return {
     status: 202,

@@ -109,6 +109,55 @@ Quick mental check before pushing: grep the new path in
 `ingest/routes.ts` and `infra/aws/template.yaml` — it must appear in
 both.
 
+## Publish latency (`POST /ingest`)
+
+The publish is the app's most important mutation and the one a human is
+actually waiting on, so the rule is: **the response path does only what
+the response depends on.**
+
+On the synchronous path:
+
+1. validate the gif + hash it (content-addressed id) — sub-millisecond,
+2. `HeadObject` for the idempotency check,
+3. `PutObject` of the gif itself,
+4. concurrently: the DrawingStore row, the streak counters, and *queueing*
+   the tail.
+
+Everything else is **derived data** and runs in an async self-invoke
+(`PostPublishEvent` → `runPostPublish`): the 960×960 `-large.gif` OG
+image, the `-large.mp4` share video, and the CloudFront invalidation.
+Inside the tail, invalidation runs concurrently with the encodes — it's
+what makes the drawing appear on the feed, so it must not queue behind
+~2s of image and video work.
+
+Why this matters, measured locally with a 20 ms simulated S3 RTT:
+
+| Drawing            | Tail inline | Tail deferred |
+|--------------------|-------------|---------------|
+| 16×16, 1 frame     | 140 ms      | 61 ms         |
+| 16×16, 16 frames   | 584 ms      | 61 ms         |
+| 64×64, 16 frames   | 658 ms      | 61 ms         |
+
+`encodeShareGif` alone is ~510 ms for any 16-frame drawing — it renders
+960×960 regardless of the source size, so cost tracks frame count, not
+canvas size. Note the deferred column is **constant**: no size-dependent
+work is left on the response path, which is the property to preserve.
+
+**Don't put new work on the synchronous path.** If a publish needs to
+trigger something new (a thumbnail, a notification, a webhook), add it to
+`runPostPublish`, not to `handleIngest`. Two guard rails:
+
+- The tail must never throw — an async invocation has no caller to
+  surface errors to. Each step logs and continues.
+- If queueing the tail fails, `handleIngest` falls back to running it
+  inline rather than dropping the OG image and the cache flush. Slow,
+  but a rare error path.
+
+**Known trade-off.** The OG image doesn't exist for ~1–2 s after the
+publish returns, so a crawler that fetched `/d/<id>` in that window would
+miss `og:image`. In practice a link gets pasted seconds later at the
+earliest, and `scripts/backfill-large-gifs.ts` repairs any gap.
+
 ## Pages of the app
 
 Single source of truth. Any cross-page change (new nav link, new shared
@@ -391,15 +440,17 @@ src/                  Vite + TypeScript editor + auth SPAs
 
 ingest/               Lambda + dev-server: ingest, render, auth
   handler.ts          POST /ingest: validate → content-id → write
-                      public/tiles/<id>.gif + public/tiles/<id>-large.gif
-                      + public/tiles/<id>-large.mp4 + dual-write a row
-                      into DrawingStore. Body also accepts `prompt` (slug
-                      stored only when it matches today's ET prompt) and
-                      `layers_json` (≤64 KiB layer sidecar, stored
-                      verbatim on the row). Identity from cfg.auth
-                      ({user_id, username}) set by the route after JWT
-                      verification, or null → the anonymous sentinel.
-                      Idempotent on drawing_id.
+                      public/tiles/<id>.gif + dual-write a row into
+                      DrawingStore, then hand everything else to the
+                      deferred tail (see "Publish latency" below). Body
+                      also accepts `prompt` (slug stored only when it
+                      matches today's ET prompt) and `layers_json`
+                      (≤64 KiB layer sidecar, stored verbatim on the
+                      row). Identity from cfg.auth ({user_id, username})
+                      set by the route after JWT verification, or null →
+                      the anonymous sentinel. Idempotent on drawing_id.
+                      Also exports runPostPublish (the tail worker) and
+                      the PostPublishEvent guard.
   render-handlers.ts  GET /, /feed/items, /d/<id>, /embed/<id>, /u/<un>
                       (+ items/bookmarks/followers/following/streak/
                       follow-thumbs), /prompts*, /products*, /feed.rss,

@@ -7,7 +7,11 @@ import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import {
   encodeShareMp4FromStorage,
   isEncodeShareMp4Event,
+  isPostPublishEvent,
+  runPostPublish,
   type EncodeShareMp4Event,
+  type PostPublishEvent,
+  type PostPublishJob,
 } from "./handler.js";
 import {
   authFromBearer,
@@ -113,7 +117,8 @@ const hydrateConfig: HydrateHandlerConfig = {
 const cacheInvalidator = cfDistributionId
   ? new CloudFrontInvalidator({ distributionId: cfDistributionId })
   : undefined;
-// Async self-invoke for the deferred -large.mp4 encode. Named explicitly
+// Async self-invoke for the deferred post-publish tail (share sidecars +
+// CloudFront invalidation). Named explicitly
 // (not !GetAtt) to avoid a circular SAM dependency — same pattern as the
 // merch function's MERCH_FUNCTION_NAME. The Event-type invoke resolves as
 // soon as Lambda queues the payload (a few ms), so awaiting it doesn't
@@ -121,8 +126,8 @@ const cacheInvalidator = cfDistributionId
 const ingestFunctionName =
   process.env.INGEST_FUNCTION_NAME ?? "drawbang-ingest";
 const lambdaClient = new LambdaClient({});
-const deferShareMp4 = async (drawing_id: string): Promise<void> => {
-  const payload: EncodeShareMp4Event = { kind: "encode-share-mp4", drawing_id };
+const deferPostPublish = async (job: PostPublishJob): Promise<void> => {
+  const payload: PostPublishEvent = { kind: "post-publish", ...job };
   await lambdaClient.send(
     new InvokeCommand({
       FunctionName: ingestFunctionName,
@@ -188,7 +193,7 @@ const routes = createRoutes({
     userStatsStore,
     drawingStore,
     cacheInvalidator,
-    deferShareMp4,
+    deferPostPublish,
   },
   userStatsStore,
   admin: {
@@ -200,11 +205,17 @@ const routes = createRoutes({
 });
 
 export async function handler(
-  event: APIGatewayProxyEventV2 | EncodeShareMp4Event,
+  event: APIGatewayProxyEventV2 | PostPublishEvent | EncodeShareMp4Event,
   _context: Context,
 ): Promise<APIGatewayProxyResultV2 | void> {
   // Async self-invoke events carry no requestContext.http, so they must
   // be detected before any HTTP routing touches the event shape.
+  if (isPostPublishEvent(event)) {
+    await runPostPublish(event, { storage, cacheInvalidator });
+    return;
+  }
+  // Legacy event kind, still handled so anything queued by the previous
+  // version completes across a deploy.
   if (isEncodeShareMp4Event(event)) {
     await encodeShareMp4FromStorage(storage, event.drawing_id);
     return;

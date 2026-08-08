@@ -4,6 +4,9 @@ import {
   encodeShareMp4FromStorage,
   handleIngest,
   isEncodeShareMp4Event,
+  isPostPublishEvent,
+  runPostPublish,
+  type PostPublishJob,
   type AuthedUser,
 } from "../ingest/handler.js";
 import type { Storage } from "../ingest/storage.js";
@@ -332,20 +335,34 @@ describe("handleIngest body shape validation (#type-safety)", () => {
   }
 });
 
-describe("deferred -large.mp4 encode (#223)", () => {
+describe("deferred post-publish tail", () => {
   test("event guard accepts the self-invoke shape and rejects HTTP events", () => {
+    const id = "a".repeat(64);
+    const ok = { kind: "post-publish", drawing_id: id, username: "alice", prompt_tagged: false };
+    assert.ok(isPostPublishEvent(ok));
+    assert.ok(isPostPublishEvent({ ...ok, username: null }), "anonymous publishes carry a null username");
+    assert.ok(!isPostPublishEvent({ ...ok, drawing_id: "nope" }));
+    assert.ok(!isPostPublishEvent({ ...ok, prompt_tagged: undefined }));
+    assert.ok(!isPostPublishEvent({ requestContext: { http: { method: "GET" } } }));
+    assert.ok(!isPostPublishEvent(null));
+    assert.ok(!isPostPublishEvent("post-publish"));
+  });
+
+  test("legacy encode-share-mp4 events are still recognised across a deploy", () => {
     const id = "a".repeat(64);
     assert.ok(isEncodeShareMp4Event({ kind: "encode-share-mp4", drawing_id: id }));
     assert.ok(!isEncodeShareMp4Event({ kind: "encode-share-mp4", drawing_id: "nope" }));
-    assert.ok(!isEncodeShareMp4Event({ kind: "encode-share-mp4" }));
-    assert.ok(!isEncodeShareMp4Event({ requestContext: { http: { method: "GET" } } }));
     assert.ok(!isEncodeShareMp4Event(null));
-    assert.ok(!isEncodeShareMp4Event("encode-share-mp4"));
+    // The two guards must not claim each other's events.
+    assert.ok(!isPostPublishEvent({ kind: "encode-share-mp4", drawing_id: id }));
+    assert.ok(
+      !isEncodeShareMp4Event({ kind: "post-publish", drawing_id: id, username: null, prompt_tagged: false }),
+    );
   });
 
-  test("publish with deferShareMp4 set queues the encode instead of writing the mp4 inline", async () => {
+  test("publish queues the tail instead of doing ANY sidecar work inline", async () => {
     const h = makeHarness();
-    const deferred: string[] = [];
+    const jobs: PostPublishJob[] = [];
     const gif = makeGif(11);
     const res = await handleIngest(
       { gif: Buffer.from(gif).toString("base64") },
@@ -354,31 +371,123 @@ describe("deferred -large.mp4 encode (#223)", () => {
         publicBaseUrl: PUBLIC_BASE,
         auth: AUTH,
         drawingStore: h.drawingStore,
-        deferShareMp4: async (id) => { deferred.push(id); },
+        deferPostPublish: async (job) => { jobs.push(job); },
       },
     );
     assert.equal(res.status, 202);
     const id = (res.body as { id: string }).id;
-    assert.deepEqual(deferred, [id]);
+    assert.deepEqual(jobs, [{ drawing_id: id, username: AUTH.username, prompt_tagged: false }]);
+    // The whole point: the 960x960 encode is ~0.5s and must not be on the
+    // response path any more, and neither is the mp4.
     const keys = h.storage.puts.map((p) => p.key);
-    assert.ok(keys.includes(`public/tiles/${id}-large.gif`), "-large.gif still written inline");
-    assert.ok(!keys.includes(`public/tiles/${id}-large.mp4`), "mp4 must not be written on the sync path");
+    assert.deepEqual(keys, [`public/tiles/${id}.gif`], "only the published gif is written inline");
   });
 
-  test("a failing deferShareMp4 never fails the publish", async () => {
+  test("publish does not invalidate CloudFront inline — the tail owns it", async () => {
     const h = makeHarness();
-    const gif = makeGif(12);
-    const res = await handleIngest(
-      { gif: Buffer.from(gif).toString("base64") },
+    const inv = new NoopInvalidator();
+    await handleIngest(
+      { gif: Buffer.from(makeGif(13)).toString("base64") },
       {
         storage: h.storage,
         publicBaseUrl: PUBLIC_BASE,
         auth: AUTH,
         drawingStore: h.drawingStore,
-        deferShareMp4: async () => { throw new Error("lambda invoke down"); },
+        cacheInvalidator: inv,
+        deferPostPublish: async () => {},
+      },
+    );
+    assert.deepEqual(inv.calls, [], "invalidation belongs to the deferred tail");
+  });
+
+  test("an anonymous publish queues a null username so the tail skips /u/", async () => {
+    const h = makeHarness();
+    const jobs: PostPublishJob[] = [];
+    await handleIngest(
+      { gif: Buffer.from(makeGif(14)).toString("base64") },
+      {
+        storage: h.storage,
+        publicBaseUrl: PUBLIC_BASE,
+        auth: null,
+        drawingStore: h.drawingStore,
+        deferPostPublish: async (job) => { jobs.push(job); },
+      },
+    );
+    assert.equal(jobs[0].username, null);
+  });
+
+  test("a failing defer falls back to running the tail inline, and still 202s", async () => {
+    const h = makeHarness();
+    const inv = new NoopInvalidator();
+    const res = await handleIngest(
+      { gif: Buffer.from(makeGif(12)).toString("base64") },
+      {
+        storage: h.storage,
+        publicBaseUrl: PUBLIC_BASE,
+        auth: AUTH,
+        drawingStore: h.drawingStore,
+        cacheInvalidator: inv,
+        deferPostPublish: async () => { throw new Error("lambda invoke down"); },
       },
     );
     assert.equal(res.status, 202);
+    const id = (res.body as { id: string }).id;
+    // Slow, but losing the OG image + cache flush entirely would be worse.
+    const keys = h.storage.puts.map((p) => p.key);
+    assert.ok(keys.includes(`public/tiles/${id}-large.gif`), "sidecar still produced");
+    assert.equal(inv.calls.length, 1, "invalidation still happened");
+  });
+
+  test("with no defer wired (dev server) the tail runs inline so sidecars exist", async () => {
+    const h = makeHarness();
+    const res = await handleIngest(
+      { gif: Buffer.from(makeGif(15)).toString("base64") },
+      {
+        storage: h.storage,
+        publicBaseUrl: PUBLIC_BASE,
+        auth: AUTH,
+        drawingStore: h.drawingStore,
+      },
+    );
+    const id = (res.body as { id: string }).id;
+    assert.ok(h.storage.puts.some((p) => p.key === `public/tiles/${id}-large.gif`));
+  });
+
+  test("runPostPublish renders the -large.gif from the stored gif and then the mp4", async () => {
+    const h = makeHarness();
+    const inv = new NoopInvalidator();
+    const gif = makeGif(16);
+    const id = await contentHashHex(gif);
+    await h.storage.put(`public/tiles/${id}.gif`, gif, "image/gif");
+    const seen: Uint8Array[] = [];
+    await runPostPublish(
+      { drawing_id: id, username: "alice", prompt_tagged: true },
+      {
+        storage: h.storage,
+        cacheInvalidator: inv,
+        encodeMp4: async (bytes) => { seen.push(bytes); return new Uint8Array([9, 9]); },
+      },
+    );
+    const large = await h.storage.getBytes(`public/tiles/${id}-large.gif`);
+    assert.ok(large && large.length > 0, "-large.gif rendered from the published bytes");
+    assert.equal(seen.length, 1, "mp4 encoder fed the rendered -large.gif");
+    assert.deepEqual(seen[0], large);
+    assert.deepEqual(await h.storage.getBytes(`public/tiles/${id}-large.mp4`), new Uint8Array([9, 9]));
+    assert.deepEqual(inv.calls, [[
+      "/", "/feed/items*", "/gallery*", "/u/alice*", "/feed.rss", "/prompts*",
+    ]]);
+  });
+
+  test("runPostPublish still invalidates when the source gif is missing", async () => {
+    // Sidecar failure must not cost the feed its cache flush.
+    const h = makeHarness();
+    const inv = new NoopInvalidator();
+    await runPostPublish(
+      { drawing_id: "c".repeat(64), username: null, prompt_tagged: false },
+      { storage: h.storage, cacheInvalidator: inv, encodeMp4: async () => new Uint8Array() },
+    );
+    assert.equal(inv.calls.length, 1);
+    assert.equal(h.storage.puts.length, 0, "no sidecar written without source bytes");
   });
 
   test("encodeShareMp4FromStorage transcodes the stored -large.gif into the mp4 sidecar", async () => {
@@ -419,7 +528,7 @@ const STALE_SLUG = PROMPTS.find((p) => p.slug !== TODAY_SLUG)!.slug;
 describe("handleIngest daily-prompt tagging", () => {
   test("today's slug is stored as prompt_id and invalidation includes /prompts*", async () => {
     const h = makeHarness();
-    const inv = new NoopInvalidator();
+    const jobs: PostPublishJob[] = [];
     const gif = makeGif(5);
     const res = await handleIngest(
       { gif: Buffer.from(gif).toString("base64"), prompt: TODAY_SLUG },
@@ -428,15 +537,14 @@ describe("handleIngest daily-prompt tagging", () => {
         publicBaseUrl: PUBLIC_BASE,
         auth: AUTH,
         drawingStore: h.drawingStore,
-        cacheInvalidator: inv,
+        deferPostPublish: async (job) => { jobs.push(job); },
         now: () => PROMPT_NOW,
       },
     );
     assert.equal(res.status, 202);
     const row = await h.drawingStore.get((res.body as { id: string }).id);
     assert.equal(row!.prompt_id, TODAY_SLUG);
-    assert.equal(inv.calls.length, 1);
-    assert.ok(inv.calls[0].includes("/prompts*"), `expected /prompts* in ${inv.calls[0].join(",")}`);
+    assert.deepEqual(jobs.map((j) => j.prompt_tagged), [true]);
   });
 
   test("stale or garbage slug never fails the publish and is never stored", async () => {
@@ -447,7 +555,7 @@ describe("handleIngest daily-prompt tagging", () => {
     ];
     for (const c of cases) {
       const h = makeHarness();
-      const inv = new NoopInvalidator();
+      const jobs: PostPublishJob[] = [];
       const gif = makeGif(c.seed);
       const res = await handleIngest(
         { gif: Buffer.from(gif).toString("base64"), prompt: c.prompt },
@@ -456,7 +564,7 @@ describe("handleIngest daily-prompt tagging", () => {
           publicBaseUrl: PUBLIC_BASE,
           auth: AUTH,
           drawingStore: h.drawingStore,
-          cacheInvalidator: inv,
+          deferPostPublish: async (job) => { jobs.push(job); },
           now: () => PROMPT_NOW,
         },
       );
@@ -464,14 +572,17 @@ describe("handleIngest daily-prompt tagging", () => {
       const row = await h.drawingStore.get((res.body as { id: string }).id);
       assert.ok(row, "drawing row should exist");
       assert.ok(!("prompt_id" in row!), `prompt_id must be absent for ${JSON.stringify(c.prompt)}`);
-      assert.equal(inv.calls.length, 1);
-      assert.ok(!inv.calls[0].includes("/prompts*"), `unexpected /prompts* for ${JSON.stringify(c.prompt)}`);
+      assert.deepEqual(
+        jobs.map((j) => j.prompt_tagged),
+        [false],
+        `unexpected prompt tag for ${JSON.stringify(c.prompt)}`,
+      );
     }
   });
 
   test("missing prompt keeps the existing behavior exactly", async () => {
     const h = makeHarness();
-    const inv = new NoopInvalidator();
+    const jobs: PostPublishJob[] = [];
     const gif = makeGif(9);
     const res = await handleIngest(
       { gif: Buffer.from(gif).toString("base64") },
@@ -480,26 +591,21 @@ describe("handleIngest daily-prompt tagging", () => {
         publicBaseUrl: PUBLIC_BASE,
         auth: AUTH,
         drawingStore: h.drawingStore,
-        cacheInvalidator: inv,
+        deferPostPublish: async (job) => { jobs.push(job); },
         now: () => PROMPT_NOW,
       },
     );
     assert.equal(res.status, 202);
     const row = await h.drawingStore.get((res.body as { id: string }).id);
     assert.ok(!("prompt_id" in row!), "prompt_id must be absent when no prompt is sent");
-    assert.deepEqual(inv.calls, [[
-      "/",
-      "/feed/items*",
-      "/gallery*",
-      `/u/${AUTH.username}*`,
-      "/feed.rss",
-    ]]);
+    assert.deepEqual(jobs, [
+      { drawing_id: (res.body as { id: string }).id, username: AUTH.username, prompt_tagged: false },
+    ]);
   });
 });
 
 // Hand-edit a Drawbang editor gif to remove its DRAWBANG Application
-// Extension sub-block. Walks until 0x21 0xff (Application Extension),
-// checks the 11-byte block matches DRAWBANG, and splices it out.
+// Extension sub-block.
 function stripDrawbangExtension(bytes: Uint8Array): Uint8Array {
   const decoder = new TextDecoder("ascii");
   let p = 13;
