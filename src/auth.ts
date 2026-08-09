@@ -7,7 +7,9 @@
 // header; the server trusts it without a DB round-trip.
 
 const INGEST_URL = import.meta.env.VITE_INGEST_URL ?? "/ingest";
-const AUTH_BASE = INGEST_URL.replace(/\/ingest$/, "");
+// Exported so src/altcha.ts can point the widget at /auth/challenge on
+// the same origin the rest of the auth calls use.
+export const AUTH_BASE = INGEST_URL.replace(/\/ingest$/, "");
 const JWT_KEY = "drawbang:jwt";
 const USERNAME_KEY = "drawbang:username";
 
@@ -72,12 +74,16 @@ export function logout(): void {
   clearSession();
 }
 
+// `altcha` is the solved proof-of-work payload from the widget. The server
+// requires it (403 otherwise) and spends it on success, so every attempt
+// needs a freshly solved one — see src/altcha.ts.
 export async function register(
   email: string,
   username: string,
   password: string,
+  altcha: string,
 ): Promise<AuthOutcome> {
-  return sessionPost("/auth/register", { email, username, password });
+  return sessionPost("/auth/register", { email, username, password, altcha });
 }
 
 export async function login(
@@ -153,12 +159,15 @@ export async function updateProfile(fields: ProfileFields): Promise<ProfileOutco
   }
 }
 
-export async function forgotPassword(email: string): Promise<ForgotPasswordOutcome> {
+export async function forgotPassword(
+  email: string,
+  altcha: string,
+): Promise<ForgotPasswordOutcome> {
   try {
     const res = await fetch(`${AUTH_BASE}/auth/password/forgot`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, altcha }),
     });
     if (!res.ok) {
       const data = await safeJson(res);

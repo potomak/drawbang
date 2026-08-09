@@ -94,7 +94,20 @@ export interface PublishDialogConfig {
     email: string,
     username: string,
     password: string,
+    altcha: string,
   ) => Promise<AuthOutcome>;
+  // Proof-of-work gate on account creation. Injected for the same reason
+  // as loginFn/registerFn — src/altcha.ts imports src/auth.ts, which reads
+  // import.meta.env at module scope and would make this module unloadable
+  // under node:test.
+  challengeWidget: HTMLElement | null;
+  // Pulls in the widget bundle. Called when the user picks Sign up, not on
+  // editor load — most people who open /draw never register, and the
+  // widget is ~34 kB gzipped.
+  loadChallenge: () => Promise<void>;
+  // Resolves to a freshly solved payload. Zero-arg so this module never
+  // needs the widget's type — it only toggles the element's visibility.
+  solveChallenge: () => Promise<string>;
 }
 
 export interface PublishDialogController {
@@ -128,6 +141,10 @@ export function createPublishDialog(cfg: PublishDialogConfig): PublishDialogCont
   function setMode(next: AuthMode): void {
     mode = next;
     const view = authModeView(next);
+    // Only signup is gated, so the widget appears (and its bundle loads)
+    // exactly when it's about to be needed.
+    if (cfg.challengeWidget) cfg.challengeWidget.hidden = next !== "signup";
+    if (next === "signup") void cfg.loadChallenge();
     cfg.usernameField.hidden = !view.usernameRequired;
     cfg.usernameInput.required = view.usernameRequired;
     cfg.passwordInput.autocomplete = view.passwordAutocomplete;
@@ -162,9 +179,10 @@ export function createPublishDialog(cfg: PublishDialogConfig): PublishDialogCont
         username: cfg.usernameInput.value,
         password: cfg.passwordInput.value,
       });
-      return req.kind === "login"
-        ? loginFn(req.email, req.password)
-        : registerFn(req.email, req.username, req.password);
+      if (req.kind === "login") return loginFn(req.email, req.password);
+      return cfg
+        .solveChallenge()
+        .then((altcha) => registerFn(req.email, req.username, req.password, altcha));
     },
     // On success the session is already in localStorage, so the caller
     // just carries on and the publish picks it up via authHeader().

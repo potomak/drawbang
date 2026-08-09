@@ -9,6 +9,37 @@ import { devBucketPlugin } from "./vite/plugins/dev-bucket.js";
 // start.
 const enableHttps = process.env.VITE_HTTPS === "1";
 
+// Paths the ingest dev-server owns (npm run ingest:dev on :8787), kept in
+// one place because two things need them: vite's proxy, and the dev-bucket
+// middleware — which runs AHEAD of the proxy and would otherwise answer a
+// proxied GET with its clean-URL 404 page. That's not hypothetical: it's
+// how GET /auth/challenge broke signup locally.
+//
+// Keys starting with ^ are regexes; the rest are prefix matches (vite's
+// own proxy semantics).
+const DEV_PROXY_TARGET = "http://localhost:8787";
+const DEV_PROXY_PATHS = [
+  "/ingest",
+  "/auth",
+  // Dynamic-site routes that match what the prod Lambda serves: the
+  // ingest dev-server renders them off MemoryDrawingStore so the
+  // editor's "publish → see on the feed" loop works locally.
+  // ^/$ matches just `/` (the feed home) — vite proxy keys starting
+  // with ^ are regex, prefix keys would also match other paths.
+  "^/$",
+  "/feed.rss",
+  "/feed/items",
+  "^/gallery(/items)?$",
+  "^/d/.*",
+  "^/embed/.*",
+  "^/u/.*",
+  "^/prompts.*",
+  "^/drawings/.*/like$",
+  "/me/likes",
+  "/likes/counts",
+  "/subscribe",
+];
+
 export default defineConfig({
   root: ".",
   publicDir: "static",
@@ -18,7 +49,7 @@ export default defineConfig({
   appType: "mpa",
   plugins: [
     chromePlugin({ repoUrl: process.env.VITE_REPO_URL }),
-    devBucketPlugin(),
+    devBucketPlugin({ proxiedPaths: DEV_PROXY_PATHS }),
     ...(enableHttps ? [basicSsl()] : []),
   ],
   build: {
@@ -48,26 +79,8 @@ export default defineConfig({
     // (npm run ingest:dev on :8787) so the editor stays on a single origin
     // and uses its default relative URLs. Mirrors the prod CloudFront
     // setup where everything appears under one hostname.
-    proxy: {
-      "/ingest": "http://localhost:8787",
-      "/auth": "http://localhost:8787",
-      // Dynamic-site routes that match what the prod Lambda serves: the
-      // ingest dev-server renders them off MemoryDrawingStore so the
-      // editor's "publish → see on the feed" loop works locally.
-      // ^/$ matches just `/` (the feed home) — vite proxy keys starting
-      // with ^ are regex, prefix keys would also match other paths.
-      "^/$": "http://localhost:8787",
-      "/feed.rss": "http://localhost:8787",
-      "/feed/items": "http://localhost:8787",
-      "^/gallery(/items)?$": "http://localhost:8787",
-      "^/d/.*": "http://localhost:8787",
-      "^/embed/.*": "http://localhost:8787",
-      "^/u/.*": "http://localhost:8787",
-      "^/prompts.*": "http://localhost:8787",
-      "^/drawings/.*/like$": "http://localhost:8787",
-      "/me/likes": "http://localhost:8787",
-      "/likes/counts": "http://localhost:8787",
-      "/subscribe": "http://localhost:8787",
-    },
+    proxy: Object.fromEntries(
+      DEV_PROXY_PATHS.map((p) => [p, DEV_PROXY_TARGET]),
+    ),
   },
 });

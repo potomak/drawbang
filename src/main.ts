@@ -49,6 +49,7 @@ import type { Prompt } from "../config/prompts.js";
 import * as local from "./local.js";
 import { isLoggedIn, login, logout, register } from "./auth.js";
 import { createPublishDialog } from "./publish-dialog.js";
+import { loadAltcha, solveChallenge, type AltchaWidget } from "./altcha.js";
 import {
   MissingSessionError,
   submit,
@@ -286,7 +287,11 @@ app.innerHTML = /* html */ `
         <button type="button" class="btn sm" id="publishTabLogin" role="tab" aria-selected="true">Log in</button>
         <button type="button" class="btn sm" id="publishTabSignup" role="tab" aria-selected="false">Sign up</button>
       </div>
-      <form class="auth-form ed-publish-form" id="publishAuthForm">
+      <!-- novalidate like every other auth form: the ALTCHA widget renders a
+           required checkbox inside the form, and native validation would block
+           submit before wireFormSubmit ever sees it. Validation is the
+           handler's + the server's job. -->
+      <form class="auth-form ed-publish-form" id="publishAuthForm" novalidate>
         <label class="auth-field">
           <span>Email</span>
           <input type="email" id="publishEmail" name="email" autocomplete="email" required />
@@ -299,6 +304,7 @@ app.innerHTML = /* html */ `
           <span>Password</span>
           <input type="password" id="publishPassword" name="password" autocomplete="current-password" minlength="8" required />
         </label>
+        <altcha-widget id="publishAltcha" hidden></altcha-widget>
         <p class="ed-export-status" id="publishStatus" role="alert" hidden></p>
         <menu class="ed-export-menu">
           <button type="button" class="btn" id="publishBack">Back</button>
@@ -353,6 +359,9 @@ const publishDialog = createPublishDialog({
   loginTab: document.getElementById("publishTabLogin") as HTMLButtonElement,
   signupTab: document.getElementById("publishTabSignup") as HTMLButtonElement,
   usernameField: document.getElementById("publishUsernameField")!,
+  // Signup-only: logging in isn't gated, so the widget stays hidden and
+  // idle until the Sign up tab is selected.
+  challengeWidget: document.getElementById("publishAltcha"),
   emailInput: document.getElementById("publishEmail") as HTMLInputElement,
   usernameInput: document.getElementById("publishUsername") as HTMLInputElement,
   passwordInput: document.getElementById("publishPassword") as HTMLInputElement,
@@ -362,6 +371,9 @@ const publishDialog = createPublishDialog({
   submitId: "publishSubmit",
   loginFn: login,
   registerFn: register,
+  loadChallenge: loadAltcha,
+  solveChallenge: () =>
+    solveChallenge(document.getElementById("publishAltcha") as AltchaWidget | null),
 });
 
 // Per-session timelapse recorder. Captures one op per pointer stroke

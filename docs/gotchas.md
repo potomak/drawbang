@@ -108,6 +108,63 @@ to spare the next agent / contributor an hour of head-scratching.
   shadowed by the same rule. Read those off `localhost:8787` directly.
   Fixing it properly means teaching the plugin about the proxy table.
 
+## Proof-of-work gate (ALTCHA) on register + forgot-password
+
+- **The counter in a solution is not the proof.** In deterministic mode
+  `verifySolution()` checks an HMAC over `solution.derivedKey` against the
+  `keySignature` in the signed challenge and never looks at
+  `solution.counter`. A test that mutates the counter and expects a
+  rejection will fail — mutate `derivedKey` instead. (Tampering with the
+  challenge *parameters* is caught separately, by the challenge HMAC.)
+- **`verifySolution()` does not stop replay.** It has no idea whether a
+  solution was already spent. `ingest/challenge-store.ts` is what enforces
+  single use; without it the gate is decoration. Don't "simplify" it away.
+- **Two constants multiply.** Solver cost is roughly (counter value) x
+  (PBKDF2 cost). Sweeping only one of them while holding the other fixed
+  gives nonsense timings — that's how a first calibration pass landed on
+  30-second solves.
+- The widget (`altcha` npm) is v3 and the server lib (`altcha-lib`) is v2;
+  they interoperate — v2 of the lib is the version that speaks v3's PoW
+  format. The `v1` API is still exported at `altcha-lib/v1` and is a
+  *different*, incompatible scheme.
+- **The widget renders a `required` checkbox inside your form.** On a form
+  without `novalidate`, native constraint validation blocks submission
+  before any JS submit handler runs — no request, no error message,
+  nothing in the console. That's what broke the editor's publish dialog;
+  every auth form in this repo now carries `novalidate` and validates in
+  the handler + on the server.
+- `hidefooter` / `hidelogo` are `Configuration` fields in widget v3, not
+  observed HTML attributes. Putting them on `<altcha-widget>` does
+  nothing — set them via `$altcha.defaults.set()` or `.configure()`.
+- Tests floor the difficulty via `ChallengeConfig.difficulty`
+  (`test/support/challenge.ts`). At that floor a "weakened" challenge can
+  be byte-identical to the original, so a tampering test has to mint above
+  the floor to have something to weaken.
+
+## Vite dev server shadows proxied GET routes
+
+`vite/plugins/dev-bucket.ts` runs **ahead** of vite's proxy, so any
+extensionless path it doesn't recognise gets its clean-URL 404 page
+instead of being forwarded to the ingest dev-server on :8787. Two
+symptoms already caused by this:
+
+- `POST /ingest` 404ing (fixed by exempting non-GET methods),
+- `GET /auth/challenge` 404ing, which broke signup entirely in dev.
+
+The proxied path list now lives in `vite.config.ts` as `DEV_PROXY_PATHS`
+and is passed to both the proxy and the plugin. **Add new dev-server
+routes there**, not to the proxy alone.
+
+## Vite entries at nested clean URLs need absolute asset paths
+
+`/password/forgot` and `/password/reset` are the only Vite entries whose
+clean URL has a nested path segment. With relative asset paths
+(`./src/foo.ts`) the browser resolves them against `/password/`, giving
+`/password/src/foo.ts` → 404, so the page's script never runs. The form
+then falls back to a **native GET submit**, putting field values in the
+URL. Both files use root-absolute `/src/...` paths for this reason;
+don't "tidy" them back to relative.
+
 ## Reproducing a Lambda-only encode failure locally
 
 The Lambda runs **arm64** and resolves ffmpeg at `/var/task/ffmpeg`

@@ -19,6 +19,18 @@ import path from "node:path";
 
 export interface DevBucketPluginOptions {
   bucketRoot?: string;
+  // Paths vite proxies to the ingest dev-server, in vite's own proxy-key
+  // format (leading ^ means regex, otherwise prefix). This middleware runs
+  // BEFORE the proxy, so without these it answers proxied API requests
+  // with its clean-URL 404 page. Passed from vite.config.ts so there's one
+  // list, not two that drift.
+  proxiedPaths?: string[];
+}
+
+function matchesProxiedPath(uri: string, patterns: string[]): boolean {
+  return patterns.some((p) =>
+    p.startsWith("^") ? new RegExp(p).test(uri) : uri.startsWith(p),
+  );
 }
 
 const SIXTY_FOUR_HEX = /^[0-9a-f]{64}$/;
@@ -159,6 +171,7 @@ function looksLikeCleanUrl(uri: string): boolean {
 export function devBucketPlugin(opts: DevBucketPluginOptions = {}): Plugin {
   const bucketRoot = path.resolve(opts.bucketRoot ?? "./dev-bucket");
   const publicRoot = path.join(bucketRoot, "public");
+  const proxiedPaths = opts.proxiedPaths ?? [];
   return {
     name: "drawbang-dev-bucket",
     apply: "serve",
@@ -228,9 +241,18 @@ export function devBucketPlugin(opts: DevBucketPluginOptions = {}): Plugin {
         // `POST /ingest` gets a 404 page instead of being forwarded to the
         // ingest dev-server — which broke the whole `npm run dev:all`
         // publish loop. A non-GET request is never a page navigation.
+        //
+        // Proxied API paths are exempt for the same reason, and the method
+        // check alone isn't enough: GET /auth/challenge is a GET, looks
+        // extensionless, and belongs to the ingest dev-server.
         const method = (req.method ?? "GET").toUpperCase();
         const isPageRequest = method === "GET" || method === "HEAD";
-        if (isPageRequest && (pathOnly === "/404" || looksLikeCleanUrl(pathOnly))) {
+        const isProxied = matchesProxiedPath(pathOnly, proxiedPaths);
+        if (
+          isPageRequest &&
+          !isProxied &&
+          (pathOnly === "/404" || looksLikeCleanUrl(pathOnly))
+        ) {
           return serveNotFound(publicRoot, res, next, pathOnly);
         }
 

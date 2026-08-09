@@ -21,10 +21,13 @@ publicly viewable and you can draw locally without an account. See
 History: the original Ruby/Sinatra/Redis/RMagick app is archived under
 `legacy/` and is not imported by any current code. Several earlier
 concepts have been removed and should not be reintroduced absent
-intentional discussion: the keypair-anonymous identity scheme,
-proof-of-work gating, the multi-tile "canvas" composite, the
-collaborative weekly "murals" grid, and the daily static-builder cron
-that used to regenerate the gallery HTML.
+intentional discussion: the keypair-anonymous identity scheme, the
+multi-tile "canvas" composite, the collaborative weekly "murals" grid,
+and the daily static-builder cron that used to regenerate the gallery
+HTML. **Proof-of-work gating on publishing** is also gone and stays
+gone — publishing is free and anonymous. PoW came back in 2026-08 in a
+different place, on account creation and password reset only; see
+"Anti-spam gate".
 
 ## Drawing model
 
@@ -316,7 +319,8 @@ JSON endpoints (no caching at the edge — `Cache-Control: no-store`):
 | `/drawings/<id>/bookmark`      | POST / DELETE | required | `ingest/bookmarks-handler.ts` — toggle a bookmark (write only). |
 | `/me/bookmarks/feed`           | GET           | required | HTML fragment of the caller's bookmarks. Loaded by the inline boot script on `/u/<un>/bookmarks`. |
 | `/users/<username>/follow`     | POST / DELETE | required | `ingest/follows-handler.ts` — follow/unfollow. Self-follow → 400, missing target → 404, duplicate → 409. Bumps `follower_count`/`following_count` on the users rows transactionally with the edge write. |
-| `/auth/*`                      | POST          | mixed | `ingest/auth-handler.ts` (register/login/forgot/reset/profile-picture). |
+| `/auth/*`                      | POST          | mixed | `ingest/auth-handler.ts` (register/login/forgot/reset/profile-picture). `register` + `password/forgot` additionally require a solved PoW challenge — see "Anti-spam gate". |
+| `/auth/challenge`              | GET           | none | `ingest/challenge.ts` via `routes.ts` — mints the ALTCHA proof-of-work challenge. Public, `private, no-store`; each challenge is single-use. |
 | `/auth/profile`                | GET / POST    | required | `ingest/auth-handler.ts` — GET prefills the edit-profile form on `/account`; POST updates bio + link. |
 | `/auth/account/delete`         | POST          | required | `ingest/auth-handler.ts` — self-service account deletion. Target is always the caller; current password required. 409 while the account still owns drawings. See "Deleting an account". |
 | `/users/<user_id>/stats`       | GET           | none | `ingest/user-stats-handler.ts` — public, short max-age. |
@@ -459,6 +463,102 @@ its original author. Claiming needs an explicit capability handed to the
 publisher — the GIF itself is public, so possession of the bytes proves
 nothing. A design for it is written up in
 `docs/claim-flow-proposal.md` (proposed, not built).
+
+## Anti-spam gate (proof of work on register + password reset)
+
+Two unauthenticated endpoints cost us something when abused, so both
+require a solved [ALTCHA](https://altcha.org) proof-of-work challenge:
+
+| Route | Why it's gated |
+|-------|----------------|
+| `POST /auth/register` | bulk account creation (the reason this exists) |
+| `POST /auth/password/forgot` | makes **SES send mail to any address the caller names**. This is the more damaging of the two: a bounce/complaint spike gets the sending identity throttled, which breaks password reset for real users. |
+
+Nothing else is gated. **Login is not gated** (a legitimate user
+shouldn't pay to sign in), and neither is `POST /ingest` — publishing
+stays free and anonymous, which is the whole point of "Anonymous
+publishing" above. Don't put a challenge in front of it.
+
+Self-hosted, so there's no third-party service, no outbound call on the
+auth path, and no cookies or fingerprinting: `GET /auth/challenge` mints
+an HMAC-signed challenge, the browser brute-forces a counter in a worker
+until the derived key matches the signed prefix, and `verifyChallenge`
+checks it. `PBKDF2/SHA-256` is the algorithm because it's the only one
+native to both Node's WebCrypto and every browser we support (Argon2id
+and scrypt are more hardware-resistant but need WASM in the browser).
+
+**The single-use guard is the load-bearing part.** `verifySolution()`
+proves a solution fits a challenge; it knows nothing about whether that
+solution was already spent. Without a store, one solve replays for every
+registration inside the 10-minute window, the per-account cost drops to
+zero, and the gate is decoration. `drawbang-challenges` keys on the
+challenge nonce with a DynamoDB TTL and claims it with a **single
+conditional PutItem** — atomic, because two concurrent replays of the
+same payload both pass the read-then-write that altcha-lib's framework
+helpers use for their `store` option. That's also why the gate calls
+`verifySolution()` directly instead of going through
+`altcha-lib/frameworks/shared`.
+
+**Difficulty is measured, not guessed.** Solver work is roughly
+(counter value) x (PBKDF2 cost), so the two constants in
+`ingest/challenge.ts` multiply — changing either changes the difficulty.
+At `cost: 1000` with a 1000–5000 counter range, measured on the Lambda
+runtime single-threaded (the browser widget uses workers, so a real
+client is at least this fast):
+
+| | time |
+|---|---|
+| solve, mean | ~630 ms |
+| solve, max | ~880 ms |
+| **verify** | **~1 ms** |
+
+Verification runs on every registration, so it has to stay negligible.
+It does because the challenge carries an HMAC over the derived key, so
+verifying is one HMAC rather than a re-derivation. Re-measure before
+changing the constants.
+
+Gate ordering differs between the two routes **on purpose**:
+
+- **register** validates email/username/password *first*, then gates.
+  Verifying spends the challenge, so a mistyped password shouldn't cost
+  the user a fresh ~600 ms solve. The gate still runs before the scrypt
+  hash and every write.
+- **forgot-password** gates *first*. Nothing downstream is worth
+  reaching without proof of work, and a 403 leaks nothing about the
+  address because it's decided before any lookup. The route keeps its
+  no-enumeration 200 contract for solved requests.
+
+Signing keys are derived from `JWT_SECRET` with domain separation
+(`ingest/challenge.ts`), so there's **no new secret to provision**.
+Rotating `JWT_SECRET` invalidates outstanding challenges, which
+self-heals within the 10-minute TTL.
+
+Client side (`src/altcha.ts`): the widget is loaded with a **dynamic
+import** because the editor's publish dialog can register an account and
+most people who open `/draw` never do — a static import would put ~34 kB
+gzipped in everyone's editor bundle. It solves a **fresh** challenge on
+every submit, never a cached one: the server spends a payload on first
+verification, so reusing one across two submits (taken username, then
+retry) comes back as `challenge_replayed`.
+
+**Three surfaces register accounts**, and the third is easy to miss:
+`/signup`, `/password/forgot`, and the inline sign-up form in the
+editor's publish dialog (`src/publish-dialog.ts`). A new auth surface
+needs the widget too.
+
+Failures return **403** with a machine-readable `code`
+(`challenge_missing` / `_malformed` / `_expired` / `_invalid` /
+`_replayed`). All of them are recoverable by solving again.
+
+**What this does and doesn't buy.** It converts an instant scripted
+flood into roughly 0.6 s of CPU per account, and the replay guard means
+that cost is per-account rather than amortised. It is not a wall: a
+determined attacker who pays the CPU still gets through, and PBKDF2 is
+GPU-friendlier than Argon2id. If it stops being enough, the next
+escalations are a rate limit keyed on a trusted client IP (a CloudFront
+Function stamping `event.viewer.ip` — note the API Gateway origin is
+publicly reachable, so an edge-only defence is bypassable) or a hosted
+bot-detection widget.
 
 ## Deleting a drawing
 
@@ -767,6 +867,15 @@ ingest/               Lambda + dev-server: ingest, render, auth
   auth-handler.ts     POST /auth/{register,login,password/forgot,
                       password/reset,profile-picture,profile} +
                       GET /auth/profile (edit-profile prefill).
+                      register + password/forgot additionally require a
+                      solved proof-of-work challenge (see "Anti-spam
+                      gate"); everything else is ungated.
+  challenge.ts        ALTCHA proof-of-work: mintChallenge (GET
+                      /auth/challenge) + verifyChallenge, which verifies
+                      AND spends the challenge.
+  challenge-store.ts  DDB wrapper for drawbang-challenges — the
+                      single-use guard that makes the gate mean anything
+                      (+ MemoryChallengeStore for dev/tests).
   gif-validate.ts     GIF89a header check, ≤16 frames, DRAWBANG ext.
   storage.ts          Storage interface + FsStorage (dev/tests).
   s3-storage.ts       S3Storage (Lambda + scripts).
@@ -1025,6 +1134,8 @@ Lambda (runtime, set via SAM):
   `drawbang-bookmarks`).
 - `DRAWBANG_FOLLOWS_TABLE` — DDB table for follow edges between accounts
   (default `drawbang-follows`).
+- `DRAWBANG_CHALLENGES_TABLE` — DDB table holding spent proof-of-work
+  challenge ids, TTL-swept (default `drawbang-challenges`).
 - `DRAWBANG_SUBSCRIBERS_TABLE` — DDB table for the email-capture list
   (default `drawbang-subscribers`).
 - `DRAWBANG_PRODUCT_COUNTERS_TABLE` — feeds `/products` (default
