@@ -93,3 +93,71 @@ to spare the next agent / contributor an hour of head-scratching.
   just refactored content).
 - Editor's `share_url` is `${PUBLIC_BASE_URL}/d/<id>` (CloudFront), not the
   S3 origin URL. CloudFront Function rewrites `/d/<id>` to `/d/<id>.html`.
+
+## Local dev server (`npm run dev:all`)
+
+- **The dev-bucket middleware runs BEFORE Vite's proxy.** Its clean-URL
+  404 (anything whose last path segment has no `.`) fires first, so a
+  path that `vite.config.ts` means to proxy gets a 404 page instead.
+  Two facets are fixed — non-GET methods are exempt (`POST /ingest` was
+  404ing, which broke the entire documented publish loop) and `/@…`
+  paths are exempt (`/@vite/client` was 404ing, which broke HMR *and*
+  stopped page scripts evaluating, so `/login` and `/signup` fell back to
+  native GET form submits that put the password in the URL bar).
+- **Still unfixed:** proxied *GET* routes (`/d/<id>`, `/u/<un>`, `/`) are
+  shadowed by the same rule. Read those off `localhost:8787` directly.
+  Fixing it properly means teaching the plugin about the proxy table.
+
+## Reproducing a Lambda-only encode failure locally
+
+The Lambda runs **arm64** and resolves ffmpeg at `/var/task/ffmpeg`
+(vendored by `infra/aws/build-lambda.mjs`). A dev box is usually x64, so
+`encodeShareMp4` fails locally with `spawn ffmpeg ENOENT` and tells you
+nothing about prod.
+
+To run the *exact* prod command on real bytes:
+
+```
+npm install --no-save --force @ffmpeg-installer/linux-x64
+# binary lands at node_modules/@ffmpeg-installer/linux-x64/ffmpeg
+# then run the args from ffmpegArgs() in ingest/share-mp4.ts against a
+# -large.gif downloaded from /tiles/<id>-large.gif
+```
+
+`--no-save` keeps `package.json` and the lockfile clean — verify with
+`git diff HEAD --stat -- package.json package-lock.json` before committing.
+
+`npm run lambda:build` fails locally for the same reason (it wants the
+arm64 package). CI vendors it explicitly; don't chase this locally.
+
+## Investigating a missing `-large.gif` / `-large.mp4`
+
+One drawing published 2026-06-27 lost its `-large.mp4`. What that cost
+three attempts to learn, so you don't repeat it:
+
+- **Measure before theorising.** Coverage across the whole gallery was
+  96/97 — a ~1% gap, not the systemic failure a six-drawing sample
+  suggested. `/feed.rss` + a `HEAD` per `/tiles/<id>-large.mp4` surveys
+  everything with no credentials.
+- **Ruled out:** a corrupt source gif (it decoded fine, DRAWBANG ext
+  present); ffmpeg rejecting the content (the exact `-large.gif` encoded
+  to a valid 18 KB mp4 locally); the Lambda timeout (worst-case tail is
+  6.7 s against 30 s — see "Publish latency" in CLAUDE.md).
+- **Confirmed:** the tail *was* running — each retry rewrote
+  `-large.gif`, moving its `Last-Modified` while the `ETag` stayed
+  identical (the re-render is deterministic). So the gif step succeeded
+  and the mp4 step failed silently, twice, only via the async
+  self-invoke. Running the same code synchronously
+  (`POST /backfill/sidecars?drawing=<id>`) succeeded first try.
+- **Never root-caused**, because the telemetry didn't exist yet. It does
+  now (`kind: "tail"`, see "Observability" in CLAUDE.md) — start there,
+  not from a hypothesis.
+
+## GitHub Actions
+
+- **Find a deploy run via the workflow, not the repo.**
+  `/actions/runs?branch=master` returns the newest run of *any* workflow,
+  so a CodeQL run that raced your push will be picked instead and you'll
+  watch the wrong jobs. Use
+  `/actions/workflows/deploy.yml/runs?branch=master`.
+

@@ -175,6 +175,49 @@ that window would miss `og:image` (or `og:video`). In practice a link
 gets pasted seconds later at the earliest, and a gap is repairable via
 `POST /backfill/sidecars?drawing=<id>`.
 
+## Verifying against production (no AWS credentials needed)
+
+Everything below runs over plain HTTP against the deployed API, and every
+artifact it creates can be removed by the same set of endpoints. Nothing
+here requires AWS keys — reach for this before asking for credentials.
+
+**Hit the API origin, not the site.** `POST /ingest`,
+`DELETE /drawings/{id}` and `POST /backfill/sidecars` have **no CloudFront
+behaviour** and 404 on `pixel.drawbang.com`. Their real host is the
+`execute-api` URL baked into the built editor bundle:
+
+```
+curl -s https://pixel.drawbang.com/draw | grep -o '/assets/draw-[^"]*\.js'
+curl -s "https://pixel.drawbang.com/assets/draw-<hash>.js" \
+  | grep -o 'https://[a-z0-9]*\.execute-api\.[^"]*/ingest'
+```
+
+`/auth/*` **is** on CloudFront, so registration and login work on either
+host.
+
+**The full self-serve loop**, which leaves nothing behind:
+
+1. `POST /auth/register` → session JWT.
+2. `POST /ingest` with a gif built by `src/editor/gif.ts` (`encodeGif`).
+   Vary the bytes per publish — identical bytes hit the content-addressed
+   idempotency short-circuit and return 200 instead of 202, measuring
+   nothing.
+3. Do the thing you're verifying.
+4. `DELETE /drawings/{id}` per drawing (author or operator).
+5. `POST /auth/account/delete` with `{ "password": … }` — refuses with 409
+   until every drawing is gone, which is why step 4 comes first.
+
+**Measuring latency this way is noisy.** A request that does *no* server
+work (`POST /ingest` with `{}` → 400) costs 190–550 ms from a sandbox, so
+compare against that baseline rather than reading publish timings as
+absolute. For real server-side numbers use the `outcome` a targeted
+backfill returns, or the `duration_ms` on the `outcome` log lines.
+
+**Don't publish test drawings to measure without deleting them** — the
+feed is public. And note the deferred tail needs ~6 s (see "Publish
+latency"); checking for sidecars sooner reports a false failure, which
+has happened.
+
 ## Observability (what to query when something is wrong)
 
 Three structured log kinds, all one-JSON-line-per-event so CloudWatch
