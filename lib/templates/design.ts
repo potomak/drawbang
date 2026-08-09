@@ -100,11 +100,12 @@ export default function renderDesign(v: DesignView): string {
           </div>
         `)}
 
-        ${section("Buttons", "Base + .primary + .ghost in chrome.css. Variants .icon/.sm/.xs live in src/style.css.", `
+        ${section("Buttons", "Base + .primary + .ghost + .danger in chrome.css. Variants .icon/.sm/.xs live in src/style.css.", `
           <div class="ds-buttons">
             <button class="btn">Default</button>
             <button class="btn primary">Primary</button>
             <button class="btn ghost">Ghost</button>
+            <button class="btn danger">Danger</button>
             <a class="btn" href="#">Link as button</a>
             <button class="btn" disabled>Disabled</button>
           </div>

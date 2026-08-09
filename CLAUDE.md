@@ -295,7 +295,7 @@ asset, new tracking script) must consider every entry below.
 | `/prompts`                     | `lib/templates/prompts.ts` via Lambda             | Dynamic — daily-prompt archive. |
 | `/prompts/<slug>`              | `lib/templates/prompts.ts` via Lambda             | Dynamic — per-prompt submission grid (slug pattern mirrors `PROMPT_SLUG_RE` in `config/prompts.ts`). |
 | `/prompts/<slug>/items?cursor=…` | prompts fragment via Lambda                     | Dynamic (infinite scroll) |
-| `/admin`                       | `lib/templates/admin.ts` via Lambda               | Dynamic — hidden ops overview shell (no nav link, `private, no-store`). Cards + product KPIs + accounts roster + recent failures. Unauthenticated shell; an inline boot script fetches `/admin/data` with the Bearer JWT — same pattern as `/u/<un>/bookmarks`. |
+| `/admin`                       | `lib/templates/admin.ts` via Lambda               | Dynamic — hidden ops overview shell (no nav link, `private, no-store`). Cards + product KPIs + accounts roster (with per-row account delete) + recent failures. Unauthenticated shell; an inline boot script fetches `/admin/data` with the Bearer JWT — same pattern as `/u/<un>/bookmarks`. |
 | `/products`, `/products/p/<N>` | `lib/templates/products.ts` via Lambda            | Dynamic |
 | `/feed.rss`                    | `lib/templates/feed.ts` via Lambda                | Dynamic (RSS, no chrome) |
 | `/design`                      | `lib/templates/design.ts` via Lambda              | Dynamic — design-system kitchen-sink, paired with `docs/design-system.md` |
@@ -322,9 +322,10 @@ JSON endpoints (no caching at the edge — `Cache-Control: no-store`):
 | `/auth/*`                      | POST          | mixed | `ingest/auth-handler.ts` (register/login/forgot/reset/profile-picture). `register` + `password/forgot` additionally require a solved PoW challenge — see "Anti-spam gate". |
 | `/auth/challenge`              | GET           | none | `ingest/challenge.ts` via `routes.ts` — mints the ALTCHA proof-of-work challenge. Public, `private, no-store`; each challenge is single-use. |
 | `/auth/profile`                | GET / POST    | required | `ingest/auth-handler.ts` — GET prefills the edit-profile form on `/account`; POST updates bio + link. |
-| `/auth/account/delete`         | POST          | required | `ingest/auth-handler.ts` — self-service account deletion. Target is always the caller; current password required. 409 while the account still owns drawings. See "Deleting an account". |
+| `/auth/account/delete`         | POST          | required | `ingest/auth-handler.ts` — self-service account deletion. Target is always the caller; current password required. Cascades to the caller's drawings. See "Deleting an account". |
 | `/users/<user_id>/stats`       | GET           | none | `ingest/user-stats-handler.ts` — public, short max-age. |
 | `/u/<username>/follow-thumbs?limit=N` | GET    | none | `renderFollowThumbsHandler` in `ingest/render-handlers.ts` — JSON of the first N follower/following usernames, feeds the left-rail thumb grids. |
+| `/admin/users/<username>`      | DELETE        | required | `ingest/auth-handler.ts` `handleAdminDeleteAccount` — operator removes any account **and all its drawings**. Bearer JWT + `ADMIN_USERNAMES`, gated in `routes.ts`. Needs its own CloudFront behaviour above `/admin*` (which is GET-only). See "Deleting an account". |
 | `/admin/data`                  | GET           | required | `ingest/admin-handler.ts` — HTML fragment of ops counters, the accounts roster, and recent failures. Bearer JWT + `ADMIN_USERNAMES` allowlist, gated in `lambda.ts` before the handler runs. **The one surface that renders account emails** — see "Identity model". |
 | `/subscribe`                   | POST          | none | `ingest/subscribe-handler.ts` — email capture from the home-page hero. Honeypot field `website` → silent 200; idempotent on email (first-seen `created_at` wins). Write-only; digest sending is deferred. |
 
@@ -656,38 +657,64 @@ backfill, not a symptom to re-architect around.
 
 ## Deleting an account
 
-`POST /auth/account/delete` removes the caller's own account. Not linked
-from any UI; same reasoning as the drawing delete — it exists so an
-operator (or an automated end-to-end check) can clean up after itself,
-and obscurity is not the gate.
+Two entry points, one cascade. `ingest/account-delete.ts` owns what
+"deleting an account" means so the two callers can't drift:
 
-Two properties hold it together:
+| Route | Who | Confirmation |
+|-------|-----|--------------|
+| `POST /auth/account/delete` | the caller, on themselves only | current password + typed username (UI) |
+| `DELETE /admin/users/{username}` | `ADMIN_USERNAMES` operators, on anyone | typed username (UI); the allowlist is the gate |
 
-- **The target is always the caller.** It comes from `resolveSelf()` —
-  the verified JWT's `user_id` + `username`, cross-checked against the
-  stored row. There is no body field naming an account, so there is
-  nothing to point somewhere else.
-- **The current password is required** on top of a valid session.
-  Deletion is irreversible, so a leaked or borrowed JWT alone must not be
-  enough.
+**Deleting an account deletes its drawings**, gif/mp4 objects included.
+That's a product decision: it's the common reading of "delete my
+account", and for moderation a spam account's drawings are exactly what
+needs to go. The costs, accepted knowingly: remixes of a deleted drawing
+lose their parent (every read path already tolerates that —
+`loadAncestorChain` stops at the first unresolvable parent), and the
+public feed shrinks.
 
-The store side mirrors `register()`: one `TransactWriteItems` dropping the
-users row and the username reservation together, conditioned on `user_id`
-so a stale session can't delete an account that was already deleted and
-re-registered under the same email. Freeing the handle is safe — follow
-edges key on `user_id`, so a new account taking the name inherits nothing.
+Why the two routes stay separate: the self-serve one's safety property is
+that **the target is always the caller** — it comes from `resolveSelf()`,
+and there is no body field naming an account, so there is nothing to point
+somewhere else. Adding an admin override to it would spend that property,
+so the operator path is its own route with its own allowlist gate in
+`routes.ts` (the same one `/admin/data` uses).
 
-**It refuses (409) while the account still owns drawings.** Reassigning
-them to the anonymous sentinel or cascading a delete across them is an
-unbounded write fan-out on a request path, and it's a product decision
-about people's published work that shouldn't be made implicitly by a
-cleanup endpoint. Delete the drawings first, then the account. A real
-user-facing "delete my account" flow needs that cascade — plus follow
-edges, likes given, and bookmarks — designed on purpose; this endpoint
-deliberately isn't that.
+The self-serve route additionally requires **the current password**:
+deletion is irreversible, so a leaked or borrowed JWT alone must not be
+enough. The admin route deliberately requires no password — an operator
+isn't proving ownership and doesn't have the target's credential. Its
+guard against a misclick is the typed confirmation in the admin UI plus
+the allowlist itself.
 
-The per-account stats row is left behind: it keys on `user_id`, which is
-random and never reused, so nothing can ever read it again.
+Order of operations, per drawing: DrawingStore row first, then the three
+S3 objects. Row-before-objects is deliberate — the reverse briefly leaves
+a row pointing at a missing gif, which renders as a broken image on the
+feed. Then one `TransactWriteItems` drops the users row and the username
+reservation together, conditioned on `user_id` so a stale session can't
+delete an account that was already deleted and re-registered under the
+same email. Freeing the handle is safe: follow edges key on `user_id`.
+
+Bounds. The drawing sweep re-queries the **first** page each round rather
+than paginating with a cursor — it is deleting the rows it walks, and a
+cursor into a mutating index can skip records. `MAX_DRAWINGS` (1000) caps
+one request's work so a pathological account can't run past the Lambda
+timeout; if it trips, the users row is left intact and the caller is told
+to run it again, which resumes where it stopped. Invalidation folds every
+deleted drawing into one batch, falling back to a single `/d/*` wildcard
+past `MAX_DRAWING_PATHS` (50) because invalidation paths cost money past
+the free tier.
+
+**Left behind on purpose** (all documented in `account-delete.ts`): likes
+and bookmarks pointing at the deleted drawings — inert once nothing
+renders them, and sweeping them turns one delete into an unbounded
+fan-out; follow edges and the per-account stats row — both key on
+`user_id`, which is random and never reused, so a new account claiming the
+freed username inherits nothing.
+
+Edge note: `DELETE /admin/users/*` needs its **own CloudFront behaviour
+placed above `/admin*`**, which allows only GET/HEAD/OPTIONS. Without it
+CloudFront rejects the DELETE before Lambda ever sees it.
 
 ## Design system
 
@@ -823,6 +850,10 @@ ingest/               Lambda + dev-server: ingest, render, auth
                       default, ?scope=all for operators).
   delete-handler.ts   DELETE /drawings/{id} — author-or-operator drawing
                       removal (row + S3 objects + invalidation).
+  account-delete.ts   The cascade behind both delete-account routes:
+                      removes every drawing the account published (rows +
+                      gif/mp4 objects), then the users row + username
+                      reservation, then one folded invalidation.
   discover-handler.ts loadDiscover() — right-rail Most Liked · 30D +
                       Trending Artists, folded in memory from the recent
                       gallery window.

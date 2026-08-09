@@ -21,6 +21,8 @@ const DEV_PROXY_TARGET = "http://localhost:8787";
 const DEV_PROXY_PATHS = [
   "/ingest",
   "/auth",
+  // Covers the /admin shell, /admin/data, and DELETE /admin/users/*.
+  "/admin",
   // Dynamic-site routes that match what the prod Lambda serves: the
   // ingest dev-server renders them off MemoryDrawingStore so the
   // editor's "publish → see on the feed" loop works locally.

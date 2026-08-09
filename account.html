@@ -33,6 +33,27 @@
           </label>
           <button class="btn primary" id="edit-profile-submit" type="submit">Save profile</button>
         </form>
+
+        <section class="danger-zone">
+          <h3>Delete account</h3>
+          <p class="muted">
+            This permanently deletes your account <strong>and every drawing
+            you've published</strong>, including their shared images. Links
+            people have to your drawings will stop working. This can't be
+            undone.
+          </p>
+          <form class="auth-form" id="delete-account-form" novalidate>
+            <label class="auth-field">
+              <span>Confirm your password</span>
+              <input type="password" id="delete-password" name="password" autocomplete="current-password" required />
+            </label>
+            <label class="auth-field">
+              <span>Type your username to confirm</span>
+              <input type="text" id="delete-confirm" name="confirm" autocomplete="off" required />
+            </label>
+            <button class="btn danger" id="delete-account-submit" type="submit">Delete my account</button>
+          </form>
+        </section>
       </div>
     </main>
     <!--CHROME:FOOTER-->

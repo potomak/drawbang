@@ -82,6 +82,10 @@
   --accent: #00ccff;
   --accent-on: #001218;
   --accent-dim: rgba(0, 204, 255, 0.12);
+  /* Destructive actions (delete account, delete drawing). One token, so
+     the admin roster and the account page can't drift apart. */
+  --danger: #b00020;
+  --danger-on: #ffffff;
 
   /* Drawing wells — light backing + visible-but-subtle grid. Used by
      img-grid thumbs, feed-card-art, st-day cells, editor canvas wraps,
@@ -446,6 +450,11 @@ body > main {
 .btn.primary { background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
 .btn.primary:hover { filter: brightness(0.95); color: var(--accent-on); }
 .btn.ghost { background: transparent; }
+/* Destructive. Outlined by default so it never competes with .primary for
+   attention, filling in on hover to make the consequence obvious at the
+   moment of the click. */
+.btn.danger { color: var(--danger); border-color: var(--danger); background: transparent; }
+.btn.danger:hover { background: var(--danger); color: var(--danger-on); border-color: var(--danger); }
 .btn[hidden] { display: none; }
 
 /* ===== Badge =====

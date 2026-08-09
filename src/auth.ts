@@ -109,6 +109,33 @@ export type ProfileOutcome =
   | { ok: true; profile: ProfileFields }
   | { ok: false; status: number; error: string };
 
+export type DeleteAccountOutcome =
+  | { ok: true; drawingsDeleted: number }
+  | { ok: false; status: number; error: string };
+
+// Deletes the signed-in account. The current password is required on top
+// of the session because deletion is irreversible, and the account's
+// drawings go with it. On success the local session is cleared here so no
+// caller can be left holding a token for an account that no longer exists.
+export async function deleteAccount(password: string): Promise<DeleteAccountOutcome> {
+  try {
+    const res = await fetch(`${AUTH_BASE}/auth/account/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeader() },
+      body: JSON.stringify({ password }),
+    });
+    const data = await safeJson(res);
+    if (!res.ok) {
+      return { ok: false, status: res.status, error: data?.error ?? "request failed" };
+    }
+    logout();
+    const payload = data as unknown as { drawings_deleted?: number } | null;
+    return { ok: true, drawingsDeleted: payload?.drawings_deleted ?? 0 };
+  } catch {
+    return { ok: false, status: 0, error: "network error" };
+  }
+}
+
 export async function getProfile(): Promise<ProfileOutcome> {
   try {
     const res = await fetch(`${AUTH_BASE}/auth/profile`, {

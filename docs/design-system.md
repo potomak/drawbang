@@ -113,9 +113,15 @@ existing class.
 Base button. `inline-flex`, `var(--tap)` tall, `1px solid var(--line)`,
 sans, `var(--t-sm)`.
 
-Variants: `.primary` (filled accent), `.ghost` (transparent), `.icon`
-(square, label hidden), `.sm` / `.xs` (height ramps). Pressed state
-nudges `translate(2px, 2px)`.
+Variants: `.primary` (filled accent), `.ghost` (transparent), `.danger`
+(destructive), `.icon` (square, label hidden), `.sm` / `.xs` (height
+ramps). Pressed state nudges `translate(2px, 2px)`.
+
+`.danger` is outlined in `var(--danger)` and fills in on hover, so it
+never competes with `.primary` for attention but makes the consequence
+obvious at the moment of the click. Use it only for irreversible,
+destructive actions — deleting an account or a drawing — and always
+behind a confirmation the user has to type, not just click.
 
 ### `.lab` (chrome.css)
 

@@ -84,6 +84,7 @@ const authConfig: AuthHandlerConfig = {
   jwtSecret: JWT_SECRET,
   publicBaseUrl: PUBLIC_BASE,
   drawingStore,
+  storage,
   // Production difficulty on purpose — the local loop should feel like the
   // real signup, widget and all. Replay state is in-memory, so it resets
   // with the server like every other dev store.

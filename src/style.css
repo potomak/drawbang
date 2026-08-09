@@ -774,3 +774,13 @@ dialog form menu button:hover { border-color: var(--border-strong); }
 .auth-field textarea:focus { outline: none; border-color: var(--border-strong); }
 .auth-field small { font-size: var(--t-xs); }
 
+
+/* Account page "danger zone": visually separated from the profile form so
+   an irreversible action can't be mistaken for a save. */
+.danger-zone {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: var(--border) solid var(--line);
+}
+.danger-zone h3 { margin: 0 0 8px; }
+.danger-zone .muted { max-width: 60ch; }

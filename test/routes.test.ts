@@ -78,6 +78,7 @@ function makeDeps(opts: { userStats?: boolean } = {}): RouteDeps {
       jwtSecret: "route-test-secret",
       publicBaseUrl: "https://example.test",
       drawingStore,
+      storage: new NullStorage(),
       challenge: testChallengeConfig(),
     },
     ingestConfig: {
@@ -197,6 +198,35 @@ describe("shared route table", () => {
     assert.equal(res.kind, "json");
     assert.equal((res as { status: number }).status, 401);
     assert.deepEqual((res as { body: unknown }).body, { error: "authentication required" });
+  });
+
+  test("DELETE /admin/users/{username} is refused for a non-operator", async () => {
+    // The allowlist is the whole gate on this route — a signed-in ordinary
+    // user must not be able to delete anyone.
+    const res = await dispatch(
+      routes,
+      makeReq({ method: "DELETE", path: "/admin/users/someoneelse", auth: VIEWER }),
+    );
+    assert.equal((res as { status: number }).status, 403);
+    assert.deepEqual((res as { body: unknown }).body, { error: "not authorised" });
+  });
+
+  test("DELETE /admin/users/{username} requires a session at all", async () => {
+    const res = await dispatch(
+      routes,
+      makeReq({ method: "DELETE", path: "/admin/users/someoneelse" }),
+    );
+    assert.equal((res as { status: number }).status, 401);
+  });
+
+  test("DELETE /admin/users/{username} reaches the handler for an operator", async () => {
+    // ADMIN is on the allowlist in makeDeps(); the account doesn't exist,
+    // so a 404 from the handler proves the gate let the call through.
+    const res = await dispatch(
+      routes,
+      makeReq({ method: "DELETE", path: "/admin/users/ghostuser", auth: ADMIN }),
+    );
+    assert.equal((res as { status: number }).status, 404);
   });
 
   test("DELETE /drawings/{id} requires a session", async () => {

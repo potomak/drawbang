@@ -21,6 +21,11 @@ import {
   type ChallengeConfig,
   type ChallengeFailure,
 } from "./challenge.js";
+import {
+  deleteAccountAndDrawings,
+  type AccountDeleteConfig,
+} from "./account-delete.js";
+import type { Storage } from "./storage.js";
 
 // POST /auth/register | /auth/login | /auth/password/forgot | /auth/password/reset.
 //
@@ -68,6 +73,9 @@ export interface AuthHandlerConfig {
   // after).
   drawingStore?: DrawingStore;
   cacheInvalidator?: CacheInvalidator;
+  // Required only for account deletion, which cascades to the account's
+  // drawings and their gif/mp4 objects.
+  storage?: Storage;
 }
 
 export interface AuthResult {
@@ -483,28 +491,23 @@ export async function handleGetProfile(
   };
 }
 
-// POST /auth/account/delete — self-service account removal.
+// POST /auth/account/delete — a user deleting their OWN account.
 //
-// Deletes ONLY the caller's own account: the target comes from the verified
-// session JWT via resolveSelf(), never from the request body, so there is no
-// parameter an attacker could point at someone else.
+// Two properties hold this together:
 //
-// The current password is required on top of a valid session. Account
-// deletion is irreversible, so a leaked or borrowed JWT alone must not be
-// enough to trigger it.
+//   - **The target is always the caller.** It comes from resolveSelf() —
+//     the verified JWT's user_id + username, cross-checked against the
+//     stored row. There is no body field naming an account, so there is
+//     nothing to point somewhere else. An operator deleting somebody
+//     else's account goes through DELETE /admin/users/{username} instead,
+//     deliberately kept as a separate route so this one keeps that
+//     property.
+//   - **The current password is required** on top of a valid session.
+//     Deletion is irreversible, so a leaked or borrowed JWT alone must not
+//     be enough.
 //
-// **Refuses while the account still owns drawings** (409). Reassigning them
-// to the anonymous sentinel or cascading a delete across them would be an
-// unbounded write fan-out on a request path, and it's a product decision
-// about people's published work that shouldn't be made implicitly here.
-// Delete the drawings first (DELETE /drawings/{id}), then the account. A
-// real user-facing "delete my account" flow needs that cascade designed
-// properly — see the note in CLAUDE.md.
-//
-// Rows left behind on purpose: the per-account stats row keys on user_id,
-// which is random and never reused, so nothing can ever read it again.
-// Follow edges, likes given, and bookmarks are the same unbounded fan-out
-// problem as the drawings and are documented rather than swept.
+// The account's drawings go with it — see account-delete.ts for what that
+// does and does not sweep.
 export async function handleDeleteAccount(
   req: DeleteAccountRequest,
   auth: ProfileAuth,
@@ -521,37 +524,56 @@ export async function handleDeleteAccount(
     return err(403, "password does not match");
   }
 
-  // Bounded check: one row is enough to know the account still owns work.
-  if (cfg.drawingStore) {
-    const owned = await cfg.drawingStore.queryByUsername(account.username, { limit: 1 });
-    if (owned.items.length > 0) {
-      return err(
-        409,
-        "account still has published drawings — delete them first (DELETE /drawings/{id})",
-      );
-    }
+  const cascade = accountDeleteConfig(cfg);
+  if (!cascade) return err(500, "account deletion is not configured");
+
+  const outcome = await deleteAccountAndDrawings(account, cascade);
+  if (!outcome.ok) return err(outcome.status, outcome.error);
+  return { status: 200, body: outcome.report };
+}
+
+// DELETE /admin/users/{username} — an operator deleting ANY account.
+//
+// The allowlist gate lives in routes.ts (same place /admin/data's does),
+// so by the time this runs the caller is already known to be an operator.
+// No password is required: an operator isn't proving ownership of the
+// target, and they don't have its password. The guard against a misclick
+// is the typed confirmation in the admin UI, plus the allowlist itself.
+export async function handleAdminDeleteAccount(
+  username: string,
+  cfg: AuthHandlerConfig,
+): Promise<AuthResult> {
+  const normalized = normalizeUsername(username);
+  if (!normalized) return err(400, "invalid username");
+  // The sentinel is a byline, not an account — there is no row to delete,
+  // and RESERVED_USERNAMES means no real account can ever hold it.
+  if (normalized === ANONYMOUS_USERNAME) {
+    return err(400, "anonymous is a byline, not an account");
   }
 
-  try {
-    await cfg.userStore.deleteAccount({
-      email: account.email,
-      username: account.username,
-      user_id: account.user_id,
-    });
-  } catch (e) {
-    if (e instanceof UserNotFoundError) return err(401, "authentication required");
-    throw e;
-  }
+  const account = await cfg.userStore.getByUsername(normalized);
+  if (!account) return err(404, "account not found");
 
-  // The profile page 404s once the row is gone; flush it so the edge stops
-  // serving the cached version. Awaited because Lambda freezes on return.
-  if (cfg.cacheInvalidator) {
-    await cfg.cacheInvalidator.invalidate(
-      pathsToInvalidateOnProfileChange(account.username),
-    );
-  }
+  const cascade = accountDeleteConfig(cfg);
+  if (!cascade) return err(500, "account deletion is not configured");
 
-  return { status: 200, body: { deleted: account.username } };
+  const outcome = await deleteAccountAndDrawings(account, cascade);
+  if (!outcome.ok) return err(outcome.status, outcome.error);
+  return { status: 200, body: outcome.report };
+}
+
+// The cascade needs a drawing store and object storage on top of what the
+// rest of the auth routes use. Both are optional on AuthHandlerConfig (the
+// other handlers don't need them), so this narrows once instead of at each
+// call site.
+function accountDeleteConfig(cfg: AuthHandlerConfig): AccountDeleteConfig | null {
+  if (!cfg.drawingStore || !cfg.storage) return null;
+  return {
+    userStore: cfg.userStore,
+    drawingStore: cfg.drawingStore,
+    storage: cfg.storage,
+    cacheInvalidator: cfg.cacheInvalidator,
+  };
 }
 
 export async function handleUpdateProfile(

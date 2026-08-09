@@ -212,6 +212,8 @@ const authConfig: AuthHandlerConfig = {
   jwtSecret,
   publicBaseUrl,
   drawingStore,
+  // Account deletion cascades to the account's drawings + their objects.
+  storage,
   cacheInvalidator,
   // Challenge signing keys are derived from JWT_SECRET (domain-separated
   // inside challenge.ts), so there's no extra secret to provision.

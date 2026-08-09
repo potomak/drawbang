@@ -20,6 +20,7 @@ import {
   handleResetPassword,
   handleSetProfilePicture,
   handleUpdateProfile,
+  handleAdminDeleteAccount,
   handleDeleteAccount,
   type AuthHandlerConfig,
   type ProfileAuth,
@@ -225,6 +226,39 @@ export function createRoutes(deps: RouteDeps): Route[] {
           user_id: auth!.user_id, username: auth!.username,
         });
         return render(rendered);
+      },
+    },
+    // DELETE /admin/users/{username} — operator removing ANY account,
+    // cascading to its drawings. Kept OFF the /auth/account/delete route on
+    // purpose: that one's safety property is "the target is always the
+    // caller, there is no body field naming an account", and adding an
+    // override would spend it. Same allowlist gate as /admin/data.
+    {
+      methods: ["DELETE"],
+      pattern: new RegExp(`^/admin/users/(${USERNAME})$`),
+      auth: "required",
+      logName: "DELETE /admin/users/{username}",
+      handler: async (req, params, auth) => {
+        const route = "DELETE /admin/users/{username}";
+        if (!deps.admin.isAllowed(auth!.username)) {
+          logOutcome({
+            requestId: req.requestId, route, status: 403,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id, username: auth!.username,
+            error_code: "forbidden",
+          });
+          return json(403, { error: "not authorised" });
+        }
+        const result = await handleAdminDeleteAccount(params[0], deps.authConfig);
+        logOutcome({
+          requestId: req.requestId, route, status: result.status,
+          duration_ms: Date.now() - req.t0,
+          user_id: auth!.user_id, username: auth!.username,
+          ...(result.status >= 400
+            ? { error_message: String((result.body as { error?: string }).error ?? "") }
+            : {}),
+        });
+        return json(result.status, result.body);
       },
     },
     // Dynamic HTML routes: feed home, drawing page, profile, RSS, products.

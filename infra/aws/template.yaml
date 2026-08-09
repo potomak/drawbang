@@ -488,6 +488,20 @@ Resources:
           # so neither the edge nor the browser stores them. AllViewer-
           # ExceptHostHeader forwards Authorization so /admin/data
           # sees the Bearer token.
+          # DELETE /admin/users/{username} — operator account removal.
+          # MUST sit above /admin* : CloudFront takes the first matching
+          # behaviour, and /admin* allows only GET/HEAD/OPTIONS, so a
+          # DELETE would be rejected at the edge before reaching Lambda.
+          # (CloudFront only offers three AllowedMethods sets, hence the
+          # full list here rather than just DELETE.)
+          - PathPattern: /admin/users/*
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
           - PathPattern: /admin*
             TargetOriginId: api
             ViewerProtocolPolicy: redirect-to-https
@@ -1158,6 +1172,12 @@ Resources:
             ApiId: !Ref IngestApi
             Method: GET
             Path: /admin/data
+        AdminDeleteUser:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: DELETE
+            Path: /admin/users/{username}
 
   # Lambda auto-creates /aws/lambda/drawbang-ingest with infinite retention
   # on first invocation. Apply a 90-day cap once via the AWS CLI so the

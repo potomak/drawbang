@@ -110,6 +110,8 @@ const ADMIN_STYLES = `<style>
       .adm-status-5xx { color: #b00020; font-weight: bold; }
       .adm-empty { padding: 24px; text-align: center; color: var(--fg-muted); }
       .adm-inner { display: grid; gap: 24px; }
+      .adm-del { padding: 2px 8px; font-size: var(--t-xs); line-height: 1.6; }
+      .adm-row-gone td { opacity: 0.4; text-decoration: line-through; }
     </style>`;
 
 export function renderAdminShell(opts: AdminShellOptions): string {
@@ -177,6 +179,59 @@ function renderBootScript(): string {
       var inner = document.querySelector("[data-admin-inner]");
       if (inner) inner.innerHTML = '<div class="adm-empty">Couldn\\'t load admin data.</div>';
     });
+
+  // Account deletion, delegated on the container so it survives the
+  // innerHTML swap above (and any later re-render). Deleting an account
+  // also deletes every drawing it published, so the operator has to type
+  // the username out — a plain confirm() is too easy to click through on a
+  // table of look-alike rows.
+  document.addEventListener("click", function (ev) {
+    var btn = ev.target && ev.target.closest && ev.target.closest("[data-delete-user]");
+    if (!btn) return;
+    ev.preventDefault();
+    var username = btn.getAttribute("data-delete-user");
+    var drawings = btn.getAttribute("data-drawings") || "0";
+    var typed = window.prompt(
+      // Newlines in this prompt must be double-escaped: the whole script
+      // lives inside a TS template literal, so a single-escaped one is
+      // emitted as a real newline and breaks the JS string.
+      "Delete @" + username + " and " + drawings + " drawing(s)?\\n\\nThis is permanent. Type the username to confirm:"
+    );
+    if (typed === null) return;
+    if (typed.trim().toLowerCase() !== username) {
+      window.alert("That did not match - nothing was deleted.");
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = "Deleting...";
+    fetch("/admin/users/" + encodeURIComponent(username), {
+      method: "DELETE",
+      headers: { Authorization: "Bearer " + jwt }
+    })
+      .then(function (res) {
+        return res.text().then(function (text) {
+          var body = null;
+          try { body = JSON.parse(text); } catch (e) {}
+          return { ok: res.ok, status: res.status, body: body };
+        });
+      })
+      .then(function (r) {
+        var row = btn.closest("tr");
+        if (r.ok) {
+          if (row) row.className = "adm-row-gone";
+          btn.textContent = "Deleted";
+          return;
+        }
+        btn.disabled = false;
+        btn.textContent = "Delete";
+        window.alert("Could not delete @" + username + ": " + ((r.body && r.body.error) || ("HTTP " + r.status)));
+      })
+      .catch(function () {
+        btn.disabled = false;
+        btn.textContent = "Delete";
+        window.alert("Could not delete @" + username + ": network error");
+      });
+  });
 })();
     </script>
 `;
@@ -287,6 +342,7 @@ function renderUsersTable(u: AdminView["users"]): string {
             <td>${esc(r.followers)} / ${esc(r.following)}</td>
             <td class="adm-msg">${esc(truncate(r.bio, 80))}</td>
             <td class="adm-msg">${esc(truncate(r.link, 40))}</td>
+            <td><button type="button" class="btn danger adm-del" data-delete-user="${esc(r.username)}" data-drawings="${esc(r.drawings)}">Delete</button></td>
           </tr>`,
     )
     .join("");
@@ -308,6 +364,7 @@ function renderUsersTable(u: AdminView["users"]): string {
               <th>followers / following</th>
               <th>bio</th>
               <th>link</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>${body}</tbody>

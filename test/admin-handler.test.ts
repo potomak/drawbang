@@ -20,7 +20,7 @@ import {
   MemoryUserStatsStore,
   type UserStatsStore,
 } from "../ingest/user-stats-store.js";
-import { renderAdminShell } from "../lib/templates/admin.js";
+import { renderAdminInner, renderAdminShell } from "../lib/templates/admin.js";
 
 // Fakes the AWS SDK clients with handcrafted responses. Tests stay
 // hermetic and assert what we'd actually want to render: counts, success
@@ -451,5 +451,63 @@ describe("renderAdminShell", () => {
     assert.match(html, /Authorization: "Bearer " \+ jwt/);
     // 401 redirects to /login with the original URL as next=.
     assert.match(html, /location\.replace\("\/login\?next="/);
+  });
+
+  // The boot script is a plain-JS string embedded in a TS template
+  // literal, which makes escaping easy to get wrong — a single-escaped
+  // \n inside it is emitted as a real newline and breaks a JS string,
+  // killing the WHOLE script silently (the page just shows "Loading
+  // admin data…" forever, with one console error). Parse it here so that
+  // can never ship again.
+  test("the inline boot script is syntactically valid JavaScript", () => {
+    const html = renderAdminShell({
+      range: "24h",
+      repo_url: "https://github.com/potomak/drawbang",
+    });
+    const open = html.lastIndexOf("<script>");
+    const close = html.lastIndexOf("</script>");
+    assert.ok(open > 0 && close > open, "boot script not found");
+    const script = html.slice(open + "<script>".length, close);
+    assert.doesNotThrow(() => new Function(script));
+  });
+
+  test("the roster ships a delete control per account", () => {
+    const html = renderAdminInner({
+      adminUsername: "potomak",
+      range: "24h",
+      generatedAtISO: "2026-08-09T10:00:00.000Z",
+      totalUsers: 1,
+      totalDrawings: 1,
+      publish: null,
+      register: null,
+      kpis: null,
+      users: {
+        scanned: 1,
+        shown: 1,
+        truncated: false,
+        signupsInRange: 0,
+        withDrawings: 1,
+        rows: [
+          {
+            username: "spammer",
+            email: "spam@example.com",
+            created_at: "2026-08-01T00:00:00.000Z",
+            drawings: 3,
+            streak: 0,
+            last_publish: null,
+            followers: 0,
+            following: 0,
+            has_profile_picture: false,
+            bio: "",
+            link: "",
+          },
+        ],
+      },
+      failures: [],
+    });
+    assert.match(html, /data-delete-user="spammer"/);
+    // The drawing count rides on the button so the confirm prompt can say
+    // what else is about to go.
+    assert.match(html, /data-drawings="3"/);
   });
 });
