@@ -2,8 +2,15 @@ import type { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DescribeTableCommand } from "@aws-sdk/client-dynamodb";
 import type { CloudWatchLogsClient } from "@aws-sdk/client-cloudwatch-logs";
 import { runInsightsQuery, type InsightsRow } from "./cloudwatch-logs.js";
-import { renderAdminInner, type AdminView, type AdminRange } from "../lib/templates/admin.js";
+import {
+  renderAdminInner,
+  type AdminRange,
+  type AdminUserRow,
+  type AdminView,
+} from "../lib/templates/admin.js";
 import type { DrawingStore, QueryPage } from "./drawing-store.js";
+import type { UserStore, UserSummary } from "./user-store.js";
+import type { UserStatsStore } from "./user-stats-store.js";
 import type { RenderResponse } from "./render-handlers.js";
 
 // /admin/data endpoint. Returns an HTML fragment (the data-bound
@@ -14,9 +21,17 @@ import type { RenderResponse } from "./render-handlers.js";
 // Pulls high-level counters from DynamoDB DescribeTable (sampled
 // ~every 6h, free), event aggregates from CloudWatch Logs Insights
 // against the `{kind:"outcome",…}` stream emitted by
-// ingest/log-outcome.ts, and product KPIs (remix rate, publish pace)
-// from a recent-drawings DrawingStore scan. Auth gating happens in
+// ingest/log-outcome.ts, product KPIs (remix rate, publish pace) from a
+// recent-drawings DrawingStore scan, and the accounts roster from a
+// UserStore listing joined with UserStatsStore. Auth gating happens in
 // lambda.ts before this handler runs.
+//
+// This is the ONE surface that renders account email addresses. Emails are
+// private everywhere else in the app (see "Identity model" in CLAUDE.md);
+// they're here because the operator needs to know who an account is, the
+// allowlist gate is enforced server-side in lambda.ts, and the whole page
+// is `private, no-store` + noindex. Don't copy this shape onto a public
+// route.
 
 export interface AdminHandlerConfig {
   // Both clients are injected so tests can stub them without a real
@@ -24,6 +39,8 @@ export interface AdminHandlerConfig {
   ddbClient: Pick<DynamoDBClient, "send">;
   cwLogsClient: Pick<CloudWatchLogsClient, "send">;
   drawingStore: DrawingStore;
+  userStore: UserStore;
+  userStatsStore: UserStatsStore;
   usersTable: string;
   drawingsTable: string;
   logGroup: string;
@@ -35,7 +52,72 @@ export interface AdminHandlerConfig {
 // without GA. 200 rows ≈ one cheap GSI1 query.
 export const KPI_SCAN_LIMIT = 200;
 
+// Two separate caps for the accounts roster: how many rows we read (bounds
+// the table scan) and how many we render (bounds the per-account stats
+// fan-out AND the page weight). Reading more than we render is deliberate —
+// the counters below ("signups in range", "have published") describe the
+// whole scanned set, not just the visible page.
+export const USER_SCAN_LIMIT = 500;
+export const USER_ROWS_LIMIT = 100;
+
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Builds the accounts roster: who registered, when, and what they've done
+// since. One table scan plus one stats GetItem per RENDERED account —
+// capped by USER_ROWS_LIMIT, so the fan-out is bounded no matter how the
+// table grows. A failing stats lookup degrades that account's counters to
+// null instead of the whole page.
+export async function loadAdminUsers(args: {
+  userStore: UserStore;
+  userStatsStore: UserStatsStore;
+  // Start of the selected range; signups are counted against it from
+  // created_at rather than from CloudWatch, which only retains so far back.
+  startMs: number;
+}): Promise<AdminView["users"]> {
+  const page = await args.userStore.listUsers({ limit: USER_SCAN_LIMIT });
+  const sorted = [...page.users].sort((a, b) =>
+    b.created_at.localeCompare(a.created_at),
+  );
+  const shown = sorted.slice(0, USER_ROWS_LIMIT);
+  const stats = await Promise.all(
+    shown.map((u) => args.userStatsStore.get(u.user_id).catch(() => null)),
+  );
+  const rows = shown.map((u, i) => toAdminUserRow(u, stats[i]));
+  return {
+    scanned: page.users.length,
+    truncated: page.truncated,
+    shown: rows.length,
+    signupsInRange: sorted.filter((u) => signedUpSince(u, args.startMs)).length,
+    withDrawings: rows.filter((r) => (r.drawings ?? 0) > 0).length,
+    rows,
+  };
+}
+
+function signedUpSince(u: UserSummary, startMs: number): boolean {
+  const t = Date.parse(u.created_at);
+  return Number.isFinite(t) && t >= startMs;
+}
+
+function toAdminUserRow(
+  u: UserSummary,
+  stats: Awaited<ReturnType<UserStatsStore["get"]>>,
+): AdminUserRow {
+  return {
+    username: u.username,
+    email: u.email,
+    created_at: u.created_at,
+    // No stats row = the account has never published (the row is created
+    // by the first publish), which reads as 0, not "unknown".
+    drawings: stats?.daily_total ?? 0,
+    streak: stats?.daily_streak_current ?? 0,
+    last_publish: stats?.daily_last_date ?? null,
+    followers: u.follower_count ?? 0,
+    following: u.following_count ?? 0,
+    has_profile_picture: typeof u.profile_picture_drawing_id === "string",
+    bio: u.bio ?? "",
+    link: u.link ?? "",
+  };
+}
 
 export function computeProductKpis(
   page: QueryPage | null,
@@ -64,6 +146,12 @@ export function parseRange(raw: string | null | undefined): AdminRange {
   return "24h";
 }
 
+// Exported so the dev server can build the same window without
+// duplicating the range table.
+export function rangeStartMs(range: AdminRange, now: Date): number {
+  return now.getTime() - rangeMs(range);
+}
+
 function rangeMs(range: AdminRange): number {
   switch (range) {
     case "24h": return 24 * 60 * 60 * 1000;
@@ -82,7 +170,7 @@ export async function handleAdminRoute(
   const { cfg, range, adminUsername } = args;
   const now = (cfg.now ?? (() => new Date()))();
   const endMs = now.getTime();
-  const startMs = endMs - rangeMs(range);
+  const startMs = rangeStartMs(range, now);
 
   const insights = (query: string) =>
     runInsightsQuery({
@@ -105,6 +193,7 @@ export async function handleAdminRoute(
     registerStats,
     failures,
     kpiPage,
+    users,
   ] = await Promise.all([
     describeItemCount(cfg.ddbClient, cfg.usersTable).catch(() => null),
     describeItemCount(cfg.ddbClient, cfg.drawingsTable).catch(() => null),
@@ -112,6 +201,11 @@ export async function handleAdminRoute(
     insights(REGISTER_STATS_QUERY).catch(() => null),
     insights(FAILURES_QUERY).catch(() => null),
     cfg.drawingStore.queryGallery({ limit: KPI_SCAN_LIMIT }).catch(() => null),
+    loadAdminUsers({
+      userStore: cfg.userStore,
+      userStatsStore: cfg.userStatsStore,
+      startMs,
+    }).catch(() => null),
   ]);
 
   const view: AdminView = {
@@ -123,6 +217,7 @@ export async function handleAdminRoute(
     publish: summariseOutcome(publishStats),
     register: summariseOutcome(registerStats),
     kpis: computeProductKpis(kpiPage),
+    users,
     failures: parseFailures(failures),
   };
 

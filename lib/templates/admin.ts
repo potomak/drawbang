@@ -15,6 +15,25 @@ import { renderHtmlShell } from "./_html-shell.js";
 
 export type AdminRange = "24h" | "7d" | "30d";
 
+// One account as the operator sees it. `email` is rendered here and
+// nowhere else in the app — see the note at the top of
+// ingest/admin-handler.ts.
+export interface AdminUserRow {
+  username: string;
+  email: string;
+  created_at: string; // ISO-8601, "" on rows that predate the field
+  // From UserStatsStore, keyed by user_id. An account that never published
+  // has no stats row, which reads as 0 — not "unknown".
+  drawings: number;
+  streak: number;
+  last_publish: string | null; // YYYY-MM-DD
+  followers: number;
+  following: number;
+  has_profile_picture: boolean;
+  bio: string;
+  link: string;
+}
+
 export interface AdminView {
   adminUsername: string;
   range: AdminRange;
@@ -36,6 +55,17 @@ export interface AdminView {
     remixes: number;
     remixRatePct: number | null;
     publishesPerDay: number | null;
+  } | null;
+  // The accounts roster, newest signup first. null when the listing fails
+  // so the rest of the page still renders. `scanned` counts the rows read,
+  // `shown` the ones in `rows` — the counters describe the scanned set.
+  users: {
+    scanned: number;
+    shown: number;
+    truncated: boolean;
+    signupsInRange: number;
+    withDrawings: number;
+    rows: ReadonlyArray<AdminUserRow>;
   } | null;
   // Last 50 failures across all routes, newest first.
   failures: ReadonlyArray<{
@@ -163,6 +193,7 @@ export function renderAdminInner(v: AdminView): string {
         ${renderCard("Register success", successRate(v.register), registerSub(v.register))}
       </div>
       ${renderKpisSection(v.kpis)}
+      ${renderUsersSection(v.users, v.range)}
       <section aria-labelledby="adm-failures-title">
         <h2 id="adm-failures-title" class="adm-section-title">Recent failures (last 50)</h2>
         ${renderFailuresTable(v.failures)}
@@ -209,6 +240,93 @@ function kpiPerDaySub(k: AdminView["kpis"]): string {
   if (k == null) return "drawings query failed";
   if (k.publishesPerDay == null) return "needs ≥ 2 drawings";
   return "across the scanned window";
+}
+
+function renderUsersSection(u: AdminView["users"], range: AdminRange): string {
+  const title = u == null ? "Users" : `Users (${u.scanned.toLocaleString("en-US")})`;
+  return `<section aria-labelledby="adm-users-title">
+        <h2 id="adm-users-title" class="adm-section-title">${esc(title)}</h2>
+        <div class="adm-grid">
+          ${renderCard("Signups", usersNum(u, (x) => x.signupsInRange), `in last ${range}`)}
+          ${renderCard("Have published", usersNum(u, (x) => x.withDrawings), usersPublishedSub(u))}
+          ${renderCard("Never published", usersNum(u, (x) => x.shown - x.withDrawings), "no drawings yet")}
+        </div>
+        ${renderUsersTable(u)}
+      </section>`;
+}
+
+function usersNum(
+  u: AdminView["users"],
+  pick: (x: NonNullable<AdminView["users"]>) => number,
+): string {
+  return u == null ? "—" : pick(u).toLocaleString("en-US");
+}
+
+function usersPublishedSub(u: AdminView["users"]): string {
+  if (u == null) return "accounts query failed";
+  if (u.shown === 0) return "no accounts yet";
+  return `of ${u.shown.toLocaleString("en-US")} listed`;
+}
+
+function renderUsersTable(u: AdminView["users"]): string {
+  if (u == null) {
+    return `<div class="adm-table-wrap"><div class="adm-empty">Couldn't list accounts.</div></div>`;
+  }
+  if (u.rows.length === 0) {
+    return `<div class="adm-table-wrap"><div class="adm-empty">No accounts yet.</div></div>`;
+  }
+  const body = u.rows
+    .map(
+      (r) => `<tr>
+            <td><a href="/u/${encodeURIComponent(r.username)}">${esc(r.username)}</a>${r.has_profile_picture ? ' <span title="has a profile picture">★</span>' : ""}</td>
+            <td>${esc(r.email)}</td>
+            <td>${esc(formatDate(r.created_at))}</td>
+            <td>${esc(r.drawings)}</td>
+            <td>${esc(r.streak)}</td>
+            <td>${esc(r.last_publish ?? "—")}</td>
+            <td>${esc(r.followers)} / ${esc(r.following)}</td>
+            <td class="adm-msg">${esc(truncate(r.bio, 80))}</td>
+            <td class="adm-msg">${esc(truncate(r.link, 40))}</td>
+          </tr>`,
+    )
+    .join("");
+  const note = u.truncated
+    ? `<div class="adm-sub">Listing capped — more accounts exist than were scanned.</div>`
+    : u.shown < u.scanned
+      ? `<div class="adm-sub">Showing the ${u.shown.toLocaleString("en-US")} newest of ${u.scanned.toLocaleString("en-US")} accounts.</div>`
+      : "";
+  return `<div class="adm-table-wrap">
+        <table class="adm-table">
+          <thead>
+            <tr>
+              <th>username</th>
+              <th>email</th>
+              <th>registered</th>
+              <th>drawings</th>
+              <th>streak</th>
+              <th>last publish</th>
+              <th>followers / following</th>
+              <th>bio</th>
+              <th>link</th>
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>${note}`;
+}
+
+// The bio/link cells are the only free-text a user controls on this page.
+// esc() handles the markup side; this keeps one long bio from stretching
+// the table past the viewport.
+function truncate(s: string, max: number): string {
+  if (s.length <= max) return s;
+  return `${s.slice(0, max - 1)}…`;
+}
+
+function formatDate(iso: string): string {
+  if (!iso) return "—";
+  const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/.exec(iso);
+  return m ? `${m[1]} ${m[2]}` : iso;
 }
 
 function renderCard(label: string, num: string, sub: string): string {

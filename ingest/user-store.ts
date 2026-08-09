@@ -40,6 +40,22 @@ export interface UserRecord {
   link?: string;
 }
 
+// A UserRecord without the password hash. Everything the operator views
+// on /admin goes through this shape so a credential can never ride along
+// with a listing by accident.
+export type UserSummary = Omit<UserRecord, "password_hash" | "token_version">;
+
+export interface UserListPage {
+  users: UserSummary[];
+  // True when the listing stopped at `limit` — more accounts exist.
+  truncated: boolean;
+}
+
+// Accounts are low-cardinality, but "low" isn't "bounded" — the default
+// caps one listing so a table scan can't grow past a Lambda timeout as
+// the site grows.
+export const DEFAULT_USER_LIST_LIMIT = 500;
+
 export class EmailTakenError extends Error {
   constructor() {
     super("email already registered");
@@ -83,6 +99,11 @@ export interface UserStore {
     user_id: string;
   }): Promise<void>;
   getByEmail(email: string): Promise<UserRecord | null>;
+  // Lists accounts for the operator view on /admin. Unordered — callers
+  // sort. Never returns password_hash (see UserSummary); the Dynamo
+  // implementation leaves it out of the projection so it doesn't even
+  // cross the wire.
+  listUsers(opts?: { limit?: number }): Promise<UserListPage>;
   // Resolves a public handle to the underlying account. Returns null when
   // the handle is unregistered. Used by the dynamic /u/<username> profile
   // route to render an empty profile page for an account that has no
@@ -230,29 +251,50 @@ export class DynamoUserStore implements UserStore {
     return this.getByEmail(email);
   }
 
-  // Full scan of the accounts table, projecting just the public handle + id.
-  // Used by the builder to render a profile page for every account, even one
-  // with no published drawings yet. Accounts are low-cardinality, so a scan is
-  // fine; revisit (GSI/paginated listing) only if that stops being true.
-  async listAccounts(): Promise<Array<{ username: string; user_id: string }>> {
-    const out: Array<{ username: string; user_id: string }> = [];
+  // Paginated scan of the accounts table. There's no index on created_at,
+  // so ordering by signup date means reading every row — fine at this
+  // cardinality, and capped by `limit` so it stays fine. Revisit (GSI on a
+  // constant partition + created_at sort key) if the cap ever bites.
+  async listUsers(opts: { limit?: number } = {}): Promise<UserListPage> {
+    const limit = Math.max(1, opts.limit ?? DEFAULT_USER_LIST_LIMIT);
+    const users: UserSummary[] = [];
     let lastKey: Record<string, unknown> | undefined;
+    let truncated = false;
     do {
       const r = await this.doc.send(
         new ScanCommand({
           TableName: this.usersTable,
-          ProjectionExpression: "username, user_id",
+          // password_hash is deliberately absent — it never leaves Dynamo
+          // for this call path. Aliased names sidestep the reserved-word
+          // list entirely.
+          ProjectionExpression:
+            "#email, #user_id, #username, #created_at, #ppd, #fc, #gc, #bio, #link",
+          ExpressionAttributeNames: {
+            "#email": "email",
+            "#user_id": "user_id",
+            "#username": "username",
+            "#created_at": "created_at",
+            "#ppd": "profile_picture_drawing_id",
+            "#fc": "follower_count",
+            "#gc": "following_count",
+            "#bio": "bio",
+            "#link": "link",
+          },
           ExclusiveStartKey: lastKey,
         }),
       );
       for (const item of r.Items ?? []) {
-        const username = (item as { username?: string }).username;
-        const user_id = (item as { user_id?: string }).user_id;
-        if (username && user_id) out.push({ username, user_id });
+        if (users.length >= limit) {
+          truncated = true;
+          break;
+        }
+        const summary = toUserSummary(item);
+        if (summary) users.push(summary);
       }
+      if (truncated) break;
       lastKey = r.LastEvaluatedKey as Record<string, unknown> | undefined;
     } while (lastKey);
-    return out;
+    return { users, truncated };
   }
 
   async updatePassword(
@@ -358,6 +400,30 @@ export class DynamoUserStore implements UserStore {
   }
 }
 
+// A row missing email/username/user_id can't be rendered or linked, so it's
+// dropped rather than rendered half-blank.
+function toUserSummary(item: Record<string, unknown>): UserSummary | null {
+  const email = item.email;
+  const user_id = item.user_id;
+  const username = item.username;
+  if (typeof email !== "string" || typeof user_id !== "string") return null;
+  if (typeof username !== "string") return null;
+  const out: UserSummary = {
+    email,
+    user_id,
+    username,
+    created_at: typeof item.created_at === "string" ? item.created_at : "",
+  };
+  if (typeof item.profile_picture_drawing_id === "string") {
+    out.profile_picture_drawing_id = item.profile_picture_drawing_id;
+  }
+  if (typeof item.follower_count === "number") out.follower_count = item.follower_count;
+  if (typeof item.following_count === "number") out.following_count = item.following_count;
+  if (typeof item.bio === "string") out.bio = item.bio;
+  if (typeof item.link === "string") out.link = item.link;
+  return out;
+}
+
 // -- In-memory (tests + dev) --------------------------------------------------
 
 export class MemoryUserStore implements UserStore {
@@ -386,6 +452,16 @@ export class MemoryUserStore implements UserStore {
   async getByEmail(email: string): Promise<UserRecord | null> {
     const r = this.byEmail.get(email);
     return r ? { ...r } : null;
+  }
+
+  async listUsers(opts: { limit?: number } = {}): Promise<UserListPage> {
+    const limit = Math.max(1, opts.limit ?? DEFAULT_USER_LIST_LIMIT);
+    const all = [...this.byEmail.values()];
+    const users = all.slice(0, limit).map((rec) => {
+      const { password_hash: _hash, token_version: _tv, ...summary } = rec;
+      return summary;
+    });
+    return { users, truncated: all.length > limit };
   }
 
   async getByUsername(username: string): Promise<UserRecord | null> {

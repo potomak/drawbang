@@ -72,4 +72,35 @@ describe("MemoryUserStore", () => {
       TokenVersionMismatchError,
     );
   });
+
+  test("listUsers omits the credential fields", async () => {
+    const s = new MemoryUserStore();
+    await s.register(rec());
+    const page = await s.listUsers();
+    assert.equal(page.users.length, 1);
+    assert.equal(page.truncated, false);
+    assert.equal(page.users[0].username, "alice");
+    assert.equal(page.users[0].email, "alice@example.com");
+    assert.equal("password_hash" in page.users[0], false);
+    assert.equal("token_version" in page.users[0], false);
+  });
+
+  test("listUsers caps at the limit and reports truncation", async () => {
+    const s = new MemoryUserStore();
+    for (let i = 0; i < 3; i++) {
+      await s.register(
+        rec({
+          email: `u${i}@example.com`,
+          username: `user${i}`,
+          user_id: String(i).repeat(64),
+        }),
+      );
+    }
+    const capped = await s.listUsers({ limit: 2 });
+    assert.equal(capped.users.length, 2);
+    assert.equal(capped.truncated, true);
+    const full = await s.listUsers({ limit: 3 });
+    assert.equal(full.users.length, 3);
+    assert.equal(full.truncated, false);
+  });
 });

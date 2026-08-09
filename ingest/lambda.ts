@@ -185,6 +185,8 @@ function adminCfg(): AdminHandlerConfig {
     ddbClient: new DynamoDBClient({}),
     cwLogsClient: new CloudWatchLogsClient({}),
     drawingStore,
+    userStore,
+    userStatsStore,
     usersTable,
     drawingsTable,
     logGroup: ingestLogGroup,

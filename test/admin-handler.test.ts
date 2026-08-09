@@ -15,6 +15,11 @@ import {
   type DrawingRow,
   type DrawingStore,
 } from "../ingest/drawing-store.js";
+import { MemoryUserStore, type UserStore } from "../ingest/user-store.js";
+import {
+  MemoryUserStatsStore,
+  type UserStatsStore,
+} from "../ingest/user-stats-store.js";
 import { renderAdminShell } from "../lib/templates/admin.js";
 
 // Fakes the AWS SDK clients with handcrafted responses. Tests stay
@@ -95,6 +100,8 @@ function baseCfg(args: {
   itemCounts?: Record<string, number>;
   scenario?: InsightsScenario;
   drawingStore?: DrawingStore;
+  userStore?: UserStore;
+  userStatsStore?: UserStatsStore;
 }) {
   const cw = fakeCwLogs(args.scenario ?? { matchers: [] });
   return {
@@ -102,11 +109,33 @@ function baseCfg(args: {
     cwLogsClient: cw.client,
     cwSpy: cw,
     drawingStore: args.drawingStore ?? new MemoryDrawingStore(),
+    userStore: args.userStore ?? new MemoryUserStore(),
+    userStatsStore: args.userStatsStore ?? new MemoryUserStatsStore(),
     usersTable: "drawbang-users",
     drawingsTable: "drawbang-drawings",
     logGroup: "/aws/lambda/drawbang-ingest",
     now: () => FIXED_NOW,
   };
+}
+
+// Seeds an account. `daysAgo` sets created_at relative to FIXED_NOW so
+// signup-window assertions don't depend on the wall clock.
+async function seedUser(
+  userStore: MemoryUserStore,
+  args: { username: string; email?: string; daysAgo?: number; user_id?: string },
+): Promise<string> {
+  const user_id = args.user_id ?? args.username.padEnd(64, "0");
+  await userStore.register({
+    email: args.email ?? `${args.username}@example.com`,
+    user_id,
+    username: args.username,
+    password_hash: "scrypt$never$rendered",
+    token_version: 0,
+    created_at: new Date(
+      FIXED_NOW.getTime() - (args.daysAgo ?? 0) * DAY_MS,
+    ).toISOString(),
+  });
+  return user_id;
 }
 
 describe("parseRange", () => {
@@ -162,6 +191,8 @@ describe("handleAdminRoute", () => {
         ddbClient: ddb,
         cwLogsClient: cw.client,
         drawingStore: new MemoryDrawingStore(),
+        userStore: new MemoryUserStore(),
+        userStatsStore: new MemoryUserStatsStore(),
         usersTable: "drawbang-users",
         drawingsTable: "drawbang-drawings",
         logGroup: "/aws/lambda/drawbang-ingest",
@@ -329,6 +360,76 @@ describe("handleAdminRoute", () => {
     assert.match(res.body, /needs ≥ 2 drawings/);
   });
 
+  test("lists accounts newest-signup-first with identity + activity columns", async () => {
+    const userStore = new MemoryUserStore();
+    const userStatsStore = new MemoryUserStatsStore();
+    await seedUser(userStore, { username: "alice", daysAgo: 30 });
+    const bobId = await seedUser(userStore, {
+      username: "bob",
+      email: "bob@drawbang.test",
+      daysAgo: 1,
+    });
+    await userStatsStore.recordDailyDrawing({
+      user_id: bobId,
+      date_utc: "2026-06-08",
+      now_iso: FIXED_NOW.toISOString(),
+    });
+
+    const cfg = baseCfg({ userStore, userStatsStore });
+    const res = await handleAdminRoute({ cfg, range: "7d", adminUsername: "potomak" });
+
+    assert.match(res.body, /Users \(2\)/);
+    // Newest signup first: bob (1 day ago) before alice (30 days ago).
+    const bobAt = res.body.indexOf(">bob<");
+    const aliceAt = res.body.indexOf(">alice<");
+    assert.ok(bobAt >= 0 && aliceAt >= 0, "both accounts render");
+    assert.ok(bobAt < aliceAt);
+    assert.match(res.body, /href="\/u\/bob"/);
+    assert.match(res.body, /bob@drawbang\.test/);
+    // Registration date, rendered from created_at.
+    assert.match(res.body, /2026-06-07 18:00/);
+    // Only bob has published, so only bob counts toward the streak/total.
+    assert.match(res.body, /Have published[\s\S]*?>1</);
+    assert.match(res.body, /Never published[\s\S]*?>1</);
+    // Only bob signed up inside the 7d window.
+    assert.match(res.body, /Signups[\s\S]*?>1</);
+    assert.match(res.body, /2026-06-08/); // bob's last publish
+    // A password hash must never reach the page.
+    assert.equal(/scrypt\$/.test(res.body), false);
+  });
+
+  test("users section degrades to an em-dash when the listing rejects", async () => {
+    const userStore = new MemoryUserStore();
+    userStore.listUsers = async () => {
+      throw new Error("transient");
+    };
+    const cfg = baseCfg({ userStore });
+    const res = await handleAdminRoute({ cfg, range: "24h", adminUsername: "potomak" });
+    assert.equal(res.status, 200);
+    assert.match(res.body, /Couldn't list accounts\./);
+    assert.match(res.body, /Signups[\s\S]*?>—</);
+    assert.match(res.body, /accounts query failed/);
+  });
+
+  test("a failing per-account stats lookup doesn't take down the roster", async () => {
+    const userStore = new MemoryUserStore();
+    await seedUser(userStore, { username: "alice" });
+    const userStatsStore = new MemoryUserStatsStore();
+    userStatsStore.get = async () => {
+      throw new Error("transient");
+    };
+    const cfg = baseCfg({ userStore, userStatsStore });
+    const res = await handleAdminRoute({ cfg, range: "24h", adminUsername: "potomak" });
+    assert.equal(res.status, 200);
+    assert.match(res.body, /href="\/u\/alice"/);
+    assert.match(res.body, /Never published[\s\S]*?>1</);
+  });
+
+  test("shows the empty state when no accounts exist", async () => {
+    const cfg = baseCfg({});
+    const res = await handleAdminRoute({ cfg, range: "24h", adminUsername: "potomak" });
+    assert.match(res.body, /No accounts yet\./);
+  });
 });
 
 describe("renderAdminShell", () => {

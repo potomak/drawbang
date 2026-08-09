@@ -15,7 +15,13 @@ import type { HydrateHandlerConfig } from "./hydrate-handler.js";
 import { MemorySubscribersStore } from "./subscribers-store.js";
 import type { SubscribeHandlerConfig } from "./subscribe-handler.js";
 import { ConsoleEmailSender } from "./email.js";
-import { computeProductKpis, KPI_SCAN_LIMIT } from "./admin-handler.js";
+import { MemoryUserStatsStore } from "./user-stats-store.js";
+import {
+  computeProductKpis,
+  loadAdminUsers,
+  rangeStartMs,
+  KPI_SCAN_LIMIT,
+} from "./admin-handler.js";
 import type { AdminView } from "../lib/templates/admin.js";
 import { renderAdminInner } from "../lib/templates/admin.js";
 import type { AuthHandlerConfig } from "./auth-handler.js";
@@ -47,6 +53,7 @@ const adminOpenInDev = adminUsernames.size === 0;
 const storage = new FsStorage(ROOT);
 const drawingStore = new MemoryDrawingStore();
 const userStore = new MemoryUserStore();
+const userStatsStore = new MemoryUserStatsStore();
 const likesStore = new MemoryLikesStore(drawingStore);
 const likesConfig: LikesHandlerConfig = { likesStore };
 const bookmarksStore = new MemoryBookmarksStore(drawingStore);
@@ -65,6 +72,7 @@ const renderConfig: RenderHandlersConfig = {
   drawingStore,
   publicBaseUrl: PUBLIC_BASE,
   repoUrl: "https://github.com/potomak/drawbang",
+  userStatsStore,
   userStore,
   bookmarksStore,
   followsStore,
@@ -79,8 +87,7 @@ const authConfig: AuthHandlerConfig = {
 
 // Same shared route table the Lambda uses (ingest/routes.ts) — only the
 // wiring differs: Memory*/Fs stores, ConsoleEmailSender, the dev-open
-// admin allowlist, no stats store (so /users/{id}/stats stays 404, as it
-// always has locally), and no deferShareMp4 (there's no Lambda to
+// admin allowlist, and no deferShareMp4 (there's no Lambda to
 // self-invoke, so the -large.mp4 encode runs inline in handleIngest).
 const routes = createRoutes({
   renderConfig,
@@ -114,7 +121,9 @@ const routes = createRoutes({
     storage,
     publicBaseUrl: PUBLIC_BASE,
     drawingStore,
+    userStatsStore,
   },
+  userStatsStore,
   admin: {
     isAllowed: (username) => adminOpenInDev || adminUsernames.has(username),
     renderData: async ({ range, adminUsername }) => ({
@@ -223,25 +232,25 @@ async function buildDevAdminView(
 ): Promise<AdminView> {
   const drawingsPage = await drawingStore.queryGallery({ limit: 1000 });
   const totalDrawings = drawingsPage.items.length;
-  const totalUsers = userStoreSize();
   const kpiPage = await drawingStore.queryGallery({ limit: KPI_SCAN_LIMIT });
+  const now = new Date();
+  const users = await loadAdminUsers({
+    userStore,
+    userStatsStore,
+    startMs: rangeStartMs(range, now),
+  });
   return {
     adminUsername,
     range,
-    generatedAtISO: new Date().toISOString(),
-    totalUsers,
+    generatedAtISO: now.toISOString(),
+    totalUsers: users?.scanned ?? null,
     totalDrawings,
     publish: null,
     register: null,
     kpis: computeProductKpis(kpiPage),
+    users,
     failures: [],
   };
-}
-
-// MemoryUserStore has no public size(); peek at the private map.
-function userStoreSize(): number | null {
-  const m = (userStore as unknown as { byEmail?: Map<unknown, unknown> }).byEmail;
-  return m instanceof Map ? m.size : null;
 }
 
 function readBody(req: http.IncomingMessage): Promise<string> {

@@ -292,7 +292,7 @@ asset, new tracking script) must consider every entry below.
 | `/prompts`                     | `lib/templates/prompts.ts` via Lambda             | Dynamic — daily-prompt archive. |
 | `/prompts/<slug>`              | `lib/templates/prompts.ts` via Lambda             | Dynamic — per-prompt submission grid (slug pattern mirrors `PROMPT_SLUG_RE` in `config/prompts.ts`). |
 | `/prompts/<slug>/items?cursor=…` | prompts fragment via Lambda                     | Dynamic (infinite scroll) |
-| `/admin`                       | `lib/templates/admin.ts` via Lambda               | Dynamic — hidden ops overview shell (no nav link, `private, no-store`). Unauthenticated shell; an inline boot script fetches `/admin/data` with the Bearer JWT — same pattern as `/u/<un>/bookmarks`. |
+| `/admin`                       | `lib/templates/admin.ts` via Lambda               | Dynamic — hidden ops overview shell (no nav link, `private, no-store`). Cards + product KPIs + accounts roster + recent failures. Unauthenticated shell; an inline boot script fetches `/admin/data` with the Bearer JWT — same pattern as `/u/<un>/bookmarks`. |
 | `/products`, `/products/p/<N>` | `lib/templates/products.ts` via Lambda            | Dynamic |
 | `/feed.rss`                    | `lib/templates/feed.ts` via Lambda                | Dynamic (RSS, no chrome) |
 | `/design`                      | `lib/templates/design.ts` via Lambda              | Dynamic — design-system kitchen-sink, paired with `docs/design-system.md` |
@@ -321,7 +321,7 @@ JSON endpoints (no caching at the edge — `Cache-Control: no-store`):
 | `/auth/account/delete`         | POST          | required | `ingest/auth-handler.ts` — self-service account deletion. Target is always the caller; current password required. 409 while the account still owns drawings. See "Deleting an account". |
 | `/users/<user_id>/stats`       | GET           | none | `ingest/user-stats-handler.ts` — public, short max-age. |
 | `/u/<username>/follow-thumbs?limit=N` | GET    | none | `renderFollowThumbsHandler` in `ingest/render-handlers.ts` — JSON of the first N follower/following usernames, feeds the left-rail thumb grids. |
-| `/admin/data`                  | GET           | required | `ingest/admin-handler.ts` — HTML fragment of ops counters + recent failures. Bearer JWT + `ADMIN_USERNAMES` allowlist, gated in `lambda.ts` before the handler runs. |
+| `/admin/data`                  | GET           | required | `ingest/admin-handler.ts` — HTML fragment of ops counters, the accounts roster, and recent failures. Bearer JWT + `ADMIN_USERNAMES` allowlist, gated in `lambda.ts` before the handler runs. **The one surface that renders account emails** — see "Identity model". |
 | `/subscribe`                   | POST          | none | `ingest/subscribe-handler.ts` — email capture from the home-page hero. Honeypot field `website` → silent 200; idempotent on email (first-seen `created_at` wins). Write-only; digest sending is deferred. |
 
 **Adding a new "X is stale on the cached feed" field is a one-liner.** Don't invent another endpoint or another client script. Add the field to `HydrateBody` (in `ingest/hydrate-handler.ts`), populate it in the handler, add a case to the `apply` step in `static/hydrate.js` that updates the right DOM nodes. The SSR templates carry `data-*` attributes the hydrator reads; click handlers stay in their per-action scripts (`like.js`, `bookmark.js`, `follow.js`).
@@ -369,6 +369,10 @@ left rail carries the New-drawing CTA and the secondary links.
   `user_id`. Stored in DynamoDB `drawbang-users` (PK email);
   `drawbang-usernames` reserves the handle. Registration writes both in
   one `TransactWriteItems`.
+  **Email is private** — it never appears on a public page or in a JSON
+  response. The single exception is `/admin/data`, whose accounts roster
+  renders it for the operator behind the `ADMIN_USERNAMES` gate. Don't
+  copy that shape onto any other route.
 - **Password hashing**: scrypt (`ingest/password.ts`), built-in, no
   native dep.
 - **Sessions**: stateless HS256 JWT (`ingest/jwt.ts`), `{ sub: user_id,
@@ -693,8 +697,9 @@ ingest/               Lambda + dev-server: ingest, render, auth
                       (public/tiles/<id>-large.mp4).
   admin-handler.ts    GET /admin/data — HTML fragment of ops counters
                       (DDB DescribeTable, CloudWatch Logs Insights,
-                      DrawingStore scan). Allowlist gate lives in
-                      lambda.ts.
+                      DrawingStore scan) + the accounts roster
+                      (UserStore.listUsers joined with UserStatsStore).
+                      Allowlist gate lives in lambda.ts.
   cloudwatch-logs.ts  Logs Insights query runner for admin-handler.ts.
   log-outcome.ts      Structured log shapes: `outcome` (per request),
                       `tail` (per post-publish run, success AND failure),
@@ -722,9 +727,11 @@ ingest/               Lambda + dev-server: ingest, render, auth
                       for dev/tests.
   user-store.ts       DDB wrapper for accounts (register via
                       TransactWriteItems, getByEmail, getByUsername,
-                      updatePassword, setProfilePicture) + MemoryUserStore.
-                      Tables: drawbang-users (PK email),
-                      drawbang-usernames (PK username).
+                      updatePassword, setProfilePicture, listUsers) +
+                      MemoryUserStore. Tables: drawbang-users (PK email),
+                      drawbang-usernames (PK username). listUsers returns
+                      UserSummary rows — password_hash is left out of the
+                      Dynamo projection, so it never crosses the wire.
   user-stats-store.ts DDB wrapper for per-account streak + total counters
                       (#115/#116) + MemoryUserStatsStore for dev/tests.
   user-stats-handler.ts GET /users/{user_id}/stats — fresh counters + badges.
