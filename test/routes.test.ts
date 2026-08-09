@@ -64,9 +64,10 @@ function makeDeps(opts: { userStats?: boolean } = {}): RouteDeps {
       storage: new NullStorage(),
       enqueue: async () => {},
       runNow: async () => ({
-        large_gif: { ok: true },
-        large_mp4: { ok: true },
-        invalidation: { ok: true },
+        large_gif: { ok: true, ms: 1 },
+        large_mp4: { ok: true, ms: 1 },
+        invalidation: { ok: true, ms: 1 },
+        duration_ms: 2,
       }),
     },
     authConfig: {

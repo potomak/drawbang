@@ -31,7 +31,10 @@ function resolveFfmpegPath(): string {
   }
 }
 
-const FFMPEG_PATH = resolveFfmpegPath();
+// Exported so the cold-start boot log can report which binary this
+// container resolved and whether it's actually there — the question that
+// takes longest to answer from outside when an encode fails.
+export const FFMPEG_PATH = resolveFfmpegPath();
 
 // -stream_loop -1 + -t 6 emits a 6-second clip regardless of source
 // loop length — Instagram's feed-post minimum is 3 s, so 6 s sits

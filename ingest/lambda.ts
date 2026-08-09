@@ -43,6 +43,9 @@ import merchCatalogJson from "../config/merch.json" with { type: "json" };
 import { CloudWatchLogsClient } from "@aws-sdk/client-cloudwatch-logs";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { handleAdminRoute, type AdminHandlerConfig } from "./admin-handler.js";
+import { logBoot } from "./log-outcome.js";
+import { FFMPEG_PATH } from "./share-mp4.js";
+import { statSync, constants as fsConstants, accessSync } from "node:fs";
 
 const bucket = required("DRAWBANG_BUCKET");
 const publicBaseUrl = required("PUBLIC_BASE_URL");
@@ -136,6 +139,40 @@ const deferPostPublish = async (job: PostPublishJob): Promise<void> => {
     }),
   );
 };
+// One cold-start snapshot per container. "Was the ffmpeg binary actually
+// present in this container?" was the question that took longest to answer
+// during the missing -large.mp4 investigation; it is now one query away.
+(() => {
+  let present = false;
+  let bytes: number | undefined;
+  let executable: boolean | undefined;
+  try {
+    bytes = statSync(FFMPEG_PATH).size;
+    present = true;
+    try {
+      accessSync(FFMPEG_PATH, fsConstants.X_OK);
+      executable = true;
+    } catch {
+      executable = false;
+    }
+  } catch {
+    present = false;
+  }
+  logBoot({
+    function_name: process.env.AWS_LAMBDA_FUNCTION_NAME,
+    function_version: process.env.AWS_LAMBDA_FUNCTION_VERSION,
+    memory_mb: process.env.AWS_LAMBDA_FUNCTION_MEMORY_SIZE
+      ? Number(process.env.AWS_LAMBDA_FUNCTION_MEMORY_SIZE)
+      : undefined,
+    node_version: process.version,
+    arch: process.arch,
+    ffmpeg_path: FFMPEG_PATH,
+    ffmpeg_present: present,
+    ...(bytes !== undefined ? { ffmpeg_bytes: bytes } : {}),
+    ...(executable !== undefined ? { ffmpeg_executable: executable } : {}),
+  });
+})();
+
 const productCountersStore = new ProductCountersStore({ tableName: productCountersTable });
 const merchCatalog = merchCatalogJson as MerchCatalog;
 // Lazily created — both clients are only used by /admin, so cold-start
@@ -190,7 +227,12 @@ const routes = createRoutes({
     drawingStore,
     storage,
     enqueue: deferPostPublish,
-    runNow: (job) => runPostPublish(job, { storage, cacheInvalidator }),
+    runNow: (job) =>
+      runPostPublish(job, {
+        storage,
+        cacheInvalidator,
+        log: { requestId: `backfill-${job.drawing_id.slice(0, 12)}`, invocation: "inline" },
+      }),
   },
   authConfig,
   ingestConfig: {
@@ -213,12 +255,20 @@ const routes = createRoutes({
 
 export async function handler(
   event: APIGatewayProxyEventV2 | PostPublishEvent | EncodeShareMp4Event,
-  _context: Context,
+  context: Context,
 ): Promise<APIGatewayProxyResultV2 | void> {
   // Async self-invoke events carry no requestContext.http, so they must
   // be detected before any HTTP routing touches the event shape.
   if (isPostPublishEvent(event)) {
-    await runPostPublish(event, { storage, cacheInvalidator });
+    await runPostPublish(event, {
+      storage,
+      cacheInvalidator,
+      log: {
+        requestId: context?.awsRequestId ?? "async",
+        invocation: "async",
+        remainingMs: () => context?.getRemainingTimeInMillis?.() ?? -1,
+      },
+    });
     return;
   }
   // Legacy event kind, still handled so anything queued by the previous

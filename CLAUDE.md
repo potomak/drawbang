@@ -158,6 +158,55 @@ publish returns, so a crawler that fetched `/d/<id>` in that window would
 miss `og:image`. In practice a link gets pasted seconds later at the
 earliest, and `scripts/backfill-large-gifs.ts` repairs any gap.
 
+## Observability (what to query when something is wrong)
+
+Three structured log kinds, all one-JSON-line-per-event so CloudWatch
+Logs Insights can group them. `ingest/log-outcome.ts` is the single
+source for their shapes — add fields there, not ad hoc at call sites.
+
+| `kind` | Emitted by | Answers |
+|--------|-----------|---------|
+| `outcome` | every route, once per request | status codes, latency, error enums per route |
+| `tail` | `runPostPublish`, once per run, **success or failure** | did the post-publish tail run for this drawing, and what did each step do |
+| `boot` | `lambda.ts` at cold start, once per container | what this container actually has — ffmpeg path/size/executable bit, arch, memory |
+
+**Why `tail` exists.** The post-publish tail runs in an async self-invoke
+with no caller to raise to, so every step swallows its own errors. For a
+while its only trace was a free-text `console.error` on the failure path,
+which meant a *successful* run left no record at all — so "did the tail
+even run for this drawing?" was unanswerable, and diagnosing one drawing's
+missing `-large.mp4` took three deploys of guesswork. Don't remove the
+success-path line; it's the one that makes absence meaningful.
+
+Useful queries:
+
+```
+# Which tail runs failed, and why (ffmpeg stderr rides in .error)
+fields @timestamp, drawing_id, invocation, large_mp4.error
+| filter kind = "tail" and large_mp4.ok = 0
+| sort @timestamp desc
+
+# Tail health over time
+filter kind = "tail"
+| stats count() as runs, sum(large_gif.ok) as gif_ok, sum(large_mp4.ok) as mp4_ok by bin(1h)
+
+# Did this specific drawing's tail ever run?
+filter kind = "tail" and drawing_id = "<id>"
+
+# Was the ffmpeg binary actually present in the containers serving us?
+filter kind = "boot" | stats count() by ffmpeg_present, ffmpeg_bytes, arch
+```
+
+Two fields exist specifically to separate causes that look identical from
+outside: `remaining_ms` (Lambda time left when the tail finished — a
+near-zero value beside a failure means the timeout, not the encoder) and
+per-step `ms` + `bytes` (a step that took 20 ms and failed is a different
+bug from one that took 8 s).
+
+`invocation` distinguishes the async self-invoke from the inline
+fallback in `handleIngest` and the synchronous targeted backfill, so a
+spike in `inline` means the self-invoke is failing to queue.
+
 ## Pages of the app
 
 Single source of truth. Any cross-page change (new nav link, new shared
@@ -587,8 +636,10 @@ ingest/               Lambda + dev-server: ingest, render, auth
                       DrawingStore scan). Allowlist gate lives in
                       lambda.ts.
   cloudwatch-logs.ts  Logs Insights query runner for admin-handler.ts.
-  log-outcome.ts      One-JSON-line-per-request outcome log emitted by
-                      every route, for Logs Insights queries.
+  log-outcome.ts      Structured log shapes: `outcome` (per request),
+                      `tail` (per post-publish run, success AND failure),
+                      `boot` (per cold start: ffmpeg presence, arch,
+                      memory). See "Observability".
   handler-utils.ts    Shared scaffolding for the toggle-style write
                       handlers (likes/bookmarks/follows).
   backfill-handler.ts POST /backfill/sidecars — find drawings with a

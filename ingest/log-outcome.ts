@@ -97,3 +97,94 @@ export function estimateBase64Bytes(b64: string): number {
   const padding = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
   return Math.max(0, Math.floor((b64.length * 3) / 4) - padding);
 }
+
+// =====================================================================
+// Post-publish tail telemetry (kind: "tail").
+//
+// The tail runs in an async self-invoke with no caller to raise to, so
+// for a long time its only trace was free-text console.error on the
+// failure path — meaning a SUCCESSFUL run left no record, and a failed
+// one couldn't be grouped or counted. Diagnosing "why is this one
+// drawing missing its mp4" then required guessing.
+//
+// One line per tail run, success or failure, answers it directly:
+//
+//   fields @timestamp, drawing_id, invocation, large_mp4.ok, large_mp4.error
+//   | filter kind = "tail" and large_mp4.ok = 0
+//   | sort @timestamp desc
+//
+// and the failure rate over a window is:
+//
+//   stats count() as runs, sum(large_mp4.ok) as ok by bin(1h)
+//   | filter kind = "tail"
+// =====================================================================
+
+export interface TailStepLog {
+  ok: boolean;
+  ms: number;
+  // Bytes written, when the step produced an object.
+  bytes?: number;
+  // Number of paths submitted, for the invalidation step.
+  paths?: number;
+  error?: string;
+}
+
+export interface TailOutcomeFields {
+  requestId: string;
+  drawing_id: string;
+  mode: "publish" | "backfill";
+  // Which path ran it. "async" is the self-invoke; "inline" is the
+  // fallback in handleIngest and the synchronous targeted backfill.
+  invocation: "async" | "inline";
+  duration_ms: number;
+  large_gif: TailStepLog;
+  large_mp4: TailStepLog;
+  invalidation: TailStepLog;
+  // Lambda ms left when the tail finished. A value near zero on a failed
+  // run points at the timeout rather than at the encoder.
+  remaining_ms?: number;
+}
+
+// ffmpeg stderr is the single most useful artifact when an encode fails,
+// and it is chatty — allow more room than the request-outcome cap.
+const MAX_TAIL_ERROR_LEN = 800;
+
+function capError(step: TailStepLog): TailStepLog {
+  if (!step.error || step.error.length <= MAX_TAIL_ERROR_LEN) return step;
+  return { ...step, error: step.error.slice(0, MAX_TAIL_ERROR_LEN) };
+}
+
+export function logTailOutcome(f: TailOutcomeFields): void {
+  console.log(
+    JSON.stringify({
+      kind: "tail",
+      ...f,
+      large_gif: capError(f.large_gif),
+      large_mp4: capError(f.large_mp4),
+      invalidation: capError(f.invalidation),
+    }),
+  );
+}
+
+// =====================================================================
+// Cold-start environment snapshot (kind: "boot"). Emitted once per
+// container so questions like "was the ffmpeg binary actually in this
+// container?" are one query away instead of a deploy-and-guess loop —
+// which is exactly what a missing -large.mp4 investigation needed.
+// =====================================================================
+
+export interface BootFields {
+  function_name?: string;
+  function_version?: string;
+  memory_mb?: number;
+  node_version: string;
+  arch: string;
+  ffmpeg_path: string;
+  ffmpeg_present: boolean;
+  ffmpeg_bytes?: number;
+  ffmpeg_executable?: boolean;
+}
+
+export function logBoot(f: BootFields): void {
+  console.log(JSON.stringify({ kind: "boot", ...f }));
+}

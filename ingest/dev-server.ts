@@ -95,8 +95,19 @@ const routes = createRoutes({
   backfillConfig: {
     drawingStore,
     storage,
-    enqueue: async (job) => { await runPostPublish(job, { storage }); },
-    runNow: (job) => runPostPublish(job, { storage }),
+    // Log contexts mirror the Lambda so the dev loop exercises the same
+    // `kind: "tail"` telemetry a prod investigation would read.
+    enqueue: async (job) => {
+      await runPostPublish(job, {
+        storage,
+        log: { requestId: devRequestId(), invocation: "async" },
+      });
+    },
+    runNow: (job) =>
+      runPostPublish(job, {
+        storage,
+        log: { requestId: devRequestId(), invocation: "inline" },
+      }),
   },
   authConfig,
   ingestConfig: {

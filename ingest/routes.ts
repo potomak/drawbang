@@ -641,7 +641,13 @@ async function ingestRoute(
     return { kind: "json", status: 400, body: { error: "bad json body" } };
   }
   const gifSize = typeof body.gif === "string" ? estimateBase64Bytes(body.gif) : undefined;
-  const result = await handleIngest(body, { ...deps.ingestConfig, auth });
+  const result = await handleIngest(body, {
+    ...deps.ingestConfig,
+    auth,
+    // Carries the request id into the tail's structured log line so an
+    // inline-fallback run can be correlated back to the publish.
+    tailLog: { requestId: req.requestId },
+  });
   const success = result.status === 200 || result.status === 202;
   const errorMessage = !success ? (result.body as { error?: string }).error : undefined;
   logOutcome({

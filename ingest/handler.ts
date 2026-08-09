@@ -10,6 +10,7 @@ import { decodeGif } from "../src/editor/gif.js";
 import { encodeShareGif } from "../src/editor/share-gif.js";
 import { encodeShareMp4 } from "./share-mp4.js";
 import { shapeError } from "./handler-utils.js";
+import { logTailOutcome } from "./log-outcome.js";
 import { validateGif, type GifValidation } from "./gif-validate.js";
 import type { Storage } from "./storage.js";
 import type { UserStatsStore } from "./user-stats-store.js";
@@ -96,6 +97,9 @@ export interface HandlerConfig {
   // (dev server, tests) the work runs inline instead, so the local publish
   // loop still produces sidecars.
   deferPostPublish?: (job: PostPublishJob) => Promise<void>;
+  // Telemetry context for the inline-fallback tail. Optional so dev and
+  // tests stay quiet.
+  tailLog?: { requestId: string };
 }
 
 // What the post-publish tail needs to know. `username` is null for an
@@ -159,6 +163,7 @@ export async function encodeShareMp4FromStorage(
   drawing_id: string,
   encode: (gif: Uint8Array) => Promise<Uint8Array> = encodeShareMp4,
 ): Promise<StepOutcome> {
+  const t0 = Date.now();
   try {
     const large = await storage.getBytes(`public/tiles/${drawing_id}-large.gif`);
     if (!large) throw new Error("-large.gif not found in storage");
@@ -169,11 +174,13 @@ export async function encodeShareMp4FromStorage(
       "video/mp4",
       "public, max-age=31536000, immutable",
     );
-    return { ok: true };
+    return { ok: true, ms: Date.now() - t0, bytes: mp4.length };
   } catch (e) {
     const error = errMsg(e);
-    console.error(`[ingest] deferred -large.mp4 write failed for ${drawing_id}:`, e);
-    return { ok: false, error };
+    // Stack goes to the plain log for a human reading the stream; the
+    // queryable copy rides on the structured "tail" line.
+    console.error(`[ingest] -large.mp4 write failed for ${drawing_id}:`, e);
+    return { ok: false, ms: Date.now() - t0, error };
   }
 }
 
@@ -186,13 +193,19 @@ export async function encodeShareMp4FromStorage(
 // the difference between "repaired" and "silently failed again".
 export interface StepOutcome {
   ok: boolean;
+  // Wall time for the step. A large value next to a failure separates
+  // "the encoder rejected this" from "we ran out of Lambda time".
+  ms: number;
+  bytes?: number;
+  paths?: number;
   error?: string;
 }
 
 export interface PostPublishOutcome {
   large_gif: StepOutcome;
-  large_mp4: StepOutcome | { ok: false; error: "skipped: -large.gif step failed" };
+  large_mp4: StepOutcome;
   invalidation: StepOutcome;
+  duration_ms: number;
 }
 
 export async function writeLargeGifFromStorage(
@@ -232,6 +245,16 @@ export interface PostPublishConfig {
   storage: Storage;
   cacheInvalidator?: CacheInvalidator;
   encodeMp4?: (gif: Uint8Array) => Promise<Uint8Array>;
+  // Telemetry context. When present, the tail emits one structured
+  // `kind: "tail"` line per run — success or failure — which is the only
+  // record an async self-invoke leaves behind. Omitted in unit tests.
+  log?: {
+    requestId: string;
+    invocation: "async" | "inline";
+    // Lambda ms remaining, sampled when the tail finishes. A near-zero
+    // value beside a failure points at the timeout, not the encoder.
+    remainingMs?: () => number;
+  };
 }
 
 // The post-publish tail, off the response path.
@@ -251,35 +274,57 @@ export async function runPostPublish(
   job: PostPublishJob,
   cfg: PostPublishConfig,
 ): Promise<PostPublishOutcome> {
+  const started = Date.now();
   const invalidate = async (): Promise<StepOutcome> => {
-    if (!cfg.cacheInvalidator) return { ok: true };
+    const t0 = Date.now();
+    if (!cfg.cacheInvalidator) return { ok: true, ms: 0, paths: 0 };
+    const paths =
+      job.mode === "backfill"
+        ? pathsToInvalidateOnSidecarBackfill(job.drawing_id)
+        : pathsToInvalidateOnPublish(job.username, { promptTagged: job.prompt_tagged });
     try {
-      const paths =
-        job.mode === "backfill"
-          ? pathsToInvalidateOnSidecarBackfill(job.drawing_id)
-          : pathsToInvalidateOnPublish(job.username, { promptTagged: job.prompt_tagged });
       await cfg.cacheInvalidator.invalidate(paths);
-      return { ok: true };
+      return { ok: true, ms: Date.now() - t0, paths: paths.length };
     } catch (e) {
       console.error(`[ingest] invalidation failed for ${job.drawing_id}:`, e);
-      return { ok: false, error: errMsg(e) };
+      return { ok: false, ms: Date.now() - t0, paths: paths.length, error: errMsg(e) };
     }
   };
   const sidecars = async (): Promise<Pick<PostPublishOutcome, "large_gif" | "large_mp4">> => {
     // Sequential by necessity: ffmpeg transcodes the gif this step renders.
     lastLargeGifError = null;
+    const t0 = Date.now();
     const large = await writeLargeGifFromStorage(cfg.storage, job.drawing_id);
+    const gifMs = Date.now() - t0;
     if (!large) {
       return {
-        large_gif: { ok: false, error: lastLargeGifError ?? "unknown" },
-        large_mp4: { ok: false, error: "skipped: -large.gif step failed" },
+        large_gif: { ok: false, ms: gifMs, error: lastLargeGifError ?? "unknown" },
+        large_mp4: { ok: false, ms: 0, error: "skipped: -large.gif step failed" },
       };
     }
     const mp4 = await encodeShareMp4FromStorage(cfg.storage, job.drawing_id, cfg.encodeMp4);
-    return { large_gif: { ok: true }, large_mp4: mp4 };
+    return { large_gif: { ok: true, ms: gifMs, bytes: large.length }, large_mp4: mp4 };
   };
   const [invalidation, both] = await Promise.all([invalidate(), sidecars()]);
-  return { ...both, invalidation };
+  const outcome: PostPublishOutcome = {
+    ...both,
+    invalidation,
+    duration_ms: Date.now() - started,
+  };
+  if (cfg.log) {
+    logTailOutcome({
+      requestId: cfg.log.requestId,
+      drawing_id: job.drawing_id,
+      mode: job.mode ?? "publish",
+      invocation: cfg.log.invocation,
+      duration_ms: outcome.duration_ms,
+      large_gif: outcome.large_gif,
+      large_mp4: outcome.large_mp4,
+      invalidation: outcome.invalidation,
+      ...(cfg.log.remainingMs ? { remaining_ms: cfg.log.remainingMs() } : {}),
+    });
+  }
+  return outcome;
 }
 
 export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Promise<IngestHandlerResult> {
@@ -428,6 +473,9 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
     await runPostPublish(job, {
       storage: cfg.storage,
       cacheInvalidator: cfg.cacheInvalidator,
+      // "inline" here means the self-invoke was unavailable or failed, so
+      // the publish paid for the tail itself. Worth being able to count.
+      ...(cfg.tailLog ? { log: { ...cfg.tailLog, invocation: "inline" as const } } : {}),
     });
   };
 

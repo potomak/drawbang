@@ -58,9 +58,10 @@ async function harness() {
   const drawingStore = new MemoryDrawingStore();
   const jobs: PostPublishJob[] = [];
   const ranNow = {
-    large_gif: { ok: true },
-    large_mp4: { ok: true },
-    invalidation: { ok: true },
+    large_gif: { ok: true, ms: 1 },
+    large_mp4: { ok: true, ms: 1 },
+    invalidation: { ok: true, ms: 1 },
+    duration_ms: 2,
   };
   return {
     storage,
@@ -280,9 +281,10 @@ describe("handleBackfillSidecars — targeted single drawing", () => {
       const failing = {
         ...h.cfg,
         runNow: async () => ({
-          large_gif: { ok: true },
-          large_mp4: { ok: false, error: "ffmpeg exited 1" },
-          invalidation: { ok: true },
+          large_gif: { ok: true, ms: 500 },
+          large_mp4: { ok: false, ms: 900, error: "ffmpeg exited 1" },
+          invalidation: { ok: true, ms: 10 },
+          duration_ms: 1400,
         }),
       };
       const res = await handleBackfillSidecars(opts({ target: id(1) }), BOB, failing);
