@@ -128,7 +128,22 @@ Everything else is **derived data** and runs in an async self-invoke
 image, the `-large.mp4` share video, and the CloudFront invalidation.
 Inside the tail, invalidation runs concurrently with the encodes — it's
 what makes the drawing appear on the feed, so it must not queue behind
-~2s of image and video work.
+the several seconds of image and video work measured below.
+
+**What the tail actually costs**, measured in prod on arm64 Lambda
+(1024 MB) via the `outcome` a targeted backfill returns:
+
+| Drawing          | `-large.gif` | `-large.mp4` | invalidation | total |
+|------------------|--------------|--------------|--------------|-------|
+| 32×32, 6 frames  | 684 ms       | 4851 ms      | 604 ms       | 5.5 s |
+| 16×16, 16 frames | 1281 ms      | 4434 ms      | 1204 ms      | 5.7 s |
+| 64×64, 16 frames | 1576 ms      | 5159 ms      | 1485 ms      | 6.7 s |
+
+ffmpeg dominates and is roughly **flat at ~4.5–5 s** regardless of the
+source: it renders a fixed 6-second 1080p30 clip, so cost tracks output
+duration, not input frames. Worst case is ~6.7 s against the function's
+30 s timeout — a comfortable margin, and worth re-measuring before
+anyone adds work to the tail or shortens the timeout.
 
 Why this matters, measured locally with a 20 ms simulated S3 RTT:
 
@@ -153,10 +168,12 @@ trigger something new (a thumbnail, a notification, a webhook), add it to
   inline rather than dropping the OG image and the cache flush. Slow,
   but a rare error path.
 
-**Known trade-off.** The OG image doesn't exist for ~1–2 s after the
-publish returns, so a crawler that fetched `/d/<id>` in that window would
-miss `og:image`. In practice a link gets pasted seconds later at the
-earliest, and `scripts/backfill-large-gifs.ts` repairs any gap.
+**Known trade-off.** The OG image doesn't exist until the tail's first
+step finishes — measured at **1.3–1.6 s** after the publish returns, with
+the `-large.mp4` following at ~6 s. A crawler fetching `/d/<id>` inside
+that window would miss `og:image` (or `og:video`). In practice a link
+gets pasted seconds later at the earliest, and a gap is repairable via
+`POST /backfill/sidecars?drawing=<id>`.
 
 ## Observability (what to query when something is wrong)
 
