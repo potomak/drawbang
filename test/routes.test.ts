@@ -19,6 +19,8 @@ import { MemoryUserStatsStore } from "../ingest/user-stats-store.js";
 import { ConsoleEmailSender } from "../ingest/email.js";
 import { signJwt } from "../ingest/jwt.js";
 import type { Storage } from "../ingest/storage.js";
+import { solvedPayload, testChallengeConfig } from "./support/challenge.js";
+import type { Challenge } from "altcha-lib/types";
 
 // The shared route table (ingest/routes.ts) is what both lambda.ts and
 // dev-server.ts dispatch through, so exercising it here covers both
@@ -76,6 +78,7 @@ function makeDeps(opts: { userStats?: boolean } = {}): RouteDeps {
       jwtSecret: "route-test-secret",
       publicBaseUrl: "https://example.test",
       drawingStore,
+      challenge: testChallengeConfig(),
     },
     ingestConfig: {
       storage: new NullStorage(),
@@ -121,8 +124,10 @@ function makeReq(partial: {
 
 describe("shared route table", () => {
   let routes: Route[];
+  let deps: RouteDeps;
   beforeEach(() => {
-    routes = createRoutes(makeDeps());
+    deps = makeDeps();
+    routes = createRoutes(deps);
   });
 
   test("unknown path falls through to 404 in both servers' shared dispatch", async () => {
@@ -328,11 +333,45 @@ describe("shared route table", () => {
       makeReq({
         method: "POST",
         path: "/auth/register",
-        body: JSON.stringify({ email: "a@b.com", username: "alice", password: "password123" }),
+        body: JSON.stringify({
+          email: "a@b.com",
+          username: "alice",
+          password: "password123",
+          altcha: await solvedPayload(deps.authConfig.challenge),
+        }),
       }),
     );
     assert.equal(res.kind, "json");
     assert.equal((res as { status: number }).status, 201);
+  });
+
+  test("GET /auth/challenge mints a solvable, uncacheable challenge", async () => {
+    const res = await dispatch(routes, makeReq({ method: "GET", path: "/auth/challenge" }));
+    assert.equal(res.kind, "json");
+    const r = res as { status: number; body: Challenge; headers?: Record<string, string> };
+    assert.equal(r.status, 200);
+    assert.equal(r.headers?.["Cache-Control"], "private, no-store");
+    // The shape the widget needs to do any work at all.
+    assert.equal(typeof r.body.parameters.nonce, "string");
+    assert.equal(typeof r.body.signature, "string");
+    assert.ok(r.body.parameters.cost > 0);
+  });
+
+  test("POST /auth/register without a solved challenge is refused", async () => {
+    const res = await dispatch(
+      routes,
+      makeReq({
+        method: "POST",
+        path: "/auth/register",
+        body: JSON.stringify({
+          email: "nogate@b.com",
+          username: "nogate",
+          password: "password123",
+        }),
+      }),
+    );
+    assert.equal((res as { status: number }).status, 403);
+    assert.equal((res as { body: { code: string } }).body.code, "challenge_missing");
   });
 
   test("/users/{id}/stats is registered only when a stats store is wired", async () => {

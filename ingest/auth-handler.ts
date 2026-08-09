@@ -16,6 +16,11 @@ import {
   type CacheInvalidator,
 } from "./cache-invalidation.js";
 import { ANONYMOUS_USERNAME, EMAIL_RE, USERNAME_RE } from "../config/constants.js";
+import {
+  verifyChallenge,
+  type ChallengeConfig,
+  type ChallengeFailure,
+} from "./challenge.js";
 
 // POST /auth/register | /auth/login | /auth/password/forgot | /auth/password/reset.
 //
@@ -52,6 +57,11 @@ export interface AuthHandlerConfig {
   email: EmailSender;
   jwtSecret: string;
   publicBaseUrl: string;
+  // Proof-of-work gate for register + forgot-password. Required, not
+  // optional: an absent config would silently disable the anti-spam gate,
+  // and a misconfiguration should break loudly at wiring time instead of
+  // quietly reopening the door.
+  challenge: ChallengeConfig;
   now?: () => Date;
   // Required only for the /auth/profile-picture route (needs the drawing
   // for the ownership check + the CF invalidator to refresh the profile
@@ -70,6 +80,9 @@ interface RegisterRequest {
   email?: unknown;
   username?: unknown;
   password?: unknown;
+  // base64 ALTCHA payload from the widget. Field name matches the widget's
+  // default hidden-input name so the client side stays boring.
+  altcha?: unknown;
 }
 interface LoginRequest {
   email?: unknown;
@@ -77,6 +90,7 @@ interface LoginRequest {
 }
 interface ForgotPasswordRequest {
   email?: unknown;
+  altcha?: unknown;
 }
 interface ResetPasswordRequest {
   token?: unknown;
@@ -110,6 +124,33 @@ function err(status: number, message: string): AuthResult {
   return { status, body: { error: message } };
 }
 
+const CHALLENGE_MESSAGES: Record<ChallengeFailure, string> = {
+  missing: "verification required — please complete the anti-spam check",
+  malformed: "verification payload is invalid — please try again",
+  expired: "verification expired — please try again",
+  invalid: "verification failed — please try again",
+  replayed: "verification already used — please try again",
+};
+
+// Runs the proof-of-work gate. Returns null when the caller may proceed,
+// or the response to send back. `code` is machine-readable so the client
+// knows to fetch a fresh challenge and retry rather than showing a dead
+// end — every failure here is recoverable by re-solving.
+async function challengeGate(
+  payload: unknown,
+  cfg: AuthHandlerConfig,
+): Promise<AuthResult | null> {
+  const verdict = await verifyChallenge(payload, cfg.challenge);
+  if (verdict.ok) return null;
+  return {
+    status: 403,
+    body: {
+      error: CHALLENGE_MESSAGES[verdict.reason],
+      code: `challenge_${verdict.reason}`,
+    },
+  };
+}
+
 export async function handleRegister(
   req: RegisterRequest,
   cfg: AuthHandlerConfig,
@@ -126,6 +167,13 @@ export async function handleRegister(
   ) {
     return err(400, `password must be ${MIN_PASSWORD}-${MAX_PASSWORD} characters`);
   }
+
+  // Gate AFTER the cheap syntactic checks: verifying spends the challenge,
+  // so a mistyped password shouldn't cost the user a fresh solve. It still
+  // runs before the scrypt hash and every write, so no account can be
+  // created without proof of work.
+  const gated = await challengeGate(req.altcha, cfg);
+  if (gated) return gated;
 
   const now = (cfg.now ?? (() => new Date()))();
   const nowSec = Math.floor(now.getTime() / 1000);
@@ -187,6 +235,13 @@ export async function handleForgotPassword(
   req: ForgotPasswordRequest,
   cfg: AuthHandlerConfig,
 ): Promise<AuthResult> {
+  // Gate first here, unlike register: everything downstream either does
+  // nothing or sends mail via SES, and nothing on this route is worth
+  // reaching without proof of work. A 403 leaks nothing about the address
+  // — it's decided before the account is looked up at all.
+  const gated = await challengeGate(req.altcha, cfg);
+  if (gated) return gated;
+
   const email = normalizeEmail(req.email);
   // Always return 200 — never reveal whether an email is registered.
   const ok: AuthResult = { status: 200, body: { ok: true } };

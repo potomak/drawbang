@@ -10,6 +10,7 @@ import {
 import { MemoryUserStore } from "../ingest/user-store.js";
 import { verifyJwt } from "../ingest/jwt.js";
 import type { EmailSender } from "../ingest/email.js";
+import { solvedPayload, testChallengeConfig } from "./support/challenge.js";
 
 class CapturingEmail implements EmailSender {
   links: { to: string; link: string }[] = [];
@@ -29,8 +30,27 @@ function makeCfg(): { cfg: AuthHandlerConfig; email: CapturingEmail } {
       email,
       jwtSecret: SECRET,
       publicBaseUrl: "https://example.test",
+      challenge: testChallengeConfig(),
     },
   };
+}
+
+// Register + forgot are behind the proof-of-work gate, so every call that
+// is meant to get through needs its own freshly solved payload (they're
+// single-use). Calls asserting a 400 deliberately DON'T pass one — register
+// validates fields before spending the challenge, and those tests pin it.
+async function register(
+  cfg: AuthHandlerConfig,
+  body: Record<string, unknown>,
+): Promise<ReturnType<typeof handleRegister>> {
+  return handleRegister({ ...body, altcha: await solvedPayload(cfg.challenge) }, cfg);
+}
+
+async function forgot(
+  cfg: AuthHandlerConfig,
+  body: Record<string, unknown>,
+): Promise<ReturnType<typeof handleForgotPassword>> {
+  return handleForgotPassword({ ...body, altcha: await solvedPayload(cfg.challenge) }, cfg);
 }
 
 function tokenFromLink(link: string): string {
@@ -44,10 +64,11 @@ describe("auth: register", () => {
   });
 
   test("creates an account and returns a usable session", async () => {
-    const r = await handleRegister(
-      { email: "Alice@Example.com", username: "Alice", password: "password123" },
-      cfg,
-    );
+    const r = await register(cfg, {
+      email: "Alice@Example.com",
+      username: "Alice",
+      password: "password123",
+    });
     assert.equal(r.status, 201);
     const body = r.body as { token: string; user_id: string; username: string };
     assert.equal(body.username, "alice");
@@ -58,16 +79,18 @@ describe("auth: register", () => {
   });
 
   test("rejects duplicate email and username", async () => {
-    await handleRegister({ email: "a@b.com", username: "alice", password: "password123" }, cfg);
-    const dupEmail = await handleRegister(
-      { email: "a@b.com", username: "other", password: "password123" },
-      cfg,
-    );
+    await register(cfg, { email: "a@b.com", username: "alice", password: "password123" });
+    const dupEmail = await register(cfg, {
+      email: "a@b.com",
+      username: "other",
+      password: "password123",
+    });
     assert.equal(dupEmail.status, 409);
-    const dupName = await handleRegister(
-      { email: "c@d.com", username: "alice", password: "password123" },
-      cfg,
-    );
+    const dupName = await register(cfg, {
+      email: "c@d.com",
+      username: "alice",
+      password: "password123",
+    });
     assert.equal(dupName.status, 409);
   });
 
@@ -103,7 +126,7 @@ describe("auth: wrong-typed body fields 4xx cleanly (#type-safety)", () => {
   test("forgot + reset", async () => {
     // Forgot always answers 200 (no email enumeration) — a wrong-typed
     // email must not break that contract.
-    assert.equal((await handleForgotPassword({ email: 7 } as never, cfg)).status, 200);
+    assert.equal((await forgot(cfg, { email: 7 } as never)).status, 200);
     assert.equal((await handleResetPassword({ token: 99, password: "password123" } as never, cfg)).status, 400);
     assert.equal((await handleResetPassword({ token: "x.y.z", password: {} } as never, cfg)).status, 400);
   });
@@ -112,7 +135,7 @@ describe("auth: wrong-typed body fields 4xx cleanly (#type-safety)", () => {
 describe("auth: login", () => {
   test("succeeds with right password, fails otherwise", async () => {
     const cfg = makeCfg().cfg;
-    await handleRegister({ email: "a@b.com", username: "alice", password: "password123" }, cfg);
+    await register(cfg, { email: "a@b.com", username: "alice", password: "password123" });
 
     const ok = await handleLogin({ email: "A@b.com", password: "password123" }, cfg);
     assert.equal(ok.status, 200);
@@ -128,14 +151,14 @@ describe("auth: login", () => {
 describe("auth: password reset", () => {
   test("request always 200; confirm is single-use", async () => {
     const { cfg, email } = makeCfg();
-    await handleRegister({ email: "a@b.com", username: "alice", password: "password123" }, cfg);
+    await register(cfg, { email: "a@b.com", username: "alice", password: "password123" });
 
     // Unknown email still 200, no email sent.
-    const ghost = await handleForgotPassword({ email: "ghost@b.com" }, cfg);
+    const ghost = await forgot(cfg, { email: "ghost@b.com" });
     assert.equal(ghost.status, 200);
     assert.equal(email.links.length, 0);
 
-    const req = await handleForgotPassword({ email: "a@b.com" }, cfg);
+    const req = await forgot(cfg, { email: "a@b.com" });
     assert.equal(req.status, 200);
     assert.equal(email.links.length, 1);
     const token = tokenFromLink(email.links[0].link);

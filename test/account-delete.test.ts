@@ -10,6 +10,7 @@ import { MemoryUserStore } from "../ingest/user-store.js";
 import { MemoryDrawingStore, type DrawingRow } from "../ingest/drawing-store.js";
 import { NoopInvalidator } from "../ingest/cache-invalidation.js";
 import { ConsoleEmailSender } from "../ingest/email.js";
+import { solvedPayload, testChallengeConfig } from "./support/challenge.js";
 
 const PASSWORD = "correct-horse-battery";
 
@@ -24,13 +25,19 @@ function makeConfig() {
     email: new ConsoleEmailSender(),
     jwtSecret: "account-delete-test",
     publicBaseUrl: "https://example.test",
+    challenge: testChallengeConfig(),
   };
   return { userStore, drawingStore, inv, cfg };
 }
 
 async function register(cfg: AuthHandlerConfig, username: string) {
   const res = await handleRegister(
-    { email: `${username}@example.com`, username, password: PASSWORD },
+    {
+      email: `${username}@example.com`,
+      username,
+      password: PASSWORD,
+      altcha: await solvedPayload(cfg.challenge),
+    },
     cfg,
   );
   assert.equal(res.status, 201, JSON.stringify(res.body));
@@ -65,7 +72,12 @@ describe("handleDeleteAccount — only ever the caller's own account", () => {
     // Handle is free again — follow edges key on user_id, so a new account
     // taking the name inherits nothing from the old one.
     const res2 = await handleRegister(
-      { email: "someoneelse@example.com", username: "alice", password: PASSWORD },
+      {
+        email: "someoneelse@example.com",
+        username: "alice",
+        password: PASSWORD,
+        altcha: await solvedPayload(cfg.challenge),
+      },
       cfg,
     );
     assert.equal(res2.status, 201);

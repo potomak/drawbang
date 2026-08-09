@@ -34,6 +34,7 @@ import type { HydrateHandlerConfig } from "./hydrate-handler.js";
 import { CloudFrontInvalidator } from "./cache-invalidation.js";
 import { SesEmailSender } from "./email.js";
 import { DynamoSubscribersStore } from "./subscribers-store.js";
+import { DynamoChallengeStore } from "./challenge-store.js";
 import type { SubscribeHandlerConfig } from "./subscribe-handler.js";
 import type { AuthHandlerConfig } from "./auth-handler.js";
 import type { RenderHandlersConfig } from "./render-handlers.js";
@@ -58,6 +59,7 @@ const likesTable = required("DRAWBANG_LIKES_TABLE");
 const bookmarksTable = required("DRAWBANG_BOOKMARKS_TABLE");
 const followsTable = required("DRAWBANG_FOLLOWS_TABLE");
 const subscribersTable = required("DRAWBANG_SUBSCRIBERS_TABLE");
+const challengesTable = required("DRAWBANG_CHALLENGES_TABLE");
 // Optional: when unset (e.g. local dev), publish skips CF invalidation —
 // cached pages refresh at s-maxage instead.
 const cfDistributionId = process.env.CF_DISTRIBUTION_ID ?? "";
@@ -211,6 +213,12 @@ const authConfig: AuthHandlerConfig = {
   publicBaseUrl,
   drawingStore,
   cacheInvalidator,
+  // Challenge signing keys are derived from JWT_SECRET (domain-separated
+  // inside challenge.ts), so there's no extra secret to provision.
+  challenge: {
+    secret: jwtSecret,
+    challengeStore: new DynamoChallengeStore({ tableName: challengesTable }),
+  },
 };
 
 // The shared route table (ingest/routes.ts) is the single source of truth

@@ -43,6 +43,7 @@ import {
 import { handleHydrate, type HydrateHandlerConfig } from "./hydrate-handler.js";
 import { handleSubscribe, type SubscribeHandlerConfig } from "./subscribe-handler.js";
 import { parseRange } from "./admin-handler.js";
+import { mintChallenge } from "./challenge.js";
 import { renderAdminShell, type AdminRange } from "../lib/templates/admin.js";
 import {
   renderBookmarksPageHandler,
@@ -517,6 +518,18 @@ export function createRoutes(deps: RouteDeps): Route[] {
           deps.hydrateConfig,
         );
         return json(result.status, result.body, result.headers);
+      },
+    },
+    // GET /auth/challenge — mints the proof-of-work challenge that
+    // register + forgot-password require. Public and uncacheable: handing
+    // one out is free, solving it is not, and each is single-use.
+    {
+      methods: ["GET"],
+      pattern: /^\/auth\/challenge$/,
+      auth: "none",
+      handler: async () => {
+        const challenge = await mintChallenge(deps.authConfig.challenge);
+        return json(200, challenge, { "Cache-Control": "private, no-store" });
       },
     },
     // GET /auth/profile — prefill for the edit-profile form on /account.

@@ -16,6 +16,7 @@ import {
 } from "../ingest/render-handlers.js";
 import type { EmailSender } from "../ingest/email.js";
 import type { DrawingRow } from "../ingest/drawing-store.js";
+import { solvedPayload, testChallengeConfig } from "./support/challenge.js";
 
 class SilentEmail implements EmailSender {
   async sendPasswordReset(): Promise<void> {}
@@ -44,7 +45,7 @@ async function registerAccount(
   username: string,
 ): Promise<SetProfilePictureAuth> {
   const r = await handleRegister(
-    { email, username, password: "password123" },
+    { email, username, password: "password123", altcha: await solvedPayload(cfg.challenge) },
     cfg,
   );
   const body = r.body as { user_id: string; username: string };
@@ -74,6 +75,7 @@ function harness(): Harness {
       publicBaseUrl: "https://example.test",
       drawingStore,
       cacheInvalidator: invalidator,
+      challenge: testChallengeConfig(),
     },
     renderCfg: {
       drawingStore,

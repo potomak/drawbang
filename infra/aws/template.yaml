@@ -762,6 +762,23 @@ Resources:
       KeySchema:
         - { AttributeName: email, KeyType: HASH }
 
+  # Single-use guard for solved proof-of-work challenges (see
+  # ingest/challenge-store.ts). Rows live only as long as the challenge
+  # they guard, so TTL does all the cleanup — nothing here is ever read
+  # back after expiry.
+  ChallengesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: drawbang-challenges
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: challenge_id, AttributeType: S }
+      KeySchema:
+        - { AttributeName: challenge_id, KeyType: HASH }
+      TimeToLiveSpecification:
+        AttributeName: expires_at
+        Enabled: true
+
   # -- Ingest Lambda + API Gateway --------------------------------------------
 
   IngestFunction:
@@ -794,6 +811,7 @@ Resources:
           DRAWBANG_BOOKMARKS_TABLE: !Ref BookmarksTable
           DRAWBANG_FOLLOWS_TABLE: !Ref FollowsTable
           DRAWBANG_SUBSCRIBERS_TABLE: !Ref SubscribersTable
+          DRAWBANG_CHALLENGES_TABLE: !Ref ChallengesTable
           CF_DISTRIBUTION_ID: !Ref CloudFrontDistributionIdOverride
           JWT_SECRET: !Ref JwtSecret
           SES_FROM_ADDRESS: !Ref SesFromAddress
@@ -821,6 +839,7 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref BookmarksTable }
         - DynamoDBCrudPolicy: { TableName: !Ref FollowsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref SubscribersTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref ChallengesTable }
         # The /products handler queries the merch popularity counters (the
         # MerchFunction is the writer; ingest only reads here).
         - DynamoDBReadPolicy: { TableName: !Ref ProductCountersTable }
@@ -879,6 +898,14 @@ Resources:
             ApiId: !Ref IngestApi
             Method: POST
             Path: /auth/register
+        # GET, not POST — the proof-of-work challenge that register and
+        # forgot-password require. Public; the cost is in solving it.
+        AuthChallenge:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /auth/challenge
         AuthLogin:
           Type: HttpApi
           Properties:

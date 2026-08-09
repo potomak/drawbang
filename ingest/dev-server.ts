@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { FsStorage } from "./storage.js";
 import { runPostPublish } from "./handler.js";
 import { MemoryUserStore } from "./user-store.js";
+import { MemoryChallengeStore } from "./challenge-store.js";
 import { MemoryDrawingStore } from "./drawing-store.js";
 import { MemoryLikesStore } from "./likes-store.js";
 import type { LikesHandlerConfig } from "./likes-handler.js";
@@ -83,6 +84,10 @@ const authConfig: AuthHandlerConfig = {
   jwtSecret: JWT_SECRET,
   publicBaseUrl: PUBLIC_BASE,
   drawingStore,
+  // Production difficulty on purpose — the local loop should feel like the
+  // real signup, widget and all. Replay state is in-memory, so it resets
+  // with the server like every other dev store.
+  challenge: { secret: JWT_SECRET, challengeStore: new MemoryChallengeStore() },
 };
 
 // Same shared route table the Lambda uses (ingest/routes.ts) — only the
