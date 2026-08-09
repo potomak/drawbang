@@ -399,7 +399,12 @@ they're flushed at all.
 Scope is the security boundary:
 
 - **`?drawing=<id>`** — exactly one drawing, any signed-in caller, no
-  ownership check. That's safe because the operation only ever *creates*
+  ownership check. **Runs synchronously** and returns an `outcome` naming
+  what each step did. The tail deliberately swallows its own errors (an
+  async invocation has no caller to raise to), which meant a queued repair
+  could fail silently while the endpoint happily reported "enqueued". One
+  drawing is small enough (~2–3 s, well inside the 30 s timeout) to just
+  do the work and report the truth. That's safe because the operation only ever *creates*
   derived data that should already exist: it never deletes, mutates, or
   discloses anything (the report names the missing sidecar, which anyone
   can already determine with two HEAD requests), it's idempotent so a

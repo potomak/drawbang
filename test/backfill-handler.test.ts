@@ -57,6 +57,11 @@ async function harness() {
   const storage = new FsStorage(dir);
   const drawingStore = new MemoryDrawingStore();
   const jobs: PostPublishJob[] = [];
+  const ranNow = {
+    large_gif: { ok: true },
+    large_mp4: { ok: true },
+    invalidation: { ok: true },
+  };
   return {
     storage,
     drawingStore,
@@ -65,6 +70,12 @@ async function harness() {
       drawingStore,
       storage,
       enqueue: async (job: PostPublishJob) => { jobs.push(job); },
+      // The targeted path runs inline; record it the same way so the
+      // existing assertions on `jobs` keep meaning "work was requested".
+      runNow: async (job: PostPublishJob) => {
+        jobs.push(job);
+        return ranNow;
+      },
       isAdmin: (u: string) => u === ADMIN.username,
     },
     // Seeds a drawing plus whichever sidecars it should already have.
@@ -254,6 +265,56 @@ describe("handleBackfillSidecars — targeted single drawing", () => {
       await h.seed(1, ANONYMOUS_USERNAME, {});
       await handleBackfillSidecars(opts({ target: id(1) }), BOB, h.cfg);
       assert.equal(h.jobs[0].username, null);
+    } finally {
+      await h.cleanup();
+    }
+  });
+
+  test("a FAILED repair is reported, not swallowed", async () => {
+    // The whole reason the targeted path runs inline: the async tail
+    // swallows its own errors, so a queued repair could fail silently
+    // while the endpoint reported success.
+    const h = await harness();
+    try {
+      await h.seed(1, "alice", { gif: true });
+      const failing = {
+        ...h.cfg,
+        runNow: async () => ({
+          large_gif: { ok: true },
+          large_mp4: { ok: false, error: "ffmpeg exited 1" },
+          invalidation: { ok: true },
+        }),
+      };
+      const res = await handleBackfillSidecars(opts({ target: id(1) }), BOB, failing);
+      assert.equal(res.status, 200);
+      const body = res.body as BackfillReport;
+      assert.equal(body.outcome?.large_mp4.ok, false);
+      assert.match(String(body.outcome?.large_mp4.error), /ffmpeg/);
+    } finally {
+      await h.cleanup();
+    }
+  });
+
+  test("a successful repair reports every step ok", async () => {
+    const h = await harness();
+    try {
+      await h.seed(1, "alice", {});
+      const res = await handleBackfillSidecars(opts({ target: id(1) }), BOB, h.cfg);
+      const body = res.body as BackfillReport;
+      assert.equal(body.outcome?.large_gif.ok, true);
+      assert.equal(body.outcome?.large_mp4.ok, true);
+      assert.equal(body.outcome?.invalidation.ok, true);
+    } finally {
+      await h.cleanup();
+    }
+  });
+
+  test("a healthy drawing carries no outcome — nothing ran", async () => {
+    const h = await harness();
+    try {
+      await h.seed(1, "alice", { gif: true, mp4: true });
+      const res = await handleBackfillSidecars(opts({ target: id(1) }), BOB, h.cfg);
+      assert.equal((res.body as BackfillReport).outcome, undefined);
     } finally {
       await h.cleanup();
     }

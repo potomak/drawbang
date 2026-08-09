@@ -186,7 +186,12 @@ const routes = createRoutes({
   hydrateConfig,
   subscribeConfig,
   deleteConfig: { drawingStore, storage, cacheInvalidator },
-  backfillConfig: { drawingStore, storage, enqueue: deferPostPublish },
+  backfillConfig: {
+    drawingStore,
+    storage,
+    enqueue: deferPostPublish,
+    runNow: (job) => runPostPublish(job, { storage, cacheInvalidator }),
+  },
   authConfig,
   ingestConfig: {
     storage,

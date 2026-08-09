@@ -95,7 +95,8 @@ const routes = createRoutes({
   backfillConfig: {
     drawingStore,
     storage,
-    enqueue: (job) => runPostPublish(job, { storage }),
+    enqueue: async (job) => { await runPostPublish(job, { storage }); },
+    runNow: (job) => runPostPublish(job, { storage }),
   },
   authConfig,
   ingestConfig: {

@@ -1,5 +1,5 @@
 import { DRAWING_ID_RE, isAnonymousUsername } from "../config/constants.js";
-import type { AuthedUser, PostPublishJob } from "./handler.js";
+import type { AuthedUser, PostPublishJob, PostPublishOutcome } from "./handler.js";
 import type { DrawingCursor, DrawingRow, DrawingStore } from "./drawing-store.js";
 import type { Storage } from "./storage.js";
 
@@ -47,6 +47,10 @@ export interface BackfillHandlerConfig {
   // the same async self-invoke a publish uses; the dev server runs it
   // inline so the local loop works end to end.
   enqueue(job: PostPublishJob): Promise<void>;
+  // Runs the tail INLINE and reports what actually happened. Used only by
+  // the single-drawing path, where the work is bounded (~2-3s) and the
+  // caller deserves a real answer instead of "queued, good luck".
+  runNow(job: PostPublishJob): Promise<PostPublishOutcome>;
   isAdmin(username: string): boolean;
 }
 
@@ -71,6 +75,9 @@ export interface BackfillReport {
   // the enqueued job.
   missing: { drawing_id: string; username: string | null; needs: string[] }[];
   enqueued: string[];
+  // Only set for ?drawing=<id>, which runs synchronously. Bulk scans
+  // enqueue and can't know the result.
+  outcome?: PostPublishOutcome;
   dry_run: boolean;
   // True when the scan stopped at scanLimit — there may be more to do, so
   // the caller should run again.
@@ -128,17 +135,20 @@ export async function handleBackfillSidecars(
     if (!row) return { status: 404, body: { error: "drawing not found" } };
     const entry = await needsFor(cfg.storage, row);
     const enqueuedOne: string[] = [];
-    if (entry.needs.length > 0) {
-      if (!opts.dryRun) {
-        await cfg.enqueue({
-          drawing_id: entry.drawing_id,
-          username: entry.username,
-          prompt_tagged: false,
-          mode: "backfill",
-        });
-      }
-      enqueuedOne.push(entry.drawing_id);
+    let outcome: PostPublishOutcome | undefined;
+    if (entry.needs.length > 0 && !opts.dryRun) {
+      // Synchronous on purpose. The tail swallows its own errors (an async
+      // invocation has no caller), which meant a queued repair could fail
+      // silently while this endpoint reported success. One drawing is
+      // small enough to just do the work and report the truth.
+      outcome = await cfg.runNow({
+        drawing_id: entry.drawing_id,
+        username: entry.username,
+        prompt_tagged: false,
+        mode: "backfill",
+      });
     }
+    if (entry.needs.length > 0) enqueuedOne.push(entry.drawing_id);
     return {
       status: 200,
       body: {
@@ -146,6 +156,7 @@ export async function handleBackfillSidecars(
         scanned: 1,
         missing: entry.needs.length > 0 ? [entry] : [],
         enqueued: enqueuedOne,
+        ...(outcome ? { outcome } : {}),
         dry_run: opts.dryRun,
         truncated: false,
       },

@@ -158,7 +158,7 @@ export async function encodeShareMp4FromStorage(
   storage: Storage,
   drawing_id: string,
   encode: (gif: Uint8Array) => Promise<Uint8Array> = encodeShareMp4,
-): Promise<void> {
+): Promise<StepOutcome> {
   try {
     const large = await storage.getBytes(`public/tiles/${drawing_id}-large.gif`);
     if (!large) throw new Error("-large.gif not found in storage");
@@ -169,14 +169,32 @@ export async function encodeShareMp4FromStorage(
       "video/mp4",
       "public, max-age=31536000, immutable",
     );
+    return { ok: true };
   } catch (e) {
+    const error = errMsg(e);
     console.error(`[ingest] deferred -large.mp4 write failed for ${drawing_id}:`, e);
+    return { ok: false, error };
   }
 }
 
 // Renders the 960x960 annotated share GIF (og:image on /d/<id>) from the
 // published gif bytes. Extracted so both the deferred worker and
 // scripts/backfill-large-gifs.ts describe the same transform.
+// Outcome of one tail step. The tail still never throws — an async
+// invocation has no caller to surface an error to — but it now REPORTS
+// what happened, so a synchronous caller (the targeted backfill) can tell
+// the difference between "repaired" and "silently failed again".
+export interface StepOutcome {
+  ok: boolean;
+  error?: string;
+}
+
+export interface PostPublishOutcome {
+  large_gif: StepOutcome;
+  large_mp4: StepOutcome | { ok: false; error: "skipped: -large.gif step failed" };
+  invalidation: StepOutcome;
+}
+
 export async function writeLargeGifFromStorage(
   storage: Storage,
   drawing_id: string,
@@ -199,10 +217,16 @@ export async function writeLargeGifFromStorage(
     );
     return large;
   } catch (e) {
+    lastLargeGifError = errMsg(e);
     console.error(`[ingest] -large.gif write failed for ${drawing_id}:`, e);
     return null;
   }
 }
+
+// Set by writeLargeGifFromStorage on failure so runPostPublish can report
+// the reason without changing that function's Uint8Array|null contract,
+// which scripts/backfill-large-gifs.ts also depends on.
+let lastLargeGifError: string | null = null;
 
 export interface PostPublishConfig {
   storage: Storage;
@@ -226,22 +250,36 @@ export interface PostPublishConfig {
 export async function runPostPublish(
   job: PostPublishJob,
   cfg: PostPublishConfig,
-): Promise<void> {
-  const invalidate = async (): Promise<void> => {
-    if (!cfg.cacheInvalidator) return;
-    const paths =
-      job.mode === "backfill"
-        ? pathsToInvalidateOnSidecarBackfill(job.drawing_id)
-        : pathsToInvalidateOnPublish(job.username, { promptTagged: job.prompt_tagged });
-    await cfg.cacheInvalidator.invalidate(paths);
+): Promise<PostPublishOutcome> {
+  const invalidate = async (): Promise<StepOutcome> => {
+    if (!cfg.cacheInvalidator) return { ok: true };
+    try {
+      const paths =
+        job.mode === "backfill"
+          ? pathsToInvalidateOnSidecarBackfill(job.drawing_id)
+          : pathsToInvalidateOnPublish(job.username, { promptTagged: job.prompt_tagged });
+      await cfg.cacheInvalidator.invalidate(paths);
+      return { ok: true };
+    } catch (e) {
+      console.error(`[ingest] invalidation failed for ${job.drawing_id}:`, e);
+      return { ok: false, error: errMsg(e) };
+    }
   };
-  const sidecars = async (): Promise<void> => {
+  const sidecars = async (): Promise<Pick<PostPublishOutcome, "large_gif" | "large_mp4">> => {
     // Sequential by necessity: ffmpeg transcodes the gif this step renders.
+    lastLargeGifError = null;
     const large = await writeLargeGifFromStorage(cfg.storage, job.drawing_id);
-    if (!large) return;
-    await encodeShareMp4FromStorage(cfg.storage, job.drawing_id, cfg.encodeMp4);
+    if (!large) {
+      return {
+        large_gif: { ok: false, error: lastLargeGifError ?? "unknown" },
+        large_mp4: { ok: false, error: "skipped: -large.gif step failed" },
+      };
+    }
+    const mp4 = await encodeShareMp4FromStorage(cfg.storage, job.drawing_id, cfg.encodeMp4);
+    return { large_gif: { ok: true }, large_mp4: mp4 };
   };
-  await Promise.all([invalidate(), sidecars()]);
+  const [invalidation, both] = await Promise.all([invalidate(), sidecars()]);
+  return { ...both, invalidation };
 }
 
 export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Promise<IngestHandlerResult> {

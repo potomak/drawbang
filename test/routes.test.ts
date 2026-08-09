@@ -59,7 +59,16 @@ function makeDeps(opts: { userStats?: boolean } = {}): RouteDeps {
     hydrateConfig: { likesStore, bookmarksStore, followsStore, userStore },
     subscribeConfig: { subscribersStore: new MemorySubscribersStore() },
     deleteConfig: { drawingStore, storage: new NullStorage() },
-    backfillConfig: { drawingStore, storage: new NullStorage(), enqueue: async () => {} },
+    backfillConfig: {
+      drawingStore,
+      storage: new NullStorage(),
+      enqueue: async () => {},
+      runNow: async () => ({
+        large_gif: { ok: true },
+        large_mp4: { ok: true },
+        invalidation: { ok: true },
+      }),
+    },
     authConfig: {
       userStore,
       email: new ConsoleEmailSender(),
