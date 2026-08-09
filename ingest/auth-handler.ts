@@ -136,6 +136,15 @@ const CHALLENGE_MESSAGES: Record<ChallengeFailure, string> = {
 // or the response to send back. `code` is machine-readable so the client
 // knows to fetch a fresh challenge and retry rather than showing a dead
 // end — every failure here is recoverable by re-solving.
+//
+// **400, not 403, and that is not a style choice.** CloudFront's
+// CustomErrorResponses map every origin 403 (and 404) to /404.html
+// distribution-wide — see infra/aws/template.yaml. A 403 here reaches the
+// browser as an HTML 404 page, so the JSON body and `code` are destroyed
+// and the client can't tell an expired challenge from a dead route. This
+// is the common failure for a LEGITIMATE user (challenge expired while
+// they filled the form), so it has to survive the CDN. Verified against
+// prod: the origin's 403 arrives as a 404 HTML page, a 400 arrives intact.
 async function challengeGate(
   payload: unknown,
   cfg: AuthHandlerConfig,
@@ -143,7 +152,7 @@ async function challengeGate(
   const verdict = await verifyChallenge(payload, cfg.challenge);
   if (verdict.ok) return null;
   return {
-    status: 403,
+    status: 400,
     body: {
       error: CHALLENGE_MESSAGES[verdict.reason],
       code: `challenge_${verdict.reason}`,

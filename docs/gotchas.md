@@ -141,6 +141,26 @@ to spare the next agent / contributor an hour of head-scratching.
   be byte-identical to the original, so a tampering test has to mint above
   the floor to have something to weaken.
 
+## CloudFront turns origin 403s into a 404 HTML page
+
+`CustomErrorResponses` in `infra/aws/template.yaml` maps **both** 404 and
+403 from the origin to `/404.html` with status 404, distribution-wide
+(they can't be scoped per cache behaviour). So any JSON API on a
+CloudFront-routed path that answers 403 has its body replaced by the 404
+page before the client sees it.
+
+Bitten twice:
+
+- the proof-of-work gate on `/auth/register` — a legitimate expired
+  challenge became an unparseable HTML 404, so it now answers **400**;
+- `/admin/data` for a non-allowlisted user — the boot script's
+  `res.status === 403` branch is unreachable through the CDN, so the
+  operator sees "Couldn't load admin data" instead of "Not authorised".
+  Cosmetic, still unfixed.
+
+To see what the origin *really* returned, hit the `execute-api` URL
+directly (see "Verifying against production" in CLAUDE.md).
+
 ## Vite dev server shadows proxied GET routes
 
 `vite/plugins/dev-bucket.ts` runs **ahead** of vite's proxy, so any

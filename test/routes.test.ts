@@ -370,7 +370,8 @@ describe("shared route table", () => {
         }),
       }),
     );
-    assert.equal((res as { status: number }).status, 403);
+    // 400 rather than 403 so CloudFront does not rewrite it to /404.html.
+    assert.equal((res as { status: number }).status, 400);
     assert.equal((res as { body: { code: string } }).body.code, "challenge_missing");
   });
 

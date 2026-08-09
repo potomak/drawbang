@@ -189,7 +189,7 @@ describe("register is gated on proof of work", () => {
   test("refuses without one, and creates no account", async () => {
     const h = authCfg(cfg());
     const res = await handleRegister(body, h.cfg);
-    assert.equal(res.status, 403);
+    assert.equal(res.status, 400);
     assert.equal((res.body as { code: string }).code, "challenge_missing");
     assert.equal(await h.cfg.userStore.getByUsername("alice"), null);
   });
@@ -202,7 +202,7 @@ describe("register is gated on proof of work", () => {
       { email: "bob@example.com", username: "bob", password: "password123", altcha: payload },
       h.cfg,
     );
-    assert.equal(second.status, 403);
+    assert.equal(second.status, 400);
     assert.equal((second.body as { code: string }).code, "challenge_replayed");
     assert.equal(await h.cfg.userStore.getByUsername("bob"), null);
   });
@@ -229,7 +229,7 @@ describe("forgot-password is gated on proof of work", () => {
       h.cfg,
     );
     const res = await handleForgotPassword({ email: "alice@example.com" }, h.cfg);
-    assert.equal(res.status, 403);
+    assert.equal(res.status, 400);
     assert.equal(h.email.links.length, 0);
   });
 

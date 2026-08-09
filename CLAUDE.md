@@ -546,9 +546,19 @@ retry) comes back as `challenge_replayed`.
 editor's publish dialog (`src/publish-dialog.ts`). A new auth surface
 needs the widget too.
 
-Failures return **403** with a machine-readable `code`
+Failures return **400** with a machine-readable `code`
 (`challenge_missing` / `_malformed` / `_expired` / `_invalid` /
 `_replayed`). All of them are recoverable by solving again.
+
+**400 and not 403 for a specific reason.** CloudFront's
+`CustomErrorResponses` map every origin 403 *and* 404 to `/404.html`
+distribution-wide, so a 403 reaches the browser as an HTML 404 page with
+the JSON body and `code` destroyed. The common case here is a
+*legitimate* user whose challenge expired while they filled the form, so
+the response has to survive the CDN. Verified against prod: the origin's
+403 arrives as a 404 HTML page; a 400 arrives intact. Anything on a
+CloudFront-routed path that a client needs to parse has the same
+constraint.
 
 **What this does and doesn't buy.** It converts an instant scripted
 flood into roughly 0.6 s of CPU per account, and the replay guard means
