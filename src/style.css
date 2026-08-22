@@ -267,15 +267,24 @@ body > main, .app > main { display: block; }
   border-bottom: var(--border) solid var(--border-c);
   gap: 12px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 .ed-frames-head .panel-h { margin: 0; }
-.ed-frames-meta { display: flex; gap: 8px; align-items: center; }
+.ed-frames-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+}
 .ed-fps {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: var(--t-xs);
   color: var(--fg-muted);
+  flex-wrap: wrap;
 }
 .ed-fps input[type="range"] {
   width: 90px;
