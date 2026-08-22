@@ -175,6 +175,15 @@ The proxied path list now lives in `vite.config.ts` as `DEV_PROXY_PATHS`
 and is passed to both the proxy and the plugin. **Add new dev-server
 routes there**, not to the proxy alone.
 
+## Draft autosave + `beforeunload` + `visibilitychange`
+
+- The canvas has **two** draft stores: async IndexedDB (`src/local.ts` `drawbang` DB — the "My drawings" history) and sync `localStorage` `drawbang:draft:{size}` (the reload guard). The sync store must stay **synchronous** — `visibilitychange`/`beforeunload` have no time to `await` IndexedDB, so `writeDraft()` does a single `localStorage.setItem` and `persist()` calls it without awaiting.
+- Cap is `MAX_LAYERS_JSON_BYTES` (64 KiB). `writeDraft` measures `JSON.stringify(payload).length` and **skips** the write if it would exceed the cap; it does not truncate — a truncated JSON would not parse on restore. A drawing that exceeds the cap simply has no reload guard for that stroke (rare at 16×16).
+- `hasUnsavedContent()` is the gate for both guards. It checks for any non-transparent pixel **or** `frames.length>1`/`layers.length>1`. A blank multi-frame document still counts as unsaved — that’s intentional, losing a second frame is still data loss.
+- `beforeunload` must set **both** `e.preventDefault()` and `e.returnValue = ""` — some browsers require one, some the other, and Safari mobile only shows its dialog when `returnValue` is set to a non-null string. Don’t add a custom message string; modern browsers ignore it and show a generic prompt.
+- The restore banner (`#draftRestoreBanner`) only appears when **neither** `?fork=` nor `#d=` is present. In those cases the URL is the source of truth and a stale local draft would be wrong to surface. `readDraft` is keyed by `currentSize`, so a 32×32 draft never restores into a 16×16 session.
+- `resetEditor` clears the draft **before** re-applying the palette and calling `persist()` — `persist()` would otherwise see the fresh blank canvas, see `hasUnsavedContent()==false`, and remove the key anyway, but clearing explicitly makes the intent obvious and covers the publish path (`clearDraft()` before `resetEditor({keepPublishedId:true})`).
+
 ## Vite entries at nested clean URLs need absolute asset paths
 
 `/password/forgot` and `/password/reset` are the only Vite entries whose
