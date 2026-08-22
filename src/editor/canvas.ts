@@ -124,7 +124,6 @@ export class PixelCanvas {
         }
       }
     }
-    if (this.settings.showGrid) this.drawGrid(bitmap);
     if (this.settings.symmetryAxisH && bitmap.width % 2 === 0) {
       this.drawSymmetryAxisH(bitmap);
     }
@@ -144,37 +143,5 @@ export class PixelCanvas {
     this.ctx.lineTo(axisX, bitmap.height * ps);
     this.ctx.stroke();
     this.ctx.restore();
-  }
-
-  // Grid lines only run along edges where both adjacent cells are
-  // transparent. A line through (or next to) a colored pixel would chop
-  // up the pixel art the user is making — the grid is a guide for the
-  // empty canvas, not a permanent overlay.
-  private drawGrid(bitmap: Bitmap): void {
-    this.ctx.strokeStyle = this.settings.gridColor;
-    this.ctx.lineWidth = 1;
-    const ps = this.settings.pixelSize;
-    this.ctx.beginPath();
-    // Vertical edges between columns x and x+1.
-    for (let x = 0; x < bitmap.width - 1; x++) {
-      for (let y = 0; y < bitmap.height; y++) {
-        if (bitmap.get(x, y) !== TRANSPARENT) continue;
-        if (bitmap.get(x + 1, y) !== TRANSPARENT) continue;
-        const lineX = (x + 1) * ps + 0.5;
-        this.ctx.moveTo(lineX, y * ps);
-        this.ctx.lineTo(lineX, (y + 1) * ps);
-      }
-    }
-    // Horizontal edges between rows y and y+1.
-    for (let y = 0; y < bitmap.height - 1; y++) {
-      for (let x = 0; x < bitmap.width; x++) {
-        if (bitmap.get(x, y) !== TRANSPARENT) continue;
-        if (bitmap.get(x, y + 1) !== TRANSPARENT) continue;
-        const lineY = (y + 1) * ps + 0.5;
-        this.ctx.moveTo(x * ps, lineY);
-        this.ctx.lineTo((x + 1) * ps, lineY);
-      }
-    }
-    this.ctx.stroke();
   }
 }
