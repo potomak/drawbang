@@ -21,6 +21,16 @@ body {
   font-variant-ligatures: none;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+  /* Prevent pull-to-refresh / overscroll chaining while interacting with the
+     editor. The canvas itself uses touch-action:none, but the page still
+     participates in scroll chaining without this. */
+  overscroll-behavior-y: contain;
+  overflow-x: clip;
+}
+html {
+  /* Prevent horizontal scroll at the viewport level — frames toolbar overflow
+     should scroll inside its strip, not the page. */
+  overflow-x: clip;
 }
 svg, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 

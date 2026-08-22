@@ -1459,6 +1459,13 @@ function pointerToPixel(ev: PointerEvent): { x: number; y: number } {
 mainCanvasEl.addEventListener("pointerdown", (ev) => {
   if (playing) return;
   ev.preventDefault();
+  if (!ev.isPrimary) return;
+  // Prevent the page from scrolling while painting on touch. `touch-action: none`
+  // on the canvas already blocks the browser's pan gesture, but pointer capture
+  // keeps the stream coherent when the finger leaves the canvas bounds.
+  try {
+    mainCanvasEl.setPointerCapture(ev.pointerId);
+  } catch {}
   if (tool === "move") {
     moveSnapshot = activeBitmap().clone();
     moveStart = mainCanvas.quantizeUnclamped(ev.clientX, ev.clientY);
@@ -1471,6 +1478,7 @@ mainCanvasEl.addEventListener("pointerdown", (ev) => {
   applyTool(x, y);
 });
 window.addEventListener("pointermove", (ev) => {
+  if (!ev.isPrimary) return;
   if (moveSnapshot && moveStart) {
     const p = mainCanvas.quantizeUnclamped(ev.clientX, ev.clientY);
     const dx = p.x - moveStart.x;
@@ -1485,7 +1493,15 @@ window.addEventListener("pointermove", (ev) => {
   const { x, y } = pointerToPixel(ev);
   applyTool(x, y);
 });
-window.addEventListener("pointerup", () => {
+function releaseCapture(ev: PointerEvent): void {
+  if (mainCanvasEl.hasPointerCapture(ev.pointerId)) {
+    try {
+      mainCanvasEl.releasePointerCapture(ev.pointerId);
+    } catch {}
+  }
+}
+window.addEventListener("pointerup", (ev: PointerEvent) => {
+  if (ev.isPrimary) releaseCapture(ev);
   if (moveSnapshot && moveStart) {
     endMoveDrag();
     return;
@@ -1494,14 +1510,35 @@ window.addEventListener("pointerup", () => {
   painting = false;
   endStroke();
 });
-window.addEventListener("pointercancel", () => {
+window.addEventListener("pointercancel", (ev: PointerEvent) => {
+  if (ev.isPrimary) releaseCapture(ev);
   if (moveSnapshot && moveStart) {
-    endMoveDrag();
+    // Cancel the in-flight move — don't commit a translate, just discard.
+    moveSnapshot = null;
+    moveStart = null;
+    moveLastDelta = { dx: 0, dy: 0 };
+    render();
     return;
   }
   if (!painting) return;
   painting = false;
-  endStroke();
+  // Don't push a stroke on cancel — the gesture was aborted.
+  strokeSnapshot = null;
+  strokeDirty = false;
+});
+mainCanvasEl.addEventListener("lostpointercapture", () => {
+  // Fallback if capture is lost without an explicit up/cancel (e.g. alert).
+  if (moveSnapshot && moveStart) {
+    moveSnapshot = null;
+    moveStart = null;
+    moveLastDelta = { dx: 0, dy: 0 };
+    render();
+  }
+  if (painting) {
+    painting = false;
+    strokeSnapshot = null;
+    strokeDirty = false;
+  }
 });
 
 function endMoveDrag(): void {
