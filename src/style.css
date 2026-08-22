@@ -217,8 +217,12 @@ body > main, .app > main { display: block; }
    vertically, and both fill the available screen width. */
 @media (max-width: 767px) {
   .ed-grid { grid-template-columns: 1fr; }
-  .ed-tools { grid-template-columns: repeat(5, 1fr); justify-content: start; width: 100%; }
-  .ed-tools .btn.icon { width: 100%; }
+  .ed-tools {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    justify-content: start;
+    width: 100%;
+  }
+  .ed-tools .btn.icon { width: 100%; min-width: 0; }
   .ed-center { flex-direction: column; }
   .ed-canvas-wrap { max-width: none; }
   .ed-palette-wrap { max-width: none; }
