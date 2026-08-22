@@ -504,7 +504,7 @@ body > main {
   padding: 8px 24px 8px 21px;
   background: var(--paper);
   border-bottom: var(--border) solid var(--line);
-  border-left: 3px solid var(--line-strong);
+  border-left: var(--border) solid var(--line-strong);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   animation: flash-in 140ms ease-out;
 }
