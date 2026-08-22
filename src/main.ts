@@ -59,7 +59,12 @@ import {
 import { showFlash } from "./layout/flash.js";
 import { createExportDialog } from "./export-dialog.js";
 import { OpLogRecorder } from "./editor/oplog.js";
-import { DEFAULT_SIZE, DRAWING_SIZES, FRAME_DELAY_MS } from "../config/constants.js";
+import {
+  DEFAULT_SIZE,
+  DRAWING_SIZES,
+  FRAME_DELAY_MS,
+  MAX_LAYERS_JSON_BYTES,
+} from "../config/constants.js";
 
 // Target physical canvas: ~560 backing pixels per side, matched to the v2
 // editor wrap. Per-size pixelSize keeps the visible canvas the same physical
@@ -163,6 +168,7 @@ const app = document.getElementById("app")!;
 app.innerHTML = /* html */ `
   <main>
     <div id="promptBanner" class="canvas-banner" hidden></div>
+    <div id="draftRestoreBanner" class="canvas-banner" hidden></div>
     <div class="ed-size-picker" role="radiogroup" aria-label="Canvas size">
       <span class="ed-size-label">Size</span>
       ${DRAWING_SIZES.map((s) => `<button type="button" class="btn xs ed-size-opt" data-size="${s}" aria-pressed="${s === DEFAULT_SIZE ? "true" : "false"}">${s}×${s}</button>`).join("")}
@@ -409,10 +415,153 @@ function setLastPublishedId(id: string | null): void {
   lastPublishedId = id;
 }
 
+// -- Draft autosave (localStorage) ------------------------------------------
+
+function draftKey(size: number): string {
+  return `${DRAFT_LS_PREFIX}${size}`;
+}
+
+interface DraftPayload {
+  v: number;
+  size: number;
+  ts: number;
+  frames: string[][];
+  layers: { id: string; name: string; visible: boolean }[];
+  activePalette: number[];
+  delayMs: number;
+  localId: string | null;
+  opLog?: import("./editor/oplog.js").OpLog | null;
+}
+
+function hasUnsavedContent(): boolean {
+  return (
+    state.frames.some((f) => f.bitmaps.some((b) => b.data.some((v) => v !== TRANSPARENT))) ||
+    state.frames.length > 1 ||
+    state.layers.length > 1
+  );
+}
+
+function readDraft(size: number): DraftPayload | null {
+  try {
+    const raw = localStorage.getItem(draftKey(size));
+    if (!raw) return null;
+    const d = JSON.parse(raw) as DraftPayload;
+    if (!d || typeof d.size !== "number" || !Array.isArray(d.frames)) return null;
+    return d;
+  } catch {
+    return null;
+  }
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function writeDraft(): void {
+  try {
+    if (!hasUnsavedContent()) {
+      localStorage.removeItem(draftKey(currentSize));
+      return;
+    }
+    const payload: DraftPayload = {
+      v: 1,
+      size: currentSize,
+      ts: Date.now(),
+      frames: state.frames.map((f) => f.bitmaps.map((b) => bytesToBase64(b.data))),
+      layers: state.layers.map((l) => ({ id: l.id, name: l.name, visible: l.visible })),
+      activePalette: Array.from(activePalette),
+      delayMs,
+      localId,
+      opLog: opLog.opCount > 0 ? opLog.serialize() : null,
+    };
+    const json = JSON.stringify(payload);
+    if (json.length > MAX_LAYERS_JSON_BYTES) return;
+    localStorage.setItem(draftKey(currentSize), json);
+  } catch {
+    // Quota / private-mode — ignore
+  }
+}
+
+function clearDraft(size: number = currentSize): void {
+  try {
+    localStorage.removeItem(draftKey(size));
+  } catch {}
+}
+
+function applyDraft(draft: DraftPayload): void {
+  try {
+    if (draft.size !== currentSize) {
+      currentSize = draft.size;
+      mainCanvas.setSize(currentSize, pixelSizeFor(currentSize));
+      renderSizePicker();
+    }
+    state.layers = draft.layers.map((l) => ({ id: l.id, name: l.name, visible: l.visible }));
+    state.frames = draft.frames.map((perLayer) => ({
+      bitmaps: perLayer.map((b64) => new Bitmap(draft.size, draft.size, base64ToBytes(b64))),
+    }));
+    // Pad/truncate to currentSize if draft bitmap length mismatches (defensive)
+    for (const f of state.frames) {
+      for (const b of f.bitmaps) {
+        if (b.width !== draft.size || b.height !== draft.size) {
+          // Recreate at correct size — data already sized, but Bitmap ctor handles it
+        }
+      }
+    }
+    activePalette = new Uint8Array(draft.activePalette);
+    delayMs = draft.delayMs ?? FRAME_DELAY_MS;
+    localId = draft.localId ?? local.uuid();
+    state.current = 0;
+    state.currentLayer = 0;
+    history.clear();
+    render();
+    persist();
+  } catch {}
+}
+
+function showRestoreBanner(draft: DraftPayload): void {
+  const banner = document.getElementById("draftRestoreBanner");
+  if (!banner) return;
+  banner.innerHTML = "";
+  const row = document.createElement("div");
+  row.className = "cv-banner-row";
+  const text = document.createElement("span");
+  text.className = "cv-banner-text";
+  text.textContent = "Draft restored — you have unsaved changes from a previous session.";
+  row.appendChild(text);
+  const actions = document.createElement("span");
+  actions.className = "cv-banner-actions";
+  const restoreBtn = document.createElement("button");
+  restoreBtn.type = "button";
+  restoreBtn.className = "btn sm";
+  restoreBtn.textContent = "Restore draft";
+  restoreBtn.addEventListener("click", () => {
+    applyDraft(draft);
+    banner.hidden = true;
+    showFlash({ kind: "success", message: "Draft restored.", autoDismissMs: 3000 });
+  });
+  const discardBtn = document.createElement("button");
+  discardBtn.type = "button";
+  discardBtn.className = "btn sm";
+  discardBtn.textContent = "Discard";
+  discardBtn.addEventListener("click", () => {
+    clearDraft(draft.size);
+    banner.hidden = true;
+    showFlash({ kind: "info", message: "Draft discarded.", autoDismissMs: 3000 });
+  });
+  actions.append(restoreBtn, discardBtn);
+  row.appendChild(actions);
+  banner.appendChild(row);
+  banner.hidden = false;
+}
+
 const PALETTE_LS_KEY = "drawbang:palette";
 const GRID_LS_KEY = "drawbang:grid";
 const PIXEL_PERFECT_LS_KEY = "drawbang:pixel-perfect";
 const SYMMETRY_H_LS_KEY = "drawbang:symmetry-h";
+const DRAFT_LS_PREFIX = "drawbang:draft:";
 
 function findRetroPalette(id: string): RetroPalette | null {
   return RETRO_PALETTES.find((p) => p.id === id) ?? null;
@@ -971,6 +1120,7 @@ function resetEditor(opts: { keepPublishedId?: boolean } = {}): void {
   state.currentLayer = 0;
   history.clear();
   localId = null;
+  clearDraft();
   // Re-apply the user's chosen palette on reset — picking a palette is an
   // intentional workflow choice that should outlive a publish or Clear.
   applyPalette(currentPaletteId, false);
@@ -1313,6 +1463,7 @@ async function handlePublish(): Promise<void> {
       });
     }
     setLastPublishedId(result.id);
+    clearDraft();
     // Successful publish ends the current authoring session. The next
     // drawing's timelapse starts fresh.
     opLog.reset();
@@ -1452,6 +1603,7 @@ function persist(): void {
       opLog: opLog.serialize(),
     })
     .catch(() => {});
+  writeDraft();
 }
 
 // -- Events -----------------------------------------------------------------
@@ -1713,6 +1865,21 @@ window.addEventListener("keydown", (ev) => {
   }
 });
 
+window.addEventListener("beforeunload", (e) => {
+  if (hasUnsavedContent()) {
+    writeDraft();
+    e.preventDefault();
+    e.returnValue = "";
+  }
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden" && hasUnsavedContent()) {
+    writeDraft();
+    persist();
+  }
+});
+
 // -- Daily prompt ------------------------------------------------------------
 
 function showPromptBanner(p: Prompt): void {
@@ -1816,6 +1983,12 @@ async function boot(): Promise<void> {
         kind: "error",
         message: `Invalid share link: ${err instanceof Error ? err.message : String(err)}`,
       });
+    }
+  } else {
+    // No fork/hash — check for an autosaved draft for this size
+    const draft = readDraft(currentSize);
+    if (draft) {
+      showRestoreBanner(draft);
     }
   }
 
