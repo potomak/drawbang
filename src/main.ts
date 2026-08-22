@@ -37,6 +37,7 @@ import {
   PixelPerfectStroke,
   drawPixel,
   fillArea,
+  drawLine,
   flipHorizontal,
   flipVertical,
   mirrorX,
@@ -82,10 +83,11 @@ let activePalette: Uint8Array = new Uint8Array(DEFAULT_ACTIVE_PALETTE);
 // publish or Clear.
 let currentPaletteId = "ega";
 let selectedSlot = 1;
-let tool: "pixel" | "erase" | "fill" | "move" = "pixel";
+let tool: "pixel" | "erase" | "fill" | "move" | "line" = "pixel";
 let painting = false;
 let strokeSnapshot: Bitmap | null = null;
 let strokeDirty = false;
+let lineStart: { x: number; y: number } | null = null;
 // Move tool: drag-translate state. moveSnapshot is the pre-drag bitmap each
 // frame of translation reads from (so we never accumulate rounding errors);
 // moveStart anchors the drag in unclamped canvas-cell space; moveLastDelta
@@ -130,6 +132,7 @@ let delayMs: number = FRAME_DELAY_MS;
 // 16×16 viewBox, fill=currentColor. The user plans to swap these later;
 // they live inline so the editor doesn't add a sprite-sheet asset request.
 const ICON = {
+  line: `<svg width="32" height="32" viewBox="0 0 16 16" shape-rendering="crispEdges"><g fill="currentColor"><rect x="2" y="13" width="1" height="1"/><rect x="3" y="12" width="1" height="1"/><rect x="4" y="11" width="1" height="1"/><rect x="5" y="10" width="1" height="1"/><rect x="6" y="9" width="1" height="1"/><rect x="7" y="8" width="1" height="1"/><rect x="8" y="7" width="1" height="1"/><rect x="9" y="6" width="1" height="1"/><rect x="10" y="5" width="1" height="1"/><rect x="11" y="4" width="1" height="1"/><rect x="12" y="3" width="1" height="1"/><rect x="13" y="2" width="1" height="1"/></g></svg>`,
   pencil: `<svg width="32" height="32" viewBox="0 0 16 16" shape-rendering="crispEdges"><g fill="currentColor"><rect x="9" y="2" width="1" height="1"/><rect x="10" y="2" width="1" height="1"/><rect x="9" y="3" width="1" height="1"/><rect x="10" y="3" width="1" height="1"/><rect x="11" y="3" width="1" height="1"/><rect x="8" y="4" width="1" height="1"/><rect x="10" y="4" width="1" height="1"/><rect x="11" y="4" width="1" height="1"/><rect x="12" y="4" width="1" height="1"/><rect x="8" y="5" width="1" height="1"/><rect x="11" y="5" width="1" height="1"/><rect x="7" y="6" width="1" height="1"/><rect x="10" y="6" width="1" height="1"/><rect x="7" y="7" width="1" height="1"/><rect x="10" y="7" width="1" height="1"/><rect x="6" y="8" width="1" height="1"/><rect x="9" y="8" width="1" height="1"/><rect x="6" y="9" width="1" height="1"/><rect x="9" y="9" width="1" height="1"/><rect x="5" y="10" width="1" height="1"/><rect x="8" y="10" width="1" height="1"/><rect x="5" y="11" width="1" height="1"/><rect x="8" y="11" width="1" height="1"/><rect x="4" y="12" width="1" height="1"/><rect x="7" y="12" width="1" height="1"/><rect x="4" y="13" width="1" height="1"/><rect x="5" y="13" width="1" height="1"/><rect x="6" y="13" width="1" height="1"/><rect x="4" y="14" width="1" height="1"/><rect x="5" y="14" width="1" height="1"/></g></svg>`,
   eraser: `<svg width="32" height="32" viewBox="0 0 16 16" shape-rendering="crispEdges"><g fill="currentColor"><rect x="7" y="5" width="1" height="1"/><rect x="8" y="5" width="1" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="10" y="5" width="1" height="1"/><rect x="11" y="5" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="12" y="6" width="1" height="1"/><rect x="5" y="7" width="1" height="1"/><rect x="12" y="7" width="1" height="1"/><rect x="4" y="8" width="1" height="1"/><rect x="5" y="8" width="1" height="1"/><rect x="6" y="8" width="1" height="1"/><rect x="7" y="8" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/><rect x="9" y="8" width="1" height="1"/><rect x="11" y="8" width="1" height="1"/><rect x="3" y="9" width="1" height="1"/><rect x="4" y="9" width="1" height="1"/><rect x="5" y="9" width="1" height="1"/><rect x="6" y="9" width="1" height="1"/><rect x="7" y="9" width="1" height="1"/><rect x="8" y="9" width="1" height="1"/><rect x="9" y="9" width="1" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="3" y="10" width="1" height="1"/><rect x="4" y="10" width="1" height="1"/><rect x="5" y="10" width="1" height="1"/><rect x="6" y="10" width="1" height="1"/><rect x="7" y="10" width="1" height="1"/><rect x="8" y="10" width="1" height="1"/><rect x="9" y="10" width="1" height="1"/><rect x="3" y="11" width="1" height="1"/><rect x="4" y="11" width="1" height="1"/><rect x="5" y="11" width="1" height="1"/><rect x="6" y="11" width="1" height="1"/><rect x="7" y="11" width="1" height="1"/><rect x="8" y="11" width="1" height="1"/></g></svg>`,
   fill: `<svg width="32" height="32" viewBox="0 0 16 16" shape-rendering="crispEdges"><g fill="currentColor"><rect x="7" y="2" width="1" height="1"/><rect x="8" y="2" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/><rect x="9" y="3" width="1" height="1"/><rect x="6" y="4" width="1" height="1"/><rect x="8" y="4" width="1" height="1"/><rect x="9" y="4" width="1" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="7" y="5" width="1" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="10" y="5" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="9" y="6" width="1" height="1"/><rect x="11" y="6" width="1" height="1"/><rect x="5" y="7" width="1" height="1"/><rect x="8" y="7" width="1" height="1"/><rect x="9" y="7" width="1" height="1"/><rect x="11" y="7" width="1" height="1"/><rect x="12" y="7" width="1" height="1"/><rect x="4" y="8" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/><rect x="9" y="8" width="1" height="1"/><rect x="11" y="8" width="1" height="1"/><rect x="12" y="8" width="1" height="1"/><rect x="13" y="8" width="1" height="1"/><rect x="3" y="9" width="1" height="1"/><rect x="11" y="9" width="1" height="1"/><rect x="12" y="9" width="1" height="1"/><rect x="13" y="9" width="1" height="1"/><rect x="3" y="10" width="1" height="1"/><rect x="10" y="10" width="1" height="1"/><rect x="12" y="10" width="1" height="1"/><rect x="4" y="11" width="1" height="1"/><rect x="9" y="11" width="1" height="1"/><rect x="12" y="11" width="1" height="1"/><rect x="5" y="12" width="1" height="1"/><rect x="8" y="12" width="1" height="1"/><rect x="6" y="13" width="1" height="1"/><rect x="7" y="13" width="1" height="1"/><rect x="12" y="13" width="1" height="1"/></g></svg>`,
@@ -176,6 +179,7 @@ app.innerHTML = /* html */ `
         <button class="btn icon ed-tool" data-tool="pixel" aria-pressed="true" title="Pencil (B)" aria-label="Pencil">${ICON.pencil}</button>
         <button class="btn icon ed-tool" data-tool="erase" title="Eraser (E)" aria-label="Eraser">${ICON.eraser}</button>
         <button class="btn icon ed-tool" data-tool="fill" title="Fill (G)" aria-label="Fill">${ICON.fill}</button>
+        <button class="btn icon ed-tool" data-tool="line" title="Line (L) — drag to preview, release to commit" aria-label="Line">${ICON.line}</button>
         <button class="btn icon ed-tool" data-tool="move" title="Move (V) — drag to translate the layer, wraps at edges" aria-label="Move">${ICON.hand}</button>
         <button class="btn icon ed-tool" data-action="toggle-pixel-perfect" id="pixelPerfectBtn" aria-pressed="false" title="Pixel-perfect strokes (clean 1px diagonals)" aria-label="Pixel-perfect strokes">${ICON.perfect}</button>
         <button class="btn icon ed-tool" data-action="toggle-symmetry-h" id="symmetryHBtn" aria-pressed="false" title="Horizontal symmetry — mirror strokes across the vertical axis" aria-label="Horizontal symmetry">${ICON.symmetryH}</button>
@@ -721,7 +725,7 @@ function renameLayerAt(idx: number): void {
 
 // -- Tools ------------------------------------------------------------------
 
-function setActiveTool(next: "pixel" | "erase" | "fill" | "move"): void {
+function setActiveTool(next: "pixel" | "erase" | "fill" | "move" | "line"): void {
   tool = next;
   document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach((b) => {
     b.setAttribute("aria-pressed", b.dataset.tool === next ? "true" : "false");
@@ -1472,6 +1476,14 @@ mainCanvasEl.addEventListener("pointerdown", (ev) => {
     moveLastDelta = { dx: 0, dy: 0 };
     return;
   }
+  if (tool === "line") {
+    const { x, y } = pointerToPixel(ev);
+    lineStart = { x, y };
+    strokeSnapshot = activeBitmap().clone();
+    strokeDirty = false;
+    // Preview ghost line is drawn on move; down only records start.
+    return;
+  }
   painting = true;
   beginStroke();
   const { x, y } = pointerToPixel(ev);
@@ -1486,6 +1498,21 @@ window.addEventListener("pointermove", (ev) => {
     if (dx === moveLastDelta.dx && dy === moveLastDelta.dy) return;
     moveLastDelta = { dx, dy };
     translate(activeBitmap(), moveSnapshot, dx, dy);
+    render();
+    return;
+  }
+  if (lineStart && strokeSnapshot) {
+    const b = activeBitmap();
+    const value = selectedSlot;
+    // Restore snapshot then draw ghost line
+    b.data.set(strokeSnapshot.data);
+    const { x, y } = pointerToPixel(ev);
+    drawLine(b, lineStart.x, lineStart.y, x, y, value);
+    if (symmetryH) {
+      const mx0 = mirrorX(lineStart.x, b.width);
+      const mx1 = mirrorX(x, b.width);
+      if (mx0 !== lineStart.x || mx1 !== x) drawLine(b, mx0, lineStart.y, mx1, y, value);
+    }
     render();
     return;
   }
@@ -1506,6 +1533,44 @@ window.addEventListener("pointerup", (ev: PointerEvent) => {
     endMoveDrag();
     return;
   }
+  if (lineStart && strokeSnapshot) {
+    const b = activeBitmap();
+    const { x, y } = pointerToPixel(ev);
+    // Commit ghost line: b already holds preview from last move, but ensure
+    // final position is drawn (pointerup may be at new location).
+    b.data.set(strokeSnapshot.data);
+    const value = selectedSlot;
+    drawLine(b, lineStart.x, lineStart.y, x, y, value);
+    if (symmetryH) {
+      const mx0 = mirrorX(lineStart.x, b.width);
+      const mx1 = mirrorX(x, b.width);
+      if (mx0 !== lineStart.x || mx1 !== x) drawLine(b, mx0, lineStart.y, mx1, y, value);
+    }
+    // Push undo snapshot if anything changed
+    let changed = false;
+    for (let i = 0; i < b.data.length; i++) if (b.data[i] !== strokeSnapshot.data[i]) { changed = true; break; }
+    if (changed) {
+      const snapshot = strokeSnapshot;
+      const frameIdx = state.current;
+      const layerIdx = state.currentLayer;
+      history.push(() => {
+        state.frames[frameIdx].bitmaps[layerIdx] = snapshot;
+        state.current = Math.min(frameIdx, state.frames.length - 1);
+        state.currentLayer = Math.min(layerIdx, state.layers.length - 1);
+        render();
+      });
+      strokeDirty = true;
+      opLog.beginStroke(state.current, state.currentLayer);
+      // Record line as sequence of pixels for oplog replay (simple)
+      opLog.endStroke();
+    }
+    lineStart = null;
+    strokeSnapshot = null;
+    strokeDirty = false;
+    render();
+    persist();
+    return;
+  }
   if (!painting) return;
   painting = false;
   endStroke();
@@ -1517,6 +1582,15 @@ window.addEventListener("pointercancel", (ev: PointerEvent) => {
     moveSnapshot = null;
     moveStart = null;
     moveLastDelta = { dx: 0, dy: 0 };
+    render();
+    return;
+  }
+  if (lineStart && strokeSnapshot) {
+    // Cancel line preview — restore snapshot
+    activeBitmap().data.set(strokeSnapshot.data);
+    lineStart = null;
+    strokeSnapshot = null;
+    strokeDirty = false;
     render();
     return;
   }
@@ -1532,6 +1606,13 @@ mainCanvasEl.addEventListener("lostpointercapture", () => {
     moveSnapshot = null;
     moveStart = null;
     moveLastDelta = { dx: 0, dy: 0 };
+    render();
+  }
+  if (lineStart && strokeSnapshot) {
+    activeBitmap().data.set(strokeSnapshot.data);
+    lineStart = null;
+    strokeSnapshot = null;
+    strokeDirty = false;
     render();
   }
   if (painting) {
