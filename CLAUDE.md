@@ -51,6 +51,14 @@ content-addressed by sha256 of the gif bytes:
 `drawing_id` is keyed by content; **PoW is gone**, and so is the login
 gate that briefly replaced it — see "Anonymous publishing".
 
+## Editor (`src/main.ts` + `src/editor/*` + `src/local.ts`)
+
+- **Sizes / layers / frames**: 8/16/32/64 (`DRAWING_SIZES`), `MAX_FRAMES=16`, `MAX_LAYERS` (UI + server 64 KiB `layers_json` cap). Frames hold one `Bitmap` per layer; `composeFrame` flattens for the GIF preview and the ingest payload.
+- **Tools**: Pencil (B) / Eraser (E) / Fill (G) / **Line (L)** / Move (V). Line uses `drawLine` (Bresenham, clipped) in `src/editor/tools.ts` — `pointerdown` snapshots the active `Bitmap` + records `lineStart`, `pointermove` restores the snapshot and draws the ghost line (with `mirrorX` when `symmetryH` is on), `pointerup` commits + pushes `history` + `persist()`, `pointercancel`/`lostpointercapture` restores the snapshot. Other strokes use `PixelPerfectStroke` when enabled.
+- **Draft autosave**: every `persist()` writes **two** stores: IndexedDB (`src/local.ts` `drawbang` DB, `drawings` store) *and* synchronous `localStorage` `drawbang:draft:{size}` (`{v,size,ts,frames: string[][] (base64 per layer), layers, activePalette, delayMs, localId, opLog}`) capped at `MAX_LAYERS_JSON_BYTES` (64 KiB). On boot without `?fork`/`#d`, `readDraft(currentSize)` shows `draftRestoreBanner` (Restore draft / Discard); `applyDraft` rehydrates `state`, `activePalette`, `delayMs`, `localId` and re-renders. Draft clears when the canvas becomes empty and on `resetEditor` / successful `POST /ingest` (publish).
+- **Navigate-away guard**: `beforeunload` (`if (hasUnsavedContent()) { writeDraft(); e.preventDefault(); e.returnValue=''; }`) and `visibilitychange` (`hidden` → `writeDraft`+`persist`) so Safari Reload / tab-close doesn’t lose work. `hasUnsavedContent()` is “any non-transparent pixel or multi-frame/layer”.
+- **Other persisted prefs** (all `try/catch localStorage`): `drawbang:palette`, `drawbang:grid`, `drawbang:pixel-perfect`, `drawbang:symmetry-h`.
+
 ## Deployment shape
 
 ```

@@ -99,6 +99,11 @@ npm run dev
 Vite serves the editor at <http://localhost:5173>. Hot-reload works for
 the editor / merch / share / order pages.
 
+The editor includes:
+- **Canvas sizes** 8/16/32/64, **layers** + **frames** (up to 16), FPS 4–12, onion skin, grid.
+- **Palettes** (retro picker + Lospec import + base 256), **tools** — Pencil (B), Eraser (E), Fill (G), **Line (L)** with ghost preview until release, Move (V) with wrap — plus pixel-perfect, horizontal symmetry, flip/rotate, undo/clear.
+- **Draft autosave** — every stroke/frame persists to IndexedDB *and* synchronously to `localStorage` `drawbang:draft:{size}` (≤64 KiB, same cap as the publish sidecar). On reload without `?fork`/`#d`, a “Restore draft?” banner recovers the drawing; `beforeunload` + `visibilitychange` flush the draft so Safari Reload / navigate-away doesn’t lose work. The draft clears on Publish or Clear.
+
 ### Run the ingest endpoint locally (against the filesystem)
 
 ```bash
