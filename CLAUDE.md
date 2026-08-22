@@ -1,1307 +1,235 @@
 # CLAUDE.md
 
-Orientation for future Claude sessions on this repo.
+Orientation for Claude (and subagents) on this repo. Startup context is capped at 65 KiB — this file is intentionally compact. Deep detail lives in the source; pointers at the bottom tell you where to read on demand.
 
-## What this is
+> **For subagents:** the first section is the contract — respect it. For everything else, follow the deep-reference pointers instead of guessing. If your task touches an area, open the listed source file first; don't infer from this summary alone.
 
-Drawbang is a pixel art editor + public gallery. The stack is static-shell
-+ serverless: a Vite-built browser editor (and a handful of small Vite
-SPAs for the auth/merch/order flows), a Lambda that ingests publishes
-**and** serves the dynamic gallery / drawing / profile / RSS HTML, an S3
-bucket for the gif assets, and CloudFront in front of all of it.
+## 0. Critical invariants — read first
 
-Identity is an **email/password account**. Sessions are stateless HS256
-JWTs kept in `localStorage`; the public handle is a chosen **username**
-(profiles live at `/u/<username>`). **Publishing does not require an
-account** — a drawing published without a session is attributed to the
-`anonymous` sentinel, which is a byline, not a profile. The gallery is
-publicly viewable and you can draw locally without an account. See
-"Identity model" and "Anonymous publishing".
+These are the rules that silently break the product if violated. Every task, including subagents, must respect them.
 
-History: the original Ruby/Sinatra/Redis/RMagick app is archived under
-`legacy/` and is not imported by any current code. Several earlier
-concepts have been removed and should not be reintroduced absent
-intentional discussion: the keypair-anonymous identity scheme, the
-multi-tile "canvas" composite, the collaborative weekly "murals" grid,
-and the daily static-builder cron that used to regenerate the gallery
-HTML. **Proof-of-work gating on publishing** is also gone and stays
-gone — publishing is free and anonymous. PoW came back in 2026-08 in a
-different place, on account creation and password reset only; see
-"Anti-spam gate".
+* **Drawing id is content-addressed on gif bytes alone.** `drawing_id = hex(sha256(gif_bytes))`. Same bytes → same id, same `/tiles/<id>.gif` asset, regardless of who publishes. Idempotency is correct behavior (second publish of same bytes → 200, not 202).
+* **Canonical URLs:** `/d/<64hex>` for pages, `/tiles/<id>.gif` for assets. `/t/<id>` 301s to `/d/<id>`; legacy `/drawings/<id>.gif` rewrites to `/tiles/<id>.gif` at the CloudFront edge. Never reintroduce `/t` as canonical.
+* **Identity from the verified JWT only, never the body.** `Authorization: Bearer <jwt>` is verified in `ingest/routes.ts`/`lambda.ts` and passed as `cfg.auth = {user_id, username}` (or `null`). An invalid token → 401. The only route where *missing* auth is not 401 is `POST /ingest` (falls back to the anonymous sentinel). Everywhere else missing = 401.
+* **Anonymous sentinel is a byline, not an account.** `config/constants.ts` defines `ANONYMOUS_USERNAME`/`ANONYMOUS_USER_ID`/`isAnonymousUsername()`. No real account can claim `anonymous` (`RESERVED_USERNAMES` + `drawbang-usernames`). `/u/anonymous` and all sub-routes 404 via `isProfileRoutable()`. Anonymous drawings are readable everywhere (`/`, `/d/<id>`, `/feed.rss`, remixes, likes/bookmarks) but have no streak counters and `DELETE /drawings/<id>` on them is operator-only.
+* **Profile pictures only point at own drawings.** `handleSetProfilePicture` requires `drawing.username === auth.username`. Anonymous drawings can never be claimed.
+* **DrawingStore is the source of truth for all dynamic pages.** `POST /ingest` dual-writes S3 gif + `drawbang-drawings` row before returning. Render handlers (`ingest/render-handlers.ts`) query the store directly. Invalidations on `/`, `/u/<username>*`, `/feed.rss`, `/d/<id>*` keep the edge in sync.
+* **GIF format is fixed.** ≤16 frames; per-drawing delay 80–250 ms (FPS slider 4–12; single-frame exempt); GCT = 32 entries (0..15 = palette, 16 = transparent, 17..31 = 0); `DRAWBANG` app extension (`src/editor/gif.ts`) must be present or `-large.gif` generation fails.
+* **Publish response path does only what the response needs.** Sync: validate + hash + `HeadObject` + `PutObject` gif + concurrent DrawingStore row + streak counters + queue tail. Everything else (960×960 `-large.gif`, `-large.mp4` via ffmpeg, CloudFront invalidation) runs in the async tail `PostPublishEvent → runPostPublish` (`ingest/handler.ts`). Tail never throws; queue failure → inline fallback. Don't add sync work.
+* **Hydration is the single read-side freshness channel.** `GET /hydrate?drawings=<csv>&users=<csv>` (`ingest/hydrate-handler.ts`, `static/hydrate.js`) patches edge-cached SSR markup with live `like_count`/`viewer_liked`/`viewer_bookmarked`/`follower_count`/`viewer_follows`. Adding a new "stale on feed" field = extend `HydrateBody` + populate handler + add `apply` case in `hydrate.js`. No new endpoint.
+* **Proof-of-work gates only `POST /auth/register` and `POST /auth/password/forgot`.** Never gate `POST /ingest` or login. Single-use via `drawbang-challenges` conditional Put (DynamoDB). Failures return 400 with `challenge_*` codes (not 403 — CloudFront maps 403→404 HTML and destroys the body). See `ingest/challenge.ts`.
+* **Likes/bookmarks/follows are toggle handlers with optimistic UI.** `ingest/*-store.ts` + `ingest/*-handler.ts` use `TransactWriteItems` to keep denormalized counts consistent. Left behind intentionally when a drawing/account is deleted.
+* **Hard deletes, row before object.** `DELETE /drawings/<id>` and `ingest/account-delete.ts` delete the DrawingStore row first, then the three S3 objects (`<id>.gif`, `<id>-large.gif`, `<id>-large.mp4`), then one folded invalidation. Reverse order briefly leaves a broken-image row.
+* **No new CloudFront path without API Gateway path.** Every dynamic path must be registered in both `ingest/routes.ts` and `infra/aws/template.yaml` (API Gateway `Events`). CloudFront `CacheBehaviors` only if the wildcard doesn't already cover it. Check both files before pushing.
+* **CSS ownership is strict.** `static/chrome.css` owns tokens + chrome + base `.btn`/`.badge`. `src/style.css` owns Vite-page editor/merch/auth styles. `static/gallery-v2.css` owns Lambda-rendered page styles. Don't duplicate across them. See "Shared CSS" pointer below.
+* **Deleted history stays deleted.** `legacy/` and the removed concepts (keypair-anonymous, multi-tile canvas, weekly murals, daily static-builder cron, PoW on publish) must not be reintroduced without explicit discussion.
 
-## Drawing model
+## 1. What this is (30s version)
 
-One noun: **drawing** (historically called a "tile"; the codebase
-still uses `tile` in storage paths and some identifiers). A drawing is
-a GIF — 16×16 by default, with a user-pickable size of 8/16/32/64 —
-content-addressed by sha256 of the gif bytes:
+Drawbang — pixel art editor + public gallery. Static Vite SPAs (editor, auth, merch/order) + S3 + CloudFront + one Lambda for ingest and all dynamic HTML/JSON. Single origin (`pixel.drawbang.com`). S3 locked via OAC. CloudFront Function rewrites clean URLs (`/login`, `/signup`, `/password/*`, `/account`, `/merch`, `/privacy`, `/404` → `*.html`; `/drawings/<id>.gif` → `/tiles/<id>.gif`; `/t/<id>` → `/d/<id>`).
 
-- `drawing_id = sha256(gif_bytes)` (hex). Same bytes → same id, always.
-- Canonical page: `/d/<drawing_id>` (rendered by
-  `lib/templates/tile-page.ts` via the dynamic Lambda route).
-- Asset: `public/tiles/<drawing_id>.gif` (the file is served at
-  `/tiles/<id>.gif` and the legacy `/drawings/<id>.gif` URL is
-  rewritten to it at the CloudFront edge).
-- OG share image: `public/tiles/<id>-large.gif` — a 960×960 annotated
-  variant written next to the original by the publish handler and
-  used as `og:image` on the canonical page. When this is missing
-  (legacy migrations, encoder failures), use
-  `scripts/backfill-large-gifs.ts` (`npm run og:backfill`).
+One noun: **drawing** (code still says `tile` in paths). GIF 8/16/32/64, `MAX_FRAMES=16`, `MAX_LAYERS` (64 KiB `layers_json` cap). Default 16×16. See `config/constants.ts`.
 
-`drawing_id` is keyed by content; **PoW is gone**, and so is the login
-gate that briefly replaced it — see "Anonymous publishing".
+History note: Ruby/Sinatra/Redis app in `legacy/` is reference only, never imported.
 
-## Editor (`src/main.ts` + `src/editor/*` + `src/local.ts`)
-
-- **Sizes / layers / frames**: 8/16/32/64 (`DRAWING_SIZES`), `MAX_FRAMES=16`, `MAX_LAYERS` (UI + server 64 KiB `layers_json` cap). Frames hold one `Bitmap` per layer; `composeFrame` flattens for the GIF preview and the ingest payload.
-- **Tools**: Pencil (B) / Eraser (E) / Fill (G) / **Line (L)** / Move (V). Line uses `drawLine` (Bresenham, clipped) in `src/editor/tools.ts` — `pointerdown` snapshots the active `Bitmap` + records `lineStart`, `pointermove` restores the snapshot and draws the ghost line (with `mirrorX` when `symmetryH` is on), `pointerup` commits + pushes `history` + `persist()`, `pointercancel`/`lostpointercapture` restores the snapshot. Other strokes use `PixelPerfectStroke` when enabled.
-- **Draft autosave**: every `persist()` writes **two** stores: IndexedDB (`src/local.ts` `drawbang` DB, `drawings` store) *and* synchronous `localStorage` `drawbang:draft:{size}` (`{v,size,ts,frames: string[][] (base64 per layer), layers, activePalette, delayMs, localId, opLog}`) capped at `MAX_LAYERS_JSON_BYTES` (64 KiB). On boot without `?fork`/`#d`, `readDraft(currentSize)` shows `draftRestoreBanner` (Restore draft / Discard); `applyDraft` rehydrates `state`, `activePalette`, `delayMs`, `localId` and re-renders. Draft clears when the canvas becomes empty and on `resetEditor` / successful `POST /ingest` (publish).
-- **Navigate-away guard**: `beforeunload` (`if (hasUnsavedContent()) { writeDraft(); e.preventDefault(); e.returnValue=''; }`) and `visibilitychange` (`hidden` → `writeDraft`+`persist`) so Safari Reload / tab-close doesn’t lose work. `hasUnsavedContent()` is “any non-transparent pixel or multi-frame/layer”.
-- **Other persisted prefs** (all `try/catch localStorage`): `drawbang:palette`, `drawbang:grid`, `drawbang:pixel-perfect`, `drawbang:symmetry-h`.
-
-## Deployment shape
+## 2. Deploy & routing shape
 
 ```
-  editor + auth/merch/order SPAs + gifs       →  S3 (drawbang-assets,
-                                                  us-east-1) fronted by
-                                                  CloudFront
-  /gallery, /d/<id>, /u/<username>, /feed.rss →  Lambda render handlers
-  /products, /products/p/<N>                  →     (same Lambda)
-  POST /ingest, POST /auth/*                  →     (same Lambda)
-  POST|DELETE /drawings/<id>/like, GET /hydrate →   (same Lambda)
-  POST /merch/*, GET /merch/order/{id}        →  Separate merch Lambda
+editor + auth/merch/order SPAs + gifs          → S3 (us-east-1) + CloudFront
+/, /feed/items, /d/<id>, /u/<un>*, /prompts*,
+  /products*, /feed.rss, /design, /embed/<id>   → Lambda render handlers
+POST /ingest, POST /auth/*, /hydrate,
+  POST|DELETE /drawings/<id>/{like,bookmark},
+  POST|DELETE /users/<un>/follow, /subscribe    → same Lambda
+POST /merch/*, GET /merch/order/<id>            → separate merch Lambda
 ```
 
-Single origin: everything serves from the CloudFront distribution
-(e.g. `pixel.drawbang.com` or the assigned `*.cloudfront.net`). The S3
-bucket is locked down via Origin Access Control. A CloudFront Function
-rewrites clean URLs (`/login`, `/signup`, `/password/*`, `/account`,
-`/merch`, `/privacy`, `/404`) to the underlying `*.html` Vite entries,
-and rewrites legacy `/drawings/<id>.gif` → `/tiles/<id>.gif` and 301s
-`/t/<id>` → `/d/<id>`. The dynamic routes have dedicated cache
-behaviours pointing at API Gateway → Lambda.
+No persistent webserver, no cron, no GH Pages, no Cloudflare.
 
-**No persistent webserver, no daily cron, no GitHub Pages, no
-Cloudflare.** The daily-builder cron was removed when the gallery /
-drawing / profile / feed routes flipped to be Lambda-rendered (see
-Phase 3 commits in the git log).
+**Adding a Lambda-rendered route — all or nothing (hard to debug otherwise):**
 
-### Adding a new Lambda-rendered route (checklist — easy to miss)
+1. Handler in `ingest/render-handlers.ts` (or sibling) → `{status, contentType, cacheControl, body}`.
+2. Entry in `ingest/routes.ts` `createRoutes()` — `{methods, pattern, auth, handler}`. Shared by `lambda.ts` and dev `:8787` server.
+3. `test/routes.test.ts` — pin auth gate / params.
+4. `infra/aws/template.yaml` → ingest function's `Events:` (`Type: HttpApi`, `Path: /your/{param}/path`). Without it, API Gateway 404s before Lambda.
+5. `infra/aws/template.yaml` → `CacheBehaviors:` only if no existing wildcard (`/u/*`, `/products/*`, `/d/*`) already covers it. Longer pattern must be **above** parent.
+6. `ingest/cache-invalidation.ts` — only if publish-time invalidation needs a path outside existing `/u/${username}*` / `/d/${id}*` wildcards.
 
-A new dynamic URL only works once it's wired into **all** of these.
-Skipping any one of them gives a hard-to-debug 404 (API Gateway 404s
-before Lambda runs; CloudFront 404s before API Gateway runs).
+Mental check: new path must appear in both `ingest/routes.ts` and `infra/aws/template.yaml`.
 
-1. **Handler** in `ingest/render-handlers.ts` (or a sibling handler
-   file) returning `{ status, contentType, cacheControl, body }`.
-2. **Shared route table** in `ingest/routes.ts` — add one
-   `{ methods, pattern, auth, handler }` entry to `createRoutes()`.
-   Both `lambda.ts` and the dev `:8787` server dispatch through this
-   table, so `npm run dev:all` exercises the path with no second edit.
-3. **Route test** in `test/routes.test.ts` — extend the table test if
-   the new route has an auth gate or params worth pinning.
-4. **API Gateway event** in `infra/aws/template.yaml` under the
-   ingest function's `Events:` block — every path is registered
-   explicitly (`Type: HttpApi`, `Path: /your/{param}/path`). Without
-   this, the API returns 404 before Lambda is ever invoked.
-5. **CloudFront cache behavior** in `infra/aws/template.yaml` under
-   `CacheBehaviors:` — only needed if the new path doesn't already
-   match an existing wildcard (`/u/*`, `/products/*`, `/d/*`, etc.).
-   When it does match, you get the parent's cache policy "for free";
-   add a longer-pattern behavior (and place it **above** the parent
-   in the list) only if the new route needs a different policy
-   (e.g. auth-forwarded vs public).
-6. **Cache invalidation** in `ingest/cache-invalidation.ts` — usually
-   covered by an existing `/u/${username}*` / `/d/${id}*` wildcard;
-   only extend if the new path needs publish-time invalidation outside
-   those.
+## 3. Request contracts you will touch often
 
-Quick mental check before pushing: grep the new path in
-`ingest/routes.ts` and `infra/aws/template.yaml` — it must appear in
-both.
+### Publish (`POST /ingest`, `auth: "optional"`)
 
-## Publish latency (`POST /ingest`)
+Body: `{ gif: base64, prompt?: slug (stored only if matches today's ET prompt), layers_json?: string (≤64 KiB), parent_id?: drawing_id }`. Anonymous when no `Authorization`; 401 if a token was sent but fails.
 
-The publish is the app's most important mutation and the one a human is
-actually waiting on, so the rule is: **the response path does only what
-the response depends on.**
+Sync path ~60 ms independent of size (derived work is deferred). Don't add work here.
 
-On the synchronous path:
+Tail (`runPostPublish`, `ingest/handler.ts`) does the expensive derived work with a 30 s timeout — invalidation runs **concurrently** with encodes, not after them. Measured on prod arm64/1024 MB (via targeted backfill `outcome`):
 
-1. validate the gif + hash it (content-addressed id) — sub-millisecond,
-2. `HeadObject` for the idempotency check,
-3. `PutObject` of the gif itself,
-4. concurrently: the DrawingStore row, the streak counters, and *queueing*
-   the tail.
+| Drawing | `-large.gif` | `-large.mp4` (ffmpeg, fixed 6s 1080p30) | invalidation | total |
+|---------|--------------|------------------------------------------|--------------|-------|
+| 32×32, 6 frames | 684 ms | 4851 ms | 604 ms | 5.5 s |
+| 16×16, 16 frames | 1281 ms | 4434 ms | 1204 ms | 5.7 s |
+| 64×64, 16 frames | 1576 ms | 5159 ms | 1485 ms | 6.7 s |
 
-Everything else is **derived data** and runs in an async self-invoke
-(`PostPublishEvent` → `runPostPublish`): the 960×960 `-large.gif` OG
-image, the `-large.mp4` share video, and the CloudFront invalidation.
-Inside the tail, invalidation runs concurrently with the encodes — it's
-what makes the drawing appear on the feed, so it must not queue behind
-the several seconds of image and video work measured below.
+Tail never throws; queue failure → inline fallback. Logs `kind="tail"` on success *and* failure (see `ingest/log-outcome.ts`). Known gap: `og:image`/`og:video` missing for ~1.5 s / ~6 s after publish until tail finishes — repairable via `POST /backfill/sidecars?drawing=<id>` which runs the tail synchronously and returns an `outcome`. See `ingest/backfill-handler.ts`.
 
-**What the tail actually costs**, measured in prod on arm64 Lambda
-(1024 MB) via the `outcome` a targeted backfill returns:
+### Auth & sessions
 
-| Drawing          | `-large.gif` | `-large.mp4` | invalidation | total |
-|------------------|--------------|--------------|--------------|-------|
-| 32×32, 6 frames  | 684 ms       | 4851 ms      | 604 ms       | 5.5 s |
-| 16×16, 16 frames | 1281 ms      | 4434 ms      | 1204 ms      | 5.7 s |
-| 64×64, 16 frames | 1576 ms      | 5159 ms      | 1485 ms      | 6.7 s |
+Email (private, unique, PK) + password (scrypt, `ingest/password.ts`) + username (public, unique, immutable v1) + random 64-hex `user_id`. Two tables: `drawbang-users` (PK email) and `drawbang-usernames` (PK username), written together via `TransactWriteItems`. Client: `localStorage["drawbang:jwt"]` (HS256, ~30d, `JWT_SECRET`) + `localStorage["drawbang:username"]`. See `ingest/jwt.ts`, `ingest/user-store.ts`, `src/auth.ts`.
 
-ffmpeg dominates and is roughly **flat at ~4.5–5 s** regardless of the
-source: it renders a fixed 6-second 1080p30 clip, so cost tracks output
-duration, not input frames. Worst case is ~6.7 s against the function's
-30 s timeout — a comfortable margin, and worth re-measuring before
-anyone adds work to the tail or shortens the timeout.
+Password reset: SES link with 1h JWT `{email, tv: token_version, purpose:"password-reset"}` (`ingest/email.ts`); `tv` check + bump makes it single-use. Forgot always returns 200 (no enumeration). Dev stub logs link to console (`ConsoleEmailSender`, `ingest/dev-server.ts`).
 
-Why this matters, measured locally with a 20 ms simulated S3 RTT:
+PoW: `GET /auth/challenge` mints HMAC-signed PBKDF2/SHA-256 challenge; `POST /auth/register` validates fields *then* gates (so a typo doesn't burn a ~600 ms solve), `POST /auth/password/forgot` gates *first*. Difficulty at `cost:1000`, counter 1000–5000: solve ~630 ms mean / ~880 ms max, verify ~1 ms (HMAC, not re-derive). Re-measure if constants change in `ingest/challenge.ts`. Client widget (`src/altcha.ts`) is dynamically imported (saves ~34 kB gzipped on editor load) and solves a fresh challenge per submit — replay → 400 `challenge_replayed`. Surfaces needing it: `/signup`, `/password/forgot`, and the inline form in `src/publish-dialog.ts` (easy to miss).
 
-| Drawing            | Tail inline | Tail deferred |
-|--------------------|-------------|---------------|
-| 16×16, 1 frame     | 140 ms      | 61 ms         |
-| 16×16, 16 frames   | 584 ms      | 61 ms         |
-| 64×64, 16 frames   | 658 ms      | 61 ms         |
+Failures return 400 `challenge_missing/_malformed/_expired/_invalid/_replayed` (not 403 — CloudFront maps 403→404 HTML). Signing keys derive from `JWT_SECRET` with domain separation, so no new secret.
 
-`encodeShareGif` alone is ~510 ms for any 16-frame drawing — it renders
-960×960 regardless of the source size, so cost tracks frame count, not
-canvas size. Note the deferred column is **constant**: no size-dependent
-work is left on the response path, which is the property to preserve.
+### Anonymous publishing
 
-**Don't put new work on the synchronous path.** If a publish needs to
-trigger something new (a thumbnail, a notification, a webhook), add it to
-`runPostPublish`, not to `handleIngest`. Two guard rails:
+Publish dialog (`src/publish-dialog.ts`) when signed out: "Publish anonymously" vs inline `register()`/`login()` then attributed publish. Never navigate away (`/login?next=/draw` was removed for this reason). Errors render in `#publishStatus` (not `showFlash`, hidden behind the dialog), and `[hidden]` needs `display:none` override in `src/style.css` for `.auth-field` toggles. Anonymous `drawing_id` can't be retroactively claimed (content-addressed idempotency is intentional); see `docs/claim-flow-proposal.md` for the proposed capability design.
 
-- The tail must never throw — an async invocation has no caller to
-  surface errors to. Each step logs and continues.
-- If queueing the tail fails, `handleIngest` falls back to running it
-  inline rather than dropping the OG image and the cache flush. Slow,
-  but a rare error path.
+### Deletion
 
-**Known trade-off.** The OG image doesn't exist until the tail's first
-step finishes — measured at **1.3–1.6 s** after the publish returns, with
-the `-large.mp4` following at ~6 s. A crawler fetching `/d/<id>` inside
-that window would miss `og:image` (or `og:video`). In practice a link
-gets pasted seconds later at the earliest, and a gap is repairable via
-`POST /backfill/sidecars?drawing=<id>`.
+* `DELETE /drawings/<id>` — author or `ADMIN_USERNAMES`. Anonymous drawings → operator-only. API-origin only (no CloudFront behavior; `/drawings/*.gif` would collide). Row → S3 objects → invalidation with `/d/<id>*`. Likes/bookmarks intentionally left behind (read paths tolerate missing rows).
+* `POST /auth/account/delete` (self, needs current password) and `DELETE /admin/users/{username}` (operator, allowlist in `routes.ts`). Both cascade via `ingest/account-delete.ts`: sweep drawings (re-query first page each round, `MAX_DRAWINGS=1000`, `MAX_DRAWING_PATHS=50` → fallback `/d/*` wildcard), then `TransactWriteItems` drop users + username reservation (conditioned on `user_id`). Frees handle safely — follow edges key on `user_id`; orphaned `UserStats` rows left behind.
+* `DELETE /admin/users/*` needs its own CloudFront behavior above the GET-only `/admin*` behavior or the DELETE never reaches Lambda.
 
-## Verifying against production (no AWS credentials needed)
+### Hydration & interactions
 
-Everything below runs over plain HTTP against the deployed API, and every
-artifact it creates can be removed by the same set of endpoints. Nothing
-here requires AWS keys — reach for this before asking for credentials.
+`GET /hydrate` (`ingest/hydrate-handler.ts`) is public, `no-store`, optional JWT → `viewer_*` null when anonymous. `static/hydrate.js` walks DOM (`[data-like-target]`, `[data-bookmark-target]`, `[data-follow-target]`, etc.) and does one fetch. Click handlers (`static/like.js`, `bookmark.js`, `follow.js` via `toggle-handler.js`) do optimistic `POST`/`DELETE` with 401→`/login` redirect and `MutationObserver` rewiring for infinite scroll. `subscribe.js`, `share.js`, `infinite-scroll.js` follow the same pattern.
 
-**Hit the API origin, not the site.** `POST /ingest`,
-`DELETE /drawings/{id}` and `POST /backfill/sidecars` have **no CloudFront
-behaviour** and 404 on `pixel.drawbang.com`. Their real host is the
-`execute-api` URL baked into the built editor bundle:
+Adding a new "stale on feed" field is a one-liner: extend `HydrateBody` in `ingest/hydrate-handler.ts`, populate it, add an `apply` case in `static/hydrate.js`. No new endpoint.
+
+### Pages — where they render
+
+Canonical map lives in `ingest/routes.ts` and `lib/templates/*.ts`. Highlights:
+
+* `/` (`lib/templates/home.ts`) — social feed with `?sort=top` (today's likes); `/feed/items?cursor=…` fragment.
+* `/draw` (`draw.html` + `src/main.ts`) — editor; opts out of rails via `<meta name="drawbang:rails" content="off">`.
+* `/gallery` → 301 `/`; `/gallery/items` → 301 `/feed/items`.
+* `/d/<id>` (`lib/templates/tile-page.ts`), `/embed/<id>` (bare iframe, `lib/templates/embed.ts`), `/u/<username>` (`lib/templates/owner.ts`) + `/items`, `/bookmarks` (owner-only shell hydrated via `/me/bookmarks/feed`), `/followers`/`/following` (`lib/templates/follow-list.ts`) + thumbs (`/follow-thumbs`), `/streak` (`lib/templates/streak.ts`), `/prompts*` (`lib/templates/prompts.ts`), `/products*` (`lib/templates/products.ts`), `/feed.rss` (`lib/templates/feed.ts`), `/design` (`lib/templates/design.ts`), `/admin` (`lib/templates/admin.ts` with `/admin/data` fragment).
+* Vite pages: `/merch?d=<id>`, `/merch/order/<uuid>`, `/login`, `/signup`, `/password/forgot`, `/password/reset`, `/account`, `/privacy`. Full table is `ingest/routes.ts`; templates are `lib/templates/`.
+
+JSON endpoints (`Cache-Control: no-store`; `auth` column is the source of truth for new clients):
+
+| URL | Method | Auth | Notes |
+|-----|--------|------|-------|
+| `/hydrate?drawings=<csv>&users=<csv>` | GET | optional | Hydration channel; `viewer_*` null when anonymous. `ingest/hydrate-handler.ts` |
+| `/drawings/<id>` | DELETE | required | Author or `ADMIN_USERNAMES`; API-origin only. |
+| `/drawings/<id>/like` | POST / DELETE | required | `ingest/likes-handler.ts` |
+| `/drawings/<id>/bookmark` | POST / DELETE | required | `ingest/bookmarks-handler.ts` |
+| `/users/<username>/follow` | POST / DELETE | required | 400 self-follow, 404 missing, 409 duplicate. |
+| `/me/bookmarks/feed` | GET | required | Fragment for `/u/<un>/bookmarks` boot script |
+| `/auth/challenge` | GET | none | `private, no-store`; single-use PoW |
+| `/auth/*` (register/login/forgot/reset/profile-picture/profile) | POST | mixed | `register` + `forgot` need PoW; see above |
+| `/auth/profile` | GET / POST | required | Bio + link edit |
+| `/auth/account/delete` | POST | required | Self only, needs password |
+| `/admin/users/<username>` | DELETE | required | Operator (`ADMIN_USERNAMES`) |
+| `/admin/data` | GET | required | Only surface that renders emails (`ADMIN_USERNAMES` gate in `lambda.ts`) |
+| `/users/<user_id>/stats` | GET | none | Short max-age |
+| `/u/<username>/follow-thumbs?limit=N` | GET | none | Thumb grid JSON |
+| `/backfill/sidecars` | POST | required | `?drawing=<id>` sync; default own; `?scope=all` operator only; API-origin only |
+| `/subscribe` | POST | none | Honeypot `website`→200; idempotent on email |
+
+## 4. Editor essentials
+
+Sizes `8/16/32/64` (`DRAWING_SIZES`), `MAX_FRAMES=16`, frames = one `Bitmap` per layer, `composeFrame` flattens. Tools: Pencil (B), Eraser (E), Fill (G), Line (L, `src/editor/tools.ts` `drawLine` Bresenham with ghost on `pointermove`, `mirrorX` when `symmetryH`), Move (V); `PixelPerfectStroke` for other strokes.
+
+Draft autosave: every `persist()` writes IndexedDB (`src/local.ts` `drawbang` DB) *and* `localStorage` `drawbang:draft:{size}` (`{v,size,ts,frames:string[][], layers, activePalette, delayMs, localId, opLog}` ≤64 KiB). On boot without `?fork`/`#d`, `readDraft(size)` shows `draftRestoreBanner`; clear on empty canvas / `resetEditor` / successful publish. Guards: `beforeunload` + `visibilitychange` hidden → `writeDraft`. Prefs in `localStorage`: `drawbang:palette`, `grid`, `pixel-perfect`, `symmetry-h` (all `try/catch`).
+
+Details: `src/main.ts`, `src/editor/*`, `src/local.ts`, `src/publish-dialog.ts`.
+
+## 5. Frontend system (tokens, layout, CSS)
+
+* Tokens in `static/chrome.css` `:root` (`--paper`/`--ink`/`--line`/`--accent:#00ccff` etc.). Written rules in `docs/design-system.md`, live gallery at `/design` (`lib/templates/design.ts`). Add tokens → update all three.
+* Shell: `.app-shell` 3-col (`src/layout/chrome.ts` → `static/chrome.css`) — `.rail-left` (CTA + nav), `<main>`, `.rail-right` (Discover, opt-in on `/` only via `renderDiscover()`/`loadDiscover()`). Breakpoints: ≥1180 3-col, 860–1180 2-col (right hidden), <860 drawer (`static/chrome-toggle.js`). Header `.hdr` auth slot + `chrome-identity.js`.
+* CSS ownership (single source): `static/chrome.css` = tokens + chrome + base `.btn`/`.badge`; `src/style.css` = editor/Vite pages + `.btn` variants (`.icon/.sm/.xs`); `static/gallery-v2.css` = Lambda-rendered pages (`.img-grid`, `.dr-*`, `.pr-*`, `.ow-*`, etc.). Lambda + Vite shells each import `chrome.css`. Drawing wells use `border:1px solid var(--line)` on `background:var(--paper-2)`.
+* Component rule: token → `docs/design-system.md` → `/design` kitchen sink. Cross-surface JS → lift to `static/*.js` + `chrome.css` + `window.drawbang*` (see `flash.js`, `chrome-identity.js`, `tile-page.js`). Confirm reuse before inventing new UI.
+
+## 6. Repo map (condensed)
 
 ```
-curl -s https://pixel.drawbang.com/draw | grep -o '/assets/draw-[^"]*\.js'
-curl -s "https://pixel.drawbang.com/assets/draw-<hash>.js" \
-  | grep -o 'https://[a-z0-9]*\.execute-api\.[^"]*/ingest'
+config/         constants.ts (WIDTH/HEIGHT/MAX_FRAMES/PER_PAGE etc.), badges.ts, prompts.ts (ET-day rotation), palettes.ts, merch.json, mockups.json
+src/            Vite + TS editor + auth SPAs — editor/ (bitmap/canvas/frames/gif/history/palette/share-gif/tools/video), main.ts, publish-dialog.ts, submit.ts (POST /ingest), auth.ts, content-hash.ts, share.ts, local.ts, export-dialog.ts, layout/{chrome.ts,flash.ts,tracking.ts,asset-version.ts}, login/signup/password-*/account/merch/order entries
+ingest/         Lambda + dev server — handler.ts (ingest + runPostPublish), render-handlers.ts, routes.ts (route table), lambda.ts (APIGW wiring), dev-server.ts (Memory* + FsStorage + ConsoleEmailSender), hydrate/likes/bookmarks/follows/subscribers/user/drawing/challenge stores, auth/challenge/jwt/password/email/gif-validate/s3-storage/cache-invalidation/share-mp4/admin/cloudwatch-logs, handler-utils/log-outcome
+lib/templates/  Server HTML — home/gallery/tile-page/owner/products/feed/prompts/streak/admin/embed/design/bookmarks/follow-list/discover/not-found (+ _escape/_html-shell/_time)
+merch/          Stripe + Printify orders Lambda (separate)
+infra/aws/      template.yaml (SAM: Lambdas + HTTP API + S3 + CloudFront + DDB + IAM), samconfig.toml, build-lambda.mjs (esbuild)
+static/         chrome.css, gallery-v2.css, flash.js, chrome-identity.js, chrome-toggle.js, tile-page.js, hydrate.js, like/bookmark/follow/share/subscribe/infinite-scroll/toggle-handler.js, fonts/, mockups/, og-logo.png
+test/           node:test + tsx  •  scripts/ backfill-large-gifs|share-mp4, migrate-tiles, recover-missing-tiles, reassign-anonymous, smoke-ingest
+docs/           identity-considerations.md, claim-flow-proposal.md, gotchas.md, auth-setup.md, design-system.md  •  vite/plugins/ chrome.ts, dev-bucket.ts
 ```
 
-`/auth/*` **is** on CloudFront, so registration and login work on either
-host.
-
-**The full self-serve loop**, which leaves nothing behind:
-
-1. `POST /auth/register` → session JWT.
-2. `POST /ingest` with a gif built by `src/editor/gif.ts` (`encodeGif`).
-   Vary the bytes per publish — identical bytes hit the content-addressed
-   idempotency short-circuit and return 200 instead of 202, measuring
-   nothing.
-3. Do the thing you're verifying.
-4. `DELETE /drawings/{id}` per drawing (author or operator).
-5. `POST /auth/account/delete` with `{ "password": … }` — refuses with 409
-   until every drawing is gone, which is why step 4 comes first.
-
-**Measuring latency this way is noisy.** A request that does *no* server
-work (`POST /ingest` with `{}` → 400) costs 190–550 ms from a sandbox, so
-compare against that baseline rather than reading publish timings as
-absolute. For real server-side numbers use the `outcome` a targeted
-backfill returns, or the `duration_ms` on the `outcome` log lines.
-
-**Don't publish test drawings to measure without deleting them** — the
-feed is public. And note the deferred tail needs ~6 s (see "Publish
-latency"); checking for sidecars sooner reports a false failure, which
-has happened.
-
-## Observability (what to query when something is wrong)
-
-Three structured log kinds, all one-JSON-line-per-event so CloudWatch
-Logs Insights can group them. `ingest/log-outcome.ts` is the single
-source for their shapes — add fields there, not ad hoc at call sites.
-
-| `kind` | Emitted by | Answers |
-|--------|-----------|---------|
-| `outcome` | every route, once per request | status codes, latency, error enums per route |
-| `tail` | `runPostPublish`, once per run, **success or failure** | did the post-publish tail run for this drawing, and what did each step do |
-| `boot` | `lambda.ts` at cold start, once per container | what this container actually has — ffmpeg path/size/executable bit, arch, memory |
-
-**Why `tail` exists.** The post-publish tail runs in an async self-invoke
-with no caller to raise to, so every step swallows its own errors. For a
-while its only trace was a free-text `console.error` on the failure path,
-which meant a *successful* run left no record at all — so "did the tail
-even run for this drawing?" was unanswerable, and diagnosing one drawing's
-missing `-large.mp4` took three deploys of guesswork. Don't remove the
-success-path line; it's the one that makes absence meaningful.
-
-Useful queries:
-
-```
-# Which tail runs failed, and why (ffmpeg stderr rides in .error)
-fields @timestamp, drawing_id, invocation, large_mp4.error
-| filter kind = "tail" and large_mp4.ok = 0
-| sort @timestamp desc
-
-# Tail health over time
-filter kind = "tail"
-| stats count() as runs, sum(large_gif.ok) as gif_ok, sum(large_mp4.ok) as mp4_ok by bin(1h)
-
-# Did this specific drawing's tail ever run?
-filter kind = "tail" and drawing_id = "<id>"
-
-# Was the ffmpeg binary actually present in the containers serving us?
-filter kind = "boot" | stats count() by ffmpeg_present, ffmpeg_bytes, arch
-```
-
-Two fields exist specifically to separate causes that look identical from
-outside: `remaining_ms` (Lambda time left when the tail finished — a
-near-zero value beside a failure means the timeout, not the encoder) and
-per-step `ms` + `bytes` (a step that took 20 ms and failed is a different
-bug from one that took 8 s).
-
-`invocation` distinguishes the async self-invoke from the inline
-fallback in `handleIngest` and the synchronous targeted backfill, so a
-spike in `inline` means the self-invoke is failing to queue.
-
-## Pages of the app
-
-Single source of truth. Any cross-page change (new nav link, new shared
-asset, new tracking script) must consider every entry below.
-
-| URL                            | Rendered by                                       | Surface |
-|--------------------------------|---------------------------------------------------|---------|
-| `/`                            | `lib/templates/home.ts` via Lambda                | Dynamic — social feed (cards). `?sort=top` re-ranks today's publishes by like count ("Top today"). |
-| `/feed/items?cursor=…`         | `lib/templates/home.ts` (fragment-only)           | Dynamic (infinite scroll) |
-| `/draw`                        | `draw.html` + `src/main.ts`                       | Editor (Vite) |
-| `/gallery`                     | 301 → `/`                                         | CloudFront Function redirect |
-| `/gallery/items`               | 301 → `/feed/items`                               | CloudFront Function redirect |
-| `/d/<64hex>`                   | `lib/templates/tile-page.ts` via Lambda           | Dynamic |
-| `/embed/<64hex>`               | `lib/templates/embed.ts` via Lambda               | Dynamic — bare iframe player (no chrome, no scripts), click-through to `/d/<id>`, long edge TTL. |
-| `/u/<username>`                | `lib/templates/owner.ts` via Lambda               | Dynamic — 404s for the `anonymous` sentinel (no account behind it). |
-| `/u/<username>/items?cursor=…` | gallery fragment via Lambda                       | Dynamic (infinite scroll) |
-| `/u/<username>/bookmarks`      | `lib/templates/bookmarks.ts` via Lambda           | Dynamic — owner-only page shell. The body is hydrated client-side via `/me/bookmarks/feed` because browser navs don't carry the Bearer JWT. |
-| `/u/<username>/followers`            | `lib/templates/follow-list.ts` via Lambda    | Dynamic — public card list of accounts following `<username>`. |
-| `/u/<username>/followers/items?cursor=…` | follow-list fragment via Lambda          | Dynamic (infinite scroll) |
-| `/u/<username>/following`            | `lib/templates/follow-list.ts` via Lambda    | Dynamic — public card list of accounts `<username>` follows. |
-| `/u/<username>/following/items?cursor=…` | follow-list fragment via Lambda          | Dynamic (infinite scroll) |
-| `/u/<username>/streak`         | `lib/templates/streak.ts` via Lambda              | Dynamic — month-stacked calendar of the user's daily publishes. Public, edge-cached like the profile. |
-| `/prompts`                     | `lib/templates/prompts.ts` via Lambda             | Dynamic — daily-prompt archive. |
-| `/prompts/<slug>`              | `lib/templates/prompts.ts` via Lambda             | Dynamic — per-prompt submission grid (slug pattern mirrors `PROMPT_SLUG_RE` in `config/prompts.ts`). |
-| `/prompts/<slug>/items?cursor=…` | prompts fragment via Lambda                     | Dynamic (infinite scroll) |
-| `/admin`                       | `lib/templates/admin.ts` via Lambda               | Dynamic — hidden ops overview shell (no nav link, `private, no-store`). Cards + product KPIs + accounts roster (with per-row account delete) + recent failures. Unauthenticated shell; an inline boot script fetches `/admin/data` with the Bearer JWT — same pattern as `/u/<un>/bookmarks`. |
-| `/products`, `/products/p/<N>` | `lib/templates/products.ts` via Lambda            | Dynamic |
-| `/feed.rss`                    | `lib/templates/feed.ts` via Lambda                | Dynamic (RSS, no chrome) |
-| `/design`                      | `lib/templates/design.ts` via Lambda              | Dynamic — design-system kitchen-sink, paired with `docs/design-system.md` |
-| `/merch?d=<drawing>`           | `merch.html` + `src/merch.ts`                     | Picker (Vite) |
-| `/merch/order/<uuid>`          | `order.html` + `src/order.ts`                     | Order status (Vite) |
-| `/login`                       | `login.html` + `src/login.ts`                     | Auth (Vite) |
-| `/signup`                      | `signup.html` + `src/signup.ts`                   | Auth (Vite) |
-| `/password/forgot`             | `password-forgot.html` + `src/password-forgot.ts` | Auth (Vite) |
-| `/password/reset`              | `password-reset.html` + `src/password-reset.ts`   | Auth (Vite) |
-| `/account`                     | `account.html` + `src/account.ts`                 | Logged-in account (Vite) |
-| `/privacy`                     | `privacy.html` + `src/privacy.ts`                 | Static-ish (Vite) |
-
-JSON endpoints (no caching at the edge — `Cache-Control: no-store`):
-
-| URL                            | Method        | Auth | Handler |
-|--------------------------------|---------------|------|---------|
-| `/hydrate?drawings=<csv>&users=<csv>` | GET    | optional | `ingest/hydrate-handler.ts` — **the** read-side hydration channel. Returns `{drawings: {<id>: {like_count, viewer_liked, viewer_bookmarked}}, users: {<un>: {profile_picture_drawing_id, follower_count, following_count, viewer_follows}}}`. `viewer_*` fields populate when a Bearer JWT is sent, otherwise they're `null`. Every Lambda-rendered page fires one of these via `/hydrate.js` to overlay fresh values on the edge-cached SSR markup. |
-| `/backfill/sidecars`           | POST          | required | `ingest/backfill-handler.ts` — regenerate missing `-large.gif`/`-large.mp4`. `?drawing=<id>` repairs one (any caller); own drawings by default; `?scope=all` is operator-only. **API origin only.** See "Backfilling share sidecars". |
-| `/drawings/<id>`               | DELETE        | required | `ingest/delete-handler.ts` — remove a drawing. Author **or** `ADMIN_USERNAMES`; anonymous drawings are operator-only. **API origin only** — see "Deleting a drawing". |
-| `/drawings/<id>/like`          | POST / DELETE | required | `ingest/likes-handler.ts` — toggle a like (write only). |
-| `/drawings/<id>/bookmark`      | POST / DELETE | required | `ingest/bookmarks-handler.ts` — toggle a bookmark (write only). |
-| `/me/bookmarks/feed`           | GET           | required | HTML fragment of the caller's bookmarks. Loaded by the inline boot script on `/u/<un>/bookmarks`. |
-| `/users/<username>/follow`     | POST / DELETE | required | `ingest/follows-handler.ts` — follow/unfollow. Self-follow → 400, missing target → 404, duplicate → 409. Bumps `follower_count`/`following_count` on the users rows transactionally with the edge write. |
-| `/auth/*`                      | POST          | mixed | `ingest/auth-handler.ts` (register/login/forgot/reset/profile-picture). `register` + `password/forgot` additionally require a solved PoW challenge — see "Anti-spam gate". |
-| `/auth/challenge`              | GET           | none | `ingest/challenge.ts` via `routes.ts` — mints the ALTCHA proof-of-work challenge. Public, `private, no-store`; each challenge is single-use. |
-| `/auth/profile`                | GET / POST    | required | `ingest/auth-handler.ts` — GET prefills the edit-profile form on `/account`; POST updates bio + link. |
-| `/auth/account/delete`         | POST          | required | `ingest/auth-handler.ts` — self-service account deletion. Target is always the caller; current password required. Cascades to the caller's drawings. See "Deleting an account". |
-| `/users/<user_id>/stats`       | GET           | none | `ingest/user-stats-handler.ts` — public, short max-age. |
-| `/u/<username>/follow-thumbs?limit=N` | GET    | none | `renderFollowThumbsHandler` in `ingest/render-handlers.ts` — JSON of the first N follower/following usernames, feeds the left-rail thumb grids. |
-| `/admin/users/<username>`      | DELETE        | required | `ingest/auth-handler.ts` `handleAdminDeleteAccount` — operator removes any account **and all its drawings**. Bearer JWT + `ADMIN_USERNAMES`, gated in `routes.ts`. Needs its own CloudFront behaviour above `/admin*` (which is GET-only). See "Deleting an account". |
-| `/admin/data`                  | GET           | required | `ingest/admin-handler.ts` — HTML fragment of ops counters, the accounts roster, and recent failures. Bearer JWT + `ADMIN_USERNAMES` allowlist, gated in `lambda.ts` before the handler runs. **The one surface that renders account emails** — see "Identity model". |
-| `/subscribe`                   | POST          | none | `ingest/subscribe-handler.ts` — email capture from the home-page hero. Honeypot field `website` → silent 200; idempotent on email (first-seen `created_at` wins). Write-only; digest sending is deferred. |
-
-**Adding a new "X is stale on the cached feed" field is a one-liner.** Don't invent another endpoint or another client script. Add the field to `HydrateBody` (in `ingest/hydrate-handler.ts`), populate it in the handler, add a case to the `apply` step in `static/hydrate.js` that updates the right DOM nodes. The SSR templates carry `data-*` attributes the hydrator reads; click handlers stay in their per-action scripts (`like.js`, `bookmark.js`, `follow.js`).
-
-### Layout shell (`src/layout/chrome.ts` → `static/chrome.css`)
-
-Every page that renders the chrome is wrapped in a 3-column **`.app-shell`**:
-
-| Column | Content | Source |
-|--------|---------|--------|
-| `.rail-left` | NEW DRAWING CTA, primary nav (Products, Followers/Following/Bookmarks/Account/Sign-out — last five owner-only, revealed by `chrome-identity.js`), bottom-anchored secondary group (social + Privacy + Feedback) | `renderLeftRail()` in `src/layout/chrome.ts` |
-| `<main>` | Page-specific content | Each template |
-| `.rail-right` | Discover modules — Most Liked · 30D + Trending Artists. **Opt-in:** only `/` passes `rightRail: true`. | `renderDiscover()` in `lib/templates/discover.ts`, fed by `loadDiscover()` in `ingest/discover-handler.ts` |
-
-Breakpoints (in `chrome.css`):
-- **≥ 1180px** — 3-col (left · main · right).
-- **860–1180px** — 2-col, right rail hidden.
-- **< 860px** — 1-col; left rail collapses to a drawer that slides in
-  on logo tap or hamburger click (`static/chrome-toggle.js`).
-
-The header (`.hdr`) carries the logo + an **auth slot** on the right:
-"Sign in" when logged out; profile picture + username link to
-`/u/<un>` when logged in. The signed-in branch is rendered hidden by
-default and revealed by `static/chrome-identity.js` when
-`localStorage["drawbang:username"]` is present. `hydrate.js` stamps the
-profile-picture `<img>` once the patcher has set
-`data-profile-picture-username`.
-
-Vite-served surfaces get the shell via the `<!--CHROME:HEADER-->` /
-`<!--CHROME:FOOTER-->` markers + `vite/plugins/chrome.ts`. Lambda
-templates call `renderHeader` / `renderFooter` directly. Pages that
-need the full viewport — the editor `/draw` — opt out of the shell
-wrapper with `<meta name="drawbang:rails" content="off">`; the
-header still renders but `.app-shell` and the rails are suppressed,
-so `<main>` (or `#app`) sits directly in the body. `/feed.rss` skips
-the chrome entirely (XML).
-
-There is **no `.fab` and no bottom `<footer>`** — both are gone; the
-left rail carries the New-drawing CTA and the secondary links.
-
-## Identity model
-
-- **Account** = email (private, unique, login key) + password + a chosen
-  **username** (public, unique, immutable in v1) + a stable random 64-hex
-  `user_id`. Stored in DynamoDB `drawbang-users` (PK email);
-  `drawbang-usernames` reserves the handle. Registration writes both in
-  one `TransactWriteItems`.
-  **Email is private** — it never appears on a public page or in a JSON
-  response. The single exception is `/admin/data`, whose accounts roster
-  renders it for the operator behind the `ADMIN_USERNAMES` gate. Don't
-  copy that shape onto any other route.
-- **Password hashing**: scrypt (`ingest/password.ts`), built-in, no
-  native dep.
-- **Sessions**: stateless HS256 JWT (`ingest/jwt.ts`), `{ sub: user_id,
-  un: username }`, ~30-day exp, signed with `JWT_SECRET`. Client keeps
-  it in `localStorage["drawbang:jwt"]` and mirrors the username to
-  `localStorage["drawbang:username"]`. Publish sends
-  `Authorization: Bearer <jwt>`; the route verifies signature + exp
-  (no DB read) and passes `{ user_id, username }` into the handlers.
-- **Password reset**: `ingest/email.ts` sends a link via SES carrying a
-  1h reset-JWT (`{ email, tv: token_version, purpose: "password-reset" }`).
-  The `/auth/password/reset` handler checks `tv === token_version` then
-  bumps `token_version`, making the link single-use. No signup email
-  verification. Forgot-password requests always return 200 (no email
-  enumeration).
-- **Profile picture**: the user can pin one of their own drawings as
-  their profile picture. `UserRecord.profile_picture_drawing_id` is a
-  `drawing_id`; `POST /auth/profile-picture` validates ownership (the
-  drawing's `username` must equal the caller's) and writes the row.
-  Rendered as a small `<img class="profile-picture">` next to the
-  username on `/d/<id>` and `/u/<username>`. Profile-picture changes
-  invalidate `/u/<username>*` on CloudFront; drawing pages absorb the
-  change on their own short s-maxage TTL.
-- **Auth surface**: `src/auth.ts` (client),
-  `ingest/auth-handler.ts` (server), routes
-  `POST /auth/{register,login,password/forgot,password/reset,profile-picture}`.
-- Drawing rows store `user_id` + `username` (denormalized). Drawings
-  published without a session — plus the legacy pre-account-system rows
-  `scripts/migrate-tiles.ts` migrated — sit under the sentinel username
-  `anonymous`, reserved both in the users table and in
-  `RESERVED_USERNAMES` so no real account can claim it.
-
-## Anonymous publishing
-
-Signing up is an invitation *after* a drawing is live, never a toll gate
-in front of Publish. The sentinel identity is defined once in
-`config/constants.ts` (`ANONYMOUS_USERNAME` / `ANONYMOUS_USER_ID` /
-`isAnonymousUsername`) — don't re-introduce the bare `"anonymous"` string
-comparison it replaced.
-
-The editor asks rather than assumes. Clicking **Publish** while signed
-out opens `#publishDialog` (`src/publish-dialog.ts`) offering "Publish
-anonymously" or "Log in or sign up"; cancelling aborts the publish. The
-sign-in branch runs **inline** — `register()`/`login()` are plain fetches,
-so authenticating never navigates away and the drawing on the canvas is
-never at risk, then the publish proceeds attributed. Redirecting to
-`/login?next=/draw` was the old behaviour and losing work to it is the
-problem this replaced, so don't reintroduce a navigation here.
-
-Two things that bite when editing this dialog:
-- Errors must render **in** the dialog (`#publishStatus`), not via
-  `showFlash` — the flash host sits below the dialog's top layer and is
-  invisible while it's open. `wireFormSubmit` takes an `onError` override
-  for exactly this.
-- Any conditionally-hidden `.auth-field` needs `[hidden] { display: none }`
-  (already in `src/style.css`): the author `display: flex` otherwise beats
-  the UA's `[hidden]` rule and the field stays visible.
-
-How it works:
-
-- `POST /ingest` is `auth: "optional"`. No `Authorization` header → the
-  publish is attributed to the sentinel. A header that *is* present but
-  fails verification is still a **401** (`ingestRoute` checks
-  `req.hasAuthHeader()`), so a rotated secret or forged token can never
-  silently downgrade an attributed publish to an anonymous one.
-- An anonymous drawing is an ordinary drawing everywhere it's *read*: it
-  appears in `/`, `/feed.rss`, the discover rail and remix chains, has a
-  normal `/d/<id>` page, and **can be liked and bookmarked** (those are
-  keyed by the viewer's `user_id`, so they never touch the author).
-- What the sentinel does NOT get is an account. `/u/anonymous` and every
-  route hanging off it (`/items`, `/streak`, `/bookmarks`,
-  `/followers`, `/following`) **404** — see `isProfileRoutable()` in
-  `ingest/render-handlers.ts`, which every `/u/` handler goes through
-  instead of a bare `USERNAME_RE` test. Bylines render unlinked, no
-  per-account streak/total counters are recorded, and publish-time
-  invalidation drops the `/u/<username>*` path.
-- Profile pictures stay safe for free: `handleSetProfilePicture` requires
-  `drawing.username === auth.username`, and no real account can ever hold
-  the reserved `anonymous` handle.
-
-**Known limitation.** Because `drawing_id` is content-addressed, an
-anonymous publish can't be retroactively claimed: re-publishing the same
-bytes while logged in hits the idempotency short-circuit and the row keeps
-its original author. Claiming needs an explicit capability handed to the
-publisher — the GIF itself is public, so possession of the bytes proves
-nothing. A design for it is written up in
-`docs/claim-flow-proposal.md` (proposed, not built).
-
-## Anti-spam gate (proof of work on register + password reset)
-
-Two unauthenticated endpoints cost us something when abused, so both
-require a solved [ALTCHA](https://altcha.org) proof-of-work challenge:
-
-| Route | Why it's gated |
-|-------|----------------|
-| `POST /auth/register` | bulk account creation (the reason this exists) |
-| `POST /auth/password/forgot` | makes **SES send mail to any address the caller names**. This is the more damaging of the two: a bounce/complaint spike gets the sending identity throttled, which breaks password reset for real users. |
-
-Nothing else is gated. **Login is not gated** (a legitimate user
-shouldn't pay to sign in), and neither is `POST /ingest` — publishing
-stays free and anonymous, which is the whole point of "Anonymous
-publishing" above. Don't put a challenge in front of it.
-
-Self-hosted, so there's no third-party service, no outbound call on the
-auth path, and no cookies or fingerprinting: `GET /auth/challenge` mints
-an HMAC-signed challenge, the browser brute-forces a counter in a worker
-until the derived key matches the signed prefix, and `verifyChallenge`
-checks it. `PBKDF2/SHA-256` is the algorithm because it's the only one
-native to both Node's WebCrypto and every browser we support (Argon2id
-and scrypt are more hardware-resistant but need WASM in the browser).
-
-**The single-use guard is the load-bearing part.** `verifySolution()`
-proves a solution fits a challenge; it knows nothing about whether that
-solution was already spent. Without a store, one solve replays for every
-registration inside the 10-minute window, the per-account cost drops to
-zero, and the gate is decoration. `drawbang-challenges` keys on the
-challenge nonce with a DynamoDB TTL and claims it with a **single
-conditional PutItem** — atomic, because two concurrent replays of the
-same payload both pass the read-then-write that altcha-lib's framework
-helpers use for their `store` option. That's also why the gate calls
-`verifySolution()` directly instead of going through
-`altcha-lib/frameworks/shared`.
-
-**Difficulty is measured, not guessed.** Solver work is roughly
-(counter value) x (PBKDF2 cost), so the two constants in
-`ingest/challenge.ts` multiply — changing either changes the difficulty.
-At `cost: 1000` with a 1000–5000 counter range, measured on the Lambda
-runtime single-threaded (the browser widget uses workers, so a real
-client is at least this fast):
-
-| | time |
-|---|---|
-| solve, mean | ~630 ms |
-| solve, max | ~880 ms |
-| **verify** | **~1 ms** |
-
-Verification runs on every registration, so it has to stay negligible.
-It does because the challenge carries an HMAC over the derived key, so
-verifying is one HMAC rather than a re-derivation. Re-measure before
-changing the constants.
-
-Gate ordering differs between the two routes **on purpose**:
-
-- **register** validates email/username/password *first*, then gates.
-  Verifying spends the challenge, so a mistyped password shouldn't cost
-  the user a fresh ~600 ms solve. The gate still runs before the scrypt
-  hash and every write.
-- **forgot-password** gates *first*. Nothing downstream is worth
-  reaching without proof of work, and a 403 leaks nothing about the
-  address because it's decided before any lookup. The route keeps its
-  no-enumeration 200 contract for solved requests.
-
-Signing keys are derived from `JWT_SECRET` with domain separation
-(`ingest/challenge.ts`), so there's **no new secret to provision**.
-Rotating `JWT_SECRET` invalidates outstanding challenges, which
-self-heals within the 10-minute TTL.
-
-Client side (`src/altcha.ts`): the widget is loaded with a **dynamic
-import** because the editor's publish dialog can register an account and
-most people who open `/draw` never do — a static import would put ~34 kB
-gzipped in everyone's editor bundle. It solves a **fresh** challenge on
-every submit, never a cached one: the server spends a payload on first
-verification, so reusing one across two submits (taken username, then
-retry) comes back as `challenge_replayed`.
-
-**Three surfaces register accounts**, and the third is easy to miss:
-`/signup`, `/password/forgot`, and the inline sign-up form in the
-editor's publish dialog (`src/publish-dialog.ts`). A new auth surface
-needs the widget too.
-
-Failures return **400** with a machine-readable `code`
-(`challenge_missing` / `_malformed` / `_expired` / `_invalid` /
-`_replayed`). All of them are recoverable by solving again.
-
-**400 and not 403 for a specific reason.** CloudFront's
-`CustomErrorResponses` map every origin 403 *and* 404 to `/404.html`
-distribution-wide, so a 403 reaches the browser as an HTML 404 page with
-the JSON body and `code` destroyed. The common case here is a
-*legitimate* user whose challenge expired while they filled the form, so
-the response has to survive the CDN. Verified against prod: the origin's
-403 arrives as a 404 HTML page; a 400 arrives intact. Anything on a
-CloudFront-routed path that a client needs to parse has the same
-constraint.
-
-**What this does and doesn't buy.** It converts an instant scripted
-flood into roughly 0.6 s of CPU per account, and the replay guard means
-that cost is per-account rather than amortised. It is not a wall: a
-determined attacker who pays the CPU still gets through, and PBKDF2 is
-GPU-friendlier than Argon2id. If it stops being enough, the next
-escalations are a rate limit keyed on a trusted client IP (a CloudFront
-Function stamping `event.viewer.ip` — note the API Gateway origin is
-publicly reachable, so an edge-only defence is bypassable) or a hosted
-bot-detection widget.
-
-## Deleting a drawing
-
-`DELETE /drawings/<id>` is the only path in the app that removes a
-drawing. It exists for moderation and for cleaning up test publishes
-(there is otherwise no way to unpublish, since ids are content-addressed
-and the editor has no delete affordance).
-
-Allowed callers: **the drawing's author**, or **an operator on
-`ADMIN_USERNAMES`**. Anonymous drawings have no author, so only operators
-can remove them — otherwise anyone could delete anything published
-without a session.
-
-**It is not routed through CloudFront, and that is not the security
-boundary.** A `/drawings/*` cache behaviour would also capture the legacy
-`/drawings/<id>.gif` asset URLs that the edge function rewrites to
-`/tiles/<id>.gif`, breaking them — so the route is registered at API
-Gateway only and is reachable at the `execute-api` origin. It is still
-publicly reachable there; the Bearer JWT plus the author/allowlist check
-in `ingest/delete-handler.ts` is what protects it. Don't add a "hidden
-path" and call it a gate.
-
-The delete is **hard, not a tombstone**: the DrawingStore row goes first
-(that's what makes the drawing disappear from every dynamic page), then
-the three S3 objects, then a cache invalidation that includes `/d/<id>*`
-on top of the usual publish set. Row-before-objects is deliberate — the
-reverse order would briefly leave a row pointing at a missing gif, which
-renders as a broken image on the feed.
-
-Like and bookmark rows for the deleted id are **left behind on purpose**.
-They're inert once nothing renders the drawing, and both read paths
-already tolerate a missing row (`renderMyBookmarksFeedHandler` filters
-nulls; `loadAncestorChain` stops at the first unresolvable parent).
-Sweeping them would turn one delete into an unbounded fan-out of writes.
-
-## Backfilling share sidecars
-
-`POST /backfill/sidecars` regenerates missing `-large.gif` / `-large.mp4`
-objects. It's the endpoint form of `scripts/backfill-large-gifs.ts` +
-`scripts/backfill-share-mp4.ts`, so gaps can be repaired without AWS
-credentials.
-
-It does **not** re-implement the encoders. It finds drawings with a
-missing sidecar and enqueues the ordinary post-publish tail
-(`PostPublishEvent` → `runPostPublish`) for each, with `mode: "backfill"`
-so only the two `/tiles/<id>-large.*` paths get invalidated instead of the
-whole feed set — the drawing is already live, and invalidation paths cost
-money past the free tier. The negative cache on those URLs is the reason
-they're flushed at all.
-
-Scope is the security boundary:
-
-- **`?drawing=<id>`** — exactly one drawing, any signed-in caller, no
-  ownership check. **Runs synchronously** and returns an `outcome` naming
-  what each step did. The tail deliberately swallows its own errors (an
-  async invocation has no caller to raise to), which meant a queued repair
-  could fail silently while the endpoint happily reported "enqueued". One
-  drawing is small enough (~2–3 s, well inside the 30 s timeout) to just
-  do the work and report the truth. That's safe because the operation only ever *creates*
-  derived data that should already exist: it never deletes, mutates, or
-  discloses anything (the report names the missing sidecar, which anyone
-  can already determine with two HEAD requests), it's idempotent so a
-  healthy drawing produces no work, and its total capacity across the
-  gallery is bounded by the number of genuinely broken drawings. The
-  clincher: it is strictly **less** powerful than publishing, which is
-  open to anonymous callers and runs the very same encode pipeline.
-- **default** — the caller's own drawings. Anyone signed in can repair
-  their own work: it only ever creates derived data that should already
-  exist, and it's bounded by what they published.
-- **`?scope=all`** — the whole gallery, `ADMIN_USERNAMES` only, because it
-  fans out across everyone's drawings. Anonymous drawings have no owner,
-  so they're reachable only this way.
-
-Bounds, all clamped in `parseBackfillOptions`: `limit` caps how many jobs
-one call enqueues (default 25, max 100), `scan` caps rows examined
-(default 200, max 1000) so the S3 HEADs can't run past the Lambda
-timeout. `dry=1` reports without enqueuing. When the scan stops early the
-report sets `truncated: true` — run it again.
-
-**How reliable is the tail, actually?** Measured, not assumed: 96 of 97
-drawings in the gallery had their `-large.mp4`, and a controlled batch of
-8 fresh publishes produced both sidecars 8/8. The tail is not a
-frequently-failing path — treat a missing sidecar as a rare gap to
-backfill, not a symptom to re-architect around.
-
-## Deleting an account
-
-Two entry points, one cascade. `ingest/account-delete.ts` owns what
-"deleting an account" means so the two callers can't drift:
-
-| Route | Who | Confirmation |
-|-------|-----|--------------|
-| `POST /auth/account/delete` | the caller, on themselves only | current password + typed username (UI) |
-| `DELETE /admin/users/{username}` | `ADMIN_USERNAMES` operators, on anyone | typed username (UI); the allowlist is the gate |
-
-**Deleting an account deletes its drawings**, gif/mp4 objects included.
-That's a product decision: it's the common reading of "delete my
-account", and for moderation a spam account's drawings are exactly what
-needs to go. The costs, accepted knowingly: remixes of a deleted drawing
-lose their parent (every read path already tolerates that —
-`loadAncestorChain` stops at the first unresolvable parent), and the
-public feed shrinks.
-
-Why the two routes stay separate: the self-serve one's safety property is
-that **the target is always the caller** — it comes from `resolveSelf()`,
-and there is no body field naming an account, so there is nothing to point
-somewhere else. Adding an admin override to it would spend that property,
-so the operator path is its own route with its own allowlist gate in
-`routes.ts` (the same one `/admin/data` uses).
-
-The self-serve route additionally requires **the current password**:
-deletion is irreversible, so a leaked or borrowed JWT alone must not be
-enough. The admin route deliberately requires no password — an operator
-isn't proving ownership and doesn't have the target's credential. Its
-guard against a misclick is the typed confirmation in the admin UI plus
-the allowlist itself.
-
-Order of operations, per drawing: DrawingStore row first, then the three
-S3 objects. Row-before-objects is deliberate — the reverse briefly leaves
-a row pointing at a missing gif, which renders as a broken image on the
-feed. Then one `TransactWriteItems` drops the users row and the username
-reservation together, conditioned on `user_id` so a stale session can't
-delete an account that was already deleted and re-registered under the
-same email. Freeing the handle is safe: follow edges key on `user_id`.
-
-Bounds. The drawing sweep re-queries the **first** page each round rather
-than paginating with a cursor — it is deleting the rows it walks, and a
-cursor into a mutating index can skip records. `MAX_DRAWINGS` (1000) caps
-one request's work so a pathological account can't run past the Lambda
-timeout; if it trips, the users row is left intact and the caller is told
-to run it again, which resumes where it stopped. Invalidation folds every
-deleted drawing into one batch, falling back to a single `/d/*` wildcard
-past `MAX_DRAWING_PATHS` (50) because invalidation paths cost money past
-the free tier.
-
-**Left behind on purpose** (all documented in `account-delete.ts`): likes
-and bookmarks pointing at the deleted drawings — inert once nothing
-renders them, and sweeping them turns one delete into an unbounded
-fan-out; follow edges and the per-account stats row — both key on
-`user_id`, which is random and never reused, so a new account claiming the
-freed username inherits nothing.
-
-Edge note: `DELETE /admin/users/*` needs its **own CloudFront behaviour
-placed above `/admin*`**, which allows only GET/HEAD/OPTIONS. Without it
-CloudFront rejects the DELETE before Lambda ever sees it.
-
-## Design system
-
-The design system lives in three places, one source per surface:
-
-1. **`static/chrome.css` `:root`** — runtime source of truth for every
-   token. Light palette (`--paper`/`--ink`/`--line`/`--accent: #00ccff`),
-   sans + mono type stacks (`--font-sans` / `--font-mono`), spacing
-   (`--tap`/`--pad`/`--border`), type scale (`--t-xs` → `--t-2xl`),
-   layout (`--hdr-h`/`--rail-w`/`--rail-right-w`/`--shell-max`). The
-   old short names (`--bg`/`--fg`/`--border-c`/`--bg-elev`/`--panel`)
-   are kept as backward-compat aliases; new code uses the semantic
-   names.
-2. **`docs/design-system.md`** — written rules: aesthetic, tokens,
-   components, do/don't, breakpoints.
-3. **`/design`** (`lib/templates/design.ts`) — live kitchen-sink
-   page rendering every shared component (color swatches, type
-   scale, buttons, follow button, badge, page chrome). Iterating on
-   a token? Check it here first.
-
-**Rule when adding a visible element:** token → markdown →
-kitchen-sink, in that order. If the third step is impossible the
-component is one-off and probably shouldn't exist.
-
-## Shared CSS (single source of truth)
-
-Three CSS files, each owning a disjoint slice. **Do not duplicate rules
-across them.**
-
-| File                       | Owns                                                              | Loaded by                                              |
-|----------------------------|-------------------------------------------------------------------|--------------------------------------------------------|
-| `static/chrome.css`        | Design tokens (`:root`), base body/typography, header (`.hdr` + `.hdr-auth`), app-shell + rails (`.app-shell`, `.rail-left`, `.rail-right`, `.rail-cta`, `.rail-link`, `.rail-foot`, `.rail-social`, `.rail-scrim`), `main` slot, page chrome (`.page-title`, `.divider`, `.panel-h`, `.lab`, ...), base `.btn` + `.primary` + `.ghost` + `.btn[hidden]`, `.badge` + `.badge.accent`, flash slot. | Both — `src/style.css` and `static/gallery-v2.css` each `@import url("/chrome.css")` at the top. |
-| `src/style.css`            | Editor-surface extensions to the base reset (touch-first `user-select: none`, etc.), `.canvas-banner`, `.btn` variants (`.icon`/`.sm`/`.xs`/`[disabled]`/...), and every Vite-served page (editor `.ed-*`, merch `.mc-*`, order, identity). | Vite-served pages only.                                |
-| `static/gallery-v2.css`    | Lambda-rendered classes: `.img-grid`, `.dr-*`, `.pr-*`, `.ow-*`, `.feed-card-*`, `.feed-action`, `.like-btn`, `.bookmark-btn`, `.follow-btn`, `.follow-card-*`, `.rr-*` (discover rail), `.st-*` (streak calendar), `.mono-trunc`, `img.profile-picture`. | Lambda templates (`/gallery-v2.css` link tag).         |
-
-Rule of thumb when adding a class:
-1. If `src/layout/chrome.ts` renders it → `chrome.css`.
-2. If it's on a Vite-served HTML entry (draw/merch/order/auth) → `src/style.css`.
-3. If it's only on a `lib/templates/*.ts` page → `static/gallery-v2.css`.
-
-A change that affects both editor and Lambda-rendered surfaces (e.g.
-rail width, header height, button hover, badge style) belongs in
-`chrome.css`. If you catch yourself editing `.hdr`/`.app-shell`/`.btn`/
-`.badge` in `src/style.css` or `static/gallery-v2.css`, stop — it's
-the wrong file.
-
-**Drawing well style.** Every surface that renders a drawing (feed
-card, profile gallery thumb, drawing detail, streak calendar,
-follow-card placeholder, discover rail thumb) frames it with
-`border: 1px solid var(--line)` on `background: var(--paper-2)` so
-transparent-pixel drawings stay visible against the light page. Don't
-revert any single surface to `--canvas-bg` — the dark plinth look
-was the pre-#00ccff era.
-
-## Repo layout
-
-```
-config/               Shared constants
-  constants.ts        WIDTH=16, HEIGHT=16, MAX_FRAMES=16, PER_PAGE=36, etc.
-  badges.ts           Per-account badge thresholds for #115/#116.
-  prompts.ts          Daily drawing prompts — pure isomorphic module,
-                      deterministic ET-day rotation + dated overrides.
-  palettes.ts         Pre-defined retro palettes for the editor picker.
-  merch.json          Merch catalog (read by /products + merch picker).
-  mockups.json        Merch mockup metadata (pairs with static/mockups/).
-
-src/                  Vite + TypeScript editor + auth SPAs
-  editor/             bitmap, canvas (PixelCanvas), frames, gif, history,
-                      palette, share-gif, tools, video (MP4/WebM/GIF
-                      compositor + encoder fallback chain via mp4-muxer)
-  export-dialog.ts    Export-dialog controller — GIF / MP4 square / MP4
-                      Reels picker with WebM fallback, "Made with Draw!"
-                      footer toggle, Web Share Level 2.
-  content-hash.ts     sha256 helper (Node sync + Web Crypto fallback)
-  share.ts            URL-hash share codec
-  local.ts            IndexedDB "My drawings" store
-  auth.ts             Client session: register / login / forgot / reset,
-                      JWT in localStorage, authHeader() for publish.
-  layout/asset-version.ts
-                      Build-time `?v=<sha>` cache-buster appended to every
-                      reference to a non-hashed static asset (gallery-v2.css,
-                      like.js, share.js, flash.js, …). DRAWBANG_ASSET_VERSION
-                      is inlined into the Lambda bundle by esbuild's define
-                      and read by Vite's chrome plugin at build time. CI
-                      sets it from $GITHUB_SHA.
-  login.ts/signup.ts/password-forgot.ts/password-reset.ts/account.ts
-                      Auth page controllers (Vite entries)
-  submit.ts           POST /ingest with the gif; sends Bearer auth when a
-                      session exists, publishes anonymously when it doesn't.
-  merch.ts/merch-preview.ts/order.ts  Merch picker + order status
-  main.ts             Editor UI (publish works with or without a session)
-  publish-dialog.ts   Signed-out publish choice: publish anonymously vs
-                      inline log in / sign up, then publish attributed.
-  layout/             chrome.ts (header/footer), flash.ts, tracking.ts
-
-ingest/               Lambda + dev-server: ingest, render, auth
-  handler.ts          POST /ingest: validate → content-id → write
-                      public/tiles/<id>.gif + dual-write a row into
-                      DrawingStore, then hand everything else to the
-                      deferred tail (see "Publish latency" below). Body
-                      also accepts `prompt` (slug stored only when it
-                      matches today's ET prompt) and `layers_json`
-                      (≤64 KiB layer sidecar, stored verbatim on the
-                      row). Identity from cfg.auth ({user_id, username})
-                      set by the route after JWT verification, or null →
-                      the anonymous sentinel. Idempotent on drawing_id.
-                      Also exports runPostPublish (the tail worker) and
-                      the PostPublishEvent guard.
-  render-handlers.ts  GET /, /feed/items, /d/<id>, /embed/<id>, /u/<un>
-                      (+ items/bookmarks/followers/following/streak/
-                      follow-thumbs), /prompts*, /products*, /feed.rss,
-                      /design. Each queries DrawingStore (+ UserStore /
-                      UserStatsStore where relevant) and returns
-                      {status, contentType, cacheControl, body}.
-  share-mp4.ts        Server-side ffmpeg transcode of the -large.gif into
-                      the Instagram-shareable 1080×1080 H.264 sidecar
-                      (public/tiles/<id>-large.mp4).
-  admin-handler.ts    GET /admin/data — HTML fragment of ops counters
-                      (DDB DescribeTable, CloudWatch Logs Insights,
-                      DrawingStore scan) + the accounts roster
-                      (UserStore.listUsers joined with UserStatsStore).
-                      Allowlist gate lives in lambda.ts.
-  cloudwatch-logs.ts  Logs Insights query runner for admin-handler.ts.
-  log-outcome.ts      Structured log shapes: `outcome` (per request),
-                      `tail` (per post-publish run, success AND failure),
-                      `boot` (per cold start: ffmpeg presence, arch,
-                      memory). See "Observability".
-  handler-utils.ts    Shared scaffolding for the toggle-style write
-                      handlers (likes/bookmarks/follows).
-  backfill-handler.ts POST /backfill/sidecars — find drawings with a
-                      missing -large.gif/-large.mp4 and enqueue the
-                      post-publish tail for each (own drawings by
-                      default, ?scope=all for operators).
-  delete-handler.ts   DELETE /drawings/{id} — author-or-operator drawing
-                      removal (row + S3 objects + invalidation).
-  account-delete.ts   The cascade behind both delete-account routes:
-                      removes every drawing the account published (rows +
-                      gif/mp4 objects), then the users row + username
-                      reservation, then one folded invalidation.
-  discover-handler.ts loadDiscover() — right-rail Most Liked · 30D +
-                      Trending Artists, folded in memory from the recent
-                      gallery window.
-  bookmarks-store.ts  DDB wrapper for drawbang-bookmarks (+ Memory
-                      variant); bookmarks-handler.ts toggles them.
-  follows-store.ts    DDB wrapper for drawbang-follows (+ Memory
-                      variant); follows-handler.ts toggles edges.
-  drawing-store.ts    DDB wrapper for the dynamic gallery/drawing/profile/
-                      forks queries. PK = drawing_id, plus GSI1 (gallery,
-                      chronological), GSI2 (per-username chronological),
-                      GSI3 (forks by parent_id, sparse). MemoryDrawingStore
-                      for dev/tests.
-  user-store.ts       DDB wrapper for accounts (register via
-                      TransactWriteItems, getByEmail, getByUsername,
-                      updatePassword, setProfilePicture, listUsers) +
-                      MemoryUserStore. Tables: drawbang-users (PK email),
-                      drawbang-usernames (PK username). listUsers returns
-                      UserSummary rows — password_hash is left out of the
-                      Dynamo projection, so it never crosses the wire.
-  user-stats-store.ts DDB wrapper for per-account streak + total counters
-                      (#115/#116) + MemoryUserStatsStore for dev/tests.
-  user-stats-handler.ts GET /users/{user_id}/stats — fresh counters + badges.
-  likes-store.ts      DDB wrapper for the drawbang-likes table (PK=drawing_id,
-                      SK=user_id; GSI1-user inverts for a future "drawings
-                      I liked" feed). like/unlike use TransactWriteItems
-                      across this table + DrawingsTable so the denormalised
-                      `like_count` on DrawingRow stays consistent. Memory
-                      variant for dev/tests; AlreadyLikedError /
-                      NotLikedError / DrawingNotFoundError surface as 409/404.
-  likes-handler.ts    POST /drawings/{id}/like, DELETE /drawings/{id}/like.
-                      (Read-side hydration lives in hydrate-handler.ts.)
-  hydrate-handler.ts  GET /hydrate?drawings=<csv>&users=<csv> — the single
-                      read-side hydration channel. Public, no-store; optional
-                      Bearer JWT populates viewer_* fields. See the JSON
-                      endpoints table above.
-  subscribers-store.ts DDB wrapper for the drawbang-subscribers email-capture
-                      table (PK email; idempotent conditional put) +
-                      MemorySubscribersStore for dev/tests.
-  subscribe-handler.ts POST /subscribe — public email capture from the
-                      home-page hero (honeypot `website` → silent 200).
-  cache-invalidation.ts CloudFrontInvalidator + path generators
-                      (pathsToInvalidateOnPublish,
-                      pathsToInvalidateOnProfilePictureChange).
-                      NoopInvalidator for tests. Likes deliberately do NOT
-                      invalidate — counts catch up at the next s-maxage
-                      expiry (5 min on / and /d/<id>).
-  jwt.ts              HS256 sign/verify (Node crypto, no dep) for sessions
-                      + reset.
-  password.ts         scrypt hash/verify.
-  email.ts            SES password-reset sender + ConsoleEmailSender
-                      (dev stub).
-  auth-handler.ts     POST /auth/{register,login,password/forgot,
-                      password/reset,profile-picture,profile} +
-                      GET /auth/profile (edit-profile prefill).
-                      register + password/forgot additionally require a
-                      solved proof-of-work challenge (see "Anti-spam
-                      gate"); everything else is ungated.
-  challenge.ts        ALTCHA proof-of-work: mintChallenge (GET
-                      /auth/challenge) + verifyChallenge, which verifies
-                      AND spends the challenge.
-  challenge-store.ts  DDB wrapper for drawbang-challenges — the
-                      single-use guard that makes the gate mean anything
-                      (+ MemoryChallengeStore for dev/tests).
-  gif-validate.ts     GIF89a header check, ≤16 frames, DRAWBANG ext.
-  storage.ts          Storage interface + FsStorage (dev/tests).
-  s3-storage.ts       S3Storage (Lambda + scripts).
-  routes.ts           **The** route table, shared by lambda.ts +
-                      dev-server.ts: createRoutes(deps) builds the ordered
-                      { methods, pattern, auth, handler } list — /ingest,
-                      /, /feed/items, /gallery* (301), /d/*, /embed/*,
-                      /u/* (incl. streak + follow-thumbs), /prompts*,
-                      /feed.rss, /design, /products*, /admin, /admin/data,
-                      /users/{id}/stats, /auth/*, /hydrate,
-                      /drawings/{id}/{like,bookmark} (POST + DELETE),
-                      /users/{un}/follow (POST + DELETE),
-                      /me/bookmarks/feed, /subscribe (POST, public) —
-                      plus dispatch() (auth-required routes 401 before the
-                      handler; unknown paths 404) and authFromBearer()
-                      (Bearer JWT → {user_id, username}). /hydrate and
-                      /ingest treat the JWT as optional (/hydrate's
-                      viewer_* fields go null; /ingest falls back to the
-                      anonymous sentinel, but still 401s on a token that
-                      was sent and failed to verify); /admin/data adds
-                      the ADMIN_USERNAMES
-                      allowlist via injected deps.
-  lambda.ts           API Gateway v2 entry point — Dynamo/S3/SES wiring +
-                      event adaptation around the routes.ts table; also
-                      detects the async encode-share-mp4 self-invoke
-                      event before HTTP routing.
-  dev-server.ts       Node HTTP shim for `npm run ingest:dev` —
-                      Memory* stores + ConsoleEmailSender (reset link
-                      logged) wired into the same routes.ts table.
-
-lib/templates/        Server-renderer (tagged-literal HTML)
-  home.ts             / (the social feed) + /feed/items fragment
-                      (infinite-scroll sentinel + observer).
-  gallery.ts          Legacy grid template — still exports renderItem +
-                      formatItemDate for the tile-page forks section.
-                      /gallery itself 301s to / in production.
-  tile-page.ts        /d/<id> (drawing detail with author, parent,
-                      forks, action buttons, profile picture). Behaviour
-                      lives in static/tile-page.js.
-  owner.ts            /u/<username> (profile gallery, streak/badges,
-                      profile picture). Exports renderProfilePicture()
-                      shared with tile-page.ts + home.ts.
-  products.ts         /products (merch catalog, ranked by popularity).
-  feed.ts             /feed.rss.
-  prompts.ts          /prompts archive + /prompts/<slug> submission grid
-                      (+ items fragment).
-  streak.ts           /u/<username>/streak month-stacked calendar.
-  admin.ts            /admin shell + renderAdminInner() for /admin/data.
-  embed.ts            /embed/<id> bare iframe player.
-  design.ts           /design kitchen-sink page.
-  bookmarks.ts        /u/<username>/bookmarks page shell.
-  follow-list.ts      /u/<username>/{followers,following} card lists.
-  discover.ts         renderDiscover() — right-rail modules on /.
-  not-found.ts        /404.html shell.
-  _escape.ts          esc() HTML-escaper for the tagged templates.
-  _html-shell.ts      renderHtmlShell() — shared <!doctype>/<head> wrap.
-  _time.ts            formatItemDate() — shared by home + gallery +
-                      anywhere else that wants short "May 28" / "May 28,
-                      2025" date strings.
-
-merch/                Stripe + Printify orders Lambda
-  lambda.ts           Entry point + DI wiring.
-  printify.ts, stripe.ts, product-counters.ts, … (out of scope here)
-
-infra/aws/
-  template.yaml       SAM: Lambdas + HTTP API + S3 bucket + CloudFront
-                      + DynamoDB tables + IAM.
-  samconfig.toml      sam deploy defaults (stack: drawbang-ingest,
-                      us-east-1).
-  build-lambda.mjs    esbuild bundler (externals @aws-sdk/*).
-
-static/               Plain JS + CSS shipped as edge assets
-  chrome.css          Tokens + chrome + base .btn (see "Shared CSS").
-  gallery-v2.css      Classes for Lambda-rendered pages.
-  flash.js            Toast/flash UI exposed as window.drawbangShowFlash.
-  chrome-identity.js  Identity link rewrite for the chrome + reveals any
-                      [data-owner-only-for="<un>"] when the viewer matches.
-  chrome-toggle.js    Hamburger toggle for narrow viewports.
-  tile-page.js        Drawing-page client behaviour (copy-link, Web Share,
-                      GA tracking).
-  hydrate.js          **Single read-side hydration channel.** On load (and
-                      MutationObserver tick) walks the DOM once to collect
-                      [data-like-target] / [data-bookmark-target] (drawing
-                      ids) and [data-follow-target] / [data-profile-username]
-                      / [data-profile-picture-username] (usernames), fires
-                      ONE GET /hydrate?drawings=…&users=… with optional
-                      Bearer JWT, then stamps each element: like counts,
-                      filled states, follow counts, follow button labels +
-                      reveal, profile-picture <img>↔placeholder swaps.
-  like.js             Click handler for `[data-like-target]` — optimistic
-                      POST/DELETE /drawings/<id>/like, redirect to /login on
-                      no/expired session, MutationObserver re-wires
-                      infinite-scroll appends. Read-side state lives in
-                      hydrate.js.
-  bookmark.js         Same shape as like.js for `[data-bookmark-target]`.
-  follow.js           Click handler for `[data-follow-target]` — POST/DELETE
-                      /users/<un>/follow + optimistic follower-counter bump
-                      on the profile page. Hides self-targeted buttons. Same
-                      shape as like.js / bookmark.js.
-  share.js            Web Share wirer for `[data-share-button]` controls
-                      on the feed. navigator.share when supported, falls
-                      back to clipboard copy + flash. Loaded by home.ts.
-  subscribe.js        Submit handler for the hero email-capture form
-                      (`[data-subscribe-form]`) — POST /subscribe + flash
-                      feedback. Loaded by home.ts.
-  infinite-scroll.js  Shared IntersectionObserver for the paginated
-                      Lambda templates (home, profile, follow lists).
-  toggle-handler.js   Shared factory behind like.js / bookmark.js /
-                      follow.js — JWT guard, optimistic toggle + revert,
-                      MutationObserver re-wiring, 401 → /login redirect.
-  fonts/              Akzidenz-Grotesk .ttf files.
-  mockups/            Merch mockup imagery (pairs with config/mockups.json).
-  og-logo.png         OG fallback image.
-
-vite/plugins/
-  chrome.ts           <!--CHROME:HEADER--> / <!--CHROME:FOOTER--> markers.
-  dev-bucket.ts       Dev-only middleware that mirrors the prod
-                      CloudFront Function so clean URLs work locally.
-
-test/                 node:test suites
-scripts/
-  backfill-large-gifs.ts  npm run og:backfill — generate missing -large.gif.
-  backfill-share-mp4.ts   Generate missing -large.mp4 sidecars for legacy
-                          drawings.
-  migrate-tiles.ts        One-shot DDB seeding from S3.
-  recover-missing-tiles.ts One-shot for orphaned /tiles/<id>.gif rows.
-  reassign-anonymous.ts   Reassigns migrated drawings to a real account.
-  smoke-ingest.ts         End-to-end smoke test against a deployed endpoint.
-
-docs/
-  identity-considerations.md  Account model: JWT sessions, scrypt, reset
-                              flow, and the security trade-offs.
-  claim-flow-proposal.md      Proposed (not built) flow for attributing an
-                              anonymous drawing to an account after signup.
-  gotchas.md                  Build / deploy / SDK quirks worth knowing.
-  auth-setup.md               SES + secrets bootstrap.
-
-.github/workflows/
-  deploy.yml          CI: typecheck + test + sam deploy + lambda:build.
-
-legacy/               Archived Ruby app; read-only reference, never imported
-```
-
-## Critical invariants — don't break these
-
-- **Drawing id is content-addressed on gif bytes alone.**
-  `drawing_id = hex(sha256(gif_bytes))`. Same gif → same id, regardless
-  of who publishes it.
-- **Canonical drawing URL is `/d/<id>`**, not `/t/<id>`. The CloudFront
-  Function 301s `/t/<id>` → `/d/<id>` (for stragglers from the
-  short-lived tile-unification window). The canonical gif URL is
-  `/tiles/<id>.gif`; legacy `/drawings/<id>.gif` rewrites to it at
-  the edge.
-- **Identity comes from the verified session JWT, never the request body.**
-  The route (`ingest/lambda.ts` / `ingest/dev-server.ts`) verifies the
-  Bearer JWT and passes `{ user_id, username }` into `handleIngest` /
-  `handleSetProfilePicture` via `cfg.auth`. An *invalid* token is a 401
-  before the handler runs. The one place a *missing* token isn't a 401 is
-  `POST /ingest`, where `cfg.auth: null` means "attribute this to the
-  anonymous sentinel" — see "Anonymous publishing". Everywhere else,
-  missing still means 401.
-- **Profile pictures only point at drawings the caller owns.**
-  `handleSetProfilePicture` requires `drawing.username === auth.username`.
-  Anonymous-bucketed drawings can't be claimed by anyone since `anonymous`
-  is reserved and no real account holds it.
-- **DrawingStore is the source of truth for the dynamic routes.** The
-  ingest handler dual-writes a row before returning success; the
-  render handlers query the store directly, so a newly-published
-  drawing is visible immediately. CloudFront invalidations on
-  `/gallery*`, `/u/<username>*`, `/feed.rss` keep the edge cache in
-  sync.
-- **GIF format is fixed.** ≤16 frames; per-drawing frame delay
-  80–250 ms (editor FPS slider 4–12; legacy drawings sit on 200 ms /
-  5 FPS; single-frame gifs exempt from the bounds at ingest); GCT has
-  32 entries: slots 0..15 = active palette RGB, slot 16 = transparent,
-  17..31 = 0.
-- **DRAWBANG Application Extension** (in `src/editor/gif.ts`): app
-  identifier `"DRAWBANG"` (8 bytes) + auth `"1.0"` (3 bytes) + one
-  16-byte sub-block of base-palette indices. Without it,
-  `encodeShareGif` can't generate the `-large.gif` OG image — see
-  the publish handler's try/catch and `scripts/backfill-large-gifs.ts`.
-
-## Commands
-
-```
-npm run dev            # Vite dev server (editor only)
-npm run dev:all        # Vite + ingest dev server together — full e2e loop
-npm run build          # tsc -b + vite build -> dist/
+## 7. Commands
+
+```sh
+npm run dev            # Vite editor only
+npm run dev:all        # Vite :5173 + ingest :8787 — full loop
+npm run build          # tsc -b + vite build → dist/
 npm run typecheck      # tsc -b --noEmit
 npm test               # node:test across test/**/*.test.ts
-npm run ingest:dev     # Node ingest server on :8787 (FsStorage + Memory* stores)
-npm run lambda:build   # esbuild the Lambda → dist-lambda/
-npm run lambda:deploy  # lambda:build + sam deploy
-npm run og:backfill    # generate missing public/tiles/<id>-large.gif sidecars
+npm run ingest:dev     # ingest on :8787 (FsStorage + Memory* stores)
+npm run lambda:build   # esbuild → dist-lambda/
+npm run lambda:deploy  # build + sam deploy
+npm run og:backfill    # scripts/backfill-large-gifs.ts
 ```
 
-### Local e2e loop
+Local e2e (`npm run dev:all`): open `:5173`, `/signup` → draw → Publish (signed-in = direct, signed-out = Publish dialog → anonymous or inline auth → publish). Gifs land in `./dev-bucket/`; render routes on `:8787` (Vite proxy shadows proxied GETs — read `/d/<id>`/ `/u/<un>` off `:8787` directly). `/password/forgot` link is logged to the dev server console.
 
-`npm run dev:all` starts Vite on :5173 and the ingest dev server on
-:8787 in one shell. Together they let you exercise the publish + auth
-+ profile-picture paths end-to-end against the filesystem + in-memory
-stores:
+Tests: `npm test` in seconds; single file: `node --test --import tsx 'test/render-handlers.test.ts'`.
 
-1. Open http://localhost:5173 — visit `/signup` and create an account
-   (the dev server uses `MemoryUserStore` + `MemoryDrawingStore`, so
-   accounts and drawings reset on restart).
-2. Draw, then **Publish**. Signed in, it publishes straight away.
-   Signed out, the publish dialog opens: "Publish anonymously" lands the
-   drawing with an unlinked "anonymous" byline (and `/u/anonymous`
-   404s), while "Log in or sign up" authenticates inline and then
-   publishes it attributed. The ingest server writes the gif to
-   `./dev-bucket/`, adds the row to `MemoryDrawingStore`, and the next
-   `/` / `/d/<id>` / `/u/<username>` GET picks it up.
+Env: `VITE_INGEST_URL`, `VITE_DRAWING_BASE_URL` (editor build); Lambda runtime `DRAWBANG_BUCKET`, `PUBLIC_BASE_URL`, `REPO_URL`, `JWT_SECRET` (required, fails loud if unset), `SES_FROM_ADDRESS`, `ADMIN_USERNAMES`, `CF_DISTRIBUTION_ID`, `DRAWBANG_*_TABLE` (users/usernames/drawings/likes/bookmarks/follows/challenges/subscribers/product-counters/user-stats). Backfill scripts: `DRAWBANG_S3_BUCKET`. All wired in `infra/aws/template.yaml`.
 
-   Note: the dev-bucket middleware runs ahead of Vite's proxy, so the
-   proxied GET routes (`/d/<id>`, `/u/<un>`, `/`) are still shadowed by
-   its clean-URL 404 — read those off `localhost:8787` directly when
-   verifying a publish locally.
-3. Visit `/d/<id>` while logged in — the **Set as profile picture**
-   button appears next to the other actions and POSTs
-   `/auth/profile-picture`. Visit your profile to confirm.
-4. **Forgot password**: `/password/forgot` → the ingest dev server
-   logs the reset link (which lands you on `/password/reset?token=…`)
-   to its console (`[email] password reset for …`).
+## 8. Conventions
 
-The Vite config proxies `/ingest`, `/auth`, and the rendered HTML
-routes to `:8787`. The merch / order / products surfaces still
-depend on DynamoDB and Stripe in prod — they're out of scope for
-local e2e.
+* TypeScript strict; don't loosen `tsconfig.json`.
+* No WHAT comments — WHY only when non-obvious.
+* Tests: `node:test` + `tsx`, no new framework.
+* Storage via `Storage` interface (`FsStorage` ↔ `S3Storage` interchangeable).
+* Merge to `master` when green (typecheck + tests); no review gate. Deploy runs on every push. End-of-task flow: `typecheck` → `test` (iterate to green) → commit → push → smoke-check `pixel.drawbang.com` after deploy. Ask only for destructive actions (force-push, data removal).
+* Naming: kebab-case files, PascalCase types (`UserRecord`), camelCase fns/vars (`activePalette`, `is/has/can/should` for booleans), `UPPER_SNAKE_CASE` constants (`MAX_FRAMES`), namespaced CSS (`.dr-`, `.ow-`, `.pr-`, `.ed-`, `.mc-`), `*.worker.ts`/`*.test.ts` when relevant. On rename, update imports + docs + run `typecheck` in same commit.
+* UI consistency: search the repo before adding any visible affordance; reuse `src/layout/flash.ts` / `static/flash.js`, `src/layout/chrome.ts` markers, `.btn`/`.ghost`/`.primary` in `chrome.css`, `src/layout/tracking.ts`. If a Lambda page needs a Vite helper, lift to `static/*.js` + `chrome.css` + `window.drawbang*` rather than duplicating.
 
-Tests are fast: `npm test` finishes in a few seconds. Iterate on a
-single file with `node --test --import tsx 'test/render-handlers.test.ts'`.
+## 9. Observability & prod verification (no AWS keys needed)
 
-## Environment variables
+*Structured logs* (`ingest/log-outcome.ts` is the shape source): `kind="outcome"` (every route, status/latency), `kind="tail"` (every `runPostPublish`, success and failure — don't remove success line; absence is the signal), `kind="boot"` (cold start: ffmpeg presence, arch, memory). Insights queries:
 
-Editor (build-time):
-- `VITE_INGEST_URL` — API Gateway / CloudFront URL for the ingest Lambda.
-- `VITE_DRAWING_BASE_URL` — `${cloudfront-domain}/tiles` (drawing/fork/merch gif source).
+```
+# tail failures (ffmpeg stderr in .error)
+fields @timestamp, drawing_id, invocation, large_mp4.error
+| filter kind="tail" and large_mp4.ok=0 | sort @timestamp desc
+# tail health by hour    → filter kind="tail" | stats count() as runs, sum(large_gif.ok) as gif_ok, sum(large_mp4.ok) as mp4_ok by bin(1h)
+# this drawing's tail?   → filter kind="tail" and drawing_id="<id>"
+# ffmpeg present?         → filter kind="boot" | stats count() by ffmpeg_present, ffmpeg_bytes, arch
+```
 
-Lambda (runtime, set via SAM):
-- `DRAWBANG_BUCKET` — S3 bucket name.
-- `PUBLIC_BASE_URL` — `https://${cloudfront-domain}`. Goes into the
-  `share_url` and the password-reset link.
-- `REPO_URL` — for the footer link.
-- `DRAWBANG_USER_STATS_TABLE` — DDB table for per-account streak +
-  total counters (#115/#116, default `drawbang-account-stats`).
-- `DRAWBANG_USERS_TABLE` — accounts table (default `drawbang-users`).
-- `DRAWBANG_USERNAMES_TABLE` — username reservations (default
-  `drawbang-usernames`).
-- `DRAWBANG_DRAWINGS_TABLE` — DDB source of truth for the dynamic
-  gallery / drawing / profile / forks routes (default
-  `drawbang-drawings`).
-- `DRAWBANG_LIKES_TABLE` — DDB table for ❤️ likes (default
-  `drawbang-likes`).
-- `DRAWBANG_BOOKMARKS_TABLE` — DDB table for per-user bookmarks (default
-  `drawbang-bookmarks`).
-- `DRAWBANG_FOLLOWS_TABLE` — DDB table for follow edges between accounts
-  (default `drawbang-follows`).
-- `DRAWBANG_CHALLENGES_TABLE` — DDB table holding spent proof-of-work
-  challenge ids, TTL-swept (default `drawbang-challenges`).
-- `DRAWBANG_SUBSCRIBERS_TABLE` — DDB table for the email-capture list
-  (default `drawbang-subscribers`).
-- `DRAWBANG_PRODUCT_COUNTERS_TABLE` — feeds `/products` (default
-  `drawbang-product-counters`).
-- `CF_DISTRIBUTION_ID` — CloudFront distribution id for publish-time
-  invalidations. Optional: empty skips invalidation (cached pages
-  refresh at s-maxage instead).
-- `JWT_SECRET` — HS256 secret for session + reset JWTs. **Required**:
-  the ingest function fails loud at cold start if unset.
-- `SES_FROM_ADDRESS` — verified SES sender for reset emails. Optional;
-  when empty, reset requests still 200 but no email is sent.
-- `ADMIN_USERNAMES` — comma-separated allowlist for `/admin/data`.
-  Optional; empty means nobody passes the gate.
+`remaining_ms` near zero + failure = timeout, not encoder; `ms` + `bytes` per step distinguish quick fail vs slow fail; `invocation` = `async` vs `inline` vs `backfill` (spike in `inline` = queue failure).
 
-Backfill scripts:
-- `DRAWBANG_S3_BUCKET` — bucket the script reads/writes.
+Prod check uses the **`execute-api` host** baked into the editor bundle — `POST /ingest` / `DELETE /drawings/<id>` / `POST /backfill/sidecars` have no CloudFront behavior and 404 on `pixel.drawbang.com`:
 
-## AWS deployment
+```sh
+curl -s https://pixel.drawbang.com/draw | grep -o '/assets/draw-[^"]*\.js'
+curl -s "https://pixel.drawbang.com/assets/draw-<hash>.js" | grep -o 'https://[a-z0-9]*\.execute-api\.[^"]*/ingest'
+```
 
-One-time setup:
-1. Create IAM user with `AWSLambda_FullAccess`, `AmazonS3FullAccess`,
-   `AmazonAPIGatewayAdministrator`, `AWSCloudFormationFullAccess`,
-   `IAMFullAccess`, `AmazonDynamoDBFullAccess`, `CloudFrontFullAccess`,
-   and `AmazonSESFullAccess`.
-2. GitHub secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
-   `PRINTIFY_API_TOKEN`, `PRINTIFY_SHOP_ID`, `STRIPE_SECRET_KEY`,
-   `STRIPE_WEBHOOK_SECRET`, and `JWT_SECRET`.
-   Prod environment **variable** (non-secret): `SES_FROM_ADDRESS`.
-3. First deploy happens automatically on push to `master`. SAM
-   creates the S3 bucket, Lambda, HTTP API, DynamoDB tables (orders,
-   product counters, user-stats, users, usernames, drawings),
-   CloudFront distribution, and IAM role.
-4. **SES setup** (for password reset): verify a sender identity in
-   SES, set `SES_FROM_ADDRESS` to it, and — if the account is in the
-   SES sandbox — request production access so resets reach arbitrary
-   recipients.
+`/auth/*` is on CloudFront, so works on either host.
 
-## Conventions
+Self-serve loop (leaves nothing behind): `POST /auth/register` → JWT → `POST /ingest` (vary bytes; same bytes → idempotent 200, not 202) → verify → `DELETE /drawings/<id>` per drawing → `POST /auth/account/delete` (409 until drawings are gone, so delete drawings first). Don't leave test drawings on the public feed; sandbox latency is noisy (190–550 ms baseline for a 400) and sidecars take ~6 s to appear — checking sooner is a false failure.
 
-- TypeScript strict; don't loosen `tsconfig.json` without a reason.
-- No comments explaining WHAT — only WHY, and only when non-obvious.
-- Tests use `node:test` + `tsx`; don't introduce a test framework
-  dependency.
-- Storage operations must go through the `Storage` interface so
-  `FsStorage` (dev/tests) and `S3Storage` (Lambda/scripts) stay
-  interchangeable.
-- **Merge directly to `master`** when a change is green (typecheck
-  + tests pass). No PR review gate, no long-lived feature branches.
-  The deploy workflow runs on every push to `master`.
-- **Default end-of-task flow when implementing a feature/fix**:
-  `npm run typecheck` → `npm test` (keep iterating until green) →
-  commit → push → smoke-check in prod (pixel.drawbang.com) once
-  the GH Actions deploy finishes. Don't pause to ask between these
-  steps unless something fails or the diff is non-obviously
-  destructive. Reserve confirmation for actions outside this loop
-  (force-push, removing data, etc.).
+---
 
-## UI / UX consistency (paramount)
+## Deep references — read on demand
 
-Before introducing any visible UI affordance — toast, modal, button
-variant, status strip, banner, picker, page title style, link
-hover, etc. — **search the repo first** for an existing
-implementation. Reuse beats new.
+Don't load these unless your task touches the area. Prefer the source file over a summary. For subagents: if your task touches an area, **read the listed source first**.
 
-Specifically:
-- Cross-surface notifications: `src/layout/flash.ts` (Vite consumers)
-  + `static/flash.js` (`window.drawbangShowFlash`, loaded as a plain
-  script by Lambda-rendered pages). Styles live in `chrome.css` so
-  every surface picks them up via the existing import chain.
-- Cross-surface chrome (header, footer, nav, identity link,
-  hamburger toggle): `src/layout/chrome.ts` + the
-  `<!--CHROME:HEADER-->` / `<!--CHROME:FOOTER-->` markers for Vite
-  pages; `renderHeader` / `renderFooter` called directly from
-  `lib/templates/*.ts`.
-- Buttons: `.btn` / `.primary` / `.ghost` / `.btn[hidden]` in
-  `chrome.css` (works on both `<a>` and `<button>`). Variants
-  `.icon` / `.sm` / `.xs` in `src/style.css` (Vite surfaces only).
-- Tracking: `src/layout/tracking.ts` (`renderAnalytics`,
-  `renderMetaPixel`) is the single source for both GA and Meta
-  Pixel snippets.
+* Publish & tail: `ingest/handler.ts` (`handleIngest`, `runPostPublish`, `PostPublishEvent`), `ingest/share-mp4.ts`, `ingest/cache-invalidation.ts`, `ingest/log-outcome.ts`
+* Auth / session / PoW: `ingest/challenge.ts`, `ingest/challenge-store.ts`, `ingest/jwt.ts`, `ingest/password.ts`, `ingest/email.ts`, `ingest/auth-handler.ts`, `src/altcha.ts`, `src/auth.ts`, `src/publish-dialog.ts`, `config/constants.ts`
+* Deletions & backfill: `ingest/delete-handler.ts`, `ingest/account-delete.ts`, `ingest/backfill-handler.ts`, `scripts/backfill-large-gifs.ts`
+* Stores: `ingest/drawing-store.ts`, `user-store.ts`, `user-stats-store.ts`, `likes-store.ts`, `bookmarks-store.ts`, `follows-store.ts`, `subscribers-store.ts`
+* Rendering & routes: `ingest/routes.ts` (route table — canonical), `ingest/render-handlers.ts`, `ingest/hydrate-handler.ts`, `lib/templates/*.ts`
+* Layout & design: `src/layout/chrome.ts`, `static/chrome.css`, `static/gallery-v2.css`, `src/style.css`, `docs/design-system.md`
+* Infra & deploy: `infra/aws/template.yaml`, `infra/aws/build-lambda.mjs`, `docs/gotchas.md`, `docs/auth-setup.md`, `docs/identity-considerations.md`
+* Anonymous claim (proposal, not built): `docs/claim-flow-proposal.md`
+* Full pre-optimization reference: `CLAUDE.md.bak` (79 KiB, 1307 lines) — kept for deep history if needed
 
-When you find that a new surface (e.g. a Lambda-rendered page)
-doesn't have access to a Vite-only helper, **prefer lifting it to
-the shared layer over writing a parallel implementation**. The
-lift pattern: hand-port to `static/<name>.js` (plain JS, exposes a
-`window.drawbang*` global or reads `data-*` attributes), move its
-CSS to `chrome.css`, load via `<script src="/<name>.js">`. See
-`chrome-toggle.js`, `chrome-identity.js`, `flash.js`,
-`tile-page.js`.
-
-If reuse genuinely isn't viable (e.g. the surface needs a different
-interaction model), say so explicitly in the commit message and ask
-before proceeding — divergent UX is harder to walk back than a
-slightly bigger refactor.
-
-## Naming conventions
-
-- **Files**: kebab-case for all source files (`render-handlers.ts`,
-  `tile-page.ts`). Avoid abbreviations; spell out domain terms.
-- **Modules**: file name matches the primary export. One concept per
-  file.
-- **Types / Interfaces**: PascalCase (`UserRecord`, `DrawingRow`).
-  Suffix with `Config`, `View`, `Options` when appropriate.
-- **Functions / Variables**: camelCase (`activePalette`,
-  `handleSetProfilePicture`). Booleans start with `is/has/can/should`.
-- **Constants**: `UPPER_SNAKE_CASE` for true compile-time constants
-  (`MAX_FRAMES`, `WIDTH`). Config objects exported from `config/`
-  use `PascalCase` export names.
-- **CSS classes**: kebab-case with namespace prefix (`dr-` for
-  drawing detail, `ow-` for owner profile, `pr-` for products,
-  `ed-` for editor, `mc-` for merch, `hdr`/`ftr` for chrome).
-  Shared chrome classes live in `chrome.css`.
-- **Worker files**: `*.worker.ts` suffix (none right now; reserve
-  for future).
-- **Test files**: `*.test.ts` mirrors source name where useful.
-- **Avoid**: Hungarian notation, single-letter names except loop
-  indices, cryptic abbreviations.
-- **Renames**: When renaming a public module, update all imports,
-  config references, and documentation in the same commit. Run
-  `npm run typecheck` before pushing.
