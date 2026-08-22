@@ -22,6 +22,7 @@
 
 import { assetUrl } from "./asset-version.js";
 import { LOGO_SVG } from "./logo.js";
+import { esc } from "../../lib/templates/_escape.js";
 
 export interface NavLink {
   href: string;
@@ -170,16 +171,4 @@ const FEEDBACK_URL =
 
 const MENU_ICON_SVG = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 6h18M3 12h18M3 18h18"/></svg>`;
 
-const ESC: Record<string, string> = {
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&#39;",
-};
-// TODO (#shared-escape): duplicate of lib/templates/_escape.ts esc() —
-// consolidate to one shared module (docs/architecture-review-2026-06.md).
-function esc(v: unknown): string {
-  if (v == null) return "";
-  return String(v).replace(/[&<>"']/g, (c) => ESC[c]!);
-}
+

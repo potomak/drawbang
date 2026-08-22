@@ -1,4 +1,5 @@
 import { tracker } from "./analytics/analytics.js";
+import { esc as escapeHtml } from "../lib/templates/_escape.js";
 
 interface OrderView {
   order_id?: string;
@@ -73,19 +74,7 @@ function formatUsd(cents: number | undefined): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-// TODO (#shared-escape): third copy of the HTML escaper — consolidate
-// with lib/templates/_escape.ts (docs/architecture-review-2026-06.md).
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (ch) => {
-    switch (ch) {
-      case "&": return "&amp;";
-      case "<": return "&lt;";
-      case ">": return "&gt;";
-      case "\"": return "&quot;";
-      default: return "&#39;";
-    }
-  });
-}
+
 
 function renderRetry(msg: string, onRetry: () => void): void {
   cardEl.innerHTML = `
