@@ -29,3 +29,6 @@ dist-lambda/
 
 # Claude Code local plugin / settings state
 .claude/
+
+# E2E screenshots (PR artifacts, not source)
+.screenshots/
