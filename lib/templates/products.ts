@@ -59,6 +59,7 @@ const MOCKUP_BY_PRODUCT: Record<string, { src: string; cls: string }> = {
   "tee-softstyle": { src: "/mockups/tee.jpg", cls: "pr-art-tee" },
   mug: { src: "/mockups/mug.jpg", cls: "pr-art-mug" },
   "sticker-sheet": { src: "/mockups/sticker-sheet.jpg", cls: "pr-art-sticker" },
+  tote: { src: "/mockups/tote.jpg", cls: "pr-art-tote" },
 };
 
 function renderCard(c: ProductCard): string {

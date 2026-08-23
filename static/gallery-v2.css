@@ -953,6 +953,12 @@ img.profile-picture {
   left: 12%;
   width: 27%;
 }
+.pr-art.pr-art-tote img.pr-drawing {
+  /* tote front, placeholders 400,380 / 400×480 — centered square */
+  top: 35%;
+  left: 33.3%;
+  width: 33.3%;
+}
 .pr-info {
   display: flex;
   flex-direction: column;

@@ -104,6 +104,7 @@ const MOCKUP_CLASS_BY_PRODUCT: Record<string, string> = {
   "tee-softstyle": "pr-art-tee",
   mug: "pr-art-mug",
   "sticker-sheet": "pr-art-sticker",
+  tote: "pr-art-tote",
 };
 
 function renderProductsSection(drawingId: string): string {
