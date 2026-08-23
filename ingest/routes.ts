@@ -60,6 +60,7 @@ import {
   renderFollowThumbsHandler,
   renderHomePageHandler,
   renderMyBookmarksFeedHandler,
+  renderProductPageHandler,
   renderProductsPageHandler,
   renderProfileItemsHandler,
   renderProfilePageHandler,
@@ -668,6 +669,41 @@ export function createRoutes(deps: RouteDeps): Route[] {
       auth: "none",
       handler: async (_req, [page]) =>
         render(await renderProductsPageHandler(deps.renderConfig, page)),
+    },
+    // Product detail — canonical /products/:drawingId/:productId (SSR with
+    // default variant pre-selected). Frame is optional ?frame=N.
+    {
+      methods: ["GET"],
+      pattern: new RegExp(`^\\/products\\/(${HEX64})\\/([^/]+)$`),
+      auth: "none",
+      handler: async (req, [drawingId, productId]) =>
+        render(await renderProductPageHandler(deps.renderConfig, drawingId, productId, req.query("frame"))),
+    },
+    // Alias: /merch/:product/:drawingId → 301 to canonical /products/:drawingId/:productId
+    {
+      methods: ["GET"],
+      pattern: new RegExp(`^\\/merch\\/([^/]+)\\/(${HEX64})$`),
+      auth: "none",
+      handler: async (req, [productId, drawingId]) => {
+        const frame = req.query("frame");
+        const suffix = frame ? `?frame=${encodeURIComponent(frame)}` : "";
+        return { kind: "redirect301", location: `/products/${drawingId}/${productId}${suffix}` };
+      },
+    },
+    // Single-param merch alias: /merch/:id (where :id is 64hex drawing) —
+    // redirect to canonical with default product (tee) so legacy links don't 404.
+    // Also covers /merch/:product (non-hex) → 404 via product handler.
+    {
+      methods: ["GET"],
+      pattern: new RegExp(`^\\/merch\\/(${HEX64})$`),
+      auth: "none",
+      handler: async (req, [drawingId]) => {
+        const frame = req.query("frame");
+        const suffix = frame ? `?frame=${encodeURIComponent(frame)}` : "";
+        // Preserve existing SPA entrypoint behavior for bare /merch?d=...
+        // but offer a clean URL: /merch/<drawingId> → /products/<drawingId>/tee
+        return { kind: "redirect301", location: `/products/${drawingId}/tee${suffix}` };
+      },
     },
     // /prompts — daily-prompt archive; /prompts/<slug> — submission grid;
     // /prompts/<slug>/items?cursor=… — infinite-scroll fragment. Slug

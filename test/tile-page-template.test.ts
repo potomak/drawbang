@@ -132,11 +132,14 @@ test("tile page: Remix is the primary CTA and leads the action row", () => {
     html,
     new RegExp(`<a class="btn primary" id="dr-fork" href="/draw\\?fork=f{64}">Remix</a>`)
   );
-  assert.match(html, /<a class="btn" id="dr-make-merch"/);
+  // Products section replaces the old Make merch button
+  assert.doesNotMatch(html, /id="dr-make-merch"/);
+  assert.match(html, /id="dr-products"/);
   const remixIdx = html.indexOf('id="dr-fork"');
   const likeIdx = html.indexOf("data-like-target");
-  const merchIdx = html.indexOf('id="dr-make-merch"');
-  assert.ok(remixIdx > -1 && remixIdx < likeIdx && remixIdx < merchIdx);
+  const productsIdx = html.indexOf('id="dr-products"');
+  assert.ok(remixIdx > -1 && remixIdx < likeIdx);
+  assert.ok(productsIdx > remixIdx);
 });
 
 test("tile page: no user-facing Fork copy remains", () => {
@@ -314,7 +317,6 @@ test("tile page: Web Share button is rendered hidden by default (progressive enh
 
 test("tile page: action buttons ship their GA-wired ids", () => {
   const html = renderTilePage(baseView);
-  assert.match(html, /id="dr-make-merch"/);
   assert.match(html, /id="dr-fork"/);
   assert.match(html, /id="dr-share-threads"/);
   assert.match(html, /id="dr-share-reddit"/);
@@ -343,4 +345,15 @@ test("tile page: renders a like button with the SSR count + loads /like.js", () 
   assert.match(html, /aria-pressed="false"/);
   assert.match(html, /<span class="like-count" data-like-count>12<\/span>/);
   assert.match(html, /<script src="\/like\.js"><\/script>/);
+});
+
+test("tile page: products section lists each merch product with thumbnail and link to product page", () => {
+  const html = renderTilePage(baseView);
+  assert.match(html, /id="dr-products"/);
+  assert.match(html, /class="pr-grid"/);
+  // At least one product card per merch product (config/merch.json has tee, mug, sticker-sheet, etc.)
+  assert.match(html, /class="pr-card"/);
+  assert.match(html, new RegExp(`href="/products/${"f".repeat(64)}/[^"]+"`));
+  assert.match(html, /class="pr-mockup"/);
+  assert.match(html, /class="pr-drawing"/);
 });

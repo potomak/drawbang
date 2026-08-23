@@ -1149,3 +1149,13 @@ img.profile-picture {
   white-space: nowrap;
   letter-spacing: 0.02em;
 }
+
+/* =====================================================================
+   DRAWING PAGE PRODUCTS — replaces the old #dr-make-merch button.
+   Reuses the .pr-grid / .pr-card / .pr-art system from the /products
+   list so no duplicate rules. Responsive breakpoints come from that
+   system (6→4→3→2 cols). This wrapper only adds vertical rhythm.
+   ===================================================================== */
+.dr-products {
+  margin: 0 0 24px;
+}

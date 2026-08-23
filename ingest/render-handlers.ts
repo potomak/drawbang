@@ -51,6 +51,8 @@ import renderFollowList, {
 } from "../lib/templates/follow-list.js";
 import renderNotFound from "../lib/templates/not-found.js";
 import renderProducts from "../lib/templates/products.js";
+import renderProductPage from "../lib/templates/product-page.js";
+import { defaultVariant } from "../src/merch-query.js";
 import { assetUrl } from "../src/layout/asset-version.js";
 import {
   PROMPT_SLUG_RE,
@@ -936,6 +938,56 @@ function injectProfileSentinel(html: string, nextUrl: string): string {
     </main>
     <script src="${assetUrl("/infinite-scroll.js")}"></script>`
   );
+}
+
+// -- /products/:drawingId/:productId (product detail) + /products list ---
+
+export async function renderProductPageHandler(
+  cfg: RenderHandlersConfig,
+  drawingId: string,
+  productId: string,
+  rawFrame: string | null = null
+): Promise<RenderResponse> {
+  if (!DRAWING_ID_RE.test(drawingId)) return notFound(cfg);
+  if (!cfg.merchCatalog) return notFound(cfg);
+  const product = cfg.merchCatalog.products.find((p) => p.id === productId);
+  if (!product) return notFound(cfg);
+  const row = await cfg.drawingStore.get(drawingId);
+  if (!row) return notFound(cfg);
+  const variant = defaultVariant(product as unknown as Parameters<typeof defaultVariant>[0]);
+  if (!variant) return notFound(cfg);
+
+  // Frame selection: ?frame=N validated against row.frames (gif frame count).
+  let selectedFrame = 0;
+  if (rawFrame !== null && rawFrame !== undefined && rawFrame !== "") {
+    const parsed = Number.parseInt(rawFrame, 10);
+    if (!Number.isInteger(parsed) || parsed < 0 || parsed >= row.frames) return notFound(cfg);
+    selectedFrame = parsed;
+  }
+  const priceDollars = (variant.retail_cents / 100).toFixed(2);
+  const shippingDollars = (product.shipping_cents / 100).toFixed(2);
+  const totalDollars = ((variant.retail_cents + product.shipping_cents) / 100).toFixed(2);
+  const body = renderProductPage({
+    drawing_id: row.drawing_id,
+    drawing_id_short: row.drawing_id.slice(0, 8),
+    product_id: product.id,
+    product_name: product.name,
+    variants: product.variants,
+    default_variant_id: variant.id,
+    selected_frame: selectedFrame,
+    price_dollars: priceDollars,
+    shipping_dollars: shippingDollars,
+    total_dollars: totalDollars,
+    shipping_cents: product.shipping_cents,
+    repo_url: cfg.repoUrl,
+    public_base_url: cfg.publicBaseUrl,
+  });
+  return {
+    status: 200,
+    contentType: "text/html; charset=utf-8",
+    cacheControl: CC_PRODUCTS,
+    body,
+  };
 }
 
 // -- /products + /products/p/<N> --------------------------------------------

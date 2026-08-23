@@ -62,6 +62,7 @@ export default defineConfig({
       input: {
         draw: resolve(__dirname, "draw.html"),
         merch: resolve(__dirname, "merch.html"),
+        product: resolve(__dirname, "product.html"),
         order: resolve(__dirname, "order.html"),
         login: resolve(__dirname, "login.html"),
         signup: resolve(__dirname, "signup.html"),

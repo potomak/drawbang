@@ -6,6 +6,8 @@ import { renderItem } from "./gallery.js";
 import { renderHtmlShell } from "./_html-shell.js";
 import { renderBookmarkButton, renderLikeButton } from "./home.js";
 import { renderProfilePicture } from "./owner.js";
+import merchCatalogJson from "../../config/merch.json" with { type: "json" };
+import mockupsJson from "../../config/mockups.json" with { type: "json" };
 
 // /d/<drawing_id> — the canonical page for a single drawing. Content-
 // addressed (id = sha256(gif)). Shows the gif, author, fork lineage,
@@ -95,6 +97,46 @@ ${[...links, current].join("\n")}
 `;
 }
 
+// Known product_id → mockup CSS class, mirrors lib/templates/products.ts
+// so the drawing-page thumbnails share the same compositing rules.
+const MOCKUP_CLASS_BY_PRODUCT: Record<string, string> = {
+  tee: "pr-art-tee",
+  "tee-softstyle": "pr-art-tee",
+  mug: "pr-art-mug",
+  "sticker-sheet": "pr-art-sticker",
+};
+
+function renderProductsSection(drawingId: string): string {
+  const catalog = merchCatalogJson as { products: Array<{ id: string; name: string }> };
+  const mockups = mockupsJson as { products: Record<string, { mockup_url: string }> };
+  const items = catalog.products
+    .map((product) => {
+      const mockupUrl = mockups.products[product.id]?.mockup_url ?? "/mockups/tee.jpg";
+      const cls = MOCKUP_CLASS_BY_PRODUCT[product.id] ?? "pr-art-tee";
+      // Canonical new route per design §2: /products/:drawingId/:productId
+      const href = `/products/${esc(drawingId)}/${esc(product.id)}`;
+      const label = esc(product.name);
+      return `        <li>
+          <a class="pr-card" href="${href}" data-product-id="${esc(product.id)}">
+            <div class="pr-art ${esc(cls)}">
+              <img class="pr-mockup" src="${esc(mockupUrl)}" alt="" loading="lazy" />
+              <img class="pr-drawing" src="/tiles/${esc(drawingId)}.gif" alt="${label}" loading="lazy" />
+            </div>
+            <div class="pr-info">
+              <span class="pr-name">${label}</span>
+            </div>
+          </a>
+        </li>`;
+    })
+    .join("\n");
+  return `      <section id="dr-products" class="dr-products" data-drawing-id="${esc(drawingId)}" data-frame="0">
+        <p class="panel-h">Products</p>
+        <ul class="pr-grid">
+${items}
+        </ul>
+      </section>`;
+}
+
 export default function renderTilePage(v: TilePageView): string {
   const gif = `/tiles/${esc(v.drawing_id)}.gif`;
   const shareMp4 = `/tiles/${esc(v.drawing_id)}-large.mp4`;
@@ -122,6 +164,7 @@ ${forks.map(renderItem).join("\n")}
       </section>`
       : "";
   const chainSection = renderChainSection(v);
+  const productsSection = renderProductsSection(v.drawing_id);
   const ogMeta = `<meta name="description" content="Pixel art from Draw! · Create your own at https://pixel.drawbang.com" />
     <link rel="canonical" href="${esc(v.public_base_url)}/d/${esc(v.drawing_id)}" />
     <meta property="og:type" content="website" />
@@ -162,7 +205,6 @@ ${forks.map(renderItem).join("\n")}
               <a class="btn primary" id="dr-fork" href="/draw?fork=${esc(v.drawing_id)}">Remix</a>
               ${renderLikeButton(v.drawing_id, v.like_count)}
               ${renderBookmarkButton(v.drawing_id)}
-              <a class="btn" id="dr-make-merch" href="/merch?d=${esc(v.drawing_id)}&amp;frame=0" rel="nofollow noreferrer">Make merch</a>
               <button class="btn" id="dr-set-profile-picture" type="button" hidden>Set as profile picture</button>
               <button class="btn" id="dr-copy-link" type="button">Copy link</button>
               <a class="btn ghost" id="dr-download-gif" href="${gif}" download>Download GIF</a>
@@ -178,6 +220,7 @@ ${forks.map(renderItem).join("\n")}
           </div>
         </div>
       </div>
+${productsSection}
 ${chainSection}${forksSection}
     </main>
     ${renderFooter({ active: "home", repoUrl: v.repo_url })}

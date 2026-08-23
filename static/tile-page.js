@@ -172,7 +172,6 @@
   function wireAnchorTracking(main) {
     var drawingId = main.dataset.drawingId || "";
     var anchors = [
-      { id: "dr-make-merch", event: "make_merch_click", props: { drawing_id: drawingId } },
       { id: "dr-fork", event: "fork_click", props: { drawing_id: drawingId } },
       { id: "dr-share-threads", event: "share_click", props: { target: "threads" } },
       { id: "dr-share-reddit", event: "share_click", props: { target: "reddit" } },
