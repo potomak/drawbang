@@ -303,7 +303,7 @@ function renderBootScript(): string {
 }
 
 export function renderAdminInner(v: AdminView): string {
-  return `<div class="adm-meta">signed in as ${esc(v.adminUsername)} · generated ${esc(v.generatedAtISO)}</div>
+  return `<div class="adm-meta">signed in as ${esc(v.adminUsername)} · generated ${esc(v.generatedAtISO)} · <a href="/admin/orders">Manage orders</a></div>
       ${renderMerchFlagCard(v.merchFlags)}
       <div class="adm-grid" aria-label="Site totals + window stats">
         ${renderCard("Total users", numberOrDash(v.totalUsers), "all time, sampled ~6h")}

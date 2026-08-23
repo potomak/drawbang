@@ -41,6 +41,7 @@ import { CloudWatchLogsClient } from "@aws-sdk/client-cloudwatch-logs";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { handleAdminRoute, type AdminHandlerConfig } from "./admin-handler.js";
 import { FlagsStore } from "../merch/flags-store.js";
+import { OrdersStore } from "../merch/orders.js";
 import { logBoot } from "./log-outcome.js";
 import { FFMPEG_PATH } from "./share-mp4.js";
 import { statSync, constants as fsConstants, accessSync } from "node:fs";
@@ -175,6 +176,8 @@ const deferPostPublish = async (job: PostPublishJob): Promise<void> => {
 const productCountersStore = new ProductCountersStore({ tableName: productCountersTable });
 const merchCatalog = merchCatalogJson as MerchCatalog;
 const flagsStore = new FlagsStore({ tableName: flagsTable });
+const ordersTable = process.env.ORDERS_TABLE ?? "drawbang-orders";
+const ordersStore = new OrdersStore({ tableName: ordersTable });
 // Lazily created — both clients are only used by /admin, so cold-start
 // for every other route stays cheap. Lambda's container reuse keeps the
 // connection pool warm once the first /admin hits.
@@ -261,6 +264,7 @@ const routes = createRoutes({
     renderData: ({ range, adminUsername }) =>
       handleAdminRoute({ cfg: adminCfg(), range, adminUsername }),
     flagsStore,
+    ordersStore,
   },
   repoUrl,
 });
