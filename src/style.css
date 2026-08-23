@@ -957,22 +957,72 @@ canvas#preview {
    ORDER STATUS (/merch/order/<uuid>)
    ===================================================================== */
 .order-page {
-  max-width: 520px;
+  max-width: 560px;
   margin: 0 auto;
+  padding: 24px var(--pad) 40px;
+}
+.page-title {
+  font-size: var(--t-xl);
+  margin: 0 0 16px;
 }
 .order-card {
   background: var(--bg-elev);
   border: var(--border) solid var(--border-c);
-  padding: 16px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  align-items: flex-start;
+  gap: 16px;
+}
+.order-thanks {
+  display: grid;
+  gap: 6px;
+}
+.order-thanks-title {
+  font-size: var(--t-lg);
+  font-weight: 700;
+  margin: 0;
+}
+.order-thanks-sub {
+  font-size: var(--t-sm);
+  color: var(--fg-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+.order-visuals {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.order-visual {
+  display: grid;
+  gap: 6px;
+}
+.order-visual-label {
+  font-size: var(--t-xs);
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.order-visual-caption {
+  font-size: var(--t-xs);
+  color: var(--fg-muted);
 }
 .order-thumb {
   image-rendering: pixelated;
-  width: 128px;
-  height: 128px;
+  width: 160px;
+  height: 160px;
+  border: var(--border) solid var(--border-c);
+  background: var(--canvas-bg);
+  object-fit: contain;
+}
+.order-thumb--empty {
+  background: var(--canvas-bg);
+}
+.order-mockup {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
   border: var(--border) solid var(--border-c);
   background: var(--canvas-bg);
 }
@@ -983,6 +1033,7 @@ canvas#preview {
   text-transform: uppercase;
   letter-spacing: 0.1em;
   font-size: var(--t-xs);
+  align-self: flex-start;
 }
 .status-paid,
 .status-submitted,
@@ -1000,10 +1051,10 @@ canvas#preview {
   color: #ff6060;
   border-color: #ff6060;
 }
-.order-card dl {
+.order-details {
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: 4px 16px;
+  gap: 6px 16px;
   margin: 0;
   font-size: var(--t-sm);
 }
@@ -1012,7 +1063,21 @@ canvas#preview {
 }
 .order-card dd {
   margin: 0;
+  word-break: break-word;
+}
+.order-id-full {
+  font-size: var(--t-xs);
+  color: var(--fg-muted);
   word-break: break-all;
+}
+@media (max-width: 520px) {
+  .order-visuals {
+    grid-template-columns: 1fr;
+  }
+  .order-thumb {
+    width: 140px;
+    height: 140px;
+  }
 }
 
 /* =====================================================================
