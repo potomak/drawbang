@@ -114,11 +114,6 @@ async function isDryRunFlag(flags: MerchHandlerDeps["flags"]): Promise<boolean> 
   return env === "sandbox";
 }
 
-// Deprecated — prefer getMerchEnv(). Kept for backwards compat.
-async function isDryRun(deps: MerchHandlerDeps): Promise<boolean> {
-  return isDryRunFlag(deps.flags);
-}
-
 function toOrderEnv(env: MerchEnv): OrderEnv {
   return env === "prod" ? "prod" : "sandbox";
 }

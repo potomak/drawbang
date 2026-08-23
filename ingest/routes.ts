@@ -151,7 +151,7 @@ export interface RouteDeps {
     isAllowed(username: string): boolean;
     renderData(args: { range: AdminRange; adminUsername: string }): Promise<RenderResponse>;
     flagsStore?: import("../merch/flags-store.js").AnyFlagsStore;
-    ordersStore?: import("../merch/orders.js").OrdersStore;
+    ordersStore?: import("../merch/orders.js").OrdersStore | import("../merch/orders.js").MemoryOrdersStore;
   };
   repoUrl: string;
 }
