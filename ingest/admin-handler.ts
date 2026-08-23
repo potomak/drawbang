@@ -12,6 +12,7 @@ import type { DrawingStore, QueryPage } from "./drawing-store.js";
 import type { UserStore, UserSummary } from "./user-store.js";
 import type { UserStatsStore } from "./user-stats-store.js";
 import type { RenderResponse } from "./render-handlers.js";
+import type { AnyFlagsStore } from "../merch/flags-store.js";
 
 // /admin/data endpoint. Returns an HTML fragment (the data-bound
 // inner section: meta + cards + failures table). The /admin shell
@@ -45,6 +46,7 @@ export interface AdminHandlerConfig {
   drawingsTable: string;
   logGroup: string;
   now?: () => Date;
+  flagsStore?: AnyFlagsStore;
 }
 
 // Product KPIs come from a recent-drawings scan (same pattern as
@@ -194,6 +196,7 @@ export async function handleAdminRoute(
     failures,
     kpiPage,
     users,
+    merchFlags,
   ] = await Promise.all([
     describeItemCount(cfg.ddbClient, cfg.usersTable).catch(() => null),
     describeItemCount(cfg.ddbClient, cfg.drawingsTable).catch(() => null),
@@ -206,6 +209,7 @@ export async function handleAdminRoute(
       userStatsStore: cfg.userStatsStore,
       startMs,
     }).catch(() => null),
+    loadMerchFlags(cfg.flagsStore).catch(() => null),
   ]);
 
   const view: AdminView = {
@@ -219,6 +223,7 @@ export async function handleAdminRoute(
     kpis: computeProductKpis(kpiPage),
     users,
     failures: parseFailures(failures),
+    merchFlags,
   };
 
   return {
@@ -273,6 +278,74 @@ function num(v: string | undefined): number {
   if (!v) return 0;
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+async function loadMerchFlags(flagsStore?: AnyFlagsStore): Promise<AdminView["merchFlags"]> {
+  if (!flagsStore) return null;
+  const row = await flagsStore.getFlag("merch_dry_run");
+  if (!row) {
+    // No row yet — default to dry-run true (safe) with no timestamp.
+    return { merch_dry_run: true, updated_at: null, updated_by: null };
+  }
+  const val = (row as { enabled?: boolean; value?: boolean }).enabled ?? (row as { value?: boolean }).value ?? true;
+  return {
+    merch_dry_run: Boolean(val),
+    updated_at: row.updated_at ?? null,
+    updated_by: row.updated_by ?? null,
+  };
+}
+
+// Standalone JSON handlers for GET /admin/merch/flags and POST /admin/merch/flags
+// (allowlisted in routes.ts via deps.admin.isAllowed, same gate as /admin/data).
+export async function handleGetMerchFlags(args: {
+  flagsStore: AnyFlagsStore;
+}): Promise<{ status: number; body: unknown; headers?: Record<string, string> }> {
+  const row = await args.flagsStore.getFlag("merch_dry_run");
+  if (!row) {
+    return {
+      status: 200,
+      body: { merch_dry_run: true, updated_at: null, updated_by: null },
+      headers: { "Cache-Control": "private, no-store" },
+    };
+  }
+  const val = (row as { enabled?: boolean; value?: boolean }).enabled ?? (row as { value?: boolean }).value ?? true;
+  return {
+    status: 200,
+    body: {
+      merch_dry_run: Boolean(val),
+      updated_at: row.updated_at,
+      updated_by: row.updated_by ?? null,
+    },
+    headers: { "Cache-Control": "private, no-store" },
+  };
+}
+
+export async function handleSetMerchFlags(args: {
+  flagsStore: AnyFlagsStore;
+  body: string;
+  username: string;
+}): Promise<{ status: number; body: unknown; headers?: Record<string, string> }> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(args.body);
+  } catch {
+    return { status: 400, body: { error: "bad json body" } };
+  }
+  const obj = parsed as Record<string, unknown>;
+  if (typeof obj.merch_dry_run !== "boolean") {
+    return { status: 400, body: { error: "bad merch_dry_run: expected boolean" } };
+  }
+  const row = await args.flagsStore.setFlag("merch_dry_run", obj.merch_dry_run, args.username);
+  const val = (row as { enabled?: boolean; value?: boolean }).enabled ?? (row as { value?: boolean }).value ?? obj.merch_dry_run;
+  return {
+    status: 200,
+    body: {
+      merch_dry_run: Boolean(val),
+      updated_at: row.updated_at,
+      updated_by: row.updated_by ?? null,
+    },
+    headers: { "Cache-Control": "private, no-store" },
+  };
 }
 
 // `stats by … as succ, fail, total` is the canonical Insights pattern
