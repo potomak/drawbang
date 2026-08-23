@@ -218,7 +218,7 @@ body > main, .app > main { display: block; }
 @media (max-width: 767px) {
   .ed-grid { grid-template-columns: 1fr; }
   .ed-tools {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     justify-content: start;
     width: 100%;
   }
