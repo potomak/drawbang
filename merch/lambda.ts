@@ -102,10 +102,10 @@ const SANITIZED_FIELDS: ReadonlySet<keyof Order> = new Set([
   "printify_order_id",
 ]);
 
-async function isDryRun(deps: MerchHandlerDeps): Promise<boolean> {
-  if (!deps.flags) return false;
+async function isDryRunFlag(flags: MerchHandlerDeps["flags"]): Promise<boolean> {
+  if (!flags) return false;
   try {
-    const flag = await deps.flags.getFlag(MERCH_DRY_RUN_FLAG);
+    const flag = await flags.getFlag(MERCH_DRY_RUN_FLAG);
     if (!flag) return false;
     // Flag may carry `enabled` (new) or `value` (compat) — treat either.
     const v = (flag as { enabled?: boolean; value?: boolean }).enabled ?? (flag as { value?: boolean }).value;
@@ -113,6 +113,10 @@ async function isDryRun(deps: MerchHandlerDeps): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function isDryRun(deps: MerchHandlerDeps): Promise<boolean> {
+  return isDryRunFlag(deps.flags);
 }
 
 async function resolveStripeHelper(deps: MerchHandlerDeps): Promise<StripeHelper> {
@@ -494,17 +498,7 @@ function bootDeps(): MerchHandlerDeps {
   // (and still bump the product counter so /products ranking stays
   // consistent in dry-run).
   const dispatchSync = async (orderId: string): Promise<void> => {
-    let dry = false;
-    try {
-      const flag = await flags.getFlag(MERCH_DRY_RUN_FLAG);
-      if (flag) {
-        const v = (flag as { enabled?: boolean; value?: boolean }).enabled ?? (flag as { value?: boolean }).value;
-        dry = Boolean(v);
-      }
-    } catch {
-      dry = false;
-    }
-    if (dry) {
+    if (await isDryRunFlag(flags)) {
       const order = await orders.getOrder(orderId);
       if (!order) {
         console.error("dry-run dispatch: order not found", { orderId });
