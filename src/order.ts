@@ -1,5 +1,7 @@
 import { tracker } from "./analytics/analytics.js";
 import { esc as escapeHtml } from "../lib/templates/_escape.js";
+import merchCatalog from "../config/merch.json" with { type: "json" };
+import mockupsConfig from "../config/mockups.json" with { type: "json" };
 
 interface OrderView {
   order_id?: string;
@@ -13,6 +15,16 @@ interface OrderView {
   created_at?: string;
   updated_at?: string;
   customer_email?: string;
+}
+
+interface MerchProduct {
+  id: string;
+  name: string;
+  variants: { id: number; size?: string; color?: string }[];
+}
+
+interface MockupEntry {
+  mockup_url: string;
 }
 
 const INGEST_URL = import.meta.env.VITE_INGEST_URL ?? "/ingest";
@@ -31,28 +43,32 @@ const TERMINAL_STATUSES: ReadonlySet<string> = new Set([
 const STATUS_COPY: Record<string, string> = {
   pending: "Waiting for payment confirmation. Refresh in a minute.",
   paid: "Payment received! Sending to Printify…",
-  submitted: "In production.",
-  in_production: "In production.",
+  submitted: "Your order is in production — we'll email you when it ships.",
+  in_production: "Your order is in production — we'll email you when it ships.",
   shipped: "Shipped! Check your email for tracking.",
   delivered: "Delivered.",
   failed: "Something went wrong. We'll refund you shortly.",
   refunded: "Refunded.",
 };
 
+const THANK_YOU_COPY: Record<string, { title: string; subtitle: string }> = {
+  pending: { title: "Thank you for your order!", subtitle: "We’re confirming your payment — this usually takes under a minute." },
+  paid: { title: "Thank you for your order!", subtitle: "Payment received. We’re preparing your print." },
+  submitted: { title: "Thank you for your order!", subtitle: "Your Draw! is being printed with care." },
+  in_production: { title: "Thank you for your order!", subtitle: "Your Draw! is being printed with care." },
+  shipped: { title: "Thank you for your order!", subtitle: "Your order has shipped — tracking is on its way." },
+  delivered: { title: "Thank you for your order!", subtitle: "Your order has been delivered — enjoy!" },
+  failed: { title: "Order failed", subtitle: "We couldn’t complete your order. You have not been charged, or a refund is on the way." },
+  refunded: { title: "Order refunded", subtitle: "Your order has been refunded." },
+};
+
+const CATALOG = merchCatalog as { products: MerchProduct[] };
+const MOCKUPS = mockupsConfig as { products: Record<string, MockupEntry> };
+
 const cardEl = document.getElementById("orderCard") as HTMLDivElement;
 let pollTimer: ReturnType<typeof setTimeout> | null = null;
-// Within a page lifetime, don't re-emit order_status_view on every poll if
-// the status hasn't actually changed (the poll fires every 30s).
 let lastTrackedStatus: string | null = null;
 
-// TODO (#shared-localstorage): hasPurchaseFired/markPurchaseFired wrap
-// localStorage with try/catch — the same shape lives in auth.ts,
-// main.ts, privacy.ts, and the three static/ JS files. Extract
-// safeGet/safeSet helpers into src/storage-utils.ts.
-
-// localStorage flag so `purchase` fires AT MOST ONCE per order across
-// refreshes / multiple tabs / link revisits. GA's Monetization funnel
-// double-counts purchases otherwise.
 const PURCHASE_FIRED_KEY_PREFIX = "drawbang:purchase_fired:";
 function hasPurchaseFired(orderId: string): boolean {
   try {
@@ -80,6 +96,35 @@ function formatUsd(cents: number | undefined): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
+function formatHumanDate(iso: string | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+function variantLabel(productId: string | undefined, variantId: number | undefined): string {
+  if (!productId) return "";
+  const product = CATALOG.products.find((p) => p.id === productId);
+  if (!product) return productId;
+  if (variantId === undefined) return product.name;
+  const variant = product.variants.find((v) => v.id === variantId);
+  if (!variant) return `${product.name} · ${variantId}`;
+  const parts = [variant.size, variant.color].filter(Boolean);
+  const variantStr = parts.length ? parts.join(" / ") : String(variant.id);
+  return `${product.name} — ${variantStr}`;
+}
+
+function mockupUrl(productId: string | undefined): string | null {
+  if (!productId) return null;
+  const entry = MOCKUPS.products[productId];
+  if (entry?.mockup_url) return entry.mockup_url;
+  return MOCKUPS.products["tee"]?.mockup_url ?? null;
+}
+
 function renderRetry(msg: string, onRetry: () => void): void {
   cardEl.innerHTML = `
     <p class="merch-status">${escapeHtml(msg)}</p>
@@ -91,36 +136,57 @@ function renderRetry(msg: string, onRetry: () => void): void {
 function renderOrder(order: OrderView): void {
   const status = order.status ?? "unknown";
   const copy = STATUS_COPY[status] ?? `Status: ${status}.`;
-  // Canvas orders preview the composite gif (/c/<id>.gif); single tiles use
-  // the tile gif (/tiles/<id>.gif).
+  const thankYou = THANK_YOU_COPY[status] ?? { title: "Thank you for your order!", subtitle: copy };
+
   const thumbSrc = order.canvas_id
     ? `/c/${escapeHtml(order.canvas_id)}.gif`
     : order.drawing_id
       ? `${DRAWING_BASE_URL}/${escapeHtml(order.drawing_id)}.gif`
       : "";
   const drawingImg = thumbSrc
-    ? `<img class="order-thumb" src="${thumbSrc}" alt="${escapeHtml((order.canvas_id ?? order.drawing_id ?? "").slice(0, 8))}" width="128" height="128" />`
+    ? `<img class="order-thumb" src="${thumbSrc}" alt="Your drawing" width="160" height="160" loading="eager" />`
+    : `<div class="order-thumb order-thumb--empty" aria-hidden="true"></div>`;
+
+  const productMockup = mockupUrl(order.product_id);
+  const mockupImg = productMockup
+    ? `<img class="order-mockup" src="${escapeHtml(productMockup)}" alt="${escapeHtml(variantLabel(order.product_id, undefined).split(" — ")[0] ?? "Product")}" width="320" height="320" loading="eager" />`
     : "";
+
+  const productLabel = variantLabel(order.product_id, order.variant_id);
+  const placed = formatHumanDate(order.created_at);
+  const shortId = order.order_id ? order.order_id.slice(0, 8) : "";
+
   const lines: string[] = [];
   if (order.order_id)
-    lines.push(`<dt>order</dt><dd><code>${escapeHtml(order.order_id)}</code></dd>`);
-  if (order.product_id) {
-    const variant =
-      order.variant_id !== undefined ? ` · variant ${escapeHtml(String(order.variant_id))}` : "";
-    lines.push(`<dt>product</dt><dd>${escapeHtml(order.product_id)}${variant}</dd>`);
-  }
+    lines.push(
+      `<dt>Order</dt><dd><code title="${escapeHtml(order.order_id)}">${escapeHtml(shortId)}…</code> <span class="order-id-full">${escapeHtml(order.order_id)}</span></dd>`,
+    );
+  if (productLabel) lines.push(`<dt>Product</dt><dd>${escapeHtml(productLabel)}</dd>`);
   if (order.retail_cents !== undefined) {
-    lines.push(`<dt>amount</dt><dd>${escapeHtml(formatUsd(order.retail_cents))}</dd>`);
+    lines.push(`<dt>Amount</dt><dd>${escapeHtml(formatUsd(order.retail_cents))}</dd>`);
   }
-  if (order.frame !== undefined)
-    lines.push(`<dt>frame</dt><dd>${escapeHtml(String(order.frame + 1))}</dd>`);
-  if (order.created_at) lines.push(`<dt>placed</dt><dd>${escapeHtml(order.created_at)}</dd>`);
+  if (placed) lines.push(`<dt>Placed</dt><dd>${escapeHtml(placed)}</dd>`);
+  if (order.customer_email) lines.push(`<dt>Email</dt><dd>${escapeHtml(order.customer_email)}</dd>`);
 
   cardEl.innerHTML = `
-    ${drawingImg}
+    <div class="order-thanks">
+      <h2 class="order-thanks-title">${escapeHtml(thankYou.title)}</h2>
+      <p class="order-thanks-sub">${escapeHtml(thankYou.subtitle)}</p>
+    </div>
+    <div class="order-visuals">
+      <div class="order-visual order-visual--drawing">
+        <span class="order-visual-label">Your Draw!</span>
+        ${drawingImg}
+        ${order.frame !== undefined ? `<span class="order-visual-caption">Frame ${escapeHtml(String(order.frame + 1))}</span>` : ""}
+      </div>
+      <div class="order-visual order-visual--product">
+        <span class="order-visual-label">Printed on</span>
+        ${mockupImg}
+      </div>
+    </div>
     <p class="status-badge status-${escapeHtml(status)}">${escapeHtml(status)}</p>
     <p class="merch-status">${escapeHtml(copy)}</p>
-    <dl>${lines.join("")}</dl>
+    <dl class="order-details">${lines.join("")}</dl>
   `;
 }
 
@@ -159,9 +225,6 @@ function trackStatusEvents(order: OrderView): void {
     tracker.orderStatusView(status);
     lastTrackedStatus = status;
   }
-  // GA4 Monetization `purchase` — fire once the order is paid. Idempotent
-  // via the localStorage flag so a page refresh on a paid order doesn't
-  // double-count revenue in GA reports.
   if (
     status === "paid" &&
     order.order_id &&
