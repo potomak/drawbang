@@ -19,8 +19,15 @@ export type OrderStatus =
   | "failed"
   | "refunded";
 
+export type OrderEnv = "prod" | "sandbox";
+
 export interface Order {
   order_id: string;
+  // Runtime env the order was created in — sandbox orders use Stripe test
+  // keys and never hit Printify. Used to exclude them from product
+  // popularity counters and KPIs. Old rows may lack the field; treat
+  // missing as "prod" for backwards compat.
+  env?: OrderEnv;
   // The 64-hex content id of the print source. For a single tile this is the
   // tile_id; for a multi-tile canvas it equals canvas_id (set below) so the
   // existing code paths keyed on drawing_id keep working.

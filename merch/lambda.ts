@@ -5,8 +5,8 @@ import catalog from "../config/merch.json";
 import { S3Storage } from "../ingest/s3-storage.js";
 import { createBrandLogoProvider } from "./brand-logo.js";
 import { placePrintifyOrder } from "./dispatch.js";
-import { FlagsStore, MERCH_DRY_RUN_FLAG } from "./flags-store.js";
-import { OrdersStore, type Order, type OrderStatus } from "./orders.js";
+import { FlagsStore, type MerchEnv } from "./flags-store.js";
+import { OrdersStore, type Order, type OrderEnv, type OrderStatus } from "./orders.js";
 import { isValidPlacement, type Placement } from "./placement.js";
 import { PrintifyClient, type ShippingAddress } from "./printify.js";
 import { ProductCountersStore } from "./product-counters.js";
@@ -100,33 +100,33 @@ const SANITIZED_FIELDS: ReadonlySet<keyof Order> = new Set([
   "printify_order_id",
 ]);
 
-async function isDryRunFlag(flags: MerchHandlerDeps["flags"]): Promise<boolean> {
-  if (!flags) return true;
+async function getMerchEnv(flags: MerchHandlerDeps["flags"]): Promise<MerchEnv> {
+  if (!flags) return "sandbox";
   try {
-    const flag = await flags.getFlag(MERCH_DRY_RUN_FLAG);
-    if (!flag) return true;
-    // Flag may carry `enabled` (new) or `value` (compat) — treat either.
-    // Missing flag defaults to dry-run true (safe) — matches
-    // FlagsStore.getMerchDryRunValue and ingest/admin-handler loadMerchFlags.
-    const v =
-      (flag as { enabled?: boolean; value?: boolean }).enabled ??
-      (flag as { value?: boolean }).value;
-    // If the row exists but carries no boolean, stay safe.
-    if (typeof v !== "boolean") return true;
-    return v;
+    return await flags.getMerchEnv();
   } catch {
-    return true;
+    return "sandbox";
   }
 }
 
+async function isDryRunFlag(flags: MerchHandlerDeps["flags"]): Promise<boolean> {
+  const env = await getMerchEnv(flags);
+  return env === "sandbox";
+}
+
+// Deprecated — prefer getMerchEnv(). Kept for backwards compat.
 async function isDryRun(deps: MerchHandlerDeps): Promise<boolean> {
   return isDryRunFlag(deps.flags);
 }
 
+function toOrderEnv(env: MerchEnv): OrderEnv {
+  return env === "prod" ? "prod" : "sandbox";
+}
+
 async function resolveStripeHelper(deps: MerchHandlerDeps): Promise<StripeHelper> {
   if (!deps.flags) return deps.stripe;
-  const dry = await isDryRun(deps);
-  if (dry) {
+  const env = await getMerchEnv(deps.flags);
+  if (env === "sandbox") {
     if (deps.stripeTest) return deps.stripeTest;
     return deps.stripe;
   }
@@ -228,8 +228,11 @@ async function checkout(
 
   const orderId = deps.uuid();
   const now = deps.now();
+  const merchEnv = await getMerchEnv(deps.flags);
+  const orderEnv = toOrderEnv(merchEnv);
   const order: Order = {
     order_id: orderId,
+    env: orderEnv,
     drawing_id: sourceId,
     frame: body.frame,
     product_id: product.id,
@@ -498,37 +501,43 @@ function bootDeps(): MerchHandlerDeps {
       productCounters,
     });
 
-  // Dry-run-aware dispatchSync. At request time we check the flag;
-  // when true we transition paid -> submitted without touching Printify
-  // (and still bump the product counter so /products ranking stays
-  // consistent in dry-run).
+  // Env-aware dispatchSync. Sandbox orders (env === "sandbox") are
+  // never sent to Printify — they transition paid -> submitted as a
+  // dry-run. Sandbox orders are excluded from product popularity
+  // counters so test traffic doesn't pollute rankings. Prod orders
+  // follow the real Printify path.
   const dispatchSync = async (orderId: string): Promise<void> => {
-    if (await isDryRunFlag(flags)) {
-      const order = await orders.getOrder(orderId);
-      if (!order) {
-        console.error("dry-run dispatch: order not found", { orderId });
-        return;
-      }
+    const order = await orders.getOrder(orderId);
+    if (!order) {
+      console.error("dispatch: order not found", { orderId });
+      return;
+    }
+    // Prefer the order's own env when present (set at checkout). Fall
+    // back to the current flag for old rows that predate the env field.
+    const orderEnv: OrderEnv =
+      order.env ?? ((await getMerchEnv(flags)) === "prod" ? "prod" : "sandbox");
+    if (orderEnv === "sandbox") {
       if (order.status !== "paid") {
-        console.log("dry-run dispatch: order not in paid; skipping", {
+        console.log("sandbox dispatch: order not in paid; skipping", {
           orderId,
           status: order.status,
         });
         return;
       }
       const submitted = await orders.transition(orderId, "paid", { status: "submitted" });
-      if (submitted && productCounters) {
-        try {
-          await productCounters.incrementOnSubmit({
-            drawing_id: order.drawing_id,
-            product_id: order.product_id,
-            now: new Date().toISOString(),
-          });
-        } catch (counterErr) {
-          console.error("dry-run dispatch: counter increment failed", { orderId, counterErr });
-        }
-      }
-      console.log("dry-run dispatch: order submitted without Printify", { orderId });
+      // Sandbox orders are excluded from productCounters — don't count them.
+      console.log("sandbox dispatch: order submitted without Printify", { orderId });
+      void submitted;
+      return;
+    }
+    // Prod path — delegate to real Printify dispatch. Fetch again to
+    // ensure we have the latest order state; realDispatchSync does its
+    // own paid check.
+    if (order.status !== "paid") {
+      console.log("dispatch: order not in paid; skipping", {
+        orderId,
+        status: order.status,
+      });
       return;
     }
     await realDispatchSync(orderId);

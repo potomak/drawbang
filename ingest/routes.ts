@@ -305,18 +305,44 @@ export function createRoutes(deps: RouteDeps): Route[] {
           });
           return json(500, { error: "flags store not configured" });
         }
-        const store = deps.admin.flagsStore;
-        const row = await store.getFlag("merch_dry_run");
-        const val =
-          (row as { enabled?: boolean; value?: boolean } | null)?.enabled ??
-          (row as { value?: boolean } | null)?.value;
+        const store = deps.admin.flagsStore as unknown as {
+          getMerchEnv?: () => Promise<string>;
+          getFlag: (
+            flag: string
+          ) => Promise<{
+            updated_at?: string | null;
+            updated_by?: string | null;
+            env?: string;
+          } | null>;
+        };
+        let env: "prod" | "sandbox" = "sandbox";
+        try {
+          const maybe = await store.getMerchEnv?.();
+          if (maybe === "prod" || maybe === "sandbox") env = maybe;
+        } catch {
+          // ignore
+        }
+        let row: { updated_at?: string | null; updated_by?: string | null } | null = null;
+        try {
+          const envRow = await store.getFlag("merch_env");
+          if (envRow) row = envRow;
+          else row = await store.getFlag("merch_dry_run");
+        } catch {
+          // ignore
+        }
         const body = row
           ? {
-              merch_dry_run: Boolean(val),
+              merch_env: env,
+              merch_dry_run: env === "sandbox",
               updated_at: row.updated_at ?? null,
               updated_by: row.updated_by ?? null,
             }
-          : { merch_dry_run: true, updated_at: null, updated_by: null };
+          : {
+              merch_env: env,
+              merch_dry_run: env === "sandbox",
+              updated_at: null,
+              updated_by: null,
+            };
         logOutcome({
           requestId: req.requestId,
           route,
@@ -390,7 +416,27 @@ export function createRoutes(deps: RouteDeps): Route[] {
           return json(400, { error: "bad json body" });
         }
         const obj = parsed as Record<string, unknown>;
-        if (typeof obj.merch_dry_run !== "boolean") {
+        let env: "prod" | "sandbox" | null = null;
+        if (typeof obj.merch_env === "string") {
+          const s = obj.merch_env.trim().toLowerCase();
+          if (s === "prod" || s === "production" || s === "live") env = "prod";
+          else if (s === "sandbox" || s === "test" || s === "dry-run" || s === "dry_run")
+            env = "sandbox";
+          else {
+            logOutcome({
+              requestId: req.requestId,
+              route,
+              status: 400,
+              duration_ms: Date.now() - req.t0,
+              user_id: auth!.user_id,
+              username: auth!.username,
+              error_code: "bad_merch_env",
+            });
+            return json(400, { error: "bad merch_env: expected prod or sandbox" });
+          }
+        } else if (typeof obj.merch_dry_run === "boolean") {
+          env = obj.merch_dry_run ? "sandbox" : "prod";
+        } else {
           logOutcome({
             requestId: req.requestId,
             route,
@@ -398,20 +444,40 @@ export function createRoutes(deps: RouteDeps): Route[] {
             duration_ms: Date.now() - req.t0,
             user_id: auth!.user_id,
             username: auth!.username,
-            error_code: "bad_merch_dry_run",
+            error_code: "bad_merch_env",
           });
-          return json(400, { error: "bad merch_dry_run: expected boolean" });
+          return json(400, { error: "bad merch_env: expected prod or sandbox" });
         }
-        const store = deps.admin.flagsStore;
-        const row = await store.setFlag("merch_dry_run", obj.merch_dry_run, auth!.username);
-        const outVal =
-          (row as { enabled?: boolean; value?: boolean }).enabled ??
-          (row as { value?: boolean }).value ??
-          obj.merch_dry_run;
+        const store = deps.admin.flagsStore as unknown as {
+          setMerchEnv?: (
+            env: string,
+            updatedBy: string
+          ) => Promise<{ updated_at?: string; updated_by?: string }>;
+          setFlag: (
+            flag: string,
+            enabled: boolean,
+            updatedBy: string
+          ) => Promise<{ updated_at?: string; updated_by?: string }>;
+          getMerchEnv?: () => Promise<string>;
+        };
+        let row: { updated_at?: string; updated_by?: string } | null = null;
+        if (store.setMerchEnv) {
+          row = await store.setMerchEnv(env, auth!.username);
+        } else {
+          row = await store.setFlag("merch_dry_run", env === "sandbox", auth!.username);
+        }
+        let outEnv: "prod" | "sandbox" = env;
+        try {
+          const maybe = await store.getMerchEnv?.();
+          if (maybe === "prod" || maybe === "sandbox") outEnv = maybe;
+        } catch {
+          // ignore
+        }
         const body = {
-          merch_dry_run: Boolean(outVal),
-          updated_at: row.updated_at ?? null,
-          updated_by: row.updated_by ?? null,
+          merch_env: outEnv,
+          merch_dry_run: outEnv === "sandbox",
+          updated_at: row?.updated_at ?? null,
+          updated_by: row?.updated_by ?? null,
         };
         logOutcome({
           requestId: req.requestId,

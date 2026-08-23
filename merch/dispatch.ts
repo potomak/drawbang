@@ -25,12 +25,14 @@ export interface PlacePrintifyOrderDeps {
   productCounters?: ProductCountersStore;
   // Test seam for the counter's timestamp. Defaults to the wall clock.
   now?: () => string;
-  // Dry-run mode: when true the dispatch skips all Printify calls and
-  // transitions paid -> submitted as a dry-run (no Printify). Used by
-  // the merch Lambda when merch_dry_run flag is set. Also exposed as a
-  // direct test seam so dispatch.test.ts can verify the early-return
-  // without DynamoDB flag plumbing.
+  // Env-aware dry-run: when true the dispatch skips all Printify calls
+  // and transitions paid -> submitted as a sandbox order (no Printify).
+  // Used by the merch Lambda when merch_env === "sandbox". Also
+  // exposed as a direct test seam so dispatch.test.ts can verify the
+  // early-return without DynamoDB flag plumbing.
+  // Deprecated `dryRun` — prefer `env: "sandbox"`.
   dryRun?: boolean;
+  env?: "prod" | "sandbox";
 }
 
 export async function placePrintifyOrder(
@@ -51,27 +53,17 @@ export async function placePrintifyOrder(
       });
       return;
     }
-    // Dry-run early-return: skip Printify entirely and transition
+    // Sandbox early-return: skip Printify entirely and transition
     // straight to submitted. The merch Lambda's dispatchSync wrapper
     // already does this for the flag-driven path; this branch covers
-    // direct placePrintifyOrder calls with { dryRun: true }.
-    if (deps.dryRun) {
+    // direct placePrintifyOrder calls with { dryRun: true } or
+    // { env: "sandbox" }. Sandbox orders are excluded from
+    // productCounters so test traffic doesn't pollute rankings.
+    const isSandbox = deps.env === "sandbox" || deps.dryRun === true || order.env === "sandbox";
+    if (isSandbox) {
       const submitted = await deps.orders.transition(orderId, "paid", { status: "submitted" });
-      if (submitted && deps.productCounters) {
-        try {
-          await deps.productCounters.incrementOnSubmit({
-            drawing_id: order.drawing_id,
-            product_id: order.product_id,
-            now: deps.now ? deps.now() : new Date().toISOString(),
-          });
-        } catch (counterErr) {
-          console.error("placePrintifyOrder (dry-run): counter increment failed", {
-            orderId,
-            counterErr,
-          });
-        }
-      }
-      console.log("placePrintifyOrder dry-run: order submitted without Printify", { orderId });
+      console.log("placePrintifyOrder sandbox: order submitted without Printify", { orderId });
+      void submitted;
       return;
     }
     if (!order.shipping_address) {

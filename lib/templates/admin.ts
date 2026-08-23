@@ -76,9 +76,10 @@ export interface AdminView {
     error_message: string;
     username: string;
   }>;
-  // Merch dry-run flag. null when the flags store is not wired (e.g. dev
-  // before the table exists) or the query fails — card shows "—".
+  // Merch env flag — prod vs sandbox. Sandbox orders use Stripe test
+  // keys and never hit Printify. Null when the flags store is not wired.
   merchFlags: {
+    merch_env: "prod" | "sandbox";
     merch_dry_run: boolean;
     updated_at: string | null;
     updated_by: string | null;
@@ -242,20 +243,22 @@ function renderBootScript(): string {
       });
   });
 
-  // Merch dry-run toggle — same delegation trick so it survives innerHTML swap.
+  // Merch env toggle (prod vs sandbox) — same delegation trick so it survives innerHTML swap.
+  // Backwards compat: server returns both merch_env and merch_dry_run; we prefer merch_env.
   document.addEventListener("click", function (ev) {
     var btn = ev.target && ev.target.closest && ev.target.closest("[data-merch-toggle]");
     if (!btn) return;
     ev.preventDefault();
     var current = btn.getAttribute("data-merch-toggle");
-    var next = current === "true" ? false : true;
+    var curEnv = current === "prod" ? "prod" : current === "sandbox" ? "sandbox" : (current === "true" ? "sandbox" : current === "false" ? "prod" : "sandbox");
+    var next = curEnv === "sandbox" ? "prod" : "sandbox";
     btn.disabled = true;
     var origText = btn.textContent;
     btn.textContent = "Saving...";
     fetch("/admin/merch/flags", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + jwt },
-      body: JSON.stringify({ merch_dry_run: next })
+      body: JSON.stringify({ merch_env: next })
     })
       .then(function (res) {
         return res.text().then(function (text) {
@@ -265,21 +268,22 @@ function renderBootScript(): string {
         });
       })
       .then(function (r) {
-        if (r.ok && r.body && typeof r.body.merch_dry_run === "boolean") {
-          var isDry = r.body.merch_dry_run;
+        var env = r.body && (r.body.merch_env === "prod" ? "prod" : r.body.merch_env === "sandbox" ? "sandbox" : (r.body.merch_dry_run === false ? "prod" : r.body.merch_dry_run === true ? "sandbox" : null));
+        if (r.ok && env) {
+          var isSandbox = env === "sandbox";
           var label = document.querySelector("[data-merch-flag-label]");
           var sub = document.querySelector("[data-merch-flag-sub]");
           if (label) {
-            label.textContent = isDry ? "Dry-run" : "Live";
-            label.className = isDry ? "adm-flag-dry" : "adm-flag-live";
+            label.textContent = isSandbox ? "Sandbox" : "Prod";
+            label.className = isSandbox ? "adm-flag-dry" : "adm-flag-live";
           }
           if (sub) {
             var when = r.body.updated_at ? new Date(r.body.updated_at).toLocaleString() : "just now";
             var by = r.body.updated_by ? " by " + r.body.updated_by : "";
             sub.textContent = "updated " + when + by;
           }
-          btn.setAttribute("data-merch-toggle", String(isDry));
-          btn.textContent = isDry ? "Go Live" : "Enable dry-run";
+          btn.setAttribute("data-merch-toggle", env);
+          btn.textContent = isSandbox ? "Go Prod" : "Go Sandbox";
           btn.disabled = false;
           return;
         }
@@ -321,21 +325,22 @@ function renderMerchFlagCard(flags: AdminView["merchFlags"]): string {
   if (flags == null) {
     return `<section aria-labelledby="adm-merch-title">
         <h2 id="adm-merch-title" class="adm-section-title">Merch</h2>
-        <div class="adm-card"><span class="adm-card-label">Merch dry-run</span><span class="adm-num">—</span><span class="adm-sub">flag store not wired</span></div>
+        <div class="adm-card"><span class="adm-card-label">Merch env</span><span class="adm-num">—</span><span class="adm-sub">flag store not wired</span></div>
       </section>`;
   }
-  const isDry = flags.merch_dry_run;
-  const labelClass = isDry ? "adm-flag-dry" : "adm-flag-live";
-  const labelText = isDry ? "Dry-run" : "Live";
+  const env = flags.merch_env ?? (flags.merch_dry_run ? "sandbox" : "prod");
+  const isSandbox = env === "sandbox";
+  const labelClass = isSandbox ? "adm-flag-dry" : "adm-flag-live";
+  const labelText = isSandbox ? "Sandbox" : "Prod";
   const when = flags.updated_at ? esc(formatDate(flags.updated_at)) : "never";
   const by = flags.updated_by ? ` by ${esc(flags.updated_by)}` : "";
-  const btnText = isDry ? "Go Live" : "Enable dry-run";
-  const nextVal = String(isDry);
+  const btnText = isSandbox ? "Go Prod" : "Go Sandbox";
+  const nextVal = env;
   return `<section aria-labelledby="adm-merch-title">
         <h2 id="adm-merch-title" class="adm-section-title">Merch</h2>
         <div class="adm-card adm-flag-card">
           <div style="display:grid;gap:4px">
-            <span class="adm-card-label">Merch mode</span>
+            <span class="adm-card-label">Merch env</span>
             <span class="adm-num ${labelClass}" data-merch-flag-label>${esc(labelText)}</span>
             <span class="adm-sub" data-merch-flag-sub>updated ${when}${by}</span>
           </div>
