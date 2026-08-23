@@ -180,11 +180,15 @@ function renderProgress(status: string): string {
   const idx = stepIndex(status);
   const steps = PROGRESS_STEPS.map((step, i) => {
     let state: "completed" | "current" | "pending" | "failed" = "pending";
-    if (failed) state = idx >= 0 && i <= idx ? "completed" : "pending";
-    else if (i < idx) state = "completed";
+    if (failed) {
+      if (i < idx) state = "completed";
+      else if (i === idx) state = "failed";
+      else state = "pending";
+    } else if (i < idx) state = "completed";
     else if (i === idx) state = "current";
     const ariaCurrent = state === "current" ? ' aria-current="step"' : "";
-    const marker = state === "completed" ? "✓" : state === "failed" ? "✕" : String(i + 1);
+    const marker =
+      state === "completed" ? "✓" : state === "failed" ? "✕" : String(i + 1);
     return `<li class="order-progress-step order-progress-step--${state}"${ariaCurrent}><span class="order-progress-marker">${escapeHtml(marker)}</span><span class="order-progress-label">${escapeHtml(step.label)}</span></li>`;
   }).join("");
   const failedClass = failed ? " order-progress--failed" : "";
