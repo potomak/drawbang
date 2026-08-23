@@ -1,9 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import {
-  DynamoDBDocumentClient,
-  GetCommand,
-  PutCommand,
-} from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 
 export interface Flag {
   flag: string;
@@ -80,7 +76,7 @@ export class FlagsStore {
       new GetCommand({
         TableName: this.tableName,
         Key: { flag },
-      }),
+      })
     );
     const raw = out.Item as Record<string, unknown> | undefined;
     let item: Flag | null = null;
@@ -108,7 +104,7 @@ export class FlagsStore {
   async setFlag(
     flag: string,
     enabled: boolean,
-    updatedBy?: string | { updated_by?: string; updatedBy?: string; now?: string },
+    updatedBy?: string | { updated_by?: string; updatedBy?: string; now?: string }
   ): Promise<Flag> {
     let updated_by: string | undefined;
     let nowOverride: string | undefined;
@@ -131,8 +127,14 @@ export class FlagsStore {
     await this.doc.send(
       new PutCommand({
         TableName: this.tableName,
-        Item: { flag, enabled, value: enabled, updated_at: now, ...(updated_by ? { updated_by } : {}) },
-      }),
+        Item: {
+          flag,
+          enabled,
+          value: enabled,
+          updated_at: now,
+          ...(updated_by ? { updated_by } : {}),
+        },
+      })
     );
     // Refresh cache so the next getFlag is warm.
     this.cache.set(flag, { value: { ...item }, expiresAt: this.clock() + this.cacheTtlMs });
@@ -157,7 +159,12 @@ function normalizeRawFlag(raw: Record<string, unknown>): Flag {
   const flag = String(raw.flag);
   const enabledRaw = raw.enabled as unknown;
   const valueRaw = raw.value as unknown;
-  const enabled = typeof enabledRaw === "boolean" ? enabledRaw : typeof valueRaw === "boolean" ? valueRaw : Boolean(enabledRaw ?? valueRaw);
+  const enabled =
+    typeof enabledRaw === "boolean"
+      ? enabledRaw
+      : typeof valueRaw === "boolean"
+        ? valueRaw
+        : Boolean(enabledRaw ?? valueRaw);
   return {
     flag,
     enabled,
@@ -202,7 +209,7 @@ export class MemoryFlagsStore {
   async setFlag(
     flag: string,
     enabled: boolean,
-    updatedBy?: string | { updated_by?: string; updatedBy?: string; now?: string },
+    updatedBy?: string | { updated_by?: string; updatedBy?: string; now?: string }
   ): Promise<Flag> {
     let updated_by: string | undefined;
     let nowOverride: string | undefined;
@@ -214,7 +221,13 @@ export class MemoryFlagsStore {
       nowOverride = o.now as string | undefined;
     }
     const now = nowOverride ?? this.nowIso();
-    const item: Flag = { flag, enabled, value: enabled, updated_at: now, ...(updated_by ? { updated_by } : {}) };
+    const item: Flag = {
+      flag,
+      enabled,
+      value: enabled,
+      updated_at: now,
+      ...(updated_by ? { updated_by } : {}),
+    };
     this.store.set(flag, { ...item });
     this.cache.set(flag, { value: { ...item }, expiresAt: this.clock() + this.cacheTtlMs });
     return { ...item };

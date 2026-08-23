@@ -42,11 +42,11 @@ function row(overrides: Partial<DrawingRow> = {}): DrawingRow {
 async function registerAccount(
   cfg: AuthHandlerConfig,
   email: string,
-  username: string,
+  username: string
 ): Promise<SetProfilePictureAuth> {
   const r = await handleRegister(
     { email, username, password: "password123", altcha: await solvedPayload(cfg.challenge) },
-    cfg,
+    cfg
   );
   const body = r.body as { user_id: string; username: string };
   return { user_id: body.user_id, username: body.username };
@@ -115,11 +115,7 @@ describe("handleSetProfilePicture", () => {
 
   test("401 when the JWT's username has no account row", async () => {
     const auth: SetProfilePictureAuth = { user_id: "u".repeat(64), username: "ghost" };
-    const res = await handleSetProfilePicture(
-      { drawing_id: "f".repeat(64) },
-      auth,
-      h.authCfg,
-    );
+    const res = await handleSetProfilePicture({ drawing_id: "f".repeat(64) }, auth, h.authCfg);
     assert.equal(res.status, 401);
   });
 
@@ -127,43 +123,27 @@ describe("handleSetProfilePicture", () => {
     // Stale JWT scenario: defense-in-depth check against a freed-up handle.
     const auth = await registerAccount(h.authCfg, "a@b.com", "alice");
     const stale: SetProfilePictureAuth = { ...auth, user_id: "0".repeat(64) };
-    const res = await handleSetProfilePicture(
-      { drawing_id: "f".repeat(64) },
-      stale,
-      h.authCfg,
-    );
+    const res = await handleSetProfilePicture({ drawing_id: "f".repeat(64) }, stale, h.authCfg);
     assert.equal(res.status, 401);
   });
 
   test("404 when the drawing doesn't exist", async () => {
     const auth = await registerAccount(h.authCfg, "a@b.com", "alice");
-    const res = await handleSetProfilePicture(
-      { drawing_id: "f".repeat(64) },
-      auth,
-      h.authCfg,
-    );
+    const res = await handleSetProfilePicture({ drawing_id: "f".repeat(64) }, auth, h.authCfg);
     assert.equal(res.status, 404);
   });
 
   test("403 when the drawing belongs to someone else", async () => {
     const auth = await registerAccount(h.authCfg, "a@b.com", "alice");
     await h.drawingStore.put(row({ drawing_id: "1".repeat(64), username: "bob" }));
-    const res = await handleSetProfilePicture(
-      { drawing_id: "1".repeat(64) },
-      auth,
-      h.authCfg,
-    );
+    const res = await handleSetProfilePicture({ drawing_id: "1".repeat(64) }, auth, h.authCfg);
     assert.equal(res.status, 403);
   });
 
   test("200 happy path + cache invalidation fires for /u/<username>*", async () => {
     const auth = await registerAccount(h.authCfg, "a@b.com", "alice");
     await h.drawingStore.put(row({ drawing_id: "1".repeat(64), username: "alice" }));
-    const res = await handleSetProfilePicture(
-      { drawing_id: "1".repeat(64) },
-      auth,
-      h.authCfg,
-    );
+    const res = await handleSetProfilePicture({ drawing_id: "1".repeat(64) }, auth, h.authCfg);
     assert.equal(res.status, 200);
     const body = res.body as {
       username: string;
@@ -195,14 +175,14 @@ describe("renderProfilePageHandler — profile picture plumbing", () => {
     const h = harness();
     const auth = await registerAccount(h.authCfg, "a@b.com", "alice");
     await h.drawingStore.put(
-      row({ drawing_id: "a".repeat(64), username: "alice", user_id: auth.user_id }),
+      row({ drawing_id: "a".repeat(64), username: "alice", user_id: auth.user_id })
     );
     await handleSetProfilePicture({ drawing_id: "a".repeat(64) }, auth, h.authCfg);
     const res = await renderProfilePageHandler(h.renderCfg, "alice");
     assert.equal(res.status, 200);
     assert.match(
       res.body,
-      new RegExp(`<img class="profile-picture" src="/tiles/${"a".repeat(64)}\\.gif"`),
+      new RegExp(`<img class="profile-picture" src="/tiles/${"a".repeat(64)}\\.gif"`)
     );
   });
 
@@ -210,7 +190,7 @@ describe("renderProfilePageHandler — profile picture plumbing", () => {
     const h = harness();
     const auth = await registerAccount(h.authCfg, "a@b.com", "alice");
     await h.drawingStore.put(
-      row({ drawing_id: "a".repeat(64), username: "alice", user_id: auth.user_id }),
+      row({ drawing_id: "a".repeat(64), username: "alice", user_id: auth.user_id })
     );
     const res = await renderProfilePageHandler(h.renderCfg, "alice");
     assert.equal(res.status, 200);
@@ -230,7 +210,7 @@ describe("renderProfilePageHandler — profile picture plumbing", () => {
     assert.match(res.body, /No drawings published by this account yet/);
     assert.match(
       res.body,
-      new RegExp(`<img class="profile-picture" src="/tiles/${"a".repeat(64)}\\.gif"`),
+      new RegExp(`<img class="profile-picture" src="/tiles/${"a".repeat(64)}\\.gif"`)
     );
   });
 
@@ -247,23 +227,21 @@ describe("renderDrawingPageHandler — profile picture plumbing", () => {
     const auth = await registerAccount(h.authCfg, "a@b.com", "alice");
     const drawingId = "a".repeat(64);
     await h.drawingStore.put(
-      row({ drawing_id: drawingId, username: "alice", user_id: auth.user_id }),
+      row({ drawing_id: drawingId, username: "alice", user_id: auth.user_id })
     );
     await handleSetProfilePicture({ drawing_id: drawingId }, auth, h.authCfg);
     const res = await renderDrawingPageHandler(h.renderCfg, drawingId);
     assert.equal(res.status, 200);
     assert.match(
       res.body,
-      new RegExp(`<img class="profile-picture" src="/tiles/${drawingId}\\.gif"`),
+      new RegExp(`<img class="profile-picture" src="/tiles/${drawingId}\\.gif"`)
     );
   });
 
   test("anonymous-bucketed drawings skip the profile-picture lookup entirely", async () => {
     const h = harness();
     const drawingId = "b".repeat(64);
-    await h.drawingStore.put(
-      row({ drawing_id: drawingId, username: "anonymous" }),
-    );
+    await h.drawingStore.put(row({ drawing_id: drawingId, username: "anonymous" }));
     const res = await renderDrawingPageHandler(h.renderCfg, drawingId);
     assert.equal(res.status, 200);
     assert.doesNotMatch(res.body, /<img class="profile-picture"/);

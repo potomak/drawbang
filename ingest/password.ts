@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 const scrypt = promisify(scryptCb) as (
   password: string,
   salt: Buffer,
-  keylen: number,
+  keylen: number
 ) => Promise<Buffer>;
 
 const KEYLEN = 32;
@@ -20,10 +20,7 @@ export async function hashPassword(password: string): Promise<string> {
   return `scrypt$${salt.toString("base64url")}$${derived.toString("base64url")}`;
 }
 
-export async function verifyPassword(
-  password: string,
-  stored: string,
-): Promise<boolean> {
+export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const parts = stored.split("$");
   if (parts.length !== 3 || parts[0] !== "scrypt") return false;
   const salt = Buffer.from(parts[1], "base64url");

@@ -38,18 +38,18 @@ everything else recedes.
 
 ### Color
 
-| Token         | Value      | Use |
-|---------------|------------|-----|
-| `--paper`     | `#ffffff`  | page background — "the wall" |
-| `--paper-2`   | `#f7f7f5`  | recessed surfaces, rail background, code blocks |
-| `--ink`       | `#0a0a0a`  | primary text, logo, dense type |
-| `--fg-muted`  | `#6b6b6b`  | secondary text, labels |
-| `--fg-dim`    | `#9c9c9c`  | tertiary text, disabled glyphs |
-| `--line`      | `#e6e6e3`  | hairlines, dividers, default borders |
-| `--line-strong` | `#cfccbf` | hover/focus borders |
-| `--accent`    | `#00ccff`  | CTA, active link, focus ring |
-| `--accent-on` | `#001218`  | text on accent surfaces |
-| `--accent-dim`| `#00ccff1e`| tinted accent background (active nav) |
+| Token           | Value       | Use                                             |
+| --------------- | ----------- | ----------------------------------------------- |
+| `--paper`       | `#ffffff`   | page background — "the wall"                    |
+| `--paper-2`     | `#f7f7f5`   | recessed surfaces, rail background, code blocks |
+| `--ink`         | `#0a0a0a`   | primary text, logo, dense type                  |
+| `--fg-muted`    | `#6b6b6b`   | secondary text, labels                          |
+| `--fg-dim`      | `#9c9c9c`   | tertiary text, disabled glyphs                  |
+| `--line`        | `#e6e6e3`   | hairlines, dividers, default borders            |
+| `--line-strong` | `#cfccbf`   | hover/focus borders                             |
+| `--accent`      | `#00ccff`   | CTA, active link, focus ring                    |
+| `--accent-on`   | `#001218`   | text on accent surfaces                         |
+| `--accent-dim`  | `#00ccff1e` | tinted accent background (active nav)           |
 
 Drawing surfaces (`canvas`, `<img>` of GIFs) opt out of this palette
 — they render their own colors. Keep `--canvas-bg` and `--canvas-grid`
@@ -57,10 +57,10 @@ neutral against the drawings, not against the page.
 
 ### Type
 
-| Token         | Value | Use |
-|---------------|-------|-----|
+| Token         | Value                                                                               | Use                        |
+| ------------- | ----------------------------------------------------------------------------------- | -------------------------- |
 | `--font-sans` | `"Akzidenz-Grotesk", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif` | body, buttons, form fields |
-| `--font-mono` | `"JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace` | labels, counts, code |
+| `--font-mono` | `"JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace`                       | labels, counts, code       |
 
 Akzidenz-Grotesk is self-hosted from `static/fonts/` (Berthold BE cuts:
 Regular, Medium, Bold, Italic). `@font-face` declarations live at the top
@@ -70,36 +70,36 @@ others — don't reach for a CDN.
 
 Scale:
 
-| Token   | Value | Use |
-|---------|-------|-----|
-| `--t-xs`  | `11px` | micro-labels (`.lab`, `.panel-h`) |
-| `--t-sm`  | `13px` | secondary text, button text |
-| `--t-md`  | `14px` | body default |
-| `--t-lg`  | `16px` | page title |
-| `--t-xl`  | `20px` | rare — section landmarks |
+| Token     | Value  | Use                                 |
+| --------- | ------ | ----------------------------------- |
+| `--t-xs`  | `11px` | micro-labels (`.lab`, `.panel-h`)   |
+| `--t-sm`  | `13px` | secondary text, button text         |
+| `--t-md`  | `14px` | body default                        |
+| `--t-lg`  | `16px` | page title                          |
+| `--t-xl`  | `20px` | rare — section landmarks            |
 | `--t-2xl` | `28px` | rare — profile handle, hero numbers |
 
 Body line-height: `1.5`. Label line-height: `1`.
 
 ### Spacing
 
-| Token       | Value | Use |
-|-------------|-------|-----|
-| `--tap`     | `40px` | minimum interactive height (buttons, drawer rows) |
-| `--pad`     | `16px` | default padding, rail gutter |
-| `--pad-sm`  | `8px`  | tight padding (icon-only controls, chips) |
-| `--border`  | `1px`  | every visible rule (do not vary) |
+| Token      | Value  | Use                                               |
+| ---------- | ------ | ------------------------------------------------- |
+| `--tap`    | `40px` | minimum interactive height (buttons, drawer rows) |
+| `--pad`    | `16px` | default padding, rail gutter                      |
+| `--pad-sm` | `8px`  | tight padding (icon-only controls, chips)         |
+| `--border` | `1px`  | every visible rule (do not vary)                  |
 
 Layout gutters use `clamp()` directly inline (not a token) because they
 scale with viewport.
 
 ### Breakpoints (no tokens; written rules only)
 
-| Width      | Layout |
-|------------|--------|
-| `≥ 1180px` | 3-column (left rail · center · right rail) |
-| `860–1180px` | 2-column (left rail · center). Right rail hidden. |
-| `< 860px`  | 1-column. Left rail collapses to a logo-triggered drawer. |
+| Width        | Layout                                                    |
+| ------------ | --------------------------------------------------------- |
+| `≥ 1180px`   | 3-column (left rail · center · right rail)                |
+| `860–1180px` | 2-column (left rail · center). Right rail hidden.         |
+| `< 860px`    | 1-column. Left rail collapses to a logo-triggered drawer. |
 
 ---
 
@@ -152,6 +152,7 @@ Surfaces don't open this themselves; they live inside the `<main>`
 slot.
 
 Left rail blocks:
+
 - `.rail-cta` — the primary "New drawing" button (1 per shell).
 - `.rail-nav` — primary links list (Products + owner-only:
   `Followers · N`, `Following · N`, Bookmarks, Account, Sign out).
@@ -159,6 +160,7 @@ Left rail blocks:
   Privacy + Feedback).
 
 Right rail blocks (`/` only):
+
 - `.rr-module` — Most Liked · 30D + Trending Artists.
   `.rr-h` (mono uppercase header) + `.rr-list` of `.rr-row` ranked
   rows (`.rr-rank` + `.rr-thumb` + `.rr-author` + `.rr-like-count`
@@ -182,9 +184,10 @@ to `.feed-card-art`, `.img-grid li`, `.dr-art-wrap img`, `.st-day` +
 ### Follow button (`.follow-btn`)
 
 Filled `--accent` when unfollowed (the action). Outlined (transparent
-+ `--line-strong` border) when `aria-pressed="true"` (the state).
-The button ships hidden — `static/follow.js` reveals it once
-`hydrate.js` knows whether the viewer follows.
+
+- `--line-strong` border) when `aria-pressed="true"` (the state).
+  The button ships hidden — `static/follow.js` reveals it once
+  `hydrate.js` knows whether the viewer follows.
 
 ### Badge (`.badge`)
 
@@ -226,12 +229,12 @@ error paragraphs.** See feedback memory.
 
 ## 5. Surfaces
 
-| File | Owns |
-|------|------|
-| `static/chrome.css` | Tokens, base type, header/footer chrome, rails, `.btn`, `.lab`, `.page-title`, `.flash`. |
+| File                    | Owns                                                                                                     |
+| ----------------------- | -------------------------------------------------------------------------------------------------------- |
+| `static/chrome.css`     | Tokens, base type, header/footer chrome, rails, `.btn`, `.lab`, `.page-title`, `.flash`.                 |
 | `static/gallery-v2.css` | Lambda-rendered page classes (`.feed-card-*`, `.img-grid`, `.dr-*`, `.pr-*`, `.ow-*`, `.follow-card-*`). |
-| `src/style.css` | Vite-served surfaces (editor `.ed-*`, merch `.mc-*`, auth, order). |
-| `/design` (Lambda) | Live visual reference rendering every class in this file. |
+| `src/style.css`         | Vite-served surfaces (editor `.ed-*`, merch `.mc-*`, auth, order).                                       |
+| `/design` (Lambda)      | Live visual reference rendering every class in this file.                                                |
 
 If you touch the header/footer/rails/buttons, you're in `chrome.css`.
 If you're editing `.hdr` or `.btn` in either consumer file, stop.

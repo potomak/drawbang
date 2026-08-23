@@ -48,7 +48,7 @@ describe("MemoryLikesStore", () => {
     await likes.like({ drawing_id, user_id: liker, created_at_ms: 1 });
     await assert.rejects(
       likes.like({ drawing_id, user_id: liker, created_at_ms: 2 }),
-      AlreadyLikedError,
+      AlreadyLikedError
     );
     const after = await drawingStore.get(drawing_id);
     assert.equal(after?.like_count, 1, "double-like did not bump the counter");
@@ -58,7 +58,7 @@ describe("MemoryLikesStore", () => {
     const likes = new MemoryLikesStore(new MemoryDrawingStore());
     await assert.rejects(
       likes.like({ drawing_id: "a".repeat(64), user_id: "b".repeat(64), created_at_ms: 1 }),
-      DrawingNotFoundError,
+      DrawingNotFoundError
     );
   });
 
@@ -84,10 +84,7 @@ describe("MemoryLikesStore", () => {
     await drawingStore.put(row({ drawing_id }));
     const likes = new MemoryLikesStore(drawingStore);
 
-    await assert.rejects(
-      likes.unlike({ drawing_id, user_id: "b".repeat(64) }),
-      NotLikedError,
-    );
+    await assert.rejects(likes.unlike({ drawing_id, user_id: "b".repeat(64) }), NotLikedError);
   });
 
   test("listLikedDrawingIds returns only the subset the user liked", async () => {

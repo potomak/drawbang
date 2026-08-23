@@ -11,16 +11,76 @@
       "brand_decorations": [{ "position": "neck" }],
       "shipping_cents": 499,
       "variants": [
-        { "id": 12126, "size": "S",   "color": "Black", "base_cost_cents": 1150, "retail_cents": 2289 },
-        { "id": 12125, "size": "M",   "color": "Black", "base_cost_cents": 1150, "retail_cents": 2289 },
-        { "id": 12124, "size": "L",   "color": "Black", "base_cost_cents": 1150, "retail_cents": 2289 },
-        { "id": 12127, "size": "XL",  "color": "Black", "base_cost_cents": 1250, "retail_cents": 2289 },
-        { "id": 12128, "size": "2XL", "color": "Black", "base_cost_cents": 1450, "retail_cents": 2289 },
-        { "id": 12102, "size": "S",   "color": "White", "base_cost_cents": 1099, "retail_cents": 2289 },
-        { "id": 12101, "size": "M",   "color": "White", "base_cost_cents": 1099, "retail_cents": 2289 },
-        { "id": 12100, "size": "L",   "color": "White", "base_cost_cents": 1099, "retail_cents": 2289 },
-        { "id": 12103, "size": "XL",  "color": "White", "base_cost_cents": 1199, "retail_cents": 2289 },
-        { "id": 12104, "size": "2XL", "color": "White", "base_cost_cents": 1399, "retail_cents": 2289 }
+        {
+          "id": 12126,
+          "size": "S",
+          "color": "Black",
+          "base_cost_cents": 1150,
+          "retail_cents": 2289
+        },
+        {
+          "id": 12125,
+          "size": "M",
+          "color": "Black",
+          "base_cost_cents": 1150,
+          "retail_cents": 2289
+        },
+        {
+          "id": 12124,
+          "size": "L",
+          "color": "Black",
+          "base_cost_cents": 1150,
+          "retail_cents": 2289
+        },
+        {
+          "id": 12127,
+          "size": "XL",
+          "color": "Black",
+          "base_cost_cents": 1250,
+          "retail_cents": 2289
+        },
+        {
+          "id": 12128,
+          "size": "2XL",
+          "color": "Black",
+          "base_cost_cents": 1450,
+          "retail_cents": 2289
+        },
+        {
+          "id": 12102,
+          "size": "S",
+          "color": "White",
+          "base_cost_cents": 1099,
+          "retail_cents": 2289
+        },
+        {
+          "id": 12101,
+          "size": "M",
+          "color": "White",
+          "base_cost_cents": 1099,
+          "retail_cents": 2289
+        },
+        {
+          "id": 12100,
+          "size": "L",
+          "color": "White",
+          "base_cost_cents": 1099,
+          "retail_cents": 2289
+        },
+        {
+          "id": 12103,
+          "size": "XL",
+          "color": "White",
+          "base_cost_cents": 1199,
+          "retail_cents": 2289
+        },
+        {
+          "id": 12104,
+          "size": "2XL",
+          "color": "White",
+          "base_cost_cents": 1399,
+          "retail_cents": 2289
+        }
       ]
     },
     {
@@ -32,18 +92,90 @@
       "brand_decorations": [{ "position": "neck" }],
       "shipping_cents": 499,
       "variants": [
-        { "id": 67831, "size": "XS",  "color": "Black", "base_cost_cents": 1099, "retail_cents": 2289 },
-        { "id": 38164, "size": "S",   "color": "Black", "base_cost_cents": 1099, "retail_cents": 2289 },
-        { "id": 38178, "size": "M",   "color": "Black", "base_cost_cents": 1099, "retail_cents": 2289 },
-        { "id": 38192, "size": "L",   "color": "Black", "base_cost_cents": 1099, "retail_cents": 2289 },
-        { "id": 38206, "size": "XL",  "color": "Black", "base_cost_cents": 1199, "retail_cents": 2289 },
-        { "id": 38220, "size": "2XL", "color": "Black", "base_cost_cents": 1399, "retail_cents": 2289 },
-        { "id": 67829, "size": "XS",  "color": "White", "base_cost_cents": 1049, "retail_cents": 2289 },
-        { "id": 38163, "size": "S",   "color": "White", "base_cost_cents": 1049, "retail_cents": 2289 },
-        { "id": 38177, "size": "M",   "color": "White", "base_cost_cents": 1049, "retail_cents": 2289 },
-        { "id": 38191, "size": "L",   "color": "White", "base_cost_cents": 1049, "retail_cents": 2289 },
-        { "id": 38205, "size": "XL",  "color": "White", "base_cost_cents": 1149, "retail_cents": 2289 },
-        { "id": 38219, "size": "2XL", "color": "White", "base_cost_cents": 1349, "retail_cents": 2289 }
+        {
+          "id": 67831,
+          "size": "XS",
+          "color": "Black",
+          "base_cost_cents": 1099,
+          "retail_cents": 2289
+        },
+        {
+          "id": 38164,
+          "size": "S",
+          "color": "Black",
+          "base_cost_cents": 1099,
+          "retail_cents": 2289
+        },
+        {
+          "id": 38178,
+          "size": "M",
+          "color": "Black",
+          "base_cost_cents": 1099,
+          "retail_cents": 2289
+        },
+        {
+          "id": 38192,
+          "size": "L",
+          "color": "Black",
+          "base_cost_cents": 1099,
+          "retail_cents": 2289
+        },
+        {
+          "id": 38206,
+          "size": "XL",
+          "color": "Black",
+          "base_cost_cents": 1199,
+          "retail_cents": 2289
+        },
+        {
+          "id": 38220,
+          "size": "2XL",
+          "color": "Black",
+          "base_cost_cents": 1399,
+          "retail_cents": 2289
+        },
+        {
+          "id": 67829,
+          "size": "XS",
+          "color": "White",
+          "base_cost_cents": 1049,
+          "retail_cents": 2289
+        },
+        {
+          "id": 38163,
+          "size": "S",
+          "color": "White",
+          "base_cost_cents": 1049,
+          "retail_cents": 2289
+        },
+        {
+          "id": 38177,
+          "size": "M",
+          "color": "White",
+          "base_cost_cents": 1049,
+          "retail_cents": 2289
+        },
+        {
+          "id": 38191,
+          "size": "L",
+          "color": "White",
+          "base_cost_cents": 1049,
+          "retail_cents": 2289
+        },
+        {
+          "id": 38205,
+          "size": "XL",
+          "color": "White",
+          "base_cost_cents": 1149,
+          "retail_cents": 2289
+        },
+        {
+          "id": 38219,
+          "size": "2XL",
+          "color": "White",
+          "base_cost_cents": 1349,
+          "retail_cents": 2289
+        }
       ]
     },
     {
@@ -53,9 +185,7 @@
       "print_provider_id": 1,
       "print_area_px": { "width": 2376, "height": 2024 },
       "shipping_cents": 699,
-      "variants": [
-        { "id": 33765, "base_cost_cents": 1450, "retail_cents": 3489 }
-      ]
+      "variants": [{ "id": 33765, "base_cost_cents": 1450, "retail_cents": 3489 }]
     },
     {
       "id": "sticker-sheet",
@@ -66,12 +196,48 @@
       "print_area_px": { "width": 1575, "height": 1200 },
       "shipping_cents": 499,
       "variants": [
-        { "id": 72840, "size": "6\" × 4\"",    "color": "White",       "base_cost_cents": 612,  "retail_cents": 1499 },
-        { "id": 75561, "size": "6\" × 4\"",    "color": "Transparent", "base_cost_cents": 750,  "retail_cents": 1499 },
-        { "id": 75564, "size": "6\" × 4\"",    "color": "Holographic", "base_cost_cents": 999,  "retail_cents": 1499 },
-        { "id": 72841, "size": "11\" × 8.5\"", "color": "White",       "base_cost_cents": 850,  "retail_cents": 1999 },
-        { "id": 75562, "size": "11\" × 8.5\"", "color": "Transparent", "base_cost_cents": 999,  "retail_cents": 1999 },
-        { "id": 75565, "size": "11\" × 8.5\"", "color": "Holographic", "base_cost_cents": 1299, "retail_cents": 1999 }
+        {
+          "id": 72840,
+          "size": "6\" × 4\"",
+          "color": "White",
+          "base_cost_cents": 612,
+          "retail_cents": 1499
+        },
+        {
+          "id": 75561,
+          "size": "6\" × 4\"",
+          "color": "Transparent",
+          "base_cost_cents": 750,
+          "retail_cents": 1499
+        },
+        {
+          "id": 75564,
+          "size": "6\" × 4\"",
+          "color": "Holographic",
+          "base_cost_cents": 999,
+          "retail_cents": 1499
+        },
+        {
+          "id": 72841,
+          "size": "11\" × 8.5\"",
+          "color": "White",
+          "base_cost_cents": 850,
+          "retail_cents": 1999
+        },
+        {
+          "id": 75562,
+          "size": "11\" × 8.5\"",
+          "color": "Transparent",
+          "base_cost_cents": 999,
+          "retail_cents": 1999
+        },
+        {
+          "id": 75565,
+          "size": "11\" × 8.5\"",
+          "color": "Holographic",
+          "base_cost_cents": 1299,
+          "retail_cents": 1999
+        }
       ]
     }
   ]

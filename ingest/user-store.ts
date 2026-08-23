@@ -93,11 +93,7 @@ export interface UserStore {
   // session can never delete an account that was already deleted and
   // re-registered under the same email. Throws UserNotFoundError when the
   // row is missing or the user_id no longer matches.
-  deleteAccount(args: {
-    email: string;
-    username: string;
-    user_id: string;
-  }): Promise<void>;
+  deleteAccount(args: { email: string; username: string; user_id: string }): Promise<void>;
   getByEmail(email: string): Promise<UserRecord | null>;
   // Lists accounts for the operator view on /admin. Unordered — callers
   // sort. Never returns password_hash (see UserSummary); the Dynamo
@@ -116,7 +112,7 @@ export interface UserStore {
     email: string,
     passwordHash: string,
     expectedTokenVersion: number,
-    nowIso: string,
+    nowIso: string
   ): Promise<UserRecord>;
   // Sets the user's profile picture to the given drawing id. Caller is
   // responsible for validating ownership BEFORE invoking this — the store
@@ -128,7 +124,7 @@ export interface UserStore {
   // UserNotFoundError when the email isn't registered.
   updateProfile(
     email: string,
-    fields: { bio: string | null; link: string | null },
+    fields: { bio: string | null; link: string | null }
   ): Promise<UserRecord>;
 }
 
@@ -148,8 +144,7 @@ export class DynamoUserStore implements UserStore {
   constructor(opts: DynamoUserStoreOptions) {
     this.usersTable = opts.usersTable;
     this.usernamesTable = opts.usernamesTable;
-    this.doc =
-      opts.client ?? DynamoDBDocumentClient.from(new DynamoDBClient({}));
+    this.doc = opts.client ?? DynamoDBDocumentClient.from(new DynamoDBClient({}));
   }
 
   async register(rec: UserRecord): Promise<UserRecord> {
@@ -172,12 +167,11 @@ export class DynamoUserStore implements UserStore {
               },
             },
           ],
-        }),
+        })
       );
       return rec;
     } catch (e) {
-      const reasons = (e as { CancellationReasons?: { Code?: string }[] })
-        .CancellationReasons;
+      const reasons = (e as { CancellationReasons?: { Code?: string }[] }).CancellationReasons;
       if (Array.isArray(reasons)) {
         if (reasons[0]?.Code === "ConditionalCheckFailed") {
           throw new EmailTakenError();
@@ -190,11 +184,7 @@ export class DynamoUserStore implements UserStore {
     }
   }
 
-  async deleteAccount(args: {
-    email: string;
-    username: string;
-    user_id: string;
-  }): Promise<void> {
+  async deleteAccount(args: { email: string; username: string; user_id: string }): Promise<void> {
     try {
       await this.doc.send(
         new TransactWriteCommand({
@@ -219,11 +209,10 @@ export class DynamoUserStore implements UserStore {
               },
             },
           ],
-        }),
+        })
       );
     } catch (e) {
-      const reasons = (e as { CancellationReasons?: { Code?: string }[] })
-        .CancellationReasons;
+      const reasons = (e as { CancellationReasons?: { Code?: string }[] }).CancellationReasons;
       if (Array.isArray(reasons) && reasons.some((r) => r?.Code === "ConditionalCheckFailed")) {
         throw new UserNotFoundError();
       }
@@ -232,9 +221,7 @@ export class DynamoUserStore implements UserStore {
   }
 
   async getByEmail(email: string): Promise<UserRecord | null> {
-    const r = await this.doc.send(
-      new GetCommand({ TableName: this.usersTable, Key: { email } }),
-    );
+    const r = await this.doc.send(new GetCommand({ TableName: this.usersTable, Key: { email } }));
     return r.Item ? (r.Item as UserRecord) : null;
   }
 
@@ -244,7 +231,7 @@ export class DynamoUserStore implements UserStore {
   // runs on cache misses.
   async getByUsername(username: string): Promise<UserRecord | null> {
     const r1 = await this.doc.send(
-      new GetCommand({ TableName: this.usernamesTable, Key: { username } }),
+      new GetCommand({ TableName: this.usernamesTable, Key: { username } })
     );
     const email = (r1.Item as { email?: string } | undefined)?.email;
     if (!email) return null;
@@ -281,7 +268,7 @@ export class DynamoUserStore implements UserStore {
             "#link": "link",
           },
           ExclusiveStartKey: lastKey,
-        }),
+        })
       );
       for (const item of r.Items ?? []) {
         if (users.length >= limit) {
@@ -301,15 +288,14 @@ export class DynamoUserStore implements UserStore {
     email: string,
     passwordHash: string,
     expectedTokenVersion: number,
-    nowIso: string,
+    nowIso: string
   ): Promise<UserRecord> {
     try {
       const r = await this.doc.send(
         new UpdateCommand({
           TableName: this.usersTable,
           Key: { email },
-          UpdateExpression:
-            "SET password_hash = :ph, token_version = :next, updated_at = :now",
+          UpdateExpression: "SET password_hash = :ph, token_version = :next, updated_at = :now",
           ConditionExpression: "token_version = :expected",
           ExpressionAttributeValues: {
             ":ph": passwordHash,
@@ -318,7 +304,7 @@ export class DynamoUserStore implements UserStore {
             ":now": nowIso,
           },
           ReturnValues: "ALL_NEW",
-        }),
+        })
       );
       return r.Attributes as UserRecord;
     } catch (e) {
@@ -329,10 +315,7 @@ export class DynamoUserStore implements UserStore {
     }
   }
 
-  async setProfilePicture(
-    email: string,
-    drawing_id: string | null,
-  ): Promise<UserRecord> {
+  async setProfilePicture(email: string, drawing_id: string | null): Promise<UserRecord> {
     try {
       const r = await this.doc.send(
         new UpdateCommand({
@@ -342,11 +325,9 @@ export class DynamoUserStore implements UserStore {
             ? "SET profile_picture_drawing_id = :p"
             : "REMOVE profile_picture_drawing_id",
           ConditionExpression: "attribute_exists(email)",
-          ExpressionAttributeValues: drawing_id
-            ? { ":p": drawing_id }
-            : undefined,
+          ExpressionAttributeValues: drawing_id ? { ":p": drawing_id } : undefined,
           ReturnValues: "ALL_NEW",
-        }),
+        })
       );
       return r.Attributes as UserRecord;
     } catch (e) {
@@ -359,7 +340,7 @@ export class DynamoUserStore implements UserStore {
 
   async updateProfile(
     email: string,
-    fields: { bio: string | null; link: string | null },
+    fields: { bio: string | null; link: string | null }
   ): Promise<UserRecord> {
     const sets: string[] = [];
     const removes: string[] = [];
@@ -388,7 +369,7 @@ export class DynamoUserStore implements UserStore {
           ConditionExpression: "attribute_exists(email)",
           ExpressionAttributeValues: Object.keys(values).length ? values : undefined,
           ReturnValues: "ALL_NEW",
-        }),
+        })
       );
       return r.Attributes as UserRecord;
     } catch (e) {
@@ -438,11 +419,7 @@ export class MemoryUserStore implements UserStore {
     return rec;
   }
 
-  async deleteAccount(args: {
-    email: string;
-    username: string;
-    user_id: string;
-  }): Promise<void> {
+  async deleteAccount(args: { email: string; username: string; user_id: string }): Promise<void> {
     const rec = this.byEmail.get(args.email);
     if (!rec || rec.user_id !== args.user_id) throw new UserNotFoundError();
     this.byEmail.delete(args.email);
@@ -476,7 +453,7 @@ export class MemoryUserStore implements UserStore {
     email: string,
     passwordHash: string,
     expectedTokenVersion: number,
-    _nowIso: string,
+    _nowIso: string
   ): Promise<UserRecord> {
     const r = this.byEmail.get(email);
     if (!r || r.token_version !== expectedTokenVersion) {
@@ -491,10 +468,7 @@ export class MemoryUserStore implements UserStore {
     return { ...updated };
   }
 
-  async setProfilePicture(
-    email: string,
-    drawing_id: string | null,
-  ): Promise<UserRecord> {
+  async setProfilePicture(email: string, drawing_id: string | null): Promise<UserRecord> {
     const r = this.byEmail.get(email);
     if (!r) throw new UserNotFoundError();
     const { profile_picture_drawing_id: _drop, ...rest } = r;
@@ -507,7 +481,7 @@ export class MemoryUserStore implements UserStore {
 
   async updateProfile(
     email: string,
-    fields: { bio: string | null; link: string | null },
+    fields: { bio: string | null; link: string | null }
   ): Promise<UserRecord> {
     const r = this.byEmail.get(email);
     if (!r) throw new UserNotFoundError();
@@ -526,7 +500,7 @@ export class MemoryUserStore implements UserStore {
   bumpFollowCounts(
     email: string,
     field: "follower_count" | "following_count",
-    delta: number,
+    delta: number
   ): void {
     const r = this.byEmail.get(email);
     if (!r) throw new UserNotFoundError();

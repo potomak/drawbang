@@ -82,25 +82,40 @@ export default function renderDesign(v: DesignView): string {
 
       <div class="ds-grid">
 
-        ${section("Color tokens", "Single accent rationed to CTA + active. No additional brand colors.", `
+        ${section(
+          "Color tokens",
+          "Single accent rationed to CTA + active. No additional brand colors.",
+          `
           <div class="ds-swatches">
             ${COLOR_TOKENS.map(renderColorSwatch).join("\n")}
           </div>
-        `)}
+        `
+        )}
 
-        ${section("Type scale", "Six steps. Sans for prose, mono for labels.", `
+        ${section(
+          "Type scale",
+          "Six steps. Sans for prose, mono for labels.",
+          `
           <div class="ds-row">
             ${TYPE_SCALE.map(renderTypeRow).join("\n")}
           </div>
-        `)}
+        `
+        )}
 
-        ${section("Spacing tokens", "Use these inline; never invent new step values.", `
+        ${section(
+          "Spacing tokens",
+          "Use these inline; never invent new step values.",
+          `
           <div class="ds-row">
             ${SPACING_TOKENS.map(renderSpacingRow).join("\n")}
           </div>
-        `)}
+        `
+        )}
 
-        ${section("Buttons", "Base + .primary + .ghost + .danger in chrome.css. Variants .icon/.sm/.xs live in src/style.css.", `
+        ${section(
+          "Buttons",
+          "Base + .primary + .ghost + .danger in chrome.css. Variants .icon/.sm/.xs live in src/style.css.",
+          `
           <div class="ds-buttons">
             <button class="btn">Default</button>
             <button class="btn primary">Primary</button>
@@ -109,9 +124,13 @@ export default function renderDesign(v: DesignView): string {
             <a class="btn" href="#">Link as button</a>
             <button class="btn" disabled>Disabled</button>
           </div>
-        `)}
+        `
+        )}
 
-        ${section("Follow button", ".follow-btn — filled accent when unfollowed (the action), outlined when followed (the state).", `
+        ${section(
+          "Follow button",
+          ".follow-btn — filled accent when unfollowed (the action), outlined when followed (the state).",
+          `
           <div class="ds-buttons">
             <button class="follow-btn" type="button" aria-pressed="false">
               <span class="follow-label">Follow</span>
@@ -120,25 +139,37 @@ export default function renderDesign(v: DesignView): string {
               <span class="follow-label">Following</span>
             </button>
           </div>
-        `)}
+        `
+        )}
 
-        ${section("Badge", ".badge — small inline label for accomplishments, statuses, counts. Hairline border + mono micro-label on paper-2 fill. Use .badge.accent for highlighted variants.", `
+        ${section(
+          "Badge",
+          ".badge — small inline label for accomplishments, statuses, counts. Hairline border + mono micro-label on paper-2 fill. Use .badge.accent for highlighted variants.",
+          `
           <div class="ds-buttons">
             <span class="badge">Beta</span>
             <span class="badge">Daily streak</span>
             <span class="badge accent">New</span>
           </div>
-        `)}
+        `
+        )}
 
-        ${section("Page chrome", ".page-title, .page-sub, .divider, .panel-h, .muted.", `
+        ${section(
+          "Page chrome",
+          ".page-title, .page-sub, .divider, .panel-h, .muted.",
+          `
           <h2 class="page-title">Page title</h2>
           <p class="page-sub">Page subtitle — small muted note under the title.</p>
           <hr class="divider" />
           <h3 class="panel-h">Panel header label</h3>
           <p class="muted">Muted body copy for tertiary information.</p>
-        `)}
+        `
+        )}
 
-        ${section("Feed card", "Single canonical card. Do not vary.", `
+        ${section(
+          "Feed card",
+          "Single canonical card. Do not vary.",
+          `
           <article class="ds-sample-card">
             <header class="feed-card-author">
               <a class="feed-card-author-link" href="#">@artist</a>
@@ -155,14 +186,19 @@ export default function renderDesign(v: DesignView): string {
               </button>
             </div>
           </article>
-        `)}
+        `
+        )}
 
-        ${section("Flash", "window.drawbangShowFlash(message, opts). Never inline-render error paragraphs.", `
+        ${section(
+          "Flash",
+          "window.drawbangShowFlash(message, opts). Never inline-render error paragraphs.",
+          `
           <div class="ds-buttons">
             <button class="btn" onclick="window.drawbangShowFlash &amp;&amp; window.drawbangShowFlash('Saved.', { kind: 'success' })">Trigger success</button>
             <button class="btn" onclick="window.drawbangShowFlash &amp;&amp; window.drawbangShowFlash('Something went wrong.', { kind: 'error' })">Trigger error</button>
           </div>
-        `)}
+        `
+        )}
 
       </div>
     </main>

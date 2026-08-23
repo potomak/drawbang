@@ -587,15 +587,15 @@ Resources:
       TableName: drawbang-orders
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - { AttributeName: order_id,   AttributeType: S }
-        - { AttributeName: status,     AttributeType: S }
+        - { AttributeName: order_id, AttributeType: S }
+        - { AttributeName: status, AttributeType: S }
         - { AttributeName: created_at, AttributeType: S }
       KeySchema:
         - { AttributeName: order_id, KeyType: HASH }
       GlobalSecondaryIndexes:
         - IndexName: status-created_at-index
           KeySchema:
-            - { AttributeName: status,     KeyType: HASH }
+            - { AttributeName: status, KeyType: HASH }
             - { AttributeName: created_at, KeyType: RANGE }
           Projection: { ProjectionType: ALL }
 
@@ -611,15 +611,15 @@ Resources:
       TableName: drawbang-product-counters
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - { AttributeName: pk,    AttributeType: S }
-        - { AttributeName: _g,    AttributeType: S }
+        - { AttributeName: pk, AttributeType: S }
+        - { AttributeName: _g, AttributeType: S }
         - { AttributeName: count, AttributeType: N }
       KeySchema:
         - { AttributeName: pk, KeyType: HASH }
       GlobalSecondaryIndexes:
         - IndexName: all-count-index
           KeySchema:
-            - { AttributeName: _g,    KeyType: HASH }
+            - { AttributeName: _g, KeyType: HASH }
             - { AttributeName: count, KeyType: RANGE }
           Projection: { ProjectionType: ALL }
 
@@ -689,22 +689,22 @@ Resources:
       GlobalSecondaryIndexes:
         - IndexName: GSI1
           KeySchema:
-            - { AttributeName: gallery_pk,    KeyType: HASH }
+            - { AttributeName: gallery_pk, KeyType: HASH }
             - { AttributeName: created_at_ms, KeyType: RANGE }
           Projection: { ProjectionType: ALL }
         - IndexName: GSI2
           KeySchema:
-            - { AttributeName: username,      KeyType: HASH }
+            - { AttributeName: username, KeyType: HASH }
             - { AttributeName: created_at_ms, KeyType: RANGE }
           Projection: { ProjectionType: ALL }
         - IndexName: GSI3
           KeySchema:
-            - { AttributeName: parent_id,     KeyType: HASH }
+            - { AttributeName: parent_id, KeyType: HASH }
             - { AttributeName: created_at_ms, KeyType: RANGE }
           Projection: { ProjectionType: ALL }
         - IndexName: GSI4
           KeySchema:
-            - { AttributeName: prompt_id,     KeyType: HASH }
+            - { AttributeName: prompt_id, KeyType: HASH }
             - { AttributeName: created_at_ms, KeyType: RANGE }
           Projection: { ProjectionType: ALL }
 
@@ -748,7 +748,7 @@ Resources:
       AttributeDefinitions:
         - { AttributeName: follower_user_id, AttributeType: S }
         - { AttributeName: followee_user_id, AttributeType: S }
-        - { AttributeName: created_at_ms,    AttributeType: N }
+        - { AttributeName: created_at_ms, AttributeType: N }
       KeySchema:
         - { AttributeName: follower_user_id, KeyType: HASH }
         - { AttributeName: followee_user_id, KeyType: RANGE }
@@ -756,12 +756,12 @@ Resources:
         - IndexName: GSI1-follower
           KeySchema:
             - { AttributeName: follower_user_id, KeyType: HASH }
-            - { AttributeName: created_at_ms,    KeyType: RANGE }
+            - { AttributeName: created_at_ms, KeyType: RANGE }
           Projection: { ProjectionType: ALL }
         - IndexName: GSI2-followee
           KeySchema:
             - { AttributeName: followee_user_id, KeyType: HASH }
-            - { AttributeName: created_at_ms,    KeyType: RANGE }
+            - { AttributeName: created_at_ms, KeyType: RANGE }
           Projection: { ProjectionType: ALL }
 
   # Bookmarks: per-user list of saved drawings. PK=user_id (the saver),

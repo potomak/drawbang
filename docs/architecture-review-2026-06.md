@@ -42,7 +42,7 @@ suite covering both servers.
 
 ## #type-safety — high
 
-*(Carried over from the 2026-06-07 pass.)*
+_(Carried over from the 2026-06-07 pass.)_
 
 ✅ **Done** (2026-07-15). Validators landed in the shared handlers, so
 both servers get them for free:
@@ -67,13 +67,14 @@ along unchanged.
 
 ## #split-render-handlers — medium
 
-*(Carried over from the 2026-06-07 pass.)*
+_(Carried over from the 2026-06-07 pass.)_
 
 `ingest/render-handlers.ts` is 891 lines and mixes every dynamic route
 the Lambda serves: home/feed, tile page, profile, follow lists,
 bookmarks, products, design, feed.rss, not-found.
 
 **Files**
+
 - `ingest/render-handlers.ts`
 
 **Suggested fix.** Split by domain:
@@ -103,6 +104,7 @@ Lambda worlds. They agree today; nothing keeps them agreeing (e.g. one
 gaining backtick/`'` escaping while the others don't).
 
 **Files**
+
 - `lib/templates/_escape.ts` — `esc()`, used by all Lambda templates.
 - `src/layout/chrome.ts:182` — local `esc()`, same body, redefined.
 - `src/order.ts:78` — local `escapeHtml()`, third copy.
@@ -125,6 +127,7 @@ classes belong in `static/gallery-v2.css`, where they're versioned and
 cached with the asset instead of re-sent on every page load.
 
 **Files**
+
 - `lib/templates/admin.ts:51` — `ADMIN_STYLES`.
 
 **Suggested fix.** Move the `.adm-*` rules to `static/gallery-v2.css`
@@ -136,12 +139,13 @@ row demonstrates; ruled "kept as-is" in the 2026-06-07 pass.)
 
 ## #shared-localstorage — medium
 
-*(Carried over from the 2026-06-07 pass.)*
+_(Carried over from the 2026-06-07 pass.)_
 
 The same `try { localStorage.{get,set,remove}Item } catch {}`
 boilerplate appears across seven surfaces — TS and plain JS.
 
 **Files**
+
 - `src/auth.ts`
 - `src/order.ts` (`hasPurchaseFired`/`markPurchaseFired`)
 - `src/main.ts` (palette persistence)
@@ -187,6 +191,7 @@ throttles; you find out when you next open `/admin`.
 
 **Suggested fix.** A small alarm set in the SAM template + one SNS
 topic with an email subscription:
+
 - Lambda `Errors` / `Throttles` on the ingest + merch functions
 - API Gateway 5xx rate
 - DynamoDB `ThrottledRequests` (or rely on PAY_PER_REQUEST headroom and
@@ -224,16 +229,18 @@ dev only.
 
 ## #inline-styles — low
 
-*(Carried over from the 2026-06-07 pass.)*
+_(Carried over from the 2026-06-07 pass.)_
 
 Inline `style="..."` attributes that should be CSS classes.
 
 **Files**
+
 - ✅ **Done** (2026-07-15): the `<span style="margin-left:6px">`
   icon-label spans in `src/main.ts` (Add layer / Copy / Paste /
   Play / Pause) now use a `.btn-icon-label` rule in `src/style.css`.
 
 **Considered but kept as-is** (not flagged in code):
+
 - `lib/templates/design.ts` — the swatch/type/spacing rows use inline
   `style="background: var(${t.name});"` etc. The inline value is
   literally what each row demonstrates; lifting to CSS would obscure

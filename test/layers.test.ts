@@ -9,12 +9,7 @@ import {
   removeLayer,
   toggleLayerVisibility,
 } from "../src/editor/frames.js";
-import {
-  composeFrame,
-  MAX_LAYERS,
-  newFrame,
-  newLayerMeta,
-} from "../src/editor/layers.js";
+import { composeFrame, MAX_LAYERS, newFrame, newLayerMeta } from "../src/editor/layers.js";
 import { History } from "../src/editor/history.js";
 import { migrate, type StoredDrawing } from "../src/local.js";
 

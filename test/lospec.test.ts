@@ -45,17 +45,17 @@ describe("parseImportInput", () => {
   });
 
   test("a full lospec.com palette URL", () => {
-    assert.deepEqual(
-      parseImportInput("https://lospec.com/palette-list/sweetie-16"),
-      { kind: "slug", slug: "sweetie-16" },
-    );
+    assert.deepEqual(parseImportInput("https://lospec.com/palette-list/sweetie-16"), {
+      kind: "slug",
+      slug: "sweetie-16",
+    });
   });
 
   test("a lospec.com URL with .json suffix keeps just the slug", () => {
-    assert.deepEqual(
-      parseImportInput("https://lospec.com/palette-list/aap-64.json"),
-      { kind: "slug", slug: "aap-64" },
-    );
+    assert.deepEqual(parseImportInput("https://lospec.com/palette-list/aap-64.json"), {
+      kind: "slug",
+      slug: "aap-64",
+    });
   });
 
   test("a whitespace-separated hex list (Lospec HEX file paste, no #)", () => {
@@ -92,7 +92,7 @@ describe("parseLospecJson", () => {
   test("normalizes the #-less hex entries Lospec returns", () => {
     const parsed = parseLospecJson(
       { name: "Sweetie 16", author: "GrafxKid", colors: ["1a1c2c", "5D275D"] },
-      "sweetie-16",
+      "sweetie-16"
     );
     assert.equal(parsed.name, "Sweetie 16");
     assert.deepEqual(parsed.colors, ["#1a1c2c", "#5d275d"]);
@@ -120,7 +120,9 @@ describe("imported palette → active palette quantization", () => {
     assert.equal(short.length, ACTIVE_PALETTE_SIZE);
     assert.equal(short[15], "#222222");
 
-    const long = padPalette(Array.from({ length: 20 }, (_, i) => `#0000${String(i).padStart(2, "0")}`));
+    const long = padPalette(
+      Array.from({ length: 20 }, (_, i) => `#0000${String(i).padStart(2, "0")}`)
+    );
     assert.equal(long.length, ACTIVE_PALETTE_SIZE);
   });
 
@@ -149,8 +151,5 @@ describe("imported palette → active palette quantization", () => {
 });
 
 test("lospecPaletteUrl points at the public JSON endpoint", () => {
-  assert.equal(
-    lospecPaletteUrl("sweetie-16"),
-    "https://lospec.com/palette-list/sweetie-16.json",
-  );
+  assert.equal(lospecPaletteUrl("sweetie-16"), "https://lospec.com/palette-list/sweetie-16.json");
 });

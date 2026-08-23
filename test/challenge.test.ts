@@ -117,9 +117,7 @@ describe("verifyChallenge", () => {
       ...solution,
       derivedKey: solution.derivedKey.replace(/^../, "ff"),
     };
-    const payload = Buffer.from(
-      JSON.stringify({ challenge, solution: forged }),
-    ).toString("base64");
+    const payload = Buffer.from(JSON.stringify({ challenge, solution: forged })).toString("base64");
     assert.deepEqual(await verifyChallenge(payload, c), {
       ok: false,
       reason: "invalid",
@@ -140,9 +138,9 @@ describe("verifyChallenge", () => {
       ...challenge,
       parameters: { ...challenge.parameters, cost: 1 },
     };
-    const payload = Buffer.from(
-      JSON.stringify({ challenge: weakened, solution }),
-    ).toString("base64");
+    const payload = Buffer.from(JSON.stringify({ challenge: weakened, solution })).toString(
+      "base64"
+    );
     assert.deepEqual(await verifyChallenge(payload, c), {
       ok: false,
       reason: "invalid",
@@ -181,7 +179,7 @@ describe("register is gated on proof of work", () => {
     const h = authCfg(cfg());
     const res = await handleRegister(
       { ...body, altcha: await solvedPayload(h.cfg.challenge) },
-      h.cfg,
+      h.cfg
     );
     assert.equal(res.status, 201);
   });
@@ -200,7 +198,7 @@ describe("register is gated on proof of work", () => {
     assert.equal((await handleRegister({ ...body, altcha: payload }, h.cfg)).status, 201);
     const second = await handleRegister(
       { email: "bob@example.com", username: "bob", password: "password123", altcha: payload },
-      h.cfg,
+      h.cfg
     );
     assert.equal(second.status, 400);
     assert.equal((second.body as { code: string }).code, "challenge_replayed");
@@ -226,7 +224,7 @@ describe("forgot-password is gated on proof of work", () => {
         password: "password123",
         altcha: await solvedPayload(h.cfg.challenge),
       },
-      h.cfg,
+      h.cfg
     );
     const res = await handleForgotPassword({ email: "alice@example.com" }, h.cfg);
     assert.equal(res.status, 400);
@@ -237,7 +235,7 @@ describe("forgot-password is gated on proof of work", () => {
     const h = authCfg(cfg());
     const res = await handleForgotPassword(
       { email: "ghost@example.com", altcha: await solvedPayload(h.cfg.challenge) },
-      h.cfg,
+      h.cfg
     );
     assert.equal(res.status, 200);
     assert.equal(h.email.links.length, 0);

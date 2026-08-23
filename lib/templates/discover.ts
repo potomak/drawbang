@@ -35,7 +35,7 @@ function renderMostLiked(items: DiscoverDrawing[]): string {
             <span class="rr-author">${d.author_username ? esc(d.author_username) : "anonymous"}</span>
             <span class="rr-like-count">♥ ${esc(d.like_count)}</span>
           </a>
-        </li>`,
+        </li>`
     )
     .join("\n");
   return `<section class="rr-module">
@@ -56,7 +56,7 @@ function renderTrendingArtists(items: DiscoverArtist[]): string {
             <span class="rr-author">${esc(a.username)}</span>
             <span class="rr-meta">${esc(a.drawing_count_30d)} ${a.drawing_count_30d === 1 ? "drawing" : "drawings"}</span>
           </a>
-        </li>`,
+        </li>`
     )
     .join("\n");
   return `<section class="rr-module">

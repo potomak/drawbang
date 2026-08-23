@@ -22,8 +22,7 @@ export class DynamoSubscribersStore implements SubscribersStore {
 
   constructor(opts: DynamoSubscribersStoreOptions) {
     this.tableName = opts.tableName;
-    this.doc =
-      opts.client ?? DynamoDBDocumentClient.from(new DynamoDBClient({}));
+    this.doc = opts.client ?? DynamoDBDocumentClient.from(new DynamoDBClient({}));
   }
 
   async subscribe(email: string, created_at: string): Promise<void> {
@@ -33,7 +32,7 @@ export class DynamoSubscribersStore implements SubscribersStore {
           TableName: this.tableName,
           Item: { email, created_at },
           ConditionExpression: "attribute_not_exists(email)",
-        }),
+        })
       );
     } catch (e) {
       const name = (e as { name?: unknown }).name;

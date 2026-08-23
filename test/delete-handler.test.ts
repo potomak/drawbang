@@ -114,7 +114,11 @@ describe("handleDeleteDrawing — authorisation", () => {
     const h = await harness();
     try {
       await seed(h, row());
-      const res = await handleDeleteDrawing(ID, BOB, h.cfg(() => false));
+      const res = await handleDeleteDrawing(
+        ID,
+        BOB,
+        h.cfg(() => false)
+      );
       assert.equal(res.status, 403);
     } finally {
       await h.cleanup();
@@ -160,9 +164,9 @@ describe("handleDeleteDrawing — effects", () => {
     try {
       await seed(h, row());
       await handleDeleteDrawing(ID, ALICE, h.cfg());
-      assert.deepEqual(h.inv.calls, [[
-        "/", "/feed/items*", "/gallery*", "/u/alice*", "/feed.rss", `/d/${ID}*`,
-      ]]);
+      assert.deepEqual(h.inv.calls, [
+        ["/", "/feed/items*", "/gallery*", "/u/alice*", "/feed.rss", `/d/${ID}*`],
+      ]);
     } finally {
       await h.cleanup();
     }
@@ -173,9 +177,7 @@ describe("handleDeleteDrawing — effects", () => {
     try {
       await seed(h, row({ username: ANONYMOUS_USERNAME, user_id: ANONYMOUS_USER_ID }));
       await handleDeleteDrawing(ID, ADMIN, h.cfg());
-      assert.deepEqual(h.inv.calls, [[
-        "/", "/feed/items*", "/gallery*", "/feed.rss", `/d/${ID}*`,
-      ]]);
+      assert.deepEqual(h.inv.calls, [["/", "/feed/items*", "/gallery*", "/feed.rss", `/d/${ID}*`]]);
     } finally {
       await h.cleanup();
     }

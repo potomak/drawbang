@@ -8,7 +8,7 @@ claiming deliberately left out.
 
 Publishing no longer requires an account. Someone draws, hits Publish, and
 the drawing lands under the `anonymous` sentinel. The success flash invites
-them to create an account — and when they do, the drawing they *just made*
+them to create an account — and when they do, the drawing they _just made_
 still says "anonymous". That's the wrong reward for taking the action we
 asked for, and it's the moment we most want to feel good.
 
@@ -24,7 +24,7 @@ GIF" — is wrong, and it's worth being explicit about why, because it's the
 first idea everyone has.
 
 The GIF is **public**. Every drawing is served at `/tiles/<id>.gif`, and the
-id *is* the hash of those bytes. Anyone browsing the gallery can download any
+id _is_ the hash of those bytes. Anyone browsing the gallery can download any
 drawing and re-upload it byte-for-byte. A claim scheme based on producing the
 content is a claim scheme where anyone can steal anything.
 
@@ -46,7 +46,7 @@ field:
 {
   "id": "<drawing_id>",
   "share_url": "https://…/d/<drawing_id>",
-  "claim_token": "<jwt>"   // anonymous publishes only
+  "claim_token": "<jwt>", // anonymous publishes only
 }
 ```
 
@@ -54,18 +54,18 @@ The token is signed with the existing `JWT_SECRET`:
 
 ```ts
 interface DrawingClaimClaims extends JwtClaims {
-  did: string;                    // drawing_id this token claims
+  did: string; // drawing_id this token claims
   purpose: "drawing-claim";
 }
 
-signJwt({ did: id, purpose: "drawing-claim" }, cfg.jwtSecret, CLAIM_TTL_S, nowSec)
+signJwt({ did: id, purpose: "drawing-claim" }, cfg.jwtSecret, CLAIM_TTL_S, nowSec);
 ```
 
 `CLAIM_TTL_S` = **30 days** (proposed). Long enough for "I drew that last
 week, let me finally sign up"; short enough that a token leaked through a
 shared browser or a log line stops mattering.
 
-An *attributed* publish returns no token — there is nothing to claim.
+An _attributed_ publish returns no token — there is nothing to claim.
 
 ### 2. Hold it client-side
 
@@ -100,7 +100,7 @@ would have been.
 }
 ```
 
-Batch, because the flow this exists to serve is "I drew four things, *then*
+Batch, because the flow this exists to serve is "I drew four things, _then_
 signed up". A single claim is a one-element array.
 
 The redemption point belongs in `src/auth.ts`, after both `register()` **and**
@@ -164,7 +164,7 @@ pathsToInvalidateOnClaim(username: string, drawing_ids: string[]): string[]
 `/u/<username>*`, `/feed.rss`) plus `/d/<id>*` per claimed drawing, because
 the byline on each drawing page changes.
 
-## What claiming will *not* do
+## What claiming will _not_ do
 
 **It will not rebuild streaks.** `recordDailyDrawing` is a read-modify-write
 whose consecutive-day branch keys off `daily_last_date`; feeding it arbitrary
@@ -205,11 +205,11 @@ origin and 403s instead of reaching Lambda.
 1. `ingest/claim-handler.ts` — verify token, check `purpose` + `did`, call
    `claimForUser`, invalidate.
 2. `ingest/routes.ts` — `{ methods: ["POST"], pattern: /^\/claims$/, auth:
-   "required" }`.
+"required" }`.
 3. `test/routes.test.ts` — extend the auth-gate table.
 4. `infra/aws/template.yaml` — API Gateway event, `Path: /claims`.
 5. `infra/aws/template.yaml` — **new** CloudFront behaviour `PathPattern:
-   /claims`, api origin, auth forwarded (copy the `/drawings/*/like` block).
+/claims`, api origin, auth forwarded (copy the `/drawings/*/like` block).
 6. `ingest/cache-invalidation.ts` — `pathsToInvalidateOnClaim`.
 
 Plus: `DrawingStore.claimForUser` in both the Dynamo and Memory

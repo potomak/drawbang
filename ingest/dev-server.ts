@@ -48,7 +48,7 @@ const adminUsernames = new Set(
   (process.env.ADMIN_USERNAMES ?? "")
     .split(",")
     .map((s) => s.trim())
-    .filter(Boolean),
+    .filter(Boolean)
 );
 const adminOpenInDev = adminUsernames.size === 0;
 
@@ -238,7 +238,7 @@ function devRequestId(): string {
 // loop to verify layout + auth gate; visit prod for the real numbers.
 async function buildDevAdminView(
   adminUsername: string,
-  range: AdminView["range"],
+  range: AdminView["range"]
 ): Promise<AdminView> {
   const drawingsPage = await drawingStore.queryGallery({ limit: 1000 });
   const totalDrawings = drawingsPage.items.length;
@@ -250,9 +250,15 @@ async function buildDevAdminView(
     startMs: rangeStartMs(range, now),
   });
   const flagRow = await flagsStore.getFlag("merch_dry_run");
-  const flagVal = (flagRow as { enabled?: boolean; value?: boolean } | null)?.enabled ?? (flagRow as { value?: boolean } | null)?.value;
+  const flagVal =
+    (flagRow as { enabled?: boolean; value?: boolean } | null)?.enabled ??
+    (flagRow as { value?: boolean } | null)?.value;
   const merchFlags = flagRow
-    ? { merch_dry_run: Boolean(flagVal), updated_at: flagRow.updated_at ?? null, updated_by: flagRow.updated_by ?? null }
+    ? {
+        merch_dry_run: Boolean(flagVal),
+        updated_at: flagRow.updated_at ?? null,
+        updated_by: flagRow.updated_by ?? null,
+      }
     : { merch_dry_run: true, updated_at: null, updated_by: null };
   return {
     adminUsername,

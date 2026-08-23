@@ -33,9 +33,7 @@ const bucket = required("DRAWBANG_S3_BUCKET");
 const dryRun = process.env.DRY_RUN === "1" || process.argv.includes("--dry-run");
 const force = process.argv.includes("--force");
 const concurrencyArg = process.argv.find((a) => a.startsWith("--concurrency="));
-const CONCURRENCY = concurrencyArg
-  ? Math.max(1, parseInt(concurrencyArg.split("=")[1], 10))
-  : 10;
+const CONCURRENCY = concurrencyArg ? Math.max(1, parseInt(concurrencyArg.split("=")[1], 10)) : 10;
 
 const storage = new S3Storage({ bucket });
 
@@ -50,7 +48,7 @@ interface Result {
 
 async function run(): Promise<Result> {
   console.log(
-    `[backfill] bucket=${bucket} dryRun=${dryRun} force=${force} concurrency=${CONCURRENCY}`,
+    `[backfill] bucket=${bucket} dryRun=${dryRun} force=${force} concurrency=${CONCURRENCY}`
   );
   const keys = await storage.listPrefix("public/tiles");
   console.log(`[backfill] listed ${keys.length} keys under public/tiles/`);
@@ -69,7 +67,7 @@ async function run(): Promise<Result> {
     candidates.push(k);
   }
   console.log(
-    `[backfill] ${candidates.length} candidate gifs; ${skippedNonId} keys skipped (non-id path)`,
+    `[backfill] ${candidates.length} candidate gifs; ${skippedNonId} keys skipped (non-id path)`
   );
 
   const result: Result = {
@@ -103,9 +101,7 @@ async function run(): Promise<Result> {
             }
             const decoded = decodeGif(gif);
             if (!decoded.activePalette) {
-              console.warn(
-                `[backfill] ${id}: no DRAWBANG palette extension — skipping`,
-              );
+              console.warn(`[backfill] ${id}: no DRAWBANG palette extension — skipping`);
               result.failed++;
               continue;
             }
@@ -118,12 +114,7 @@ async function run(): Promise<Result> {
               result.upscaled++;
               continue;
             }
-            await storage.put(
-              largeKey,
-              large,
-              "image/gif",
-              "public, max-age=31536000, immutable",
-            );
+            await storage.put(largeKey, large, "image/gif", "public, max-age=31536000, immutable");
             result.upscaled++;
           } catch (err) {
             console.error(`[backfill] ${id}: ${(err as Error).message ?? err}`);
@@ -132,11 +123,11 @@ async function run(): Promise<Result> {
           const processed = result.upscaled + result.alreadyHad + result.failed;
           if (processed % 100 === 0) {
             console.log(
-              `[backfill] progress ${processed}/${total} (upscaled=${result.upscaled} already=${result.alreadyHad} failed=${result.failed})`,
+              `[backfill] progress ${processed}/${total} (upscaled=${result.upscaled} already=${result.alreadyHad} failed=${result.failed})`
             );
           }
         }
-      })(),
+      })()
     );
   }
   await Promise.all(workers);
@@ -148,7 +139,7 @@ run()
   .then((r) => {
     const dt = ((Date.now() - t0) / 1000).toFixed(1);
     console.log(
-      `[backfill] done in ${dt}s — upscaled=${r.upscaled} alreadyHad=${r.alreadyHad} skippedNonId=${r.skippedNonId} failed=${r.failed}${dryRun ? " (DRY RUN — nothing written)" : ""}`,
+      `[backfill] done in ${dt}s — upscaled=${r.upscaled} alreadyHad=${r.alreadyHad} skippedNonId=${r.skippedNonId} failed=${r.failed}${dryRun ? " (DRY RUN — nothing written)" : ""}`
     );
   })
   .catch((err) => {

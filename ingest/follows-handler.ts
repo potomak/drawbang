@@ -1,8 +1,4 @@
-import {
-  AlreadyFollowingError,
-  NotFollowingError,
-  type FollowsStore,
-} from "./follows-store.js";
+import { AlreadyFollowingError, NotFollowingError, type FollowsStore } from "./follows-store.js";
 import type { UserStore } from "./user-store.js";
 import {
   type Auth,
@@ -32,7 +28,7 @@ export interface FollowsHandlerConfig extends BaseHandlerConfig {
 export async function handleFollow(
   target_username: string,
   auth: FollowsAuth,
-  cfg: FollowsHandlerConfig,
+  cfg: FollowsHandlerConfig
 ): Promise<FollowsResult> {
   if (!USERNAME_RE.test(target_username)) return err(400, "invalid username");
   if (target_username === auth.username) {
@@ -67,14 +63,14 @@ export async function handleFollow(
         },
         created_at_ms: now.getTime(),
       }),
-    [[AlreadyFollowingError, 409, "already following"]],
+    [[AlreadyFollowingError, 409, "already following"]]
   );
 }
 
 export async function handleUnfollow(
   target_username: string,
   auth: FollowsAuth,
-  cfg: FollowsHandlerConfig,
+  cfg: FollowsHandlerConfig
 ): Promise<FollowsResult> {
   if (!USERNAME_RE.test(target_username)) return err(400, "invalid username");
   if (target_username === auth.username) {
@@ -98,6 +94,6 @@ export async function handleUnfollow(
           email: followee.email,
         },
       }),
-    [[NotFollowingError, 409, "not following"]],
+    [[NotFollowingError, 409, "not following"]]
   );
 }

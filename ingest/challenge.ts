@@ -97,16 +97,9 @@ export async function mintChallenge(cfg: ChallengeConfig): Promise<Challenge> {
   });
 }
 
-export type ChallengeFailure =
-  | "missing"
-  | "malformed"
-  | "expired"
-  | "invalid"
-  | "replayed";
+export type ChallengeFailure = "missing" | "malformed" | "expired" | "invalid" | "replayed";
 
-export type ChallengeVerdict =
-  | { ok: true }
-  | { ok: false; reason: ChallengeFailure };
+export type ChallengeVerdict = { ok: true } | { ok: false; reason: ChallengeFailure };
 
 interface ClientPayload {
   challenge: Challenge;
@@ -147,7 +140,7 @@ function parsePayload(raw: unknown): ClientPayload | null {
 // known-good so a failed attempt doesn't burn the user's challenge.
 export async function verifyChallenge(
   raw: unknown,
-  cfg: ChallengeConfig,
+  cfg: ChallengeConfig
 ): Promise<ChallengeVerdict> {
   if (raw === undefined || raw === null || raw === "") {
     return { ok: false, reason: "missing" };
@@ -179,7 +172,7 @@ export async function verifyChallenge(
   const expiresAtS = payload.challenge.parameters.expiresAt ?? nowS + CHALLENGE_TTL_S;
   const claimed = await cfg.challengeStore.claim(
     payload.challenge.parameters.nonce,
-    Math.max(expiresAtS, nowS + 60),
+    Math.max(expiresAtS, nowS + 60)
   );
   if (!claimed) return { ok: false, reason: "replayed" };
   return { ok: true };

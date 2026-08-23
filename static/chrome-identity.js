@@ -42,7 +42,7 @@
     try {
       sessionStorage.setItem(
         "drawbang:pending-flash",
-        JSON.stringify({ kind: "info", message: "Signed out.", autoDismissMs: 5500 }),
+        JSON.stringify({ kind: "info", message: "Signed out.", autoDismissMs: 5500 })
       );
     } catch {
       // private mode — the redirect still happens; just no flash.
@@ -73,20 +73,20 @@
 
     // 2. Left-rail follow blocks — fill in the viewer's username so
     //    hydrate.js picks them up and stamps the counts.
-    const followBlocks = document.querySelectorAll('[data-rail-follow]');
+    const followBlocks = document.querySelectorAll("[data-rail-follow]");
     for (const block of followBlocks) {
       if (!(block instanceof HTMLElement)) continue;
       block.setAttribute("data-profile-username", username);
       block.hidden = false;
       const kind = block.getAttribute("data-rail-follow");
-      const link = block.querySelector('[data-rail-follow-link]');
+      const link = block.querySelector("[data-rail-follow-link]");
       if (link instanceof HTMLAnchorElement && kind) {
         link.href = "/u/" + username + "/" + kind;
       }
     }
 
     // 3. Bookmarks / Sign-out rows in the left rail.
-    const bookmark = document.querySelector('[data-rail-bookmarks]');
+    const bookmark = document.querySelector("[data-rail-bookmarks]");
     if (bookmark instanceof HTMLAnchorElement) {
       bookmark.href = "/u/" + username + "/bookmarks";
       bookmark.hidden = false;
@@ -146,7 +146,7 @@
       const html = usernames
         .map(
           (un) =>
-            `<a class="rail-thumb" href="/u/${encodeURIComponent(un)}" aria-label="${escapeAttr(un)}"><span class="profile-picture profile-picture-placeholder" aria-hidden="true" data-profile-picture-username="${escapeAttr(un)}" data-profile-picture-size="32">${escapeAttr((un.charAt(0) || "?").toUpperCase())}</span></a>`,
+            `<a class="rail-thumb" href="/u/${encodeURIComponent(un)}" aria-label="${escapeAttr(un)}"><span class="profile-picture profile-picture-placeholder" aria-hidden="true" data-profile-picture-username="${escapeAttr(un)}" data-profile-picture-size="32">${escapeAttr((un.charAt(0) || "?").toUpperCase())}</span></a>`
         )
         .join("");
       grid.innerHTML = html;
@@ -155,7 +155,7 @@
 
   function escapeAttr(s) {
     return String(s).replace(/[&<>"']/g, (c) =>
-      c === "&" ? "&amp;" : c === "<" ? "&lt;" : c === ">" ? "&gt;" : c === '"' ? "&quot;" : "&#39;",
+      c === "&" ? "&amp;" : c === "<" ? "&lt;" : c === ">" ? "&gt;" : c === '"' ? "&quot;" : "&#39;"
     );
   }
 

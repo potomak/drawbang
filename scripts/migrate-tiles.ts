@@ -15,10 +15,7 @@
 
 import { ANONYMOUS_USER_ID, ANONYMOUS_USERNAME } from "../config/constants.js";
 import { S3Storage } from "../ingest/s3-storage.js";
-import {
-  DynamoDrawingStore,
-  type DrawingRow,
-} from "../ingest/drawing-store.js";
+import { DynamoDrawingStore, type DrawingRow } from "../ingest/drawing-store.js";
 import { decodeGif } from "../src/editor/gif.js";
 
 interface InboxRow {
@@ -58,9 +55,7 @@ async function main(): Promise<void> {
   const dayKeys = await storage.listPrefix("public/days");
   const days = [
     ...new Set(
-      dayKeys
-        .map((k) => k.split("/").pop()!)
-        .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)),
+      dayKeys.map((k) => k.split("/").pop()!).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
     ),
   ].sort();
   console.log(`found ${days.length} day partitions`);
@@ -69,9 +64,7 @@ async function main(): Promise<void> {
   let skipped = 0;
   let failed = 0;
   for (const day of days) {
-    const indexBytes = await storage.getBytes(
-      `public/days/${day}/index.jsonl`,
-    );
+    const indexBytes = await storage.getBytes(`public/days/${day}/index.jsonl`);
     if (!indexBytes) {
       console.log(`  ${day}: no index.jsonl, skipping`);
       continue;
@@ -143,7 +136,9 @@ async function main(): Promise<void> {
         gif_size_bytes: gif.length,
       };
       if (dryRun) {
-        console.log(`    DRY: ${row.id.slice(0, 8)} → ${username} (${size}x${size}, ${frames}f, ${gif.length}b)`);
+        console.log(
+          `    DRY: ${row.id.slice(0, 8)} → ${username} (${size}x${size}, ${frames}f, ${gif.length}b)`
+        );
       } else {
         await store.put(ddbRow);
       }

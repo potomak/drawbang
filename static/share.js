@@ -96,7 +96,9 @@
   function init() {
     wireAll();
     if (typeof MutationObserver === "function") {
-      var mo = new MutationObserver(function () { wireAll(); });
+      var mo = new MutationObserver(function () {
+        wireAll();
+      });
       mo.observe(document.body, { childList: true, subtree: true });
     }
   }

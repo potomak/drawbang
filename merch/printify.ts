@@ -91,7 +91,10 @@ export class PrintifyClient {
     this.sleepImpl = cfg.sleepImpl ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   }
 
-  async uploadImage(filename: string, pngBytes: Uint8Array): Promise<{ id: string; preview_url: string }> {
+  async uploadImage(
+    filename: string,
+    pngBytes: Uint8Array
+  ): Promise<{ id: string; preview_url: string }> {
     const contents = Buffer.from(pngBytes).toString("base64");
     return this.request<{ id: string; preview_url: string }>("POST", "/uploads/images.json", {
       file_name: filename,
@@ -107,14 +110,14 @@ export class PrintifyClient {
     return this.request<{ id: string; status: string }>(
       "POST",
       `/shops/${this.shopId}/orders.json`,
-      args,
+      args
     );
   }
 
   async getOrder(printifyOrderId: string): Promise<{ id: string; status: string }> {
     return this.request<{ id: string; status: string }>(
       "GET",
-      `/shops/${this.shopId}/orders/${printifyOrderId}.json`,
+      `/shops/${this.shopId}/orders/${printifyOrderId}.json`
     );
   }
 
@@ -123,7 +126,7 @@ export class PrintifyClient {
   async sendToProduction(printifyOrderId: string): Promise<{ id: string }> {
     return this.request<{ id: string }>(
       "POST",
-      `/shops/${this.shopId}/orders/${printifyOrderId}/send_to_production.json`,
+      `/shops/${this.shopId}/orders/${printifyOrderId}/send_to_production.json`
     );
   }
 
@@ -135,10 +138,7 @@ export class PrintifyClient {
   // limit defaults to 50 — if a previous attempt's createOrder happened
   // within the last 50 orders this will find it. Bump if you ever have
   // more in-flight retries than that.
-  async findOrderByExternalId(
-    externalId: string,
-    limit = 50,
-  ): Promise<{ id: string } | null> {
+  async findOrderByExternalId(externalId: string, limit = 50): Promise<{ id: string } | null> {
     const out = await this.request<{
       data: { id: string; metadata?: { shop_order_id?: string } }[];
     }>("GET", `/shops/${this.shopId}/orders.json?limit=${limit}`);
@@ -188,9 +188,7 @@ export class PrintifyClient {
 
       if (
         res.status === 400 &&
-        PRINTIFY_RETRYABLE_400_CODES.has(
-          (parsed as { code?: number } | undefined)?.code ?? -1,
-        ) &&
+        PRINTIFY_RETRYABLE_400_CODES.has((parsed as { code?: number } | undefined)?.code ?? -1) &&
         slowAttempt < SLOW_RETRY_DELAYS_MS.length
       ) {
         await this.sleepImpl(SLOW_RETRY_DELAYS_MS[slowAttempt++]);

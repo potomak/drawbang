@@ -70,7 +70,9 @@ async function harness() {
     cfg: {
       drawingStore,
       storage,
-      enqueue: async (job: PostPublishJob) => { jobs.push(job); },
+      enqueue: async (job: PostPublishJob) => {
+        jobs.push(job);
+      },
       // The targeted path runs inline; record it the same way so the
       // existing assertions on `jobs` keep meaning "work was requested".
       runNow: async (job: PostPublishJob) => {
@@ -83,8 +85,10 @@ async function harness() {
     seed: async (n: number, username: string, has: { gif?: boolean; mp4?: boolean }) => {
       await drawingStore.put(row(n, username));
       await storage.put(`public/tiles/${id(n)}.gif`, new Uint8Array([1]), "image/gif");
-      if (has.gif) await storage.put(`public/tiles/${id(n)}-large.gif`, new Uint8Array([2]), "image/gif");
-      if (has.mp4) await storage.put(`public/tiles/${id(n)}-large.mp4`, new Uint8Array([3]), "video/mp4");
+      if (has.gif)
+        await storage.put(`public/tiles/${id(n)}-large.gif`, new Uint8Array([2]), "image/gif");
+      if (has.mp4)
+        await storage.put(`public/tiles/${id(n)}-large.mp4`, new Uint8Array([3]), "video/mp4");
     },
     cleanup: () => rm(dir, { recursive: true, force: true }),
   };
@@ -92,7 +96,13 @@ async function harness() {
 
 describe("parseBackfillOptions", () => {
   test("defaults are conservative", () => {
-    const o = parseBackfillOptions({ drawing: null, scope: null, limit: null, scan: null, dry: null });
+    const o = parseBackfillOptions({
+      drawing: null,
+      scope: null,
+      limit: null,
+      scan: null,
+      dry: null,
+    });
     assert.deepEqual(o, {
       target: null,
       scope: "mine",
@@ -107,33 +117,62 @@ describe("parseBackfillOptions", () => {
       assert.equal(
         parseBackfillOptions({ drawing: null, scope: v, limit: null, scan: null, dry: null }).scope,
         "mine",
-        `scope=${JSON.stringify(v)} must not widen`,
+        `scope=${JSON.stringify(v)} must not widen`
       );
     }
     assert.equal(
-      parseBackfillOptions({ drawing: null, scope: "all", limit: null, scan: null, dry: null }).scope,
-      "all",
+      parseBackfillOptions({ drawing: null, scope: "all", limit: null, scan: null, dry: null })
+        .scope,
+      "all"
     );
   });
 
   test("limits are clamped, and garbage falls back to the default", () => {
-    const big = parseBackfillOptions({ drawing: null, scope: null, limit: "99999", scan: "99999", dry: null });
+    const big = parseBackfillOptions({
+      drawing: null,
+      scope: null,
+      limit: "99999",
+      scan: "99999",
+      dry: null,
+    });
     assert.equal(big.limit, MAX_LIMIT);
     assert.equal(big.scanLimit, MAX_SCAN_LIMIT);
-    const small = parseBackfillOptions({ drawing: null, scope: null, limit: "0", scan: "-5", dry: null });
+    const small = parseBackfillOptions({
+      drawing: null,
+      scope: null,
+      limit: "0",
+      scan: "-5",
+      dry: null,
+    });
     assert.equal(small.limit, 1);
     assert.equal(small.scanLimit, 1);
-    const junk = parseBackfillOptions({ drawing: null, scope: null, limit: "abc", scan: "", dry: null });
+    const junk = parseBackfillOptions({
+      drawing: null,
+      scope: null,
+      limit: "abc",
+      scan: "",
+      dry: null,
+    });
     assert.equal(junk.limit, DEFAULT_LIMIT);
     assert.equal(junk.scanLimit, DEFAULT_SCAN_LIMIT);
   });
 
   test("dry-run resolves ambiguity toward doing nothing", () => {
     for (const v of ["1", "true", "yes", "whatever"]) {
-      assert.equal(parseBackfillOptions({ drawing: null, scope: null, limit: null, scan: null, dry: v }).dryRun, true, v);
+      assert.equal(
+        parseBackfillOptions({ drawing: null, scope: null, limit: null, scan: null, dry: v })
+          .dryRun,
+        true,
+        v
+      );
     }
     for (const v of [null, "", "0", "false"]) {
-      assert.equal(parseBackfillOptions({ drawing: null, scope: null, limit: null, scan: null, dry: v }).dryRun, false, String(v));
+      assert.equal(
+        parseBackfillOptions({ drawing: null, scope: null, limit: null, scan: null, dry: v })
+          .dryRun,
+        false,
+        String(v)
+      );
     }
   });
 });
@@ -157,7 +196,10 @@ describe("handleBackfillSidecars — scope is the security boundary", () => {
       await h.seed(1, "alice", {});
       const res = await handleBackfillSidecars(opts({ scope: "all" }), ADMIN, h.cfg);
       assert.equal(res.status, 200);
-      assert.deepEqual(h.jobs.map((j) => j.drawing_id), [id(1)]);
+      assert.deepEqual(
+        h.jobs.map((j) => j.drawing_id),
+        [id(1)]
+      );
     } finally {
       await h.cleanup();
     }
@@ -170,7 +212,11 @@ describe("handleBackfillSidecars — scope is the security boundary", () => {
       await h.seed(2, "bob", {});
       const res = await handleBackfillSidecars(opts(), ALICE, h.cfg);
       assert.equal(res.status, 200);
-      assert.deepEqual(h.jobs.map((j) => j.drawing_id), [id(1)], "only alice's drawing");
+      assert.deepEqual(
+        h.jobs.map((j) => j.drawing_id),
+        [id(1)],
+        "only alice's drawing"
+      );
       assert.equal((res.body as BackfillReport).scanned, 1);
     } finally {
       await h.cleanup();
@@ -235,7 +281,11 @@ describe("handleBackfillSidecars — targeted single drawing", () => {
     try {
       for (let n = 1; n <= 5; n++) await h.seed(n, "alice", {});
       await handleBackfillSidecars(opts({ target: id(3) }), BOB, h.cfg);
-      assert.deepEqual(h.jobs.map((j) => j.drawing_id), [id(3)], "only the named drawing");
+      assert.deepEqual(
+        h.jobs.map((j) => j.drawing_id),
+        [id(3)],
+        "only the named drawing"
+      );
     } finally {
       await h.cleanup();
     }
@@ -255,7 +305,13 @@ describe("handleBackfillSidecars — targeted single drawing", () => {
   test("a malformed id is ignored, falling back to the owner-scoped scan", async () => {
     // parseBackfillOptions only accepts a well-formed 64-hex id, so a junk
     // value must not become a target — and must not widen anything either.
-    const o = parseBackfillOptions({ drawing: "not-an-id", scope: null, limit: null, scan: null, dry: null });
+    const o = parseBackfillOptions({
+      drawing: "not-an-id",
+      scope: null,
+      limit: null,
+      scan: null,
+      dry: null,
+    });
     assert.equal(o.target, null);
     assert.equal(o.scope, "mine");
   });
@@ -353,9 +409,9 @@ describe("handleBackfillSidecars — what it repairs", () => {
   test("reports exactly which sidecar is missing", async () => {
     const h = await harness();
     try {
-      await h.seed(1, "alice", { gif: true });          // mp4 missing
-      await h.seed(2, "alice", { mp4: true });          // gif missing
-      await h.seed(3, "alice", {});                     // both missing
+      await h.seed(1, "alice", { gif: true }); // mp4 missing
+      await h.seed(2, "alice", { mp4: true }); // gif missing
+      await h.seed(3, "alice", {}); // both missing
       await h.seed(4, "alice", { gif: true, mp4: true }); // fine
       const res = await handleBackfillSidecars(opts(), ALICE, h.cfg);
       const body = res.body as BackfillReport;

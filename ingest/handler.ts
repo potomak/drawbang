@@ -161,7 +161,7 @@ export function isEncodeShareMp4Event(event: unknown): event is EncodeShareMp4Ev
 export async function encodeShareMp4FromStorage(
   storage: Storage,
   drawing_id: string,
-  encode: (gif: Uint8Array) => Promise<Uint8Array> = encodeShareMp4,
+  encode: (gif: Uint8Array) => Promise<Uint8Array> = encodeShareMp4
 ): Promise<StepOutcome> {
   const t0 = Date.now();
   try {
@@ -172,7 +172,7 @@ export async function encodeShareMp4FromStorage(
       `public/tiles/${drawing_id}-large.mp4`,
       mp4,
       "video/mp4",
-      "public, max-age=31536000, immutable",
+      "public, max-age=31536000, immutable"
     );
     return { ok: true, ms: Date.now() - t0, bytes: mp4.length };
   } catch (e) {
@@ -210,7 +210,7 @@ export interface PostPublishOutcome {
 
 export async function writeLargeGifFromStorage(
   storage: Storage,
-  drawing_id: string,
+  drawing_id: string
 ): Promise<Uint8Array | null> {
   try {
     const gif = await storage.getBytes(`public/tiles/${drawing_id}.gif`);
@@ -226,7 +226,7 @@ export async function writeLargeGifFromStorage(
       `public/tiles/${drawing_id}-large.gif`,
       large,
       "image/gif",
-      "public, max-age=31536000, immutable",
+      "public, max-age=31536000, immutable"
     );
     return large;
   } catch (e) {
@@ -272,7 +272,7 @@ export interface PostPublishConfig {
 // Never throws — an async invocation has no caller to surface errors to.
 export async function runPostPublish(
   job: PostPublishJob,
-  cfg: PostPublishConfig,
+  cfg: PostPublishConfig
 ): Promise<PostPublishOutcome> {
   const started = Date.now();
   const invalidate = async (): Promise<StepOutcome> => {
@@ -327,7 +327,10 @@ export async function runPostPublish(
   return outcome;
 }
 
-export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Promise<IngestHandlerResult> {
+export async function handleIngest(
+  req: IngestRequest,
+  cfg: HandlerConfig
+): Promise<IngestHandlerResult> {
   const now = cfg.now ? cfg.now() : new Date();
   const nowISO = now.toISOString();
   const shareUrlFor = (id: string): string => `${cfg.publicBaseUrl}/d/${id}`;
@@ -440,12 +443,7 @@ export async function handleIngest(req: IngestRequest, cfg: HandlerConfig): Prom
   // Stored as public/tiles/<id>.gif. Templates link to /tiles/<id>.gif
   // directly; the legacy /drawings/<id>.gif path still resolves via the
   // CloudFront rewrite for any stragglers in third-party caches.
-  await cfg.storage.put(
-    publishedKey,
-    gif,
-    "image/gif",
-    "public, max-age=31536000, immutable",
-  );
+  await cfg.storage.put(publishedKey, gif, "image/gif", "public, max-age=31536000, immutable");
 
   // Post-publish tail: share sidecars + CloudFront invalidation. All of it
   // is derived data (rebuildable by scripts/backfill-*.ts, and a skipped

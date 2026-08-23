@@ -16,12 +16,12 @@ export interface FeedAuthor {
 }
 
 export interface FeedItem {
-  id: string;            // drawing_id
-  id_short: string;      // first 8 chars, used in aria labels
-  thumb: string;         // /tiles/<id>.gif
-  href: string;          // /d/<id>
-  created_at: string;    // ISO 8601
-  like_count: number;    // SSR initial value; client hydrates filled state
+  id: string; // drawing_id
+  id_short: string; // first 8 chars, used in aria labels
+  thumb: string; // /tiles/<id>.gif
+  href: string; // /d/<id>
+  created_at: string; // ISO 8601
+  like_count: number; // SSR initial value; client hydrates filled state
   // null for drawings published without a session (and legacy pre-account
   // rows). Render the card without a profile link in that case.
   author: FeedAuthor | null;
@@ -130,10 +130,7 @@ function renderShareAction(drawing_id: string, id_short: string): string {
 
 // Items-only render (no chrome). Used by /feed/items?cursor=… so the
 // observer can append the next page in place.
-export function renderFeedFragment(
-  items: FeedItem[],
-  next_fragment_url: string | null,
-): string {
+export function renderFeedFragment(items: FeedItem[], next_fragment_url: string | null): string {
   const cards = items.map(renderFeedCard).join("\n");
   if (!next_fragment_url) return cards;
   return `${cards}
@@ -164,7 +161,7 @@ function renderHero(items: FeedItem[]): string {
     .slice(0, 3)
     .map(
       (it) =>
-        `<img class="home-hero-sample" src="${esc(it.thumb)}" alt="" width="64" height="64" loading="lazy" />`,
+        `<img class="home-hero-sample" src="${esc(it.thumb)}" alt="" width="64" height="64" loading="lazy" />`
     )
     .join("");
   const samplesBlock = samples
@@ -210,8 +207,12 @@ export default function renderHome(v: HomeView): string {
   const body = empty
     ? `      <p class="feed-empty">${emptyCopy}</p>`
     : `      <ul class="feed-list" data-infinite-list>
-${cards}${v.next_fragment_url ? `
-        ${renderFeedSentinel(v.next_fragment_url)}` : ""}
+${cards}${
+        v.next_fragment_url
+          ? `
+        ${renderFeedSentinel(v.next_fragment_url)}`
+          : ""
+      }
       </ul>`;
   // Only the feed shows the right "discover" rail. Other surfaces
   // (drawing, profile, products, design) inherit the default and stay 2-col.

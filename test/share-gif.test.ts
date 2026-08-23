@@ -3,16 +3,8 @@ import { test } from "node:test";
 // @ts-expect-error omggif ships no TS types
 import { GifReader } from "omggif";
 import { Bitmap, TRANSPARENT } from "../src/editor/bitmap.js";
-import {
-  analyzePalette,
-  encodeShareGif,
-  SHARE_H,
-  SHARE_W,
-} from "../src/editor/share-gif.js";
-import {
-  DEFAULT_ACTIVE_PALETTE,
-  activePaletteToRgb,
-} from "../src/editor/palette.js";
+import { analyzePalette, encodeShareGif, SHARE_H, SHARE_W } from "../src/editor/share-gif.js";
+import { DEFAULT_ACTIVE_PALETTE, activePaletteToRgb } from "../src/editor/palette.js";
 
 interface Reader {
   width: number;
@@ -26,7 +18,12 @@ function read(bytes: Uint8Array): Reader {
   return new GifReader(bytes) as Reader;
 }
 
-function rgbaAt(rgba: Uint8Array, width: number, x: number, y: number): [number, number, number, number] {
+function rgbaAt(
+  rgba: Uint8Array,
+  width: number,
+  x: number,
+  y: number
+): [number, number, number, number] {
   const i = (y * width + x) * 4;
   return [rgba[i], rgba[i + 1], rgba[i + 2], rgba[i + 3]];
 }
@@ -79,7 +76,7 @@ test("renders one swatch per used color, none for unused colors, sorted dark→l
   const palette = activePaletteToRgb(DEFAULT_ACTIVE_PALETTE);
   // Sort the input by ITU-R BT.709 luminance, ascending; assert the
   // swatch columns match that order, not the slot-index order.
-  const rel = (rgb: typeof palette[number]) =>
+  const rel = (rgb: (typeof palette)[number]) =>
     0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
   const usedSortedDarkToLight = [2, 5, 7].sort((a, b) => rel(palette[a]) - rel(palette[b]));
 
@@ -100,10 +97,7 @@ test("renders one swatch per used color, none for unused colors, sorted dark→l
   assert.equal(bgA, 255);
   for (const s of usedSortedDarkToLight) {
     const [r0, g0, b0] = palette[s];
-    assert.ok(
-      !(bgR === r0 && bgG === g0 && bgB === b0),
-      `bg should differ from used slot ${s}`,
-    );
+    assert.ok(!(bgR === r0 && bgG === g0 && bgB === b0), `bg should differ from used slot ${s}`);
   }
 });
 
@@ -150,16 +144,16 @@ test("handles a fully-transparent drawing via the fallback background", () => {
 test("rejects empty / oversized / wrong-shape input", () => {
   assert.throws(
     () => encodeShareGif({ frames: [], activePalette: DEFAULT_ACTIVE_PALETTE }),
-    /no frames/,
+    /no frames/
   );
   const tooMany = Array.from({ length: 17 }, () => new Bitmap());
   assert.throws(
     () => encodeShareGif({ frames: tooMany, activePalette: DEFAULT_ACTIVE_PALETTE }),
-    /too many/,
+    /too many/
   );
   assert.throws(
     () => encodeShareGif({ frames: [new Bitmap()], activePalette: new Uint8Array(8) }),
-    /active palette/,
+    /active palette/
   );
 });
 
@@ -177,7 +171,10 @@ test("analyzePalette returns usedSlots sorted dark→light by luminance", () => 
   pickedSlots.forEach((slot, i) => b.set(i, 0, slot));
 
   const { usedSlots } = analyzePalette([b], palette);
-  assert.deepEqual(usedSlots, [...pickedSlots].sort((a, c) => lum(rgb[a]) - lum(rgb[c])));
+  assert.deepEqual(
+    usedSlots,
+    [...pickedSlots].sort((a, c) => lum(rgb[a]) - lum(rgb[c]))
+  );
   // Light ones really do come later:
   assert.ok(lum(rgb[usedSlots[0]]) <= lum(rgb[usedSlots[usedSlots.length - 1]]));
 });

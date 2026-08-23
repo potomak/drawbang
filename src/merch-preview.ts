@@ -90,7 +90,7 @@ function drawBitmapInto(
   frame: Bitmap,
   palette: readonly RGB[],
   outW: number,
-  outH: number,
+  outH: number
 ): void {
   ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, outW, outH);

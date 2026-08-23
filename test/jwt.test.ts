@@ -30,8 +30,9 @@ describe("jwt", () => {
   test("rejects a tampered payload", () => {
     const token = signJwt({ sub: "u1", un: "alice" }, SECRET, 3600);
     const [h, , s] = token.split(".");
-    const forged = Buffer.from(JSON.stringify({ sub: "u1", un: "mallory", exp: 9e9 }))
-      .toString("base64url");
+    const forged = Buffer.from(JSON.stringify({ sub: "u1", un: "mallory", exp: 9e9 })).toString(
+      "base64url"
+    );
     assert.throws(() => verifyJwt(`${h}.${forged}.${s}`, SECRET), JwtError);
   });
 
@@ -43,17 +44,14 @@ describe("jwt", () => {
   test("rejects a correctly-signed payload that isn't a claims object", () => {
     // signJwt can't produce these shapes, so hand-sign them the same way
     // the module does: HS256 over header.payload with the shared secret.
-    const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" }))
-      .toString("base64url");
+    const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
     for (const raw of ["null", "[1,2,3]", '"just-a-string"', "42"]) {
       const payload = Buffer.from(raw).toString("base64url");
-      const sig = createHmac("sha256", SECRET)
-        .update(`${header}.${payload}`)
-        .digest("base64url");
+      const sig = createHmac("sha256", SECRET).update(`${header}.${payload}`).digest("base64url");
       assert.throws(
         () => verifyJwt(`${header}.${payload}.${sig}`, SECRET),
         JwtError,
-        `payload ${raw} must be rejected as a JwtError, not a TypeError`,
+        `payload ${raw} must be rejected as a JwtError, not a TypeError`
       );
     }
   });

@@ -7,10 +7,10 @@ The deploy job is pinned to GitHub `environment: prod`, so secrets go there.
 Wiring is already in place:
 GitHub secret → `.github/workflows/deploy.yml` → SAM param → Lambda env var.
 
-| GitHub config             | SAM param       | Lambda env var     | Required? |
-|---------------------------|-----------------|--------------------|-----------|
-| `JWT_SECRET` (secret)     | `JwtSecret`     | `JWT_SECRET`       | Yes — ingest Lambda fails at cold start if empty |
-| `SES_FROM_ADDRESS` (variable) | `SesFromAddress`| `SES_FROM_ADDRESS` | No — reset still returns 200, just sends no email |
+| GitHub config                 | SAM param        | Lambda env var     | Required?                                         |
+| ----------------------------- | ---------------- | ------------------ | ------------------------------------------------- |
+| `JWT_SECRET` (secret)         | `JwtSecret`      | `JWT_SECRET`       | Yes — ingest Lambda fails at cold start if empty  |
+| `SES_FROM_ADDRESS` (variable) | `SesFromAddress` | `SES_FROM_ADDRESS` | No — reset still returns 200, just sends no email |
 
 ---
 
@@ -26,7 +26,7 @@ openssl rand -base64 48
 
 Add it to the **prod** environment:
 
-- UI: repo → Settings → Environments → **prod** → *Add environment secret* →
+- UI: repo → Settings → Environments → **prod** → _Add environment secret_ →
   name `JWT_SECRET`, value = generated string.
 - or CLI:
   ```bash
@@ -87,19 +87,23 @@ Whoever runs this needs `iam:AttachUserPolicy` — the deploy user already has
 ### a) Verify a sender identity (pick one)
 
 **Domain (recommended — any address @domain + DKIM):**
+
 ```bash
 # TXT token for _amazonses.drawbang.com
 aws ses verify-domain-identity --domain drawbang.com --region us-east-1
 # 3 DKIM CNAME tokens
 aws ses verify-domain-dkim --domain drawbang.com --region us-east-1
 ```
+
 Add the DNS records at your provider, then wait until the identity shows
 **Verified** in SES → Verified identities.
 
 **Single email (quick, no DNS):**
+
 ```bash
 aws ses verify-email-identity --email-address no-reply@drawbang.com --region us-east-1
 ```
+
 Click the confirmation link AWS emails to that address.
 
 (Console: SES → Verified identities → Create identity → Domain or Email address.)
@@ -112,6 +116,7 @@ email's From address; the reset link origin comes from `PUBLIC_BASE_URL`.
 ```bash
 gh variable set SES_FROM_ADDRESS --env prod --body "no-reply@drawbang.com"
 ```
+
 (or add it as a prod environment **variable** in the UI). It's a public From
 address, not a secret — `deploy.yml` reads it from `vars.SES_FROM_ADDRESS`.
 

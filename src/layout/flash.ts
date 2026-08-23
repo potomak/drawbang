@@ -105,7 +105,11 @@ function pauseTimer(): void {
   const elapsed = Date.now() - timer.startedAt;
   const remaining = Math.max(0, timer.remainingMs - elapsed);
   clearTimeout(timer.handle);
-  timer = { remainingMs: remaining, startedAt: 0, handle: 0 as unknown as ReturnType<typeof setTimeout> };
+  timer = {
+    remainingMs: remaining,
+    startedAt: 0,
+    handle: 0 as unknown as ReturnType<typeof setTimeout>,
+  };
 }
 
 function resumeTimer(): void {
@@ -178,9 +182,7 @@ function showFlashLocal(opts: FlashOptions): void {
   const children: Array<string | Node> = Array.isArray(opts.message)
     ? [...opts.message]
     : [opts.message as string | Node];
-  const nodes = children.map((c) =>
-    typeof c === "string" ? document.createTextNode(c) : c,
-  );
+  const nodes = children.map((c) => (typeof c === "string" ? document.createTextNode(c) : c));
   msg.replaceChildren(...nodes);
 
   if (opts.action) {

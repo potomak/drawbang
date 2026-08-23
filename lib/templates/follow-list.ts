@@ -55,7 +55,7 @@ function renderFollowCardPicture(item: FollowListItem): string {
 
 export function renderFollowListFragment(
   items: FollowListItem[],
-  next_fragment_url: string | null,
+  next_fragment_url: string | null
 ): string {
   const cards = items.map(renderFollowCard).join("\n");
   if (!next_fragment_url) return cards;
@@ -71,16 +71,17 @@ export default function renderFollowList(v: FollowListView): string {
   const cards = v.items.map(renderFollowCard).join("\n");
   const empty = v.items.length === 0;
   const heading =
-    v.kind === "followers"
-      ? `${v.owner_username} · Followers`
-      : `${v.owner_username} · Following`;
-  const emptyMsg =
-    v.kind === "followers" ? "No followers yet." : "Not following anyone yet.";
+    v.kind === "followers" ? `${v.owner_username} · Followers` : `${v.owner_username} · Following`;
+  const emptyMsg = v.kind === "followers" ? "No followers yet." : "Not following anyone yet.";
   const body = empty
     ? `      <p class="muted">${esc(emptyMsg)}</p>`
     : `      <ul class="follow-list" data-follow-list>
-${cards}${v.next_fragment_url ? `
-        ${renderFollowSentinel(v.next_fragment_url)}` : ""}
+${cards}${
+        v.next_fragment_url
+          ? `
+        ${renderFollowSentinel(v.next_fragment_url)}`
+          : ""
+      }
       </ul>`;
   const infiniteScript = v.next_fragment_url
     ? `    <script src="${assetUrl("/infinite-scroll.js")}"></script>\n`

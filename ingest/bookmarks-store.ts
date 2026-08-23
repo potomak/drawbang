@@ -57,10 +57,7 @@ export interface BookmarksStore {
   unbookmark(args: UnbookmarkArgs): Promise<void>;
   // Returns the subset of `drawing_ids` the user has bookmarked. Order is
   // not guaranteed.
-  listBookmarkedDrawingIds(
-    user_id: string,
-    drawing_ids: string[],
-  ): Promise<string[]>;
+  listBookmarkedDrawingIds(user_id: string, drawing_ids: string[]): Promise<string[]>;
   // Per-user bookmark feed, newest-first.
   listByUser(user_id: string, opts: BookmarksQueryOpts): Promise<BookmarksPage>;
 }
@@ -111,8 +108,7 @@ export class DynamoBookmarksStore implements BookmarksStore {
   constructor(opts: DynamoBookmarksStoreOptions) {
     this.table = opts.bookmarksTable;
     this.drawingStore = opts.drawingStore;
-    this.doc =
-      opts.client ?? DynamoDBDocumentClient.from(new DynamoDBClient({}));
+    this.doc = opts.client ?? DynamoDBDocumentClient.from(new DynamoDBClient({}));
   }
 
   async bookmark(args: BookmarkArgs): Promise<void> {
@@ -134,7 +130,7 @@ export class DynamoBookmarksStore implements BookmarksStore {
             created_at_ms: args.created_at_ms,
           },
           ConditionExpression: "attribute_not_exists(user_id)",
-        }),
+        })
       );
     } catch (e) {
       if (isConditionalCheckFailed(e)) throw new AlreadyBookmarkedError();
@@ -149,7 +145,7 @@ export class DynamoBookmarksStore implements BookmarksStore {
           TableName: this.table,
           Key: { user_id: args.user_id, drawing_id: args.drawing_id },
           ConditionExpression: "attribute_exists(user_id)",
-        }),
+        })
       );
     } catch (e) {
       if (isConditionalCheckFailed(e)) throw new NotBookmarkedError();
@@ -157,10 +153,7 @@ export class DynamoBookmarksStore implements BookmarksStore {
     }
   }
 
-  async listBookmarkedDrawingIds(
-    user_id: string,
-    drawing_ids: string[],
-  ): Promise<string[]> {
+  async listBookmarkedDrawingIds(user_id: string, drawing_ids: string[]): Promise<string[]> {
     if (drawing_ids.length === 0) return [];
     const r = await this.doc.send(
       new BatchGetCommand({
@@ -170,16 +163,13 @@ export class DynamoBookmarksStore implements BookmarksStore {
             ProjectionExpression: "drawing_id",
           },
         },
-      }),
+      })
     );
     const items = r.Responses?.[this.table] ?? [];
     return items.map((it) => String(it.drawing_id));
   }
 
-  async listByUser(
-    user_id: string,
-    opts: BookmarksQueryOpts,
-  ): Promise<BookmarksPage> {
+  async listByUser(user_id: string, opts: BookmarksQueryOpts): Promise<BookmarksPage> {
     const exclusiveStartKey = opts.cursor
       ? {
           user_id,
@@ -197,7 +187,7 @@ export class DynamoBookmarksStore implements BookmarksStore {
         ScanIndexForward: false,
         Limit: opts.limit,
         ExclusiveStartKey: exclusiveStartKey,
-      }),
+      })
     );
     const items = ((r.Items as BookmarkRow[] | undefined) ?? []).map((it) => ({
       drawing_id: String(it.drawing_id),
@@ -223,16 +213,12 @@ function isConditionalCheckFailed(e: unknown): boolean {
 // -- Cursor codec -------------------------------------------------------------
 
 function base64UrlEncode(s: string): string {
-  const b =
-    typeof Buffer !== "undefined"
-      ? Buffer.from(s, "utf8").toString("base64")
-      : btoa(s);
+  const b = typeof Buffer !== "undefined" ? Buffer.from(s, "utf8").toString("base64") : btoa(s);
   return b.replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
 }
 
 function base64UrlDecode(s: string): string {
-  const padded =
-    s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4);
+  const padded = s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4);
   return typeof Buffer !== "undefined"
     ? Buffer.from(padded, "base64").toString("utf8")
     : atob(padded);
@@ -242,9 +228,7 @@ export function encodeBookmarksCursor(c: BookmarksCursor): string {
   return base64UrlEncode(`${c.created_at_ms}:${c.drawing_id}`);
 }
 
-export function decodeBookmarksCursor(
-  s: string | null | undefined,
-): BookmarksCursor | null {
+export function decodeBookmarksCursor(s: string | null | undefined): BookmarksCursor | null {
   if (!s) return null;
   let raw: string;
   try {
@@ -292,10 +276,7 @@ export class MemoryBookmarksStore implements BookmarksStore {
     if (users.size === 0) this.byUser.delete(args.user_id);
   }
 
-  async listBookmarkedDrawingIds(
-    user_id: string,
-    drawing_ids: string[],
-  ): Promise<string[]> {
+  async listBookmarkedDrawingIds(user_id: string, drawing_ids: string[]): Promise<string[]> {
     const users = this.byUser.get(user_id);
     if (!users) return [];
     const out: string[] = [];
@@ -305,10 +286,7 @@ export class MemoryBookmarksStore implements BookmarksStore {
     return out;
   }
 
-  async listByUser(
-    user_id: string,
-    opts: BookmarksQueryOpts,
-  ): Promise<BookmarksPage> {
+  async listByUser(user_id: string, opts: BookmarksQueryOpts): Promise<BookmarksPage> {
     const all = [...(this.byUser.get(user_id)?.values() ?? [])].sort((a, b) => {
       if (b.created_at_ms !== a.created_at_ms) {
         return b.created_at_ms - a.created_at_ms;
@@ -321,7 +299,7 @@ export class MemoryBookmarksStore implements BookmarksStore {
       start = all.findIndex(
         (r) =>
           r.created_at_ms < c.created_at_ms ||
-          (r.created_at_ms === c.created_at_ms && r.drawing_id < c.drawing_id),
+          (r.created_at_ms === c.created_at_ms && r.drawing_id < c.drawing_id)
       );
       if (start < 0) start = all.length;
     }

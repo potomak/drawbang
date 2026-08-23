@@ -19,15 +19,13 @@ export class JwtError extends Error {
   }
 }
 
-const HEADER = Buffer.from(
-  JSON.stringify({ alg: "HS256", typ: "JWT" }),
-).toString("base64url");
+const HEADER = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
 
 export function signJwt(
   claims: JwtClaims,
   secret: string,
   expiresInSec: number,
-  now: number = nowSec(),
+  now: number = nowSec()
 ): string {
   const full: JwtClaims = { ...claims, iat: now, exp: now + expiresInSec };
   const payload = Buffer.from(JSON.stringify(full)).toString("base64url");
@@ -38,7 +36,7 @@ export function signJwt(
 export function verifyJwt<T extends JwtClaims = JwtClaims>(
   token: string,
   secret: string,
-  now: number = nowSec(),
+  now: number = nowSec()
 ): T {
   const parts = token.split(".");
   if (parts.length !== 3) throw new JwtError("malformed token");
@@ -52,9 +50,7 @@ export function verifyJwt<T extends JwtClaims = JwtClaims>(
   }
   let claims: T;
   try {
-    claims = JSON.parse(
-      Buffer.from(payload, "base64url").toString("utf8"),
-    ) as T;
+    claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as T;
   } catch {
     throw new JwtError("bad payload");
   }

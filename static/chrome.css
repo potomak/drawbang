@@ -110,7 +110,9 @@
   --panel: var(--paper-2);
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 body {
   margin: 0;
   background: var(--paper);
@@ -118,11 +120,22 @@ body {
   font: 400 var(--t-md)/1.5 var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
-img { image-rendering: pixelated; image-rendering: crisp-edges; }
-button { font: inherit; color: inherit; }
+img {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+button {
+  font: inherit;
+  color: inherit;
+}
 
-a { color: var(--ink); text-decoration: none; }
-a:hover { color: var(--accent); }
+a {
+  color: var(--ink);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--accent);
+}
 
 /* The single label voice. Use for nav micro-labels, counts, captions. */
 .lab {
@@ -160,8 +173,12 @@ a:hover { color: var(--accent); }
   cursor: pointer;
   padding: 0;
 }
-.hdr-menu:hover { border-color: var(--ink); }
-.hdr-menu svg { display: block; }
+.hdr-menu:hover {
+  border-color: var(--ink);
+}
+.hdr-menu svg {
+  display: block;
+}
 .hdr-logo {
   color: var(--ink);
   display: block;
@@ -169,8 +186,16 @@ a:hover { color: var(--accent); }
   flex: 0 0 auto;
   margin-right: auto;
 }
-.hdr-logo svg { display: block; height: 22px; width: auto; }
-.hdr-auth { display: flex; align-items: center; gap: 8px; }
+.hdr-logo svg {
+  display: block;
+  height: 22px;
+  width: auto;
+}
+.hdr-auth {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .hdr-signin {
   font: 500 var(--t-sm)/1 var(--font-sans);
   color: var(--ink);
@@ -178,7 +203,10 @@ a:hover { color: var(--accent); }
   border: var(--border) solid var(--line);
   background: transparent;
 }
-.hdr-signin:hover { border-color: var(--ink); color: var(--ink); }
+.hdr-signin:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
 .hdr-profile {
   display: inline-flex;
   align-items: center;
@@ -188,15 +216,22 @@ a:hover { color: var(--accent); }
   font: 500 var(--t-sm)/1 var(--font-sans);
   color: var(--ink);
 }
-.hdr-profile:hover { border-color: var(--ink); color: var(--ink); }
+.hdr-profile:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
 .hdr-profile-pic {
   width: 32px;
   height: 32px;
   display: block;
   background: var(--canvas-bg);
 }
-.hdr-profile-name { white-space: nowrap; }
-.hdr-profile[hidden] { display: none; }
+.hdr-profile-name {
+  white-space: nowrap;
+}
+.hdr-profile[hidden] {
+  display: none;
+}
 
 /* ===== App shell =====
    Default: 2-column (rail-left + main). The feed opts in to a 3rd
@@ -262,8 +297,13 @@ a:hover { color: var(--accent); }
   border: 0;
   transition: filter 80ms;
 }
-.rail-cta:hover { filter: brightness(0.95); color: var(--accent-on); }
-.rail-cta svg { flex: 0 0 auto; }
+.rail-cta:hover {
+  filter: brightness(0.95);
+  color: var(--accent-on);
+}
+.rail-cta svg {
+  flex: 0 0 auto;
+}
 
 .rail-nav {
   display: flex;
@@ -279,14 +319,23 @@ a:hover { color: var(--accent); }
   font: 500 var(--t-sm)/1.2 var(--font-sans);
   border: var(--border) solid transparent;
 }
-.rail-link[hidden] { display: none; }
-.rail-link:hover { color: var(--accent); background: var(--paper-2); }
+.rail-link[hidden] {
+  display: none;
+}
+.rail-link:hover {
+  color: var(--accent);
+  background: var(--paper-2);
+}
 .rail-link[aria-current="page"] {
   color: var(--accent);
   background: var(--accent-dim);
 }
-.rail-follow { display: block; }
-.rail-follow[hidden] { display: none; }
+.rail-follow {
+  display: block;
+}
+.rail-follow[hidden] {
+  display: none;
+}
 /* Tiny avatar grid under the Followers / Following rail rows.
    chrome-identity.js fetches /u/<me>/follow-thumbs?limit=6 and stamps
    per-user <span data-profile-picture-username>s here; hydrate.js
@@ -297,7 +346,9 @@ a:hover { color: var(--accent); }
   gap: 4px;
   padding: 4px 12px 0;
 }
-.rail-thumbs:empty { display: none; }
+.rail-thumbs:empty {
+  display: none;
+}
 .rail-thumb {
   display: block;
   aspect-ratio: 1;
@@ -341,7 +392,9 @@ a:hover { color: var(--accent); }
   color: var(--fg-muted);
   padding: 2px 0;
 }
-.rail-social-link:hover { color: var(--accent); }
+.rail-social-link:hover {
+  color: var(--accent);
+}
 .rail-foot-links {
   display: flex;
   gap: 16px;
@@ -352,7 +405,9 @@ a:hover { color: var(--accent); }
   color: var(--fg-muted);
   padding: 2px 0;
 }
-.rail-foot-link:hover { color: var(--accent); }
+.rail-foot-link:hover {
+  color: var(--accent);
+}
 
 /* ===== Responsive =====
    3-col grid → 2-col (right hidden) → 1-col (left as drawer). */
@@ -361,7 +416,9 @@ a:hover { color: var(--accent); }
     grid-template-columns: var(--rail-w) minmax(0, 1fr);
     max-width: calc(var(--shell-max) - var(--rail-right-w));
   }
-  .rail-right { display: none; }
+  .rail-right {
+    display: none;
+  }
 }
 @media (max-width: 859px) {
   .app-shell {
@@ -380,8 +437,12 @@ a:hover { color: var(--accent); }
     transition: transform 160ms ease;
     z-index: 35;
   }
-  .rail-left.is-open { transform: translateX(0); }
-  .hdr-menu { display: inline-flex; }
+  .rail-left.is-open {
+    transform: translateX(0);
+  }
+  .hdr-menu {
+    display: inline-flex;
+  }
 }
 
 /* Scrim under the open drawer. Inserted by chrome-toggle.js when the
@@ -393,7 +454,14 @@ a:hover { color: var(--accent); }
   z-index: 34;
   animation: fade-in 140ms ease;
 }
-@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 
 /* ===== Main slot =====
    Center column of the app-shell (or full-width when the shell is
@@ -403,7 +471,11 @@ main {
   padding: 24px clamp(16px, 3vw, 40px) 80px;
   width: 100%;
 }
-@media (max-width: 859px) { main { padding: 16px var(--pad) 64px; } }
+@media (max-width: 859px) {
+  main {
+    padding: 16px var(--pad) 64px;
+  }
+}
 /* When the shell is suppressed (editor, full-bleed Vite pages), the
    <main> tag isn't inside .app-shell — center it in the body. */
 body > main {
@@ -412,9 +484,23 @@ body > main {
 }
 
 /* ===== Page chrome ===== */
-.page-title { font-size: var(--t-lg); font-weight: 700; margin: 0 0 16px; letter-spacing: 0; }
-.page-sub { font-size: var(--t-sm); color: var(--fg-muted); margin: -16px 0 24px; }
-.divider { height: var(--border); background: var(--line); margin: 24px 0; border: 0; }
+.page-title {
+  font-size: var(--t-lg);
+  font-weight: 700;
+  margin: 0 0 16px;
+  letter-spacing: 0;
+}
+.page-sub {
+  font-size: var(--t-sm);
+  color: var(--fg-muted);
+  margin: -16px 0 24px;
+}
+.divider {
+  height: var(--border);
+  background: var(--line);
+  margin: 24px 0;
+  border: 0;
+}
 .panel-h {
   font-family: var(--font-mono);
   font-size: var(--t-xs);
@@ -423,7 +509,10 @@ body > main {
   color: var(--fg-muted);
   margin: 0 0 12px;
 }
-.muted { color: var(--fg-muted); font-size: var(--t-sm); }
+.muted {
+  color: var(--fg-muted);
+  font-size: var(--t-sm);
+}
 
 /* ===== Button (base) =====
    Surface-specific variants (.btn.icon / .sm / .xs / [aria-pressed] / ...)
@@ -443,19 +532,46 @@ body > main {
   gap: 8px;
   text-decoration: none;
   letter-spacing: 0.02em;
-  transition: border-color 80ms, transform 60ms;
+  transition:
+    border-color 80ms,
+    transform 60ms;
 }
-.btn:hover { border-color: var(--ink); color: var(--ink); text-decoration: none; }
-.btn:active { transform: translate(1px, 1px); }
-.btn.primary { background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
-.btn.primary:hover { filter: brightness(0.95); color: var(--accent-on); }
-.btn.ghost { background: transparent; }
+.btn:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+  text-decoration: none;
+}
+.btn:active {
+  transform: translate(1px, 1px);
+}
+.btn.primary {
+  background: var(--accent);
+  color: var(--accent-on);
+  border-color: var(--accent);
+}
+.btn.primary:hover {
+  filter: brightness(0.95);
+  color: var(--accent-on);
+}
+.btn.ghost {
+  background: transparent;
+}
 /* Destructive. Outlined by default so it never competes with .primary for
    attention, filling in on hover to make the consequence obvious at the
    moment of the click. */
-.btn.danger { color: var(--danger); border-color: var(--danger); background: transparent; }
-.btn.danger:hover { background: var(--danger); color: var(--danger-on); border-color: var(--danger); }
-.btn[hidden] { display: none; }
+.btn.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: transparent;
+}
+.btn.danger:hover {
+  background: var(--danger);
+  color: var(--danger-on);
+  border-color: var(--danger);
+}
+.btn[hidden] {
+  display: none;
+}
 
 /* ===== Badge =====
    Small inline label for accomplishments, statuses, counts. Hairline
@@ -487,8 +603,12 @@ body > main {
   padding: 8px 10px;
   letter-spacing: 0.02em;
 }
-.navlink:hover { color: var(--accent); }
-.navlink[aria-current="page"] { color: var(--accent); }
+.navlink:hover {
+  color: var(--accent);
+}
+.navlink[aria-current="page"] {
+  color: var(--accent);
+}
 
 /* ===== Flash slot =====
    Singleton notification overlay pinned below the sticky header. */
@@ -510,9 +630,15 @@ body > main {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   animation: flash-in 140ms ease-out;
 }
-.flash[hidden] { display: none; }
-.flash[data-kind="success"] { border-left-color: var(--accent); }
-.flash[data-kind="error"] { border-left-color: #ff6060; }
+.flash[hidden] {
+  display: none;
+}
+.flash[data-kind="success"] {
+  border-left-color: var(--accent);
+}
+.flash[data-kind="error"] {
+  border-left-color: #ff6060;
+}
 .flash-body {
   flex: 1;
   min-width: 0;
@@ -522,9 +648,19 @@ body > main {
   font-size: var(--t-sm);
   color: var(--ink);
 }
-.flash-msg { word-break: break-word; }
-.flash-msg a { color: var(--ink); text-decoration: underline; user-select: text; -webkit-user-select: text; }
-.flash-action { color: var(--accent); white-space: nowrap; }
+.flash-msg {
+  word-break: break-word;
+}
+.flash-msg a {
+  color: var(--ink);
+  text-decoration: underline;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.flash-action {
+  color: var(--accent);
+  white-space: nowrap;
+}
 .flash-close {
   flex: 0 0 auto;
   background: transparent;
@@ -536,14 +672,26 @@ body > main {
   line-height: 1;
   cursor: pointer;
 }
-.flash-close:hover { color: var(--ink); }
+.flash-close:hover {
+  color: var(--ink);
+}
 @keyframes flash-in {
-  from { transform: translateY(-6px); opacity: 0; }
-  to { transform: none; opacity: 1; }
+  from {
+    transform: translateY(-6px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
 }
 @media (max-width: 640px) {
-  .flash { padding: 10px 14px; }
+  .flash {
+    padding: 10px 14px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .flash { animation: none; }
+  .flash {
+    animation: none;
+  }
 }

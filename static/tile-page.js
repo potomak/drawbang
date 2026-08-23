@@ -70,7 +70,7 @@
         })
         .catch(function (e) {
           btn.disabled = false;
-          flash("error", (e && e.message) ? e.message : "Could not set profile picture");
+          flash("error", e && e.message ? e.message : "Could not set profile picture");
         });
     });
   }
@@ -111,7 +111,11 @@
     if (!btn) return;
     btn.addEventListener("click", async function () {
       var ok = await copyText(window.location.href);
-      flash(ok ? "success" : "error", ok ? "Link copied" : "Could not copy — try long-pressing the URL", 1800);
+      flash(
+        ok ? "success" : "error",
+        ok ? "Link copied" : "Could not copy — try long-pressing the URL",
+        1800
+      );
       track("copy_share_link_click", {});
     });
   }
@@ -123,11 +127,18 @@
     var base = main.dataset.publicBaseUrl || window.location.origin;
     if (!drawingId) return;
     var snippet =
-      '<iframe src="' + base + "/embed/" + drawingId +
+      '<iframe src="' +
+      base +
+      "/embed/" +
+      drawingId +
       '" width="320" height="340" frameborder="0"></iframe>';
     btn.addEventListener("click", async function () {
       var ok = await copyText(snippet);
-      flash(ok ? "success" : "error", ok ? "Embed code copied — paste it into your page" : "Could not copy embed code", 2400);
+      flash(
+        ok ? "success" : "error",
+        ok ? "Embed code copied — paste it into your page" : "Could not copy embed code",
+        2400
+      );
       track("embed_copy_click", { drawing_id: drawingId });
     });
   }
@@ -161,18 +172,20 @@
   function wireAnchorTracking(main) {
     var drawingId = main.dataset.drawingId || "";
     var anchors = [
-      { id: "dr-make-merch",    event: "make_merch_click",   props: { drawing_id: drawingId } },
-      { id: "dr-fork",          event: "fork_click",         props: { drawing_id: drawingId } },
-      { id: "dr-share-threads", event: "share_click",        props: { target: "threads" } },
-      { id: "dr-share-reddit",  event: "share_click",        props: { target: "reddit" } },
-      { id: "dr-share-x",       event: "share_click",        props: { target: "x" } },
-      { id: "dr-download-gif",  event: "gif_download_click", props: { source: "tile_page" } },
+      { id: "dr-make-merch", event: "make_merch_click", props: { drawing_id: drawingId } },
+      { id: "dr-fork", event: "fork_click", props: { drawing_id: drawingId } },
+      { id: "dr-share-threads", event: "share_click", props: { target: "threads" } },
+      { id: "dr-share-reddit", event: "share_click", props: { target: "reddit" } },
+      { id: "dr-share-x", event: "share_click", props: { target: "x" } },
+      { id: "dr-download-gif", event: "gif_download_click", props: { source: "tile_page" } },
     ];
     for (var i = 0; i < anchors.length; i++) {
       (function (a) {
         var el = document.getElementById(a.id);
         if (!el) return;
-        el.addEventListener("click", function () { track(a.event, a.props); });
+        el.addEventListener("click", function () {
+          track(a.event, a.props);
+        });
       })(anchors[i]);
     }
   }

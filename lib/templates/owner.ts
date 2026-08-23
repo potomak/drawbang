@@ -14,8 +14,8 @@ export interface OwnerStats {
 }
 
 export interface OwnerView {
-  username: string;      // public handle, used in the URL
-  user_id: string;       // 64-hex stable id
+  username: string; // public handle, used in the URL
+  user_id: string; // 64-hex stable id
   // Newest-first.
   drawings: GalleryItem[];
   // Per-account stats (#115/#116). Optional: a brand-new owner with no
@@ -49,7 +49,7 @@ export interface OwnerView {
 export function renderProfilePicture(
   drawing_id: string | null | undefined,
   username: string,
-  size: number,
+  size: number
 ): string {
   if (!drawing_id || !/^[0-9a-f]{64}$/.test(drawing_id)) return "";
   const px = Math.max(8, Math.floor(size));
@@ -76,7 +76,7 @@ export default function renderOwner(v: OwnerView): string {
             <a href="${esc(d.href ?? `/d/${d.id}`)}" aria-label="${esc(d.id_short)}">
               <img src="${esc(d.thumb ?? `/tiles/${d.id}.gif`)}" alt="" width="128" height="128" loading="lazy" />
             </a>
-          </li>`,
+          </li>`
     )
     .join("\n");
   const count = v.drawings.length;
@@ -143,7 +143,7 @@ function renderAboutBlock(v: OwnerView): string {
   if (bio) parts.push(`        <p class="ow-bio">${esc(bio)}</p>`);
   if (link) {
     parts.push(
-      `        <p class="ow-link"><a href="${esc(link)}" rel="nofollow noopener noreferrer" target="_blank">${esc(displayLink(link))}</a></p>`,
+      `        <p class="ow-link"><a href="${esc(link)}" rel="nofollow noopener noreferrer" target="_blank">${esc(displayLink(link))}</a></p>`
     );
   }
   return `      <div class="ow-about">

@@ -25,9 +25,7 @@ export interface ProductsView {
 
 export default function renderProducts(v: ProductsView): string {
   const isEmpty = v.cards.length === 0;
-  const sub = isEmpty
-    ? ""
-    : `<p class="page-sub">Page ${esc(v.page)} of ${esc(v.total_pages)}</p>`;
+  const sub = isEmpty ? "" : `<p class="page-sub">Page ${esc(v.page)} of ${esc(v.total_pages)}</p>`;
   const body = isEmpty
     ? `      <p class="muted">No merch ordered yet — once someone buys their first item, it'll show up here ranked by popularity. Want to be first? Pick a drawing from <a href="/gallery">the gallery</a> and hit "Make merch".</p>`
     : `      <ul class="pr-grid">

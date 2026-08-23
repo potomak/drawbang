@@ -141,8 +141,7 @@ export class DynamoDrawingStore implements DrawingStore {
 
   constructor(opts: DynamoDrawingStoreOptions) {
     this.table = opts.tableName;
-    this.doc =
-      opts.client ?? DynamoDBDocumentClient.from(new DynamoDBClient({}));
+    this.doc = opts.client ?? DynamoDBDocumentClient.from(new DynamoDBClient({}));
   }
 
   async put(row: DrawingRow): Promise<void> {
@@ -165,15 +164,11 @@ export class DynamoDrawingStore implements DrawingStore {
   }
 
   async remove(drawing_id: string): Promise<void> {
-    await this.doc.send(
-      new DeleteCommand({ TableName: this.table, Key: { drawing_id } }),
-    );
+    await this.doc.send(new DeleteCommand({ TableName: this.table, Key: { drawing_id } }));
   }
 
   async get(drawing_id: string): Promise<DrawingRow | null> {
-    const r = await this.doc.send(
-      new GetCommand({ TableName: this.table, Key: { drawing_id } }),
-    );
+    const r = await this.doc.send(new GetCommand({ TableName: this.table, Key: { drawing_id } }));
     return (r.Item as DrawingRow | undefined) ?? null;
   }
 
@@ -197,7 +192,7 @@ export class DynamoDrawingStore implements DrawingStore {
     pkName: string,
     pkValue: string,
     indexName: string,
-    opts: QueryOpts,
+    opts: QueryOpts
   ): Promise<QueryPage> {
     const exclusiveStartKey = opts.cursor
       ? buildExclusiveStartKey(indexName, pkName, pkValue, opts.cursor)
@@ -212,7 +207,7 @@ export class DynamoDrawingStore implements DrawingStore {
         ScanIndexForward: false,
         Limit: opts.limit,
         ExclusiveStartKey: exclusiveStartKey,
-      }),
+      })
     );
     const items = (r.Items as DrawingRow[] | undefined) ?? [];
     const last = r.LastEvaluatedKey;
@@ -230,7 +225,7 @@ function buildExclusiveStartKey(
   indexName: string,
   pkName: string,
   pkValue: string,
-  cursor: DrawingCursor,
+  cursor: DrawingCursor
 ): Record<string, unknown> {
   // The base table is keyed on drawing_id alone, and each GSI is keyed on
   // its own (pk, created_at_ms). DDB's ExclusiveStartKey for a GSI query
@@ -277,27 +272,22 @@ export class MemoryDrawingStore implements DrawingStore {
     return this.pageByFilter((r) => r.prompt_id === prompt_id, opts);
   }
 
-  private pageByFilter(
-    pred: (r: DrawingRow) => boolean,
-    opts: QueryOpts,
-  ): QueryPage {
+  private pageByFilter(pred: (r: DrawingRow) => boolean, opts: QueryOpts): QueryPage {
     // newest-first; ties broken by drawing_id desc for determinism (matches
     // the DDB ordering when ScanIndexForward=false and SKs collide).
-    const sorted = [...this.byId.values()]
-      .filter(pred)
-      .sort((a, b) => {
-        if (b.created_at_ms !== a.created_at_ms) {
-          return b.created_at_ms - a.created_at_ms;
-        }
-        return b.drawing_id.localeCompare(a.drawing_id);
-      });
+    const sorted = [...this.byId.values()].filter(pred).sort((a, b) => {
+      if (b.created_at_ms !== a.created_at_ms) {
+        return b.created_at_ms - a.created_at_ms;
+      }
+      return b.drawing_id.localeCompare(a.drawing_id);
+    });
     let start = 0;
     if (opts.cursor) {
       const c = opts.cursor;
       start = sorted.findIndex(
         (r) =>
           r.created_at_ms < c.created_at_ms ||
-          (r.created_at_ms === c.created_at_ms && r.drawing_id < c.drawing_id),
+          (r.created_at_ms === c.created_at_ms && r.drawing_id < c.drawing_id)
       );
       if (start < 0) start = sorted.length;
     }

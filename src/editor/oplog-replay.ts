@@ -1,11 +1,5 @@
 import { Bitmap } from "./bitmap.js";
-import {
-  composeFrame,
-  newFrame,
-  newLayerMeta,
-  type Frame,
-  type LayerMeta,
-} from "./layers.js";
+import { composeFrame, newFrame, newLayerMeta, type Frame, type LayerMeta } from "./layers.js";
 import {
   fillArea,
   flipHorizontal,
@@ -324,7 +318,7 @@ export function replay(log: OpLog, opts: ReplayOptions): Timelapse {
   const opsPerFrame = Math.max(1, Math.ceil(log.ops.length / maxFrames));
 
   const snapshots: Bitmap[] = [];
-  for (let i = 0; i < log.ops.length; ) {
+  for (let i = 0; i < log.ops.length;) {
     const end = Math.min(i + opsPerFrame, log.ops.length);
     while (i < end) {
       applyOp(state, log.ops[i]);

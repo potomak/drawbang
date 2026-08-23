@@ -43,12 +43,7 @@ function orthAdjacent(a: StrokePoint, b: StrokePoint): boolean {
 }
 
 // Paints a single pixel. Returns the replaced value, or null if unchanged.
-export function drawPixel(
-  b: Bitmap,
-  x: number,
-  y: number,
-  value: number,
-): number | null {
+export function drawPixel(b: Bitmap, x: number, y: number, value: number): number | null {
   const prev = b.get(x, y);
   if (prev === value) return null;
   b.set(x, y, value);
@@ -57,12 +52,7 @@ export function drawPixel(
 
 // Flood-fill starting at (x, y). Returns a clone of the bitmap before the
 // fill (for undo), or null if the fill was a no-op.
-export function fillArea(
-  b: Bitmap,
-  x: number,
-  y: number,
-  value: number,
-): Bitmap | null {
+export function fillArea(b: Bitmap, x: number, y: number, value: number): Bitmap | null {
   const target = b.get(x, y);
   if (target === value) return null;
   const before = b.clone();
@@ -162,7 +152,7 @@ export function drawLine(
   y0: number,
   x1: number,
   y1: number,
-  value: number,
+  value: number
 ): void {
   let dx = Math.abs(x1 - x0);
   let dy = Math.abs(y1 - y0);

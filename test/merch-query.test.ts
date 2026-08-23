@@ -2,11 +2,7 @@ import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import { pickProductFromQuery } from "../src/merch-query.js";
 
-const PRODUCTS = [
-  { id: "tee" },
-  { id: "mug" },
-  { id: "sticker-sheet" },
-] as const;
+const PRODUCTS = [{ id: "tee" }, { id: "mug" }, { id: "sticker-sheet" }] as const;
 
 test("pickProductFromQuery returns the matching product when the id is in the catalog", () => {
   assert.deepEqual(pickProductFromQuery(PRODUCTS, "tee"), { id: "tee" });

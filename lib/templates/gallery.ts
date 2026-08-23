@@ -52,7 +52,8 @@ export default function renderGallery(v: GalleryView): string {
   const items = v.drawings.map(renderItem).join("\n");
   const archive = (v.days ?? [])
     .map(
-      (d) => `        <li><a href="/days/${esc(d.date)}/p/1">${esc(d.date)}</a> <span class="gal-count">— ${esc(d.count)} ${d.count === 1 ? "drawing" : "drawings"}</span></li>`,
+      (d) =>
+        `        <li><a href="/days/${esc(d.date)}/p/1">${esc(d.date)}</a> <span class="gal-count">— ${esc(d.count)} ${d.count === 1 ? "drawing" : "drawings"}</span></li>`
     )
     .join("\n");
   const heading = v.today ? `Latest · ${esc(v.today)}` : "Latest";
@@ -95,7 +96,10 @@ export function renderGallerySentinel(nextUrl: string): string {
 
 // Items-only render (no chrome). Used by the fragment endpoint to return
 // just the next page of <li> elements plus a sentinel for the page after.
-export function renderGalleryFragment(items: GalleryItem[], next_fragment_url: string | null): string {
+export function renderGalleryFragment(
+  items: GalleryItem[],
+  next_fragment_url: string | null
+): string {
   const body = items.map(renderItem).join("\n");
   if (!next_fragment_url) return body;
   return `${body}

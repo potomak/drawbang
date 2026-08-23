@@ -47,7 +47,7 @@ function printHelp(): void {
       "  --size N           SVG width/height in CSS px (default: 16, same as the bitmap)\n" +
       "  --background COLOR Fill transparent pixels with COLOR (default: leave transparent)\n" +
       "  --mono COLOR       Icon mode: drop per-pixel palette colors, fill every colored\n" +
-      "                     pixel with COLOR (e.g. currentColor) via a single <g> wrapper.\n",
+      "                     pixel with COLOR (e.g. currentColor) via a single <g> wrapper.\n"
   );
 }
 

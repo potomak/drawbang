@@ -51,7 +51,7 @@ export class DynamoChallengeStore implements ChallengeStore {
           TableName: this.tableName,
           Item: { challenge_id, expires_at: expires_at_s },
           ConditionExpression: "attribute_not_exists(challenge_id)",
-        }),
+        })
       );
       return true;
     } catch (e) {

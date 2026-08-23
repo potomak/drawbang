@@ -54,11 +54,11 @@ describe("buildAuthRequest", () => {
   test("email is trimmed in both modes", () => {
     assert.equal(
       buildAuthRequest("login", { email: " a@b.com ", username: "", password: "x" }).email,
-      "a@b.com",
+      "a@b.com"
     );
     assert.equal(
       buildAuthRequest("signup", { email: " a@b.com ", username: "u", password: "x" }).email,
-      "a@b.com",
+      "a@b.com"
     );
   });
 
@@ -68,11 +68,11 @@ describe("buildAuthRequest", () => {
     const padded = "  spaced pass  ";
     assert.equal(
       buildAuthRequest("login", { email: "a@b.com", username: "", password: padded }).password,
-      padded,
+      padded
     );
     assert.equal(
       buildAuthRequest("signup", { email: "a@b.com", username: "u", password: padded }).password,
-      padded,
+      padded
     );
   });
 });

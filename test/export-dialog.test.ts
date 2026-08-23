@@ -1,10 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, test } from "node:test";
-import {
-  exportFilename,
-  exportShareCaption,
-  resolveOption,
-} from "../src/export-dialog.js";
+import { exportFilename, exportShareCaption, resolveOption } from "../src/export-dialog.js";
 import type { VideoSupport } from "../src/editor/video.js";
 
 const SUPPORT_NONE: VideoSupport = { mp4: { supported: false }, webm: { supported: false } };

@@ -28,7 +28,7 @@ export interface UserStatsHandlerResult {
 
 export async function handleUserStats(
   user_id: string,
-  cfg: UserStatsHandlerConfig,
+  cfg: UserStatsHandlerConfig
 ): Promise<UserStatsHandlerResult> {
   if (!/^[0-9a-f]{64}$/.test(user_id)) {
     return {

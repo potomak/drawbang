@@ -66,7 +66,7 @@ describe("renderBookmarksPageHandler", () => {
     assert.equal(
       a.replace(/alice/g, "bobby"),
       b,
-      "the only difference between two users' shells must be the bare username string",
+      "the only difference between two users' shells must be the bare username string"
     );
   });
 

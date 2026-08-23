@@ -113,44 +113,61 @@ describe("encoder capability detection", () => {
   test("pickWebmMimeType walks the preference list and returns the first supported", () => {
     assert.equal(
       pickWebmMimeType((m) => m === "video/webm;codecs=vp9"),
-      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp9"
     );
     assert.equal(
       pickWebmMimeType((m) => m === "video/webm;codecs=vp8"),
-      "video/webm;codecs=vp8",
+      "video/webm;codecs=vp8"
     );
     assert.equal(
       pickWebmMimeType((m) => m === "video/webm"),
-      "video/webm",
+      "video/webm"
     );
-    assert.equal(pickWebmMimeType(() => false), null);
+    assert.equal(
+      pickWebmMimeType(() => false),
+      null
+    );
   });
 
   test("pickWebmMimeType prefers vp9 over vp8 when both are reported supported", () => {
     assert.equal(
       pickWebmMimeType(() => true),
-      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp9"
     );
   });
 
   test("pickMp4Codec returns the first level-4.2 baseline codec when supported", async () => {
-    const codec = await pickMp4Codec(1080, 1920, async (config) => ({
-      supported: config.codec === "avc1.42002a",
-      config,
-    } as VideoEncoderSupport));
+    const codec = await pickMp4Codec(
+      1080,
+      1920,
+      async (config) =>
+        ({
+          supported: config.codec === "avc1.42002a",
+          config,
+        }) as VideoEncoderSupport
+    );
     assert.equal(codec, "avc1.42002a");
   });
 
   test("pickMp4Codec falls through to the lowest level when only it is supported", async () => {
-    const codec = await pickMp4Codec(1080, 1080, async (config) => ({
-      supported: config.codec === "avc1.42001f",
-      config,
-    } as VideoEncoderSupport));
+    const codec = await pickMp4Codec(
+      1080,
+      1080,
+      async (config) =>
+        ({
+          supported: config.codec === "avc1.42001f",
+          config,
+        }) as VideoEncoderSupport
+    );
     assert.equal(codec, "avc1.42001f");
   });
 
   test("pickMp4Codec returns null when no candidate matches", async () => {
-    const codec = await pickMp4Codec(1080, 1080, async () => ({ supported: false } as VideoEncoderSupport));
+    const codec = await pickMp4Codec(
+      1080,
+      1080,
+      async () => ({ supported: false }) as VideoEncoderSupport
+    );
     assert.equal(codec, null);
   });
 

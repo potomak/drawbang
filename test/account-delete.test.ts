@@ -46,18 +46,14 @@ async function register(cfg: AuthHandlerConfig, username: string) {
       password: PASSWORD,
       altcha: await solvedPayload(cfg.challenge),
     },
-    cfg,
+    cfg
   );
   assert.equal(res.status, 201, JSON.stringify(res.body));
   const body = res.body as { user_id: string; username: string };
   return { user_id: body.user_id, username: body.username };
 }
 
-function drawing(
-  username: string,
-  user_id: string,
-  drawing_id: string,
-): DrawingRow {
+function drawing(username: string, user_id: string, drawing_id: string): DrawingRow {
   const ms = Date.parse("2026-05-01T12:00:00.000Z");
   return {
     drawing_id,
@@ -77,14 +73,14 @@ function drawing(
 async function seedDrawing(
   h: Awaited<ReturnType<typeof makeConfig>>,
   who: { username: string; user_id: string },
-  drawing_id: string,
+  drawing_id: string
 ): Promise<void> {
   await h.drawingStore.put(drawing(who.username, who.user_id, drawing_id));
   for (const suffix of [".gif", "-large.gif", "-large.mp4"]) {
     await h.storage.put(
       `public/tiles/${drawing_id}${suffix}`,
       Buffer.from("x"),
-      "application/octet-stream",
+      "application/octet-stream"
     );
   }
 }
@@ -115,7 +111,7 @@ describe("handleDeleteAccount — only ever the caller's own account", () => {
         password: PASSWORD,
         altcha: await solvedPayload(h.cfg.challenge),
       },
-      h.cfg,
+      h.cfg
     );
     assert.equal(res2.status, 201);
     await rm(h.dir, { recursive: true, force: true });
@@ -130,7 +126,7 @@ describe("handleDeleteAccount — only ever the caller's own account", () => {
     const res = await handleDeleteAccount(
       { password: PASSWORD, username: "bob", user_id: "b".repeat(64) } as never,
       alice,
-      h.cfg,
+      h.cfg
     );
     assert.equal(res.status, 200);
     assert.equal((res.body as { deleted: string }).deleted, "alice", "must delete the CALLER");
@@ -154,7 +150,7 @@ describe("handleDeleteAccount — only ever the caller's own account", () => {
     const res = await handleDeleteAccount(
       { password: PASSWORD },
       { user_id: "f".repeat(64), username: "ghost" },
-      h.cfg,
+      h.cfg
     );
     assert.equal(res.status, 401);
     await rm(h.dir, { recursive: true, force: true });
@@ -185,10 +181,7 @@ describe("handleDeleteAccount — password confirmation", () => {
     const h = await makeConfig();
     const alice = await register(h.cfg, "alice");
     assert.equal((await handleDeleteAccount({ password: PASSWORD }, alice, h.cfg)).status, 200);
-    const login = await handleLogin(
-      { email: "alice@example.com", password: PASSWORD },
-      h.cfg,
-    );
+    const login = await handleLogin({ email: "alice@example.com", password: PASSWORD }, h.cfg);
     assert.equal(login.status, 401);
     await rm(h.dir, { recursive: true, force: true });
   });
@@ -222,10 +215,7 @@ describe("handleDeleteAccount — the drawings go too", () => {
     await seedDrawing(h, alice, id(1));
     await seedDrawing(h, bob, id(2));
 
-    assert.equal(
-      (await handleDeleteAccount({ password: PASSWORD }, alice, h.cfg)).status,
-      200,
-    );
+    assert.equal((await handleDeleteAccount({ password: PASSWORD }, alice, h.cfg)).status, 200);
     assert.equal(await h.drawingStore.get(id(1)), null);
     assert.ok(await h.drawingStore.get(id(2)), "bob's drawing must survive");
     assert.equal(await h.storage.exists(`public/tiles/${id(2)}.gif`), true);
@@ -236,10 +226,7 @@ describe("handleDeleteAccount — the drawings go too", () => {
     const h = await makeConfig();
     const alice = await register(h.cfg, "alice");
     await seedDrawing(h, alice, id(1));
-    assert.equal(
-      (await handleDeleteAccount({ password: "wrong" }, alice, h.cfg)).status,
-      403,
-    );
+    assert.equal((await handleDeleteAccount({ password: "wrong" }, alice, h.cfg)).status, 403);
     assert.ok(await h.drawingStore.get(id(1)));
     assert.equal(await h.storage.exists(`public/tiles/${id(1)}.gif`), true);
     await rm(h.dir, { recursive: true, force: true });

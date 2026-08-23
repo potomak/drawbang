@@ -32,7 +32,7 @@ function buildDeps(stub: {
     ({
       parseWebhook:
         stub.parseWebhook ??
-        ((_b: string, _s: string) => ({ id: "evt_x", type: "ping" } as unknown as Stripe.Event)),
+        ((_b: string, _s: string) => ({ id: "evt_x", type: "ping" }) as unknown as Stripe.Event),
     } as unknown as StripeHelper);
 
   const deps: MerchHandlerDeps = {
@@ -58,7 +58,13 @@ function webhookEvent(body: unknown, sig: string): APIGatewayProxyEventV2 {
     rawQueryString: "",
     headers: { "stripe-signature": sig },
     requestContext: {
-      http: { method: "POST", path: "/merch/webhook/stripe", protocol: "HTTP/1.1", sourceIp: "x", userAgent: "x" },
+      http: {
+        method: "POST",
+        path: "/merch/webhook/stripe",
+        protocol: "HTTP/1.1",
+        sourceIp: "x",
+        userAgent: "x",
+      },
     },
     isBase64Encoded: false,
     body: typeof body === "string" ? body : JSON.stringify(body),
@@ -118,7 +124,11 @@ test("checkout.session.completed: transitions pending -> paid with email + shipp
       },
     } as SessionCollectedInfo,
   };
-  const evt = { id: "evt_1", type: "checkout.session.completed", data: { object: session } } as unknown as Stripe.Event;
+  const evt = {
+    id: "evt_1",
+    type: "checkout.session.completed",
+    data: { object: session },
+  } as unknown as Stripe.Event;
 
   const { deps, ordersCalls } = buildDeps({
     parseWebhook: () => evt,
@@ -154,7 +164,11 @@ test("checkout.session.completed: still transitions when shipping_details is abs
     customer_details: { email: "x@y.example" } as SessionCustomerDetails,
     collected_information: null,
   };
-  const evt = { id: "evt_2", type: "checkout.session.completed", data: { object: session } } as unknown as Stripe.Event;
+  const evt = {
+    id: "evt_2",
+    type: "checkout.session.completed",
+    data: { object: session },
+  } as unknown as Stripe.Event;
 
   const { deps, ordersCalls } = buildDeps({
     parseWebhook: () => evt,
@@ -287,7 +301,11 @@ test("payment_intent.payment_failed: transitions pending -> failed", async () =>
     object: "payment_intent",
     metadata: { order_id: "ord_42" },
   } as unknown as Stripe.PaymentIntent;
-  const evt = { id: "evt_4", type: "payment_intent.payment_failed", data: { object: intent } } as unknown as Stripe.Event;
+  const evt = {
+    id: "evt_4",
+    type: "payment_intent.payment_failed",
+    data: { object: intent },
+  } as unknown as Stripe.Event;
 
   const { deps, ordersCalls } = buildDeps({
     parseWebhook: () => evt,

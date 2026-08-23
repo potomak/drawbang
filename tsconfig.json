@@ -19,5 +19,13 @@
     "forceConsistentCasingInFileNames": true,
     "noEmit": true
   },
-  "include": ["src/**/*", "ingest/**/*", "builder/**/*", "merch/**/*", "functions/**/*", "test/**/*", "config/**/*.ts"]
+  "include": [
+    "src/**/*",
+    "ingest/**/*",
+    "builder/**/*",
+    "merch/**/*",
+    "functions/**/*",
+    "test/**/*",
+    "config/**/*.ts"
+  ]
 }

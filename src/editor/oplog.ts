@@ -50,18 +50,49 @@ export interface PxPayload {
   // Packed [x0, y0, color0, x1, y1, color1, …]. `length % 3 === 0`.
   pixels: number[];
 }
-export interface FillPayload { x: number; y: number; color: number; }
-export interface FrameAddPayload { at: number; }
-export interface FrameDelPayload { at: number; }
-export interface FrameDupPayload { from: number; to: number; }
-export interface LayerAddPayload { at: number; }
-export interface LayerDelPayload { at: number; }
-export interface LayerVisPayload { at: number; visible: boolean; }
-export interface LayerMovPayload { from: number; to: number; }
-export interface XformPayload { op: XformOp; }
-export interface TranslatePayload { dx: number; dy: number; }
-export interface PalPayload { palette: number[]; }
-export interface SizePayload { from: number; to: number; }
+export interface FillPayload {
+  x: number;
+  y: number;
+  color: number;
+}
+export interface FrameAddPayload {
+  at: number;
+}
+export interface FrameDelPayload {
+  at: number;
+}
+export interface FrameDupPayload {
+  from: number;
+  to: number;
+}
+export interface LayerAddPayload {
+  at: number;
+}
+export interface LayerDelPayload {
+  at: number;
+}
+export interface LayerVisPayload {
+  at: number;
+  visible: boolean;
+}
+export interface LayerMovPayload {
+  from: number;
+  to: number;
+}
+export interface XformPayload {
+  op: XformOp;
+}
+export interface TranslatePayload {
+  dx: number;
+  dy: number;
+}
+export interface PalPayload {
+  palette: number[];
+}
+export interface SizePayload {
+  from: number;
+  to: number;
+}
 
 export type OpPayload =
   | PxPayload
@@ -100,9 +131,7 @@ export class OpLogRecorder {
   private ops: Op[] = [];
   private truncated = false;
   private bytesEstimate = 0;
-  private currentStroke:
-    | { f: number; l: number; pixels: number[]; tStart: number }
-    | null = null;
+  private currentStroke: { f: number; l: number; pixels: number[]; tStart: number } | null = null;
 
   constructor(now: number = Date.now()) {
     this.reset(now);
@@ -165,7 +194,7 @@ export class OpLogRecorder {
     y: number,
     color: number,
     now: number = Date.now(),
-    layerIdx: number = 0,
+    layerIdx: number = 0
   ): void {
     const op: Op = { t: this.rel(now), k: "fill", f: frameIdx, d: { x, y, color } };
     if (layerIdx !== 0) op.l = layerIdx;
@@ -200,12 +229,7 @@ export class OpLogRecorder {
     this.tryPush({ t: this.rel(now), k: "lmov", d: { from, to } });
   }
 
-  recordXform(
-    frameIdx: number,
-    op: XformOp,
-    now: number = Date.now(),
-    layerIdx: number = 0,
-  ): void {
+  recordXform(frameIdx: number, op: XformOp, now: number = Date.now(), layerIdx: number = 0): void {
     const entry: Op = { t: this.rel(now), k: "xform", f: frameIdx, d: { op } };
     if (layerIdx !== 0) entry.l = layerIdx;
     this.tryPush(entry);
@@ -216,7 +240,7 @@ export class OpLogRecorder {
     dx: number,
     dy: number,
     now: number = Date.now(),
-    layerIdx: number = 0,
+    layerIdx: number = 0
   ): void {
     const entry: Op = { t: this.rel(now), k: "translate", f: frameIdx, d: { dx, dy } };
     if (layerIdx !== 0) entry.l = layerIdx;

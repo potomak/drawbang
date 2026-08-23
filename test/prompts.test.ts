@@ -54,10 +54,7 @@ describe("promptForDate rotation", () => {
   });
 
   test("day 21 wraps back to theme 0", () => {
-    assert.equal(
-      promptForDate(noonEt(2026, 5, 15 + PROMPTS.length)).slug,
-      PROMPTS[0].slug,
-    );
+    assert.equal(promptForDate(noonEt(2026, 5, 15 + PROMPTS.length)).slug, PROMPTS[0].slug);
   });
 
   test("pre-epoch dates still return a prompt (negative-mod guard)", () => {

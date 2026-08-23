@@ -12,9 +12,7 @@ function item(overrides: Partial<FeedItem> = {}): FeedItem {
   // since `??` also short-circuits on null. Use an explicit presence
   // check so the caller can opt out.
   const defaultAuthor = { username: "alice", profile_picture_drawing_id: null };
-  const author = "author" in overrides
-    ? (overrides.author ?? null)
-    : defaultAuthor;
+  const author = "author" in overrides ? (overrides.author ?? null) : defaultAuthor;
   return {
     id,
     id_short: overrides.id_short ?? id.slice(0, 8),
@@ -45,24 +43,22 @@ describe("renderHome", () => {
       items: [item({ author: null })],
       repo_url: "https://github.com/test/test",
     });
-    assert.match(html, /<span class="feed-card-author-link feed-card-author-anon">anonymous<\/span>/);
+    assert.match(
+      html,
+      /<span class="feed-card-author-link feed-card-author-anon">anonymous<\/span>/
+    );
     assert.doesNotMatch(html, /<a class="feed-card-author-link"/);
   });
 
   test("renders the profile picture in the left rail when set", () => {
     const pictureId = "b".repeat(64);
     const html = renderHome({
-      items: [
-        item({ author: { username: "alice", profile_picture_drawing_id: pictureId } }),
-      ],
+      items: [item({ author: { username: "alice", profile_picture_drawing_id: pictureId } })],
       repo_url: "https://github.com/test/test",
     });
     // The pp link wraps the img and sits in the left rail (.feed-card-pp).
     assert.match(html, /<a class="feed-card-pp" href="\/u\/alice"/);
-    assert.match(
-      html,
-      new RegExp(`<img class="profile-picture" src="/tiles/${pictureId}\\.gif"`),
-    );
+    assert.match(html, new RegExp(`<img class="profile-picture" src="/tiles/${pictureId}\\.gif"`));
     // /hydrate.js reads these to swap the image in/out without a page reload.
     assert.match(html, /data-profile-picture-username="alice"/);
     assert.match(html, /data-profile-picture-size="48"/);
@@ -70,16 +66,17 @@ describe("renderHome", () => {
 
   test("renders a monogram placeholder in the left rail when no picture is set", () => {
     const html = renderHome({
-      items: [
-        item({ author: { username: "alice", profile_picture_drawing_id: null } }),
-      ],
+      items: [item({ author: { username: "alice", profile_picture_drawing_id: null } })],
       repo_url: "https://github.com/test/test",
     });
     assert.match(html, /<a class="feed-card-pp" href="\/u\/alice"/);
     assert.match(html, /class="profile-picture profile-picture-placeholder"[^>]*>A</);
     // Placeholder still carries the hydration attrs so /hydrate.js can
     // upgrade it to an <img> when alice sets a picture later.
-    assert.match(html, /class="profile-picture profile-picture-placeholder"[^>]*data-profile-picture-username="alice"/);
+    assert.match(
+      html,
+      /class="profile-picture profile-picture-placeholder"[^>]*data-profile-picture-username="alice"/
+    );
   });
 
   test("emits an infinite-scroll sentinel + loads the shared observer script when paginated", () => {
@@ -115,7 +112,7 @@ describe("renderHome", () => {
 });
 
 describe("renderFeedCard", () => {
-  test("wraps in <li><article class=\"feed-card\">", () => {
+  test('wraps in <li><article class="feed-card">', () => {
     const html = renderFeedCard(item());
     assert.match(html, /^<li><article class="feed-card">/);
     assert.match(html, /<\/article><\/li>$/);
@@ -215,7 +212,10 @@ describe("prompt banner", () => {
     assert.match(html, /<section class="prompt-banner" aria-label="Today's prompt">/);
     assert.match(html, /<h2 class="prompt-banner-title">Tiny ghost<\/h2>/);
     assert.match(html, /<p class="prompt-banner-blurb">Boo, but make it adorable\.<\/p>/);
-    assert.match(html, /<a class="btn primary prompt-banner-cta" href="\/draw\?prompt=tiny-ghost">Draw this<\/a>/);
+    assert.match(
+      html,
+      /<a class="btn primary prompt-banner-cta" href="\/draw\?prompt=tiny-ghost">Draw this<\/a>/
+    );
     // Banner sits above the cards.
     const bannerIdx = html.indexOf("prompt-banner");
     const listIdx = html.indexOf('<ul class="feed-list"');
@@ -230,7 +230,7 @@ describe("prompt banner", () => {
     });
     assert.match(
       html,
-      /<script>typeof gtag==="function"&&gtag\("event","prompt_banner_view",\{slug:"tiny-ghost"\}\);<\/script>/,
+      /<script>typeof gtag==="function"&&gtag\("event","prompt_banner_view",\{slug:"tiny-ghost"\}\);<\/script>/
     );
   });
 
@@ -283,7 +283,9 @@ describe("logged-out hero", () => {
       repo_url: "https://github.com/test/test",
     });
     assert.match(html, /<div class="home-hero-samples" aria-hidden="true">/);
-    const samples = [...html.matchAll(/<img class="home-hero-sample" src="\/tiles\/([0-9a-f]{64})\.gif" alt=""/g)].map((m) => m[1]);
+    const samples = [
+      ...html.matchAll(/<img class="home-hero-sample" src="\/tiles\/([0-9a-f]{64})\.gif" alt=""/g),
+    ].map((m) => m[1]);
     assert.deepEqual(samples, ids.slice(0, 3));
   });
 
@@ -307,9 +309,15 @@ describe("logged-out hero", () => {
       repo_url: "https://github.com/test/test",
     });
     assert.match(html, /<form class="home-hero-subscribe" data-subscribe-form>/);
-    assert.match(html, /<input id="subscribe-email" name="email" type="email" autocomplete="email"[^>]*required/);
+    assert.match(
+      html,
+      /<input id="subscribe-email" name="email" type="email" autocomplete="email"[^>]*required/
+    );
     // Honeypot ships offscreen (CSS class), never [hidden]/display:none.
-    assert.match(html, /<input class="home-hero-subscribe-trap" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"/);
+    assert.match(
+      html,
+      /<input class="home-hero-subscribe-trap" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"/
+    );
     assert.match(html, /<script src="\/subscribe\.js"><\/script>/);
   });
 });
@@ -319,7 +327,10 @@ describe("renderFeedFragment", () => {
     const html = renderFeedFragment([item()], "/feed/items?cursor=x");
     assert.doesNotMatch(html, /<html/);
     assert.match(html, /<article class="feed-card">/);
-    assert.match(html, /<li class="feed-sentinel" data-infinite-sentinel data-infinite-target="\[data-infinite-list\]" data-next="\/feed\/items\?cursor=x">/);
+    assert.match(
+      html,
+      /<li class="feed-sentinel" data-infinite-sentinel data-infinite-target="\[data-infinite-list\]" data-next="\/feed\/items\?cursor=x">/
+    );
   });
 
   test("omits the sentinel on the last page (next=null)", () => {

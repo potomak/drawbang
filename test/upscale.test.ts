@@ -49,7 +49,7 @@ test("upscale: skips transparent pixels when background is null", () => {
 test("upscale: emits a single full-canvas backdrop rect when background is set", () => {
   const b = new Bitmap();
   const svg = decode(
-    upscaleBitmapToSvg(b, DEFAULT_ACTIVE_PALETTE, { sizePx: 32, background: [12, 34, 56] }),
+    upscaleBitmapToSvg(b, DEFAULT_ACTIVE_PALETTE, { sizePx: 32, background: [12, 34, 56] })
   );
   const rects = svg.match(/<rect[^/]*\/>/g) ?? [];
   assert.equal(rects.length, 1);
@@ -60,7 +60,7 @@ test("upscale: rejects sizePx that is not a multiple of 16", () => {
   const b = new Bitmap();
   assert.throws(
     () => upscaleBitmapToSvg(b, DEFAULT_ACTIVE_PALETTE, { sizePx: 33 }),
-    /multiple of bitmap dims/,
+    /multiple of bitmap dims/
   );
 });
 
@@ -68,7 +68,7 @@ test("upscale: rejects non-positive sizePx", () => {
   const b = new Bitmap();
   assert.throws(
     () => upscaleBitmapToSvg(b, DEFAULT_ACTIVE_PALETTE, { sizePx: 0 }),
-    /positive integer/,
+    /positive integer/
   );
 });
 
@@ -83,6 +83,6 @@ test("upscale: SVG size is bounded by rect count, not sizePx (memory regression 
   // headroom for hex-color or attribute formatting tweaks.
   assert.ok(
     bytes.byteLength < 32_000,
-    `SVG bytes ${bytes.byteLength} unexpectedly large at sizePx=4000`,
+    `SVG bytes ${bytes.byteLength} unexpectedly large at sizePx=4000`
   );
 });

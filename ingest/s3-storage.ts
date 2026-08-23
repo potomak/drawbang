@@ -30,7 +30,7 @@ export class S3Storage implements Storage {
     key: string,
     bytes: Buffer | Uint8Array,
     contentType: string,
-    cacheControl?: string,
+    cacheControl?: string
   ): Promise<boolean> {
     if (await this.exists(key)) return false;
     await this.put(key, bytes, contentType, cacheControl);
@@ -41,7 +41,7 @@ export class S3Storage implements Storage {
     key: string,
     bytes: Buffer | Uint8Array,
     contentType: string,
-    cacheControl?: string,
+    cacheControl?: string
   ): Promise<void> {
     await this.client.send(
       new PutObjectCommand({
@@ -50,7 +50,7 @@ export class S3Storage implements Storage {
         Body: asUint8(bytes),
         ContentType: contentType,
         ...(cacheControl ? { CacheControl: cacheControl } : {}),
-      }),
+      })
     );
   }
 
@@ -81,10 +81,11 @@ export class S3Storage implements Storage {
           Prefix: normalized,
           Delimiter: "/",
           ContinuationToken: continuationToken,
-        }),
+        })
       );
       for (const obj of page.Contents ?? []) if (obj.Key) out.push(obj.Key);
-      for (const p of page.CommonPrefixes ?? []) if (p.Prefix) out.push(p.Prefix.replace(/\/$/, ""));
+      for (const p of page.CommonPrefixes ?? [])
+        if (p.Prefix) out.push(p.Prefix.replace(/\/$/, ""));
       continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
     } while (continuationToken);
     return out;
@@ -92,9 +93,7 @@ export class S3Storage implements Storage {
 
   async getBytes(key: string): Promise<Uint8Array | null> {
     try {
-      const res = await this.client.send(
-        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
-      );
+      const res = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
       if (!res.Body) return null;
       const bytes = await res.Body.transformToByteArray();
       return new Uint8Array(bytes);

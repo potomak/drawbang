@@ -5,7 +5,7 @@ M1). Reviewed weekly — Sunday metric review, per the ops appendix. GA4
 property: `G-5F5HPX6QYC` (id in `src/layout/tracking.ts`).
 
 | KPI                  | Target | Source                          |
-|----------------------|--------|---------------------------------|
+| -------------------- | ------ | ------------------------------- |
 | Activation           | >25%   | GA4 funnel exploration          |
 | Remix rate           | >15%   | `/admin` card + GA4 dimension   |
 | D7 creator retention | >20%   | GA4 cohort exploration          |
@@ -40,8 +40,8 @@ Two sources, slightly different denominators — report both:
    `publish_success`. GA4 → Reports → Events → `publish_success`,
    break down by the registered `remix` dimension.
 
-GA measures the *publish flow* (did this session start from
-`/draw?fork=<id>`); `/admin` measures *stored rows*. Opt-outs, ad
+GA measures the _publish flow_ (did this session start from
+`/draw?fork=<id>`); `/admin` measures _stored rows_. Opt-outs, ad
 blockers, and abandoned-then-retried publishes make them differ
 slightly. When they disagree, trust `/admin`.
 
@@ -70,7 +70,7 @@ Caveats:
 - `video_export_click` ships with the video-export milestone (M4).
   Until then the metric is GIF-only and **undercounts export intent**
   — note this next to the number in early reviews.
-- `gif_download_click` fires with `source: editor` *and*
+- `gif_download_click` fires with `source: editor` _and_
   `source: drawing_page`. Viewer downloads from `/d/<id>` inflate the
   creator-export reading; filter to `source=editor` if you want strict
   creator behaviour.
@@ -84,33 +84,33 @@ merch ecommerce events also fan out to Meta Pixel). Plain-JS surfaces
 
 Shipped:
 
-| Event                   | Params                  | Notes |
-|-------------------------|-------------------------|-------|
-| `tool_click`            | `tool`                  | |
-| `frame_add_click`       | `total_after`           | |
-| `frame_delete_click`    | `total_after`           | |
-| `publish_click`         | `frames`                | |
-| `publish_success`       | `frames`, `solve_ms`    | Gains `remix`, `prompt` (below) |
-| `gif_download_click`    | `source`, `frames?`     | `source`: `editor` \| `drawing_page` |
-| `copy_share_link_click` | —                       | |
-| `share_click`           | `target`                | reddit / x / threads / web_share |
-| `fork_click`            | `drawing_id`            | **Historical name — this is the user-facing "Remix" action.** Kept for GA continuity; do not rename. |
-| `make_merch_click`      | `drawing_id`            | |
-| `merch_*_click`, `view_item`, `begin_checkout`, `purchase`, `order_status_view` | various | Merch funnel; out of KPI scope |
+| Event                                                                           | Params               | Notes                                                                                                |
+| ------------------------------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------- |
+| `tool_click`                                                                    | `tool`               |                                                                                                      |
+| `frame_add_click`                                                               | `total_after`        |                                                                                                      |
+| `frame_delete_click`                                                            | `total_after`        |                                                                                                      |
+| `publish_click`                                                                 | `frames`             |                                                                                                      |
+| `publish_success`                                                               | `frames`, `solve_ms` | Gains `remix`, `prompt` (below)                                                                      |
+| `gif_download_click`                                                            | `source`, `frames?`  | `source`: `editor` \| `drawing_page`                                                                 |
+| `copy_share_link_click`                                                         | —                    |                                                                                                      |
+| `share_click`                                                                   | `target`             | reddit / x / threads / web_share                                                                     |
+| `fork_click`                                                                    | `drawing_id`         | **Historical name — this is the user-facing "Remix" action.** Kept for GA continuity; do not rename. |
+| `make_merch_click`                                                              | `drawing_id`         |                                                                                                      |
+| `merch_*_click`, `view_item`, `begin_checkout`, `purchase`, `order_status_view` | various              | Merch funnel; out of KPI scope                                                                       |
 
 Added by M1 (and later milestones; if `analytics.ts` looks mid-edit,
 this list is the contract):
 
-| Event                | Params                  | Lands with |
-|----------------------|-------------------------|------------|
-| `publish_success`    | + `remix` (boolean), `prompt` (slug \| null) | M1 |
-| `like_click`         | `drawing_id`            | M1 |
-| `bookmark_click`     | `drawing_id`            | M1 |
-| `follow_click`       | `username`              | M1 |
-| `video_export_click` | `format`, `duration_s`  | M4 |
-| `embed_copy_click`   | —                       | M5 |
-| `prompt_cta_click`   | `slug`                  | M3 |
-| `prompt_banner_view` | —                       | M3 |
+| Event                | Params                                       | Lands with |
+| -------------------- | -------------------------------------------- | ---------- |
+| `publish_success`    | + `remix` (boolean), `prompt` (slug \| null) | M1         |
+| `like_click`         | `drawing_id`                                 | M1         |
+| `bookmark_click`     | `drawing_id`                                 | M1         |
+| `follow_click`       | `username`                                   | M1         |
+| `video_export_click` | `format`, `duration_s`                       | M4         |
+| `embed_copy_click`   | —                                            | M5         |
+| `prompt_cta_click`   | `slug`                                       | M3         |
+| `prompt_banner_view` | —                                            | M3         |
 
 ## GA4 setup checklist (one-time)
 
@@ -118,10 +118,7 @@ Do this **before** launch traffic — custom dimensions only populate
 from registration onward, no backfill.
 
 - [ ] Register custom dimensions (Admin → Custom definitions → Create
-      custom dimension, scope **Event**):
-      - `remix` (on `publish_success`)
-      - `prompt` (on `publish_success`)
-      - `format` (on `video_export_click`)
+      custom dimension, scope **Event**): - `remix` (on `publish_success`) - `prompt` (on `publish_success`) - `format` (on `video_export_click`)
 - [ ] Build the activation funnel: Explore → Funnel exploration —
       step 1 `first_visit`, step 2 `publish_success`, open funnel off.
       Save as **"Activation"**.

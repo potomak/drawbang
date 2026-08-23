@@ -162,7 +162,7 @@ export function logTailOutcome(f: TailOutcomeFields): void {
       large_gif: capError(f.large_gif),
       large_mp4: capError(f.large_mp4),
       invalidation: capError(f.invalidation),
-    }),
+    })
   );
 }
 

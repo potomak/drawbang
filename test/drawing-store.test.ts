@@ -52,22 +52,44 @@ describe("MemoryDrawingStore", () => {
 
   test("queryGallery returns newest-first across multiple users", async () => {
     const store = new MemoryDrawingStore();
-    const a = row({ drawing_id: "1".repeat(64), created_at_ms: 100, username: "alice", user_id: "alice".padEnd(64, "0") });
-    const b = row({ drawing_id: "2".repeat(64), created_at_ms: 200, username: "bob",   user_id: "bob".padEnd(64, "0") });
-    const c = row({ drawing_id: "3".repeat(64), created_at_ms: 300, username: "carol", user_id: "carol".padEnd(64, "0") });
-    await store.put(a); await store.put(b); await store.put(c);
+    const a = row({
+      drawing_id: "1".repeat(64),
+      created_at_ms: 100,
+      username: "alice",
+      user_id: "alice".padEnd(64, "0"),
+    });
+    const b = row({
+      drawing_id: "2".repeat(64),
+      created_at_ms: 200,
+      username: "bob",
+      user_id: "bob".padEnd(64, "0"),
+    });
+    const c = row({
+      drawing_id: "3".repeat(64),
+      created_at_ms: 300,
+      username: "carol",
+      user_id: "carol".padEnd(64, "0"),
+    });
+    await store.put(a);
+    await store.put(b);
+    await store.put(c);
     const page = await store.queryGallery({ limit: 10 });
-    assert.deepEqual(page.items.map((r) => r.drawing_id), [c.drawing_id, b.drawing_id, a.drawing_id]);
+    assert.deepEqual(
+      page.items.map((r) => r.drawing_id),
+      [c.drawing_id, b.drawing_id, a.drawing_id]
+    );
     assert.equal(page.next_cursor, null);
   });
 
   test("queryGallery paginates with a cursor", async () => {
     const store = new MemoryDrawingStore();
     for (let i = 0; i < 5; i++) {
-      await store.put(row({
-        drawing_id: String(i).padStart(64, "0"),
-        created_at_ms: 1000 + i,
-      }));
+      await store.put(
+        row({
+          drawing_id: String(i).padStart(64, "0"),
+          created_at_ms: 1000 + i,
+        })
+      );
     }
     const page1 = await store.queryGallery({ limit: 2 });
     assert.equal(page1.items.length, 2);
@@ -89,20 +111,26 @@ describe("MemoryDrawingStore", () => {
   test("queryByUsername filters to the given username", async () => {
     const store = new MemoryDrawingStore();
     await store.put(row({ drawing_id: "a".repeat(64), username: "alice", created_at_ms: 100 }));
-    await store.put(row({ drawing_id: "b".repeat(64), username: "bob",   created_at_ms: 200 }));
+    await store.put(row({ drawing_id: "b".repeat(64), username: "bob", created_at_ms: 200 }));
     await store.put(row({ drawing_id: "c".repeat(64), username: "alice", created_at_ms: 300 }));
     const page = await store.queryByUsername("alice", { limit: 10 });
-    assert.deepEqual(page.items.map((r) => r.drawing_id), ["c".repeat(64), "a".repeat(64)]);
+    assert.deepEqual(
+      page.items.map((r) => r.drawing_id),
+      ["c".repeat(64), "a".repeat(64)]
+    );
   });
 
   test("queryForks filters to forks of a parent", async () => {
     const store = new MemoryDrawingStore();
     const parent = "p".repeat(64);
     await store.put(row({ drawing_id: "1".repeat(64), parent_id: parent, created_at_ms: 100 }));
-    await store.put(row({ drawing_id: "2".repeat(64), parent_id: null,   created_at_ms: 200 }));
+    await store.put(row({ drawing_id: "2".repeat(64), parent_id: null, created_at_ms: 200 }));
     await store.put(row({ drawing_id: "3".repeat(64), parent_id: parent, created_at_ms: 300 }));
     const page = await store.queryForks(parent, { limit: 10 });
-    assert.deepEqual(page.items.map((r) => r.drawing_id), ["3".repeat(64), "1".repeat(64)]);
+    assert.deepEqual(
+      page.items.map((r) => r.drawing_id),
+      ["3".repeat(64), "1".repeat(64)]
+    );
   });
 
   test("put round-trips prompt_id and omits it when unset", async () => {
@@ -120,12 +148,15 @@ describe("MemoryDrawingStore", () => {
   test("queryByPrompt returns only rows tagged with the prompt, newest-first", async () => {
     const store = new MemoryDrawingStore();
     const prompt = "slime-bounce";
-    await store.put(row({ drawing_id: "1".repeat(64), prompt_id: prompt,     created_at_ms: 100 }));
-    await store.put(row({ drawing_id: "2".repeat(64),                        created_at_ms: 200 }));
+    await store.put(row({ drawing_id: "1".repeat(64), prompt_id: prompt, created_at_ms: 100 }));
+    await store.put(row({ drawing_id: "2".repeat(64), created_at_ms: 200 }));
     await store.put(row({ drawing_id: "3".repeat(64), prompt_id: "campfire", created_at_ms: 250 }));
-    await store.put(row({ drawing_id: "4".repeat(64), prompt_id: prompt,     created_at_ms: 300 }));
+    await store.put(row({ drawing_id: "4".repeat(64), prompt_id: prompt, created_at_ms: 300 }));
     const page = await store.queryByPrompt(prompt, { limit: 10 });
-    assert.deepEqual(page.items.map((r) => r.drawing_id), ["4".repeat(64), "1".repeat(64)]);
+    assert.deepEqual(
+      page.items.map((r) => r.drawing_id),
+      ["4".repeat(64), "1".repeat(64)]
+    );
     assert.equal(page.next_cursor, null);
   });
 
@@ -133,24 +164,35 @@ describe("MemoryDrawingStore", () => {
     const store = new MemoryDrawingStore();
     const prompt = "coin-spin";
     for (let i = 0; i < 5; i++) {
-      await store.put(row({
-        drawing_id: String(i).padStart(64, "0"),
-        prompt_id: prompt,
-        created_at_ms: 1000 + i,
-      }));
+      await store.put(
+        row({
+          drawing_id: String(i).padStart(64, "0"),
+          prompt_id: prompt,
+          created_at_ms: 1000 + i,
+        })
+      );
     }
     // An untagged row newer than the whole set must never leak into a page.
     await store.put(row({ drawing_id: "f".repeat(64), created_at_ms: 9999 }));
 
     const page1 = await store.queryByPrompt(prompt, { limit: 2 });
-    assert.deepEqual(page1.items.map((r) => r.created_at_ms), [1004, 1003]);
+    assert.deepEqual(
+      page1.items.map((r) => r.created_at_ms),
+      [1004, 1003]
+    );
     assert.ok(page1.next_cursor, "expected a next_cursor");
 
     const page2 = await store.queryByPrompt(prompt, { limit: 2, cursor: page1.next_cursor! });
-    assert.deepEqual(page2.items.map((r) => r.created_at_ms), [1002, 1001]);
+    assert.deepEqual(
+      page2.items.map((r) => r.created_at_ms),
+      [1002, 1001]
+    );
 
     const page3 = await store.queryByPrompt(prompt, { limit: 2, cursor: page2.next_cursor! });
-    assert.deepEqual(page3.items.map((r) => r.created_at_ms), [1000]);
+    assert.deepEqual(
+      page3.items.map((r) => r.created_at_ms),
+      [1000]
+    );
     assert.equal(page3.next_cursor, null);
   });
 });

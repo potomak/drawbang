@@ -13,12 +13,7 @@ import {
   toggleLayerVisibility as toggleLayerVisOp,
   type FrameState,
 } from "./editor/frames.js";
-import {
-  cloneFrame,
-  composeFrame,
-  MAX_LAYERS,
-  type Frame,
-} from "./editor/layers.js";
+import { cloneFrame, composeFrame, MAX_LAYERS, type Frame } from "./editor/layers.js";
 import {
   BASE_PALETTE,
   DEFAULT_ACTIVE_PALETTE,
@@ -28,11 +23,7 @@ import {
   nearestBaseIndex,
 } from "./editor/palette.js";
 import { RETRO_PALETTES, padPalette, type RetroPalette } from "../config/palettes.js";
-import {
-  lospecPaletteUrl,
-  parseImportInput,
-  parseLospecJson,
-} from "./editor/lospec.js";
+import { lospecPaletteUrl, parseImportInput, parseLospecJson } from "./editor/lospec.js";
 import {
   PixelPerfectStroke,
   drawPixel,
@@ -51,11 +42,7 @@ import * as local from "./local.js";
 import { isLoggedIn, login, logout, register } from "./auth.js";
 import { createPublishDialog } from "./publish-dialog.js";
 import { loadAltcha, solveChallenge, type AltchaWidget } from "./altcha.js";
-import {
-  MissingSessionError,
-  submit,
-  willPublishAnonymously,
-} from "./submit.js";
+import { MissingSessionError, submit, willPublishAnonymously } from "./submit.js";
 import { showFlash } from "./layout/flash.js";
 import { createExportDialog } from "./export-dialog.js";
 import { OpLogRecorder } from "./editor/oplog.js";
@@ -205,9 +192,7 @@ app.innerHTML = /* html */ `
           <label class="ed-palette-select-wrap">
             <span class="ed-palette-select-label">Palette</span>
             <select id="paletteSelect" class="ed-palette-select" aria-label="Palette">
-              ${RETRO_PALETTES.map(
-                (p) => `<option value="${p.id}">${p.name}</option>`,
-              ).join("")}
+              ${RETRO_PALETTES.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}
             </select>
           </label>
           <div class="ed-palette-row">
@@ -611,9 +596,7 @@ function openMerch(): void {
   }
   const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "/");
   const frame = state.current;
-  location.assign(
-    `${base}merch?d=${encodeURIComponent(lastPublishedId)}&frame=${frame}`,
-  );
+  location.assign(`${base}merch?d=${encodeURIComponent(lastPublishedId)}&frame=${frame}`);
 }
 
 // -- Rendering --------------------------------------------------------------
@@ -972,7 +955,10 @@ function endStroke(): void {
   persist();
 }
 
-function handleTransform(f: (b: Bitmap) => void, op: "flip-h" | "flip-v" | "rotate" | "shift-x" | "shift-y"): void {
+function handleTransform(
+  f: (b: Bitmap) => void,
+  op: "flip-h" | "flip-v" | "rotate" | "shift-x" | "shift-y"
+): void {
   stopPlay();
   const frameIdx = state.current;
   const layerIdx = state.currentLayer;
@@ -1079,7 +1065,11 @@ async function copyFrameAsPng(): Promise<void> {
 function pasteAsNewFrame(): void {
   stopPlay();
   if (!clipboard) {
-    showFlash({ kind: "info", message: "Nothing to paste — copy a frame first.", autoDismissMs: 5000 });
+    showFlash({
+      kind: "info",
+      message: "Nothing to paste — copy a frame first.",
+      autoDismissMs: 5000,
+    });
     return;
   }
   if (state.frames.length >= MAX_FRAMES) {
@@ -1171,11 +1161,9 @@ function startPlayTimer(): void {
 function renderPlayTick(): void {
   const palette = activePaletteToRgb(activePalette);
   mainCanvas.draw(composeFrame(state.layers, state.frames[state.current]), palette);
-  frameListEl
-    .querySelectorAll<HTMLElement>(".ed-frame:not(.ed-frame-add)")
-    .forEach((w, i) => {
-      w.classList.toggle("selected", i === state.current);
-    });
+  frameListEl.querySelectorAll<HTMLElement>(".ed-frame:not(.ed-frame-add)").forEach((w, i) => {
+    w.classList.toggle("selected", i === state.current);
+  });
 }
 
 function stopPlay(): void {
@@ -1339,7 +1327,7 @@ function setImportedOption(name: string): void {
   currentPaletteId = IMPORTED_PALETTE_ID;
   if (!paletteSelectEl) return;
   let opt = paletteSelectEl.querySelector<HTMLOptionElement>(
-    `option[value="${IMPORTED_PALETTE_ID}"]`,
+    `option[value="${IMPORTED_PALETTE_ID}"]`
   );
   if (!opt) {
     opt = document.createElement("option");
@@ -1414,9 +1402,7 @@ lospecInputEl.addEventListener("keydown", (e) => {
 // state intact. Rendered as a flash action rather than an automatic
 // redirect — publishing never navigates the user away from their drawing.
 function signInHref(): string {
-  const next = encodeURIComponent(
-    location.pathname + location.search + location.hash,
-  );
+  const next = encodeURIComponent(location.pathname + location.search + location.hash);
   return `/login?next=${next}`;
 }
 
@@ -1494,9 +1480,7 @@ async function handlePublish(): Promise<void> {
 // raw bytes). Only called when the document has 2+ layers — flat
 // drawings save the round-trip.
 function buildLayersPayload(): import("./submit.js").LayersPayload {
-  const frames: string[][] = state.frames.map((f) =>
-    f.bitmaps.map((b) => bytesToBase64(b.data)),
-  );
+  const frames: string[][] = state.frames.map((f) => f.bitmaps.map((b) => bytesToBase64(b.data)));
   return {
     v: 1,
     layers: state.layers.map((l) => ({ name: l.name, visible: l.visible })),
@@ -1531,11 +1515,11 @@ function flashPublished(shareUrl: string, anonymous: boolean): void {
 function changeSize(newSize: number): void {
   if (!DRAWING_SIZES.includes(newSize) || newSize === currentSize) return;
   const hasContent = state.frames.some((f) =>
-    f.bitmaps.some((b) => b.data.some((v) => v !== TRANSPARENT)),
+    f.bitmaps.some((b) => b.data.some((v) => v !== TRANSPARENT))
   );
   if (hasContent) {
     const ok = confirm(
-      `Switch canvas to ${newSize}×${newSize}? Your current drawing will be cleared.`,
+      `Switch canvas to ${newSize}×${newSize}? Your current drawing will be cleared.`
     );
     if (!ok) return;
   }
@@ -1560,12 +1544,10 @@ function changeSize(newSize: number): void {
 }
 
 function renderSizePicker(): void {
-  document
-    .querySelectorAll<HTMLButtonElement>(".ed-size-opt")
-    .forEach((btn) => {
-      const s = Number(btn.dataset.size);
-      btn.setAttribute("aria-pressed", s === currentSize ? "true" : "false");
-    });
+  document.querySelectorAll<HTMLButtonElement>(".ed-size-opt").forEach((btn) => {
+    const s = Number(btn.dataset.size);
+    btn.setAttribute("aria-pressed", s === currentSize ? "true" : "false");
+  });
 }
 
 function copyShareLink(): void {
@@ -1700,7 +1682,11 @@ window.addEventListener("pointerup", (ev: PointerEvent) => {
     }
     // Push undo snapshot if anything changed
     let changed = false;
-    for (let i = 0; i < b.data.length; i++) if (b.data[i] !== strokeSnapshot.data[i]) { changed = true; break; }
+    for (let i = 0; i < b.data.length; i++)
+      if (b.data[i] !== strokeSnapshot.data[i]) {
+        changed = true;
+        break;
+      }
     if (changed) {
       const snapshot = strokeSnapshot;
       const frameIdx = state.current;
@@ -1801,40 +1787,84 @@ document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach((b) =>
     if (next === tool) return; // No-op re-click — don't bother GA.
     tracker.toolClick(next);
     setActiveTool(next);
-  }),
+  })
 );
 
 document.querySelectorAll<HTMLButtonElement>(".ed-size-opt").forEach((b) =>
   b.addEventListener("click", () => {
     const next = Number(b.dataset.size);
     if (Number.isFinite(next)) changeSize(next);
-  }),
+  })
 );
 
 document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) =>
   b.addEventListener("click", () => {
     switch (b.dataset.action) {
-      case "undo": history.undo(); render(); break;
-      case "clear": clearAllFrames(); break;
-      case "flip-h": handleTransform(flipHorizontal, "flip-h"); break;
-      case "flip-v": handleTransform(flipVertical, "flip-v"); break;
-      case "rotate": handleTransform(rotateLeft, "rotate"); break;
-      case "copy-frame": copyFrame(); break;
-      case "paste-frame": pasteAsNewFrame(); break;
-      case "copy-png": stopPlay(); void copyFrameAsPng(); break;
-      case "play": togglePlay(); break;
-      case "toggle-onion": setOnion(!onion); break;
-      case "toggle-grid": setGrid(!mainCanvas.settings.showGrid); break;
-      case "toggle-pixel-perfect": setPixelPerfect(!pixelPerfect); break;
-      case "toggle-symmetry-h": setSymmetryH(!symmetryH); break;
-      case "edit-color": openPickerForSlot(selectedSlot); break;
-      case "open-export": stopPlay(); void exportCtrl.open(); break;
-      case "share": stopPlay(); copyShareLink(); break;
-      case "publish": stopPlay(); void handlePublish(); break;
-      case "make-merch": stopPlay(); openMerch(); break;
-      case "add-layer": addLayer(); break;
+      case "undo":
+        history.undo();
+        render();
+        break;
+      case "clear":
+        clearAllFrames();
+        break;
+      case "flip-h":
+        handleTransform(flipHorizontal, "flip-h");
+        break;
+      case "flip-v":
+        handleTransform(flipVertical, "flip-v");
+        break;
+      case "rotate":
+        handleTransform(rotateLeft, "rotate");
+        break;
+      case "copy-frame":
+        copyFrame();
+        break;
+      case "paste-frame":
+        pasteAsNewFrame();
+        break;
+      case "copy-png":
+        stopPlay();
+        void copyFrameAsPng();
+        break;
+      case "play":
+        togglePlay();
+        break;
+      case "toggle-onion":
+        setOnion(!onion);
+        break;
+      case "toggle-grid":
+        setGrid(!mainCanvas.settings.showGrid);
+        break;
+      case "toggle-pixel-perfect":
+        setPixelPerfect(!pixelPerfect);
+        break;
+      case "toggle-symmetry-h":
+        setSymmetryH(!symmetryH);
+        break;
+      case "edit-color":
+        openPickerForSlot(selectedSlot);
+        break;
+      case "open-export":
+        stopPlay();
+        void exportCtrl.open();
+        break;
+      case "share":
+        stopPlay();
+        copyShareLink();
+        break;
+      case "publish":
+        stopPlay();
+        void handlePublish();
+        break;
+      case "make-merch":
+        stopPlay();
+        openMerch();
+        break;
+      case "add-layer":
+        addLayer();
+        break;
     }
-  }),
+  })
 );
 
 paletteSelectEl?.addEventListener("change", () => {
@@ -1858,10 +1888,18 @@ window.addEventListener("keydown", (ev) => {
   if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
   // Aseprite-style tool hotkeys: B brush, E eraser, G paint bucket, V move.
   switch (ev.key.toLowerCase()) {
-    case "b": setActiveTool("pixel"); break;
-    case "e": setActiveTool("erase"); break;
-    case "g": setActiveTool("fill"); break;
-    case "v": setActiveTool("move"); break;
+    case "b":
+      setActiveTool("pixel");
+      break;
+    case "e":
+      setActiveTool("erase");
+      break;
+    case "g":
+      setActiveTool("fill");
+      break;
+    case "v":
+      setActiveTool("move");
+      break;
   }
 });
 

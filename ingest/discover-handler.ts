@@ -39,9 +39,7 @@ export interface LoadDiscoverConfig {
   now?: () => Date;
 }
 
-export async function loadDiscover(
-  cfg: LoadDiscoverConfig,
-): Promise<DiscoverData> {
+export async function loadDiscover(cfg: LoadDiscoverConfig): Promise<DiscoverData> {
   const page = await cfg.drawingStore.queryGallery({ limit: SCAN_LIMIT });
   const nowMs = (cfg.now ? cfg.now() : new Date()).getTime();
   const cutoff = nowMs - WINDOW_MS;
@@ -67,9 +65,7 @@ export async function loadDiscover(
     if (isAnonymousUsername(r.username)) continue;
     counts.set(r.username, (counts.get(r.username) ?? 0) + 1);
   }
-  const topPairs = [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, TOP_K);
+  const topPairs = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, TOP_K);
 
   const pictures = new Map<string, string | null>();
   if (cfg.userStore && topPairs.length > 0) {
@@ -77,7 +73,7 @@ export async function loadDiscover(
       topPairs.map(async ([un]) => {
         const acct = await cfg.userStore!.getByUsername(un);
         pictures.set(un, acct?.profile_picture_drawing_id ?? null);
-      }),
+      })
     );
   }
 

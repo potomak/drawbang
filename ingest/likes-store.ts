@@ -76,8 +76,7 @@ export class DynamoLikesStore implements LikesStore {
   constructor(opts: DynamoLikesStoreOptions) {
     this.likesTable = opts.likesTable;
     this.drawingsTable = opts.drawingsTable;
-    this.doc =
-      opts.client ?? DynamoDBDocumentClient.from(new DynamoDBClient({}));
+    this.doc = opts.client ?? DynamoDBDocumentClient.from(new DynamoDBClient({}));
   }
 
   async like(args: LikeArgs): Promise<void> {
@@ -106,7 +105,7 @@ export class DynamoLikesStore implements LikesStore {
               },
             },
           ],
-        }),
+        })
       );
     } catch (e) {
       throw mapTransactError(e, "like");
@@ -138,17 +137,14 @@ export class DynamoLikesStore implements LikesStore {
               },
             },
           ],
-        }),
+        })
       );
     } catch (e) {
       throw mapTransactError(e, "unlike");
     }
   }
 
-  async listLikedDrawingIds(
-    user_id: string,
-    drawing_ids: string[],
-  ): Promise<string[]> {
+  async listLikedDrawingIds(user_id: string, drawing_ids: string[]): Promise<string[]> {
     if (drawing_ids.length === 0) return [];
     const r = await this.doc.send(
       new BatchGetCommand({
@@ -158,7 +154,7 @@ export class DynamoLikesStore implements LikesStore {
             ProjectionExpression: "drawing_id",
           },
         },
-      }),
+      })
     );
     const items = r.Responses?.[this.likesTable] ?? [];
     return items.map((it) => String(it.drawing_id));
@@ -174,7 +170,7 @@ export class DynamoLikesStore implements LikesStore {
             ProjectionExpression: "drawing_id, like_count",
           },
         },
-      }),
+      })
     );
     const items = r.Responses?.[this.drawingsTable] ?? [];
     const out: Record<string, number> = {};
@@ -199,8 +195,7 @@ function mapTransactError(e: unknown, op: "like" | "unlike"): unknown {
   if (typeof e !== "object" || e === null) return e;
   const name = (e as { name?: unknown }).name;
   if (name !== "TransactionCanceledException") return e;
-  const reasons = (e as { CancellationReasons?: CancellationReason[] })
-    .CancellationReasons;
+  const reasons = (e as { CancellationReasons?: CancellationReason[] }).CancellationReasons;
   if (!Array.isArray(reasons)) return e;
   // Item 0 = likes-table guard, item 1 = drawings-table existence.
   if (reasons[0]?.Code === "ConditionalCheckFailed") {
@@ -248,10 +243,7 @@ export class MemoryLikesStore implements LikesStore {
     });
   }
 
-  async listLikedDrawingIds(
-    user_id: string,
-    drawing_ids: string[],
-  ): Promise<string[]> {
+  async listLikedDrawingIds(user_id: string, drawing_ids: string[]): Promise<string[]> {
     const out: string[] = [];
     for (const id of drawing_ids) {
       if (this.byDrawing.get(id)?.has(user_id)) out.push(id);

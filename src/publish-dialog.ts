@@ -94,7 +94,7 @@ export interface PublishDialogConfig {
     email: string,
     username: string,
     password: string,
-    altcha: string,
+    altcha: string
   ) => Promise<AuthOutcome>;
   // Proof-of-work gate on account creation. Injected for the same reason
   // as loginFn/registerFn — src/altcha.ts imports src/auth.ts, which reads

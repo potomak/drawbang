@@ -48,12 +48,15 @@ test("expandPlacement: pattern-2x2 returns 4 entries on a half-cell grid, scale 
     assert.equal(e.scale, 0.5);
     assert.equal(e.angle, 0);
   }
-  assert.deepEqual(out.map((e) => [e.x, e.y]), [
-    [0.25, 0.25],
-    [0.75, 0.25],
-    [0.25, 0.75],
-    [0.75, 0.75],
-  ]);
+  assert.deepEqual(
+    out.map((e) => [e.x, e.y]),
+    [
+      [0.25, 0.25],
+      [0.75, 0.25],
+      [0.25, 0.75],
+      [0.75, 0.75],
+    ]
+  );
 });
 
 test("expandPlacement: pattern-8x8 returns 64 entries — every cell-centre in row-major order, scale 1/8", () => {

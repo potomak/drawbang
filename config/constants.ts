@@ -101,8 +101,7 @@ export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // =====================================================================
 
 export const CC_GALLERY = "public, s-maxage=300, stale-while-revalidate=60";
-export const CC_DRAWING_PAGE =
-  "public, max-age=60, s-maxage=300, stale-while-revalidate=60";
+export const CC_DRAWING_PAGE = "public, max-age=60, s-maxage=300, stale-while-revalidate=60";
 export const CC_PROFILE = "public, s-maxage=86400, stale-while-revalidate=60";
 export const CC_FEED = "public, s-maxage=3600";
 export const CC_NOT_FOUND = "public, max-age=60";

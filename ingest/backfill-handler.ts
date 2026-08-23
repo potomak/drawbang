@@ -85,8 +85,7 @@ export interface BackfillReport {
 }
 
 export type BackfillResult =
-  | { status: 200; body: BackfillReport }
-  | { status: 400 | 403 | 404; body: { error: string } };
+  { status: 200; body: BackfillReport } | { status: 400 | 403 | 404; body: { error: string } };
 
 export const DEFAULT_LIMIT = 25;
 export const MAX_LIMIT = 100;
@@ -126,7 +125,7 @@ const PAGE = 100;
 export async function handleBackfillSidecars(
   opts: BackfillOptions,
   auth: AuthedUser,
-  cfg: BackfillHandlerConfig,
+  cfg: BackfillHandlerConfig
 ): Promise<BackfillResult> {
   // Single-drawing repair: no ownership check, for the reasons in the
   // header comment. Bounded to one job by construction.
@@ -233,7 +232,7 @@ export async function handleBackfillSidecars(
 
 async function needsFor(
   storage: Storage,
-  row: DrawingRow,
+  row: DrawingRow
 ): Promise<{ drawing_id: string; username: string | null; needs: string[] }> {
   const [hasGif, hasMp4] = await Promise.all([
     storage.exists(`public/tiles/${row.drawing_id}-large.gif`),

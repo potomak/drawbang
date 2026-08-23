@@ -36,7 +36,11 @@
   var seenUsers = Object.create(null);
 
   function token() {
-    try { return localStorage.getItem(JWT_KEY) || null; } catch (e) { return null; }
+    try {
+      return localStorage.getItem(JWT_KEY) || null;
+    } catch (e) {
+      return null;
+    }
   }
 
   function authHeaders(t) {
@@ -58,7 +62,7 @@
       users.push(un);
     }
     var nodes = root.querySelectorAll(
-      "[data-like-target],[data-bookmark-target],[data-follow-target],[data-profile-username],[data-profile-picture-username]",
+      "[data-like-target],[data-bookmark-target],[data-follow-target],[data-profile-username],[data-profile-picture-username]"
     );
     for (var i = 0; i < nodes.length; i++) {
       var el = nodes[i];
@@ -78,8 +82,12 @@
     if (users.length) params.push("users=" + encodeURIComponent(users.join(",")));
     if (!params.length) return Promise.resolve(null);
     return fetch("/hydrate?" + params.join("&"), { headers: authHeaders(t) })
-      .then(function (res) { return res.ok ? res.json() : null; })
-      .catch(function () { return null; });
+      .then(function (res) {
+        return res.ok ? res.json() : null;
+      })
+      .catch(function () {
+        return null;
+      });
   }
 
   // -- Apply ------------------------------------------------------------------
@@ -120,13 +128,17 @@
       var u = map[un];
       // Follower / following counts on profile pages.
       if (typeof u.follower_count === "number") {
-        var fEls = document.querySelectorAll('[data-profile-username="' + cssEscape(un) + '"] [data-follower-count]');
+        var fEls = document.querySelectorAll(
+          '[data-profile-username="' + cssEscape(un) + '"] [data-follower-count]'
+        );
         for (var i = 0; i < fEls.length; i++) {
           fEls[i].textContent = String(Math.max(0, u.follower_count));
         }
       }
       if (typeof u.following_count === "number") {
-        var gEls = document.querySelectorAll('[data-profile-username="' + cssEscape(un) + '"] [data-following-count]');
+        var gEls = document.querySelectorAll(
+          '[data-profile-username="' + cssEscape(un) + '"] [data-following-count]'
+        );
         for (var j = 0; j < gEls.length; j++) {
           gEls[j].textContent = String(Math.max(0, u.following_count));
         }
@@ -158,7 +170,7 @@
 
   function applyProfilePicture(username, drawing_id) {
     var els = document.querySelectorAll(
-      '[data-profile-picture-username="' + cssEscape(username) + '"]',
+      '[data-profile-picture-username="' + cssEscape(username) + '"]'
     );
     for (var i = 0; i < els.length; i++) {
       var el = els[i];
@@ -208,7 +220,11 @@
   }
 
   function viewerUsername() {
-    try { return localStorage.getItem("drawbang:username") || null; } catch (e) { return null; }
+    try {
+      return localStorage.getItem("drawbang:username") || null;
+    } catch (e) {
+      return null;
+    }
   }
 
   // Minimal CSS attribute-selector escape: drawing ids are 64-hex and
@@ -226,7 +242,11 @@
     var t = token();
     // Chunk over BATCH_MAX so a heavily-scrolled feed doesn't 400. We
     // fire one fetch per chunk in parallel and apply each as it lands.
-    for (var off = 0; off < Math.max(targets.drawings.length, targets.users.length); off += BATCH_MAX) {
+    for (
+      var off = 0;
+      off < Math.max(targets.drawings.length, targets.users.length);
+      off += BATCH_MAX
+    ) {
       var dchunk = targets.drawings.slice(off, off + BATCH_MAX);
       var uchunk = targets.users.slice(off, off + BATCH_MAX);
       fetchHydrate(dchunk, uchunk, t).then(apply);

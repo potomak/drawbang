@@ -2,10 +2,7 @@ import { DRAWING_ID_RE, isAnonymousUsername } from "../config/constants.js";
 import type { AuthedUser } from "./handler.js";
 import type { DrawingStore } from "./drawing-store.js";
 import type { Storage } from "./storage.js";
-import {
-  pathsToInvalidateOnDelete,
-  type CacheInvalidator,
-} from "./cache-invalidation.js";
+import { pathsToInvalidateOnDelete, type CacheInvalidator } from "./cache-invalidation.js";
 
 // DELETE /drawings/{id} — the only path in the app that removes a drawing.
 //
@@ -50,7 +47,7 @@ export type DeleteResult =
 export async function handleDeleteDrawing(
   drawing_id: string,
   auth: AuthedUser,
-  cfg: DeleteHandlerConfig,
+  cfg: DeleteHandlerConfig
 ): Promise<DeleteResult> {
   if (!DRAWING_ID_RE.test(drawing_id)) {
     return { status: 400, body: { error: "invalid drawing_id" } };
@@ -92,15 +89,12 @@ export async function handleDeleteDrawing(
         // The leftover object is unreferenced.
         console.error(`[delete] failed to remove ${key}:`, e);
       }
-    }),
+    })
   );
 
   if (cfg.cacheInvalidator) {
     await cfg.cacheInvalidator.invalidate(
-      pathsToInvalidateOnDelete(
-        isAnonymousUsername(row.username) ? null : row.username,
-        drawing_id,
-      ),
+      pathsToInvalidateOnDelete(isAnonymousUsername(row.username) ? null : row.username, drawing_id)
     );
   }
 

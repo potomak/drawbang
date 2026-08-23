@@ -35,7 +35,7 @@ export function err(status: number, message: string): Result {
 // typeof checks on purpose: no schema-library dependency (house rule).
 export function shapeError(
   input: unknown,
-  spec: Record<string, "required" | "optional">,
+  spec: Record<string, "required" | "optional">
 ): string | null {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
     return "body";
@@ -65,7 +65,7 @@ export type HandlerErrorMapping = readonly [
 
 export async function toggleAction(
   action: () => Promise<unknown>,
-  errors: ReadonlyArray<HandlerErrorMapping>,
+  errors: ReadonlyArray<HandlerErrorMapping>
 ): Promise<Result> {
   try {
     await action();

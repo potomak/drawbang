@@ -31,9 +31,7 @@ export function shareToSvg(input: string, opts: ShareToSvgOptions = {}): string 
 
   const head: string[] = [];
   if (opts.background != null) {
-    head.push(
-      `<rect width="${frame.width}" height="${frame.height}" fill="${opts.background}"/>`,
-    );
+    head.push(`<rect width="${frame.width}" height="${frame.height}" fill="${opts.background}"/>`);
   }
   const rects: string[] = [];
   for (let y = 0; y < frame.height; y++) {

@@ -97,9 +97,9 @@ export function renderFooter(opts: FooterOptions): string {
   const right = opts.rightRail === true || typeof opts.rightRailContent === "string";
   const railContent = opts.rightRailContent ?? "";
   const shellClose = rails
-    ? (right
-        ? `  <aside class="rail-right" data-rail-right>${railContent}</aside>\n</div>\n`
-        : `</div>\n`)
+    ? right
+      ? `  <aside class="rail-right" data-rail-right>${railContent}</aside>\n</div>\n`
+      : `</div>\n`
     : "";
   return `${shellClose}<script src="${assetUrl("/flash.js")}"></script>
 <script src="${assetUrl("/chrome-toggle.js")}"></script>
@@ -114,16 +114,16 @@ export function renderFooter(opts: FooterOptions): string {
 // once a session is present.
 export function renderLeftRail(opts: ChromeOptions): string {
   const active = opts.active;
-  const isActive = (id: NavLink["id"]) =>
-    id === active ? ' aria-current="page"' : "";
+  const isActive = (id: NavLink["id"]) => (id === active ? ' aria-current="page"' : "");
 
   const primary = NAV_LINKS.map(
-    (l) => `<a class="rail-link" href="${esc(l.href)}" data-nav="${esc(l.id)}"${isActive(l.id)}>${esc(l.label)}</a>`,
+    (l) =>
+      `<a class="rail-link" href="${esc(l.href)}" data-nav="${esc(l.id)}"${isActive(l.id)}>${esc(l.label)}</a>`
   ).join("\n      ");
 
   const social = SOCIAL_LINKS.map(
     (s) =>
-      `<a class="rail-social-link" href="${esc(s.href)}" target="_blank" rel="noopener" aria-label="${esc(s.label)}">${esc(s.label)}</a>`,
+      `<a class="rail-social-link" href="${esc(s.href)}" target="_blank" rel="noopener" aria-label="${esc(s.label)}">${esc(s.label)}</a>`
   ).join("\n        ");
 
   return `<a class="rail-cta" href="/draw" data-nav="draw">
@@ -166,9 +166,6 @@ const SOCIAL_LINKS: ReadonlyArray<{ label: string; href: string }> = [
   { label: "Threads", href: "https://www.threads.net/@drawbang256" },
 ];
 
-const FEEDBACK_URL =
-  "https://github.com/potomak/drawbang/issues/new?labels=feedback";
+const FEEDBACK_URL = "https://github.com/potomak/drawbang/issues/new?labels=feedback";
 
 const MENU_ICON_SVG = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 6h18M3 12h18M3 18h18"/></svg>`;
-
-

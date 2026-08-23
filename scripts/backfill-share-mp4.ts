@@ -33,9 +33,7 @@ const bucket = required("DRAWBANG_S3_BUCKET");
 const dryRun = process.env.DRY_RUN === "1" || process.argv.includes("--dry-run");
 const force = process.argv.includes("--force");
 const concurrencyArg = process.argv.find((a) => a.startsWith("--concurrency="));
-const CONCURRENCY = concurrencyArg
-  ? Math.max(1, parseInt(concurrencyArg.split("=")[1], 10))
-  : 4;
+const CONCURRENCY = concurrencyArg ? Math.max(1, parseInt(concurrencyArg.split("=")[1], 10)) : 4;
 
 const storage = new S3Storage({ bucket });
 
@@ -50,7 +48,7 @@ interface Result {
 
 async function run(): Promise<Result> {
   console.log(
-    `[backfill-mp4] bucket=${bucket} dryRun=${dryRun} force=${force} concurrency=${CONCURRENCY}`,
+    `[backfill-mp4] bucket=${bucket} dryRun=${dryRun} force=${force} concurrency=${CONCURRENCY}`
   );
   const keys = await storage.listPrefix("public/tiles");
   console.log(`[backfill-mp4] listed ${keys.length} keys under public/tiles/`);
@@ -68,7 +66,7 @@ async function run(): Promise<Result> {
     candidates.push(k);
   }
   console.log(
-    `[backfill-mp4] ${candidates.length} candidate -large.gifs; ${skippedNonId} keys skipped (non-id path)`,
+    `[backfill-mp4] ${candidates.length} candidate -large.gifs; ${skippedNonId} keys skipped (non-id path)`
   );
 
   const result: Result = {
@@ -105,12 +103,7 @@ async function run(): Promise<Result> {
               result.encoded++;
               continue;
             }
-            await storage.put(
-              mp4Key,
-              mp4,
-              "video/mp4",
-              "public, max-age=31536000, immutable",
-            );
+            await storage.put(mp4Key, mp4, "video/mp4", "public, max-age=31536000, immutable");
             result.encoded++;
           } catch (err) {
             console.error(`[backfill-mp4] ${id}: ${(err as Error).message ?? err}`);
@@ -119,11 +112,11 @@ async function run(): Promise<Result> {
           const processed = result.encoded + result.alreadyHad + result.failed;
           if (processed % 50 === 0) {
             console.log(
-              `[backfill-mp4] progress ${processed}/${total} (encoded=${result.encoded} already=${result.alreadyHad} failed=${result.failed})`,
+              `[backfill-mp4] progress ${processed}/${total} (encoded=${result.encoded} already=${result.alreadyHad} failed=${result.failed})`
             );
           }
         }
-      })(),
+      })()
     );
   }
   await Promise.all(workers);
@@ -135,7 +128,7 @@ run()
   .then((r) => {
     const dt = ((Date.now() - t0) / 1000).toFixed(1);
     console.log(
-      `[backfill-mp4] done in ${dt}s — encoded=${r.encoded} alreadyHad=${r.alreadyHad} skippedNonId=${r.skippedNonId} failed=${r.failed}${dryRun ? " (DRY RUN — nothing written)" : ""}`,
+      `[backfill-mp4] done in ${dt}s — encoded=${r.encoded} alreadyHad=${r.alreadyHad} skippedNonId=${r.skippedNonId} failed=${r.failed}${dryRun ? " (DRY RUN — nothing written)" : ""}`
     );
   })
   .catch((err) => {

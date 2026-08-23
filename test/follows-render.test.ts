@@ -28,9 +28,15 @@ async function makeConfig(): Promise<{
   followsStore: MemoryFollowsStore;
 }> {
   const userStore = new MemoryUserStore();
-  await userStore.register(rec({ email: "alice@example.com", user_id: "a".repeat(64), username: "alice" }));
-  await userStore.register(rec({ email: "bob@example.com",   user_id: "b".repeat(64), username: "bob" }));
-  await userStore.register(rec({ email: "carol@example.com", user_id: "c".repeat(64), username: "carol" }));
+  await userStore.register(
+    rec({ email: "alice@example.com", user_id: "a".repeat(64), username: "alice" })
+  );
+  await userStore.register(
+    rec({ email: "bob@example.com", user_id: "b".repeat(64), username: "bob" })
+  );
+  await userStore.register(
+    rec({ email: "carol@example.com", user_id: "c".repeat(64), username: "carol" })
+  );
   const followsStore = new MemoryFollowsStore(userStore);
   const drawingStore = new MemoryDrawingStore();
   return {
@@ -103,18 +109,9 @@ describe("profile renders social block", () => {
     const res = await renderProfilePageHandler(cfg, "alice");
     // Both owner-only links now share one wrapper so they wrap as a
     // unit on narrow viewports and ship/reveal together.
-    assert.match(
-      res.body,
-      /<div class="ow-owner-actions" data-owner-only-for="alice" hidden>/,
-    );
-    assert.match(
-      res.body,
-      /<a class="ow-owner-link" href="\/u\/alice\/bookmarks">Bookmarks<\/a>/,
-    );
-    assert.match(
-      res.body,
-      /<a class="ow-owner-link" href="\/account">Edit profile<\/a>/,
-    );
+    assert.match(res.body, /<div class="ow-owner-actions" data-owner-only-for="alice" hidden>/);
+    assert.match(res.body, /<a class="ow-owner-link" href="\/u\/alice\/bookmarks">Bookmarks<\/a>/);
+    assert.match(res.body, /<a class="ow-owner-link" href="\/account">Edit profile<\/a>/);
   });
 });
 
@@ -172,13 +169,13 @@ describe("renderFollowersPageHandler", () => {
     // Bob has a profile picture → real <img>, not the placeholder span.
     assert.match(
       res.body,
-      new RegExp(`<img class="profile-picture" src="/tiles/${bobProfilePicture}\\.gif"`),
+      new RegExp(`<img class="profile-picture" src="/tiles/${bobProfilePicture}\\.gif"`)
     );
     // Carol has no profile picture → placeholder with her initial, tagged
     // for /hydrate.js so it can swap in a real <img> if she sets one later.
     assert.match(
       res.body,
-      /<span class="profile-picture profile-picture-placeholder" aria-hidden="true" data-profile-picture-username="carol" data-profile-picture-size="48">C<\/span>/,
+      /<span class="profile-picture profile-picture-placeholder" aria-hidden="true" data-profile-picture-username="carol" data-profile-picture-size="48">C<\/span>/
     );
   });
 
@@ -199,7 +196,8 @@ describe("renderFollowersPageHandler", () => {
     const userStore = new MemoryUserStore();
     await userStore.register(rec());
     const cfg: RenderHandlersConfig = {
-      drawingStore, userStore,
+      drawingStore,
+      userStore,
       publicBaseUrl: "https://draw.example",
       repoUrl: "https://github.com/test/test",
     };

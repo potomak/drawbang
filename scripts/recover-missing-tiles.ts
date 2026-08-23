@@ -88,7 +88,9 @@ async function main(): Promise<void> {
       gif_size_bytes: gif.length,
     };
     await store.put(row);
-    console.log(`wrote ${id.slice(0, 8)} (${decoded.size}x${decoded.size}, ${decoded.frames.length}f, ${iso})`);
+    console.log(
+      `wrote ${id.slice(0, 8)} (${decoded.size}x${decoded.size}, ${decoded.frames.length}f, ${iso})`
+    );
     wrote++;
   }
   console.log(`done. wrote ${wrote}`);

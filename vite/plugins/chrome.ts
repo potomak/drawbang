@@ -1,9 +1,5 @@
 import type { Plugin } from "vite";
-import {
-  renderFooter,
-  renderHeader,
-  type NavLink,
-} from "../../src/layout/chrome.js";
+import { renderFooter, renderHeader, type NavLink } from "../../src/layout/chrome.js";
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
 
 // Vite plugin that injects the shared header/footer (#167) into every
@@ -41,9 +37,7 @@ export function chromePlugin(opts: ChromePluginOptions = {}): Plugin {
 
 export function injectChrome(html: string, repoUrl: string): string {
   const activeMatch = html.match(ACTIVE_META);
-  const active = activeMatch?.[1]
-    ? (activeMatch[1] as NavLink["id"])
-    : undefined;
+  const active = activeMatch?.[1] ? (activeMatch[1] as NavLink["id"]) : undefined;
   const railsMatch = html.match(RAILS_META);
   const rails = railsMatch?.[1] === "off" ? false : true;
   let out = activeMatch ? html.replace(ACTIVE_META, "") : html;

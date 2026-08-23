@@ -3,8 +3,7 @@
 // parsing is pure so the fetch stays at the call site.
 
 export type ImportRequest =
-  | { kind: "slug"; slug: string }
-  | { kind: "colors"; colors: readonly string[] };
+  { kind: "slug"; slug: string } | { kind: "colors"; colors: readonly string[] };
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const LOSPEC_URL_RE = /lospec\.com\/palette-list\/([a-z0-9][a-z0-9-]*)/i;
@@ -46,7 +45,7 @@ export function lospecPaletteUrl(slug: string): string {
 // — hex entries come WITHOUT the leading "#".
 export function parseLospecJson(
   data: unknown,
-  fallbackName: string,
+  fallbackName: string
 ): { name: string; colors: readonly string[] } {
   if (typeof data !== "object" || data === null) {
     throw new Error("unexpected Lospec response");

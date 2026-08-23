@@ -29,24 +29,32 @@
     var next = sentinel.dataset.next;
     var target = sentinel.dataset.infiniteTarget;
     if (!next || !target) return;
-    var io = new IntersectionObserver(async function (entries) {
-      if (!entries.some(function (e) { return e.isIntersecting; })) return;
-      io.disconnect();
-      try {
-        var res = await fetch(next);
-        if (!res.ok) return;
-        var html = await res.text();
-        var list = document.querySelector(target);
-        if (list) {
-          sentinel.remove();
-          list.insertAdjacentHTML("beforeend", html);
+    var io = new IntersectionObserver(
+      async function (entries) {
+        if (
+          !entries.some(function (e) {
+            return e.isIntersecting;
+          })
+        )
+          return;
+        io.disconnect();
+        try {
+          var res = await fetch(next);
+          if (!res.ok) return;
+          var html = await res.text();
+          var list = document.querySelector(target);
+          if (list) {
+            sentinel.remove();
+            list.insertAdjacentHTML("beforeend", html);
+          }
+          var nextSentinel = document.querySelector("[data-infinite-sentinel]:not([data-wired])");
+          if (nextSentinel) wire(nextSentinel);
+        } catch (e) {
+          // Network/decoding error — sentinel is gone; user can refresh.
         }
-        var nextSentinel = document.querySelector("[data-infinite-sentinel]:not([data-wired])");
-        if (nextSentinel) wire(nextSentinel);
-      } catch (e) {
-        // Network/decoding error — sentinel is gone; user can refresh.
-      }
-    }, { rootMargin: "200px" });
+      },
+      { rootMargin: "200px" }
+    );
     io.observe(sentinel);
   }
 

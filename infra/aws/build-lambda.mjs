@@ -59,7 +59,7 @@ try {
   throw new Error(
     "lambda:build: @ffmpeg-installer/linux-arm64 isn't installed. " +
       "Run `npm install --no-save --force @ffmpeg-installer/linux-arm64` " +
-      "to fetch the arm64 binary regardless of host platform.",
+      "to fetch the arm64 binary regardless of host platform."
   );
 }
 const ffmpegDst = path.join(outDir, "ffmpeg");

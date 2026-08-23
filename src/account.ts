@@ -61,9 +61,11 @@ if (!session) {
           error: `Type "${session!.username}" to confirm.`,
         };
       }
-      if (!window.confirm(
-        `Permanently delete ${session!.username} and every drawing you've published? This cannot be undone.`,
-      )) {
+      if (
+        !window.confirm(
+          `Permanently delete ${session!.username} and every drawing you've published? This cannot be undone.`
+        )
+      ) {
         return { ok: false as const, status: 0, error: "Deletion cancelled." };
       }
       return deleteAccount(deletePasswordEl!.value);

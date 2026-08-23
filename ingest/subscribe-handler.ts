@@ -1,10 +1,5 @@
 import { EMAIL_RE } from "../config/constants.js";
-import {
-  type BaseHandlerConfig,
-  type Result,
-  err,
-  ok,
-} from "./handler-utils.js";
+import { type BaseHandlerConfig, type Result, err, ok } from "./handler-utils.js";
 import type { SubscribersStore } from "./subscribers-store.js";
 
 // POST /subscribe — public email capture from the home-page hero. No
@@ -18,7 +13,7 @@ export interface SubscribeHandlerConfig extends BaseHandlerConfig {
 
 export async function handleSubscribe(
   rawBody: string,
-  cfg: SubscribeHandlerConfig,
+  cfg: SubscribeHandlerConfig
 ): Promise<Result> {
   let parsed: unknown;
   try {
@@ -31,8 +26,7 @@ export async function handleSubscribe(
   if (typeof body.website === "string" && body.website.trim() !== "") {
     return ok();
   }
-  const email =
-    typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   if (email.length === 0 || email.length > 254 || !EMAIL_RE.test(email)) {
     return err(400, "invalid email");
   }

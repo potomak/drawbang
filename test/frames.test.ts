@@ -160,7 +160,7 @@ test("undo stack: stroke on non-current frame restores that frame, not the viewe
 
   state.current = 1;
   push(history, paint(state, 7)); // paints frame 1
-  state.current = 0;              // user switches view
+  state.current = 0; // user switches view
   push(history, paint(state, 2)); // paints frame 0
 
   history.undo(); // reverts frame 0

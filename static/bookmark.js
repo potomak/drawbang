@@ -16,7 +16,9 @@
     initFlag: "__drawbangBookmarkInit",
     targetAttr: "data-bookmark-target",
     wiredAttr: "data-bookmark-wired",
-    endpoint: function (id) { return "/drawings/" + encodeURIComponent(id) + "/bookmark"; },
+    endpoint: function (id) {
+      return "/drawings/" + encodeURIComponent(id) + "/bookmark";
+    },
     errorMessages: {
       press: "Could not bookmark",
       unpress: "Could not remove bookmark",

@@ -41,7 +41,10 @@ test("createCheckoutSession sends the expected request shape", async () => {
   assert.equal(captured.calls.length, 1);
   const p = captured.calls[0];
   assert.equal(p.mode, "payment");
-  assert.equal(p.success_url, "https://drawbang.example/merch/success?session_id={CHECKOUT_SESSION_ID}");
+  assert.equal(
+    p.success_url,
+    "https://drawbang.example/merch/success?session_id={CHECKOUT_SESSION_ID}"
+  );
   assert.equal(p.cancel_url, "https://drawbang.example/merch/cancel");
   assert.equal(p.customer_email, "buyer@example.com");
   assert.deepEqual(p.metadata, { order_id: "ord_42" });
@@ -100,7 +103,7 @@ test("createCheckoutSession throws when Stripe returns a session without a url",
         cancelUrl: "https://drawbang.example/c",
         shippingCountries: ["US"],
       }),
-    /without a url/,
+    /without a url/
   );
 });
 
@@ -108,7 +111,11 @@ test("parseWebhook returns the event for a valid signature", () => {
   const webhookSecret = "whsec_test_secret";
   const helper = new StripeHelper({ secretKey: "sk_test_dummy", webhookSecret });
   const stripe = new Stripe("sk_test_dummy");
-  const payload = JSON.stringify({ id: "evt_1", type: "checkout.session.completed", data: { object: { id: "cs_x" } } });
+  const payload = JSON.stringify({
+    id: "evt_1",
+    type: "checkout.session.completed",
+    data: { object: { id: "cs_x" } },
+  });
   const header = stripe.webhooks.generateTestHeaderString({ payload, secret: webhookSecret });
 
   const event = helper.parseWebhook(payload, header);

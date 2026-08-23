@@ -27,20 +27,34 @@ async function makeConfig(): Promise<{
   carol: UserRecord;
 }> {
   const userStore = new MemoryUserStore();
-  const alice = await userStore.register(rec({
-    email: "alice@example.com", user_id: "a".repeat(64), username: "alice",
-  }));
-  const bob = await userStore.register(rec({
-    email: "bob@example.com", user_id: "b".repeat(64), username: "bob",
-  }));
-  const carol = await userStore.register(rec({
-    email: "carol@example.com", user_id: "c".repeat(64), username: "carol",
-  }));
+  const alice = await userStore.register(
+    rec({
+      email: "alice@example.com",
+      user_id: "a".repeat(64),
+      username: "alice",
+    })
+  );
+  const bob = await userStore.register(
+    rec({
+      email: "bob@example.com",
+      user_id: "b".repeat(64),
+      username: "bob",
+    })
+  );
+  const carol = await userStore.register(
+    rec({
+      email: "carol@example.com",
+      user_id: "c".repeat(64),
+      username: "carol",
+    })
+  );
   const followsStore = new MemoryFollowsStore(userStore);
   return {
     cfg: { followsStore, userStore, now: () => new Date(1000) },
     userStore,
-    alice, bob, carol,
+    alice,
+    bob,
+    carol,
   };
 }
 

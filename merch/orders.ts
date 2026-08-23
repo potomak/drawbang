@@ -79,7 +79,7 @@ export class OrdersStore {
         TableName: this.tableName,
         Item: o,
         ConditionExpression: "attribute_not_exists(order_id)",
-      }),
+      })
     );
   }
 
@@ -88,7 +88,7 @@ export class OrdersStore {
       new GetCommand({
         TableName: this.tableName,
         Key: { order_id: id },
-      }),
+      })
     );
     return (out.Item as Order | undefined) ?? null;
   }
@@ -96,7 +96,7 @@ export class OrdersStore {
   async transition(
     id: string,
     expectedStatus: OrderStatus,
-    patch: Partial<Order>,
+    patch: Partial<Order>
   ): Promise<Order | null> {
     const setClauses: string[] = [];
     const names: Record<string, string> = { "#s": "status" };
@@ -134,7 +134,7 @@ export class OrdersStore {
           ExpressionAttributeNames: names,
           ExpressionAttributeValues: values,
           ReturnValues: "ALL_NEW",
-        }),
+        })
       );
       return (out.Attributes as Order | undefined) ?? null;
     } catch (err) {
@@ -152,7 +152,7 @@ export class OrdersStore {
         ExpressionAttributeNames: { "#s": "status" },
         ExpressionAttributeValues: { ":status": status },
         ...(limit !== undefined ? { Limit: limit } : {}),
-      }),
+      })
     );
     return (out.Items as Order[] | undefined) ?? [];
   }

@@ -30,7 +30,9 @@
   color: var(--fg-muted);
   text-decoration: none;
 }
-.feed-sort-link:hover { color: var(--ink); }
+.feed-sort-link:hover {
+  color: var(--ink);
+}
 .feed-sort-link[aria-current="page"] {
   color: var(--ink);
   font-weight: 600;
@@ -48,7 +50,9 @@
   padding: 0 0 96px;
   list-style: none;
 }
-.feed-list > li { display: block; }
+.feed-list > li {
+  display: block;
+}
 .feed-card {
   display: flex;
   align-items: flex-start;
@@ -58,7 +62,9 @@
   background: transparent;
   border-bottom: var(--border) solid var(--border-c);
 }
-.feed-list > li:last-child .feed-card { border-bottom: 0; }
+.feed-list > li:last-child .feed-card {
+  border-bottom: 0;
+}
 /* Left column: profile picture only. Username + date now live in the
    .feed-card-author header inside .feed-card-main. */
 .feed-card-pp {
@@ -105,9 +111,15 @@
   white-space: nowrap;
   max-width: 100%;
 }
-.feed-card-author-link:hover { color: var(--accent); }
-.feed-card-author-anon { color: var(--fg-muted); }
-.feed-card-sep { color: var(--fg-muted); }
+.feed-card-author-link:hover {
+  color: var(--accent);
+}
+.feed-card-author-anon {
+  color: var(--fg-muted);
+}
+.feed-card-sep {
+  color: var(--fg-muted);
+}
 .feed-card-time {
   color: var(--fg-muted);
   font-size: var(--t-xs);
@@ -149,15 +161,24 @@
     row-gap: 10px;
     align-items: start;
   }
-  .feed-card-pp     { grid-area: pp; }
-  .feed-card-main   { display: contents; }
-  .feed-card-author { grid-area: author; align-self: center; }
+  .feed-card-pp {
+    grid-area: pp;
+  }
+  .feed-card-main {
+    display: contents;
+  }
+  .feed-card-author {
+    grid-area: author;
+    align-self: center;
+  }
   .feed-card-art {
     grid-area: art;
     width: 100%;
     max-width: none;
   }
-  .feed-card-actions { grid-area: actions; }
+  .feed-card-actions {
+    grid-area: actions;
+  }
 }
 
 /* =====================================================================
@@ -179,11 +200,21 @@
   line-height: 1;
   text-decoration: none;
   border-radius: 4px;
-  transition: color 80ms, transform 80ms;
+  transition:
+    color 80ms,
+    transform 80ms;
 }
-.feed-action:hover { color: var(--accent); text-decoration: none; }
-.feed-action:active { transform: translate(1px, 1px); }
-.feed-action:disabled { cursor: progress; opacity: 0.6; }
+.feed-action:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+.feed-action:active {
+  transform: translate(1px, 1px);
+}
+.feed-action:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
 .feed-action svg {
   fill: none;
   stroke: currentColor;
@@ -196,16 +227,36 @@
 /* Like button: same base, but filled when pressed. Standalone .like-btn
    still works on the tile-page (which doesn't ship .feed-action's
    `font-size: var(--t-sm)` distinction). */
-.like-btn { color: var(--fg-muted); cursor: pointer; }
-.like-btn:hover { color: var(--accent); }
-.like-btn[aria-pressed="true"] { color: #e0245e; }
-.like-btn[aria-pressed="true"] .like-icon { fill: currentColor; }
-.like-count { font-variant-numeric: tabular-nums; }
+.like-btn {
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.like-btn:hover {
+  color: var(--accent);
+}
+.like-btn[aria-pressed="true"] {
+  color: #e0245e;
+}
+.like-btn[aria-pressed="true"] .like-icon {
+  fill: currentColor;
+}
+.like-count {
+  font-variant-numeric: tabular-nums;
+}
 /* Bookmark button: same base as Like; filled (accent) when pressed. */
-.bookmark-btn { color: var(--fg-muted); cursor: pointer; }
-.bookmark-btn:hover { color: var(--accent); }
-.bookmark-btn[aria-pressed="true"] { color: var(--accent); }
-.bookmark-btn[aria-pressed="true"] .bookmark-icon { fill: currentColor; }
+.bookmark-btn {
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.bookmark-btn:hover {
+  color: var(--accent);
+}
+.bookmark-btn[aria-pressed="true"] {
+  color: var(--accent);
+}
+.bookmark-btn[aria-pressed="true"] .bookmark-icon {
+  fill: currentColor;
+}
 
 /* =====================================================================
    FOLLOWS (#202) — profile social row + follower/following list cards.
@@ -224,9 +275,16 @@
   color: var(--fg);
   text-decoration: none;
 }
-.ow-count:hover { color: var(--accent); }
-.ow-count strong { font-variant-numeric: tabular-nums; }
-.ow-count span { color: var(--fg-muted); font-size: var(--t-sm); }
+.ow-count:hover {
+  color: var(--accent);
+}
+.ow-count strong {
+  font-variant-numeric: tabular-nums;
+}
+.ow-count span {
+  color: var(--fg-muted);
+  font-size: var(--t-sm);
+}
 .ow-owner-actions {
   display: flex;
   align-items: center;
@@ -239,14 +297,18 @@
    on other people's profiles. chrome-identity.js still wouldn't reveal
    it (the data-owner-only-for value won't match the viewer's
    username), but the row paints anyway because hidden is overridden. */
-.ow-owner-actions[hidden] { display: none; }
+.ow-owner-actions[hidden] {
+  display: none;
+}
 .ow-owner-link {
   color: var(--fg-muted);
   text-decoration: none;
   border-bottom: 1px dashed currentColor;
   font-size: var(--t-sm);
 }
-.ow-owner-link:hover { color: var(--accent); }
+.ow-owner-link:hover {
+  color: var(--accent);
+}
 .ow-about {
   display: flex;
   flex-direction: column;
@@ -277,7 +339,9 @@
   white-space: nowrap;
   vertical-align: bottom;
 }
-.ow-link a:hover { text-decoration: underline; }
+.ow-link a:hover {
+  text-decoration: underline;
+}
 /* Follow button. Filled accent when unfollowed (the action), outlined
    when followed (the state). Sits in the .ow-social row + on each
    .follow-card; styled in light-theme tokens so it reads against the
@@ -285,7 +349,9 @@
    self-targeted buttons hidden, but without this rule the
    `display: inline-flex` below overrides the UA `[hidden]{display:none}`
    and the viewer sees a Follow button on their own card. */
-.follow-btn[hidden] { display: none; }
+.follow-btn[hidden] {
+  display: none;
+}
 .follow-btn {
   display: inline-flex;
   align-items: center;
@@ -298,11 +364,20 @@
   font: 600 var(--t-sm)/1 var(--font-sans);
   letter-spacing: 0.02em;
   cursor: pointer;
-  transition: filter 80ms, transform 80ms;
+  transition:
+    filter 80ms,
+    transform 80ms;
 }
-.follow-btn:hover { filter: brightness(0.95); }
-.follow-btn:active { transform: translate(1px, 1px); }
-.follow-btn:disabled { cursor: progress; opacity: 0.6; }
+.follow-btn:hover {
+  filter: brightness(0.95);
+}
+.follow-btn:active {
+  transform: translate(1px, 1px);
+}
+.follow-btn:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
 .follow-btn[aria-pressed="true"] {
   background: transparent;
   color: var(--ink);
@@ -328,7 +403,10 @@
   gap: 12px;
   padding: 8px 4px;
 }
-.follow-card-pp { display: inline-flex; line-height: 0; }
+.follow-card-pp {
+  display: inline-flex;
+  line-height: 0;
+}
 .follow-card-pp .profile-picture {
   display: block;
   width: 48px;
@@ -351,7 +429,9 @@
   text-decoration: none;
   font-weight: 600;
 }
-.follow-card-name:hover { color: var(--accent); }
+.follow-card-name:hover {
+  color: var(--accent);
+}
 .follow-sentinel {
   display: block;
   height: 1px;
@@ -390,7 +470,9 @@
   color: var(--fg-muted);
   font-size: var(--t-sm);
 }
-.home-hero-steps li { margin: 2px 0; }
+.home-hero-steps li {
+  margin: 2px 0;
+}
 .home-hero-samples {
   display: flex;
   gap: 8px;
@@ -403,7 +485,9 @@
   border: 1px solid var(--line);
   background: var(--paper-2);
 }
-.home-hero-cta { margin-top: 16px; }
+.home-hero-cta {
+  margin-top: 16px;
+}
 .home-hero-subscribe {
   margin-top: 20px;
   padding-top: 14px;
@@ -452,7 +536,10 @@
   align-items: center;
   column-gap: 16px;
 }
-.prompt-banner-kicker { grid-area: kicker; margin-bottom: 8px; }
+.prompt-banner-kicker {
+  grid-area: kicker;
+  margin-bottom: 8px;
+}
 .prompt-banner-title {
   grid-area: title;
   margin: 0;
@@ -465,20 +552,30 @@
   color: var(--fg-muted);
   font-size: var(--t-sm);
 }
-.prompt-banner-cta { grid-area: cta; justify-self: end; }
+.prompt-banner-cta {
+  grid-area: cta;
+  justify-self: end;
+}
 
 @media (max-width: 859px) {
   .prompt-banner {
     grid-template-columns: 1fr;
     grid-template-areas: "kicker" "title" "blurb" "cta";
   }
-  .prompt-banner-cta { justify-self: start; margin-top: 12px; }
+  .prompt-banner-cta {
+    justify-self: start;
+    margin-top: 12px;
+  }
 }
 
 /* =====================================================================
    PROMPTS (pm-) — /prompts archive rows + /prompts/<slug> page
    ===================================================================== */
-.pm-archive { list-style: none; margin: 0; padding: 0; }
+.pm-archive {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
 .pm-row {
   display: grid;
   grid-template-columns: 96px 1fr;
@@ -486,7 +583,9 @@
   padding: 12px 0;
   border-top: var(--border) solid var(--line);
 }
-.pm-row:last-child { border-bottom: var(--border) solid var(--line); }
+.pm-row:last-child {
+  border-bottom: var(--border) solid var(--line);
+}
 .pm-date {
   font: 500 var(--t-xs)/1.9 var(--font-mono);
   color: var(--fg-muted);
@@ -497,18 +596,28 @@
   font-weight: 600;
   text-decoration: none;
 }
-.pm-title:hover { color: var(--accent); text-decoration: underline; }
-.pm-row .badge { margin-left: 8px; }
+.pm-title:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.pm-row .badge {
+  margin-left: 8px;
+}
 .pm-blurb {
   display: block;
   margin-top: 2px;
   font-size: var(--t-sm);
   color: var(--fg-muted);
 }
-.pm-cta { margin: 0 0 24px; }
+.pm-cta {
+  margin: 0 0 24px;
+}
 
 @media (max-width: 859px) {
-  .pm-row { grid-template-columns: 72px 1fr; gap: 12px; }
+  .pm-row {
+    grid-template-columns: 72px 1fr;
+    gap: 12px;
+  }
 }
 
 /* =====================================================================
@@ -529,14 +638,32 @@
   overflow: hidden;
   position: relative;
 }
-.img-grid a { display: block; height: 100%; }
+.img-grid a {
+  display: block;
+  height: 100%;
+}
 /* object-fit: contain keeps non-square canvas thumbnails (e.g. a 2×1
    composite) from stretching to fill the square cell — they letterbox
    against the paper-2 wall instead. Square thumbnails fill the cell
    exactly, unchanged. */
-.img-grid img { display: block; width: 100%; height: 100%; object-fit: contain; background: var(--paper-2); image-rendering: pixelated; }
-@media (max-width: 900px) { .img-grid { grid-template-columns: repeat(4, 1fr); } }
-@media (max-width: 520px) { .img-grid { grid-template-columns: repeat(3, 1fr); } }
+.img-grid img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--paper-2);
+  image-rendering: pixelated;
+}
+@media (max-width: 900px) {
+  .img-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+@media (max-width: 520px) {
+  .img-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
 
 .gal-archive-list {
   list-style: none;
@@ -546,15 +673,39 @@
   flex-direction: column;
   gap: 4px;
 }
-.gal-archive-list li { font-size: var(--t-sm); }
-.gal-archive-list a { color: var(--fg); text-decoration: none; }
-.gal-archive-list a:hover { color: var(--accent); text-decoration: underline; }
-.gal-archive-list .gal-count { color: var(--fg-muted); }
+.gal-archive-list li {
+  font-size: var(--t-sm);
+}
+.gal-archive-list a {
+  color: var(--fg);
+  text-decoration: none;
+}
+.gal-archive-list a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.gal-archive-list .gal-count {
+  color: var(--fg-muted);
+}
 
-.pager { margin-top: 16px; display: flex; gap: 16px; }
-.pager a { color: var(--accent); }
-.day-nav { margin-top: 12px; display: flex; gap: 16px; justify-content: space-between; font-size: var(--t-sm); }
-.day-nav a { color: var(--accent); }
+.pager {
+  margin-top: 16px;
+  display: flex;
+  gap: 16px;
+}
+.pager a {
+  color: var(--accent);
+}
+.day-nav {
+  margin-top: 12px;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  font-size: var(--t-sm);
+}
+.day-nav a {
+  color: var(--accent);
+}
 
 /* =====================================================================
    DRAWING DETAIL (/d/<id>)
@@ -565,8 +716,16 @@
   gap: 32px;
   align-items: start;
 }
-@media (max-width: 900px) { .dr-grid { grid-template-columns: 1fr; gap: 16px; } }
-.dr-art-wrap { max-width: 320px; width: 100%; }
+@media (max-width: 900px) {
+  .dr-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+.dr-art-wrap {
+  max-width: 320px;
+  width: 100%;
+}
 .dr-art-wrap img {
   width: 100%;
   max-width: 320px;
@@ -583,9 +742,19 @@
   margin: 0 0 24px;
   font-size: var(--t-sm);
 }
-.dr-meta dt { color: var(--fg-muted); }
-.dr-meta dd { margin: 0; word-break: break-all; }
-.mono-trunc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.dr-meta dt {
+  color: var(--fg-muted);
+}
+.dr-meta dd {
+  margin: 0;
+  word-break: break-all;
+}
+.mono-trunc {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
 
 /* Profile picture — small pixel-perfect square next to a username link
    or page title. Sized inline via width/height; this rule pins the
@@ -608,17 +777,34 @@ img.profile-picture {
   align-items: center;
   gap: 0;
 }
-.dr-author img.profile-picture { margin-right: 6px; }
+.dr-author img.profile-picture {
+  margin-right: 6px;
+}
 /* Page title profile picture (/u/<username>) sits inline with the h1 text. */
-.page-title img.profile-picture { width: 32px; height: 32px; margin-right: 10px; }
-.dr-actions { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
-.dr-action-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.page-title img.profile-picture {
+  width: 32px;
+  height: 32px;
+  margin-right: 10px;
+}
+.dr-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.dr-action-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 
 /* Remix-chain breadcrumb — linked ancestor thumbs (root → … → parent)
    ending in the current drawing as the non-linked terminal. Thumbs use
    the standard drawing well (line frame on paper-2) so transparent
    pixels stay visible. */
-.dr-chain { margin: 0 0 24px; }
+.dr-chain {
+  margin: 0 0 24px;
+}
 .dr-chain-list {
   list-style: none;
   padding: 0;
@@ -638,7 +824,10 @@ img.profile-picture {
   font: 500 var(--t-sm)/1 var(--font-mono);
   color: var(--fg-dim);
 }
-.dr-chain-link { display: block; line-height: 0; }
+.dr-chain-link {
+  display: block;
+  line-height: 0;
+}
 .dr-chain-thumb {
   display: block;
   width: 48px;
@@ -648,8 +837,12 @@ img.profile-picture {
   image-rendering: crisp-edges;
   image-rendering: pixelated;
 }
-.dr-chain-link:hover .dr-chain-thumb { border-color: var(--accent); }
-.dr-chain-current .dr-chain-thumb { border-color: var(--line-strong); }
+.dr-chain-link:hover .dr-chain-thumb {
+  border-color: var(--accent);
+}
+.dr-chain-current .dr-chain-thumb {
+  border-color: var(--line-strong);
+}
 
 /* Owner stats block (/u/<username>) — streaks + badges (#115/#116).
    Same grid shape as .dr-meta so it sits comfortably above the drawings grid. */
@@ -660,8 +853,12 @@ img.profile-picture {
   margin: 0 0 24px;
   font-size: var(--t-sm);
 }
-.ow-stats dt { color: var(--fg-muted); }
-.ow-stats dd { margin: 0; }
+.ow-stats dt {
+  color: var(--fg-muted);
+}
+.ow-stats dd {
+  margin: 0;
+}
 .ow-badges {
   list-style: none;
   padding: 0;
@@ -697,7 +894,10 @@ img.profile-picture {
   margin: 0;
 }
 @media (max-width: 767px) {
-  .pr-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .pr-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
 }
 .pr-card {
   display: flex;
@@ -709,7 +909,10 @@ img.profile-picture {
   background: var(--bg-elev);
   padding: 12px;
 }
-.pr-card:hover { border-color: var(--accent); text-decoration: none; }
+.pr-card:hover {
+  border-color: var(--accent);
+  text-decoration: none;
+}
 .pr-art {
   aspect-ratio: 1;
   border: var(--border) solid var(--border-c);
@@ -720,7 +923,13 @@ img.profile-picture {
   justify-content: center;
   position: relative;
 }
-.pr-art img.pr-mockup { display: block; width: 100%; height: 100%; object-fit: cover; image-rendering: auto; }
+.pr-art img.pr-mockup {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: auto;
+}
 .pr-art img.pr-drawing {
   position: absolute;
   display: block;
@@ -734,15 +943,31 @@ img.profile-picture {
 }
 .pr-art.pr-art-mug img.pr-drawing {
   /* mug wrap, placeholders 379,249 / 448×816 — square crop centred horizontally */
-  top: 35%; left: 36.5%; width: 27%;
+  top: 35%;
+  left: 36.5%;
+  width: 27%;
 }
 .pr-art.pr-art-sticker img.pr-drawing {
   /* sticker sheet, placeholders 74,256 / 496×320 — first cell as preview */
-  top: 26%; left: 12%; width: 27%;
+  top: 26%;
+  left: 12%;
+  width: 27%;
 }
-.pr-info { display: flex; flex-direction: column; gap: 2px; padding-top: 4px; }
-.pr-name { font-size: var(--t-sm); font-weight: 500; line-height: 1.3; }
-.pr-row { font-size: var(--t-xs); color: var(--fg-muted); }
+.pr-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 4px;
+}
+.pr-name {
+  font-size: var(--t-sm);
+  font-weight: 500;
+  line-height: 1.3;
+}
+.pr-row {
+  font-size: var(--t-xs);
+  color: var(--fg-muted);
+}
 
 /* =====================================================================
    STREAK CALENDAR — /u/<username>/streak
@@ -759,7 +984,9 @@ img.profile-picture {
   font-size: var(--t-sm);
   margin: -8px 0 16px;
 }
-.st-back a { color: var(--fg-muted); }
+.st-back a {
+  color: var(--fg-muted);
+}
 .st-week-head {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -773,7 +1000,9 @@ img.profile-picture {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.st-week-head li { text-align: center; }
+.st-week-head li {
+  text-align: center;
+}
 .st-months {
   list-style: none;
   padding: 0;
@@ -783,7 +1012,9 @@ img.profile-picture {
   gap: 24px;
   max-width: calc(7 * 64px);
 }
-.st-month { display: block; }
+.st-month {
+  display: block;
+}
 .st-month-label {
   font: 600 var(--t-md)/1.2 inherit;
   color: var(--fg);
@@ -804,8 +1035,13 @@ img.profile-picture {
   background: var(--paper-2);
   overflow: hidden;
 }
-.st-day-out { background: transparent; border-color: transparent; }
-.st-day-thumb { background: var(--paper-2); }
+.st-day-out {
+  background: transparent;
+  border-color: transparent;
+}
+.st-day-thumb {
+  background: var(--paper-2);
+}
 .st-day-thumb a {
   display: block;
   width: 100%;
@@ -832,9 +1068,18 @@ img.profile-picture {
   text-shadow: 0 0 2px var(--paper);
 }
 @media (max-width: 520px) {
-  .st-week-head, .st-months { max-width: 100%; }
-  .st-day-grid { gap: 1px; }
-  .st-day-num { font-size: 10px; top: 1px; left: 2px; }
+  .st-week-head,
+  .st-months {
+    max-width: 100%;
+  }
+  .st-day-grid {
+    gap: 1px;
+  }
+  .st-day-num {
+    font-size: 10px;
+    top: 1px;
+    left: 2px;
+  }
 }
 
 /* =====================================================================
@@ -842,7 +1087,9 @@ img.profile-picture {
    Two stacked modules of ranked rows. Static SSR snapshot; the page's
    5-min edge cache freshens the data alongside the cards.
    ===================================================================== */
-.rr-module + .rr-module { margin-top: 24px; }
+.rr-module + .rr-module {
+  margin-top: 24px;
+}
 .rr-h {
   font: 600 var(--t-xs)/1 var(--font-mono);
   letter-spacing: 0.1em;
@@ -868,7 +1115,11 @@ img.profile-picture {
   color: var(--ink);
   border: var(--border) solid transparent;
 }
-.rr-row:hover { color: var(--accent); border-color: var(--line); background: var(--paper-2); }
+.rr-row:hover {
+  color: var(--accent);
+  border-color: var(--line);
+  background: var(--paper-2);
+}
 .rr-rank {
   font: 500 var(--t-xs)/1 var(--font-mono);
   color: var(--fg-dim);
@@ -881,7 +1132,9 @@ img.profile-picture {
   background: var(--paper-2);
   image-rendering: pixelated;
 }
-.rr-thumb--placeholder { display: inline-block; }
+.rr-thumb--placeholder {
+  display: inline-block;
+}
 .rr-author {
   font-size: var(--t-sm);
   overflow: hidden;
@@ -889,7 +1142,8 @@ img.profile-picture {
   white-space: nowrap;
   min-width: 0;
 }
-.rr-like-count, .rr-meta {
+.rr-like-count,
+.rr-meta {
   font: 500 var(--t-xs)/1 var(--font-mono);
   color: var(--fg-muted);
   white-space: nowrap;

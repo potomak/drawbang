@@ -4,11 +4,7 @@ import { assetUrl } from "../../src/layout/asset-version.js";
 import { renderFooter, renderHeader } from "../../src/layout/chrome.js";
 import { esc } from "./_escape.js";
 import { renderHtmlShell } from "./_html-shell.js";
-import {
-  renderGallerySentinel,
-  renderItem,
-  type GalleryItem,
-} from "./gallery.js";
+import { renderGallerySentinel, renderItem, type GalleryItem } from "./gallery.js";
 import { formatItemDate } from "./_time.js";
 
 // /prompts — archive of every daily prompt from launch through today —
@@ -58,9 +54,7 @@ function promptSeoTitle(p: Prompt): string {
 }
 
 function renderArchiveRow(e: PromptArchiveEntry): string {
-  const badge = e.is_today
-    ? `\n            <span class="badge accent">Today</span>`
-    : "";
+  const badge = e.is_today ? `\n            <span class="badge accent">Today</span>` : "";
   return `        <li class="pm-row">
           <time class="pm-date" datetime="${esc(e.date)}">${esc(formatItemDate(e.date))}</time>
           <span class="pm-main">

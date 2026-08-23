@@ -18,9 +18,9 @@ export interface BadgeDef {
 }
 
 export const DAILY_DRAWING_BADGES: readonly BadgeDef[] = [
-  { id: "daily-7",   dimension: "daily", threshold: 7,   label: "1 week of drawings" },
-  { id: "daily-30",  dimension: "daily", threshold: 30,  label: "1 month of drawings" },
-  { id: "daily-90",  dimension: "daily", threshold: 90,  label: "3 months of drawings" },
+  { id: "daily-7", dimension: "daily", threshold: 7, label: "1 week of drawings" },
+  { id: "daily-30", dimension: "daily", threshold: 30, label: "1 month of drawings" },
+  { id: "daily-90", dimension: "daily", threshold: 90, label: "3 months of drawings" },
   { id: "daily-180", dimension: "daily", threshold: 180, label: "6 months of drawings" },
   { id: "daily-365", dimension: "daily", threshold: 365, label: "1 year of drawings" },
 ];

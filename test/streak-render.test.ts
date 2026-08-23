@@ -1,15 +1,9 @@
 import { strict as assert } from "node:assert";
 import { describe, test } from "node:test";
-import {
-  MemoryDrawingStore,
-  type DrawingRow,
-} from "../ingest/drawing-store.js";
+import { MemoryDrawingStore, type DrawingRow } from "../ingest/drawing-store.js";
 import { MemoryUserStore, type UserRecord } from "../ingest/user-store.js";
 import { MemoryUserStatsStore } from "../ingest/user-stats-store.js";
-import {
-  renderStreakPageHandler,
-  type RenderHandlersConfig,
-} from "../ingest/render-handlers.js";
+import { renderStreakPageHandler, type RenderHandlersConfig } from "../ingest/render-handlers.js";
 
 function row(over: Partial<DrawingRow> = {}): DrawingRow {
   const ms = over.created_at_ms ?? Date.parse("2026-05-01T12:00:00.000Z");
@@ -93,19 +87,19 @@ describe("renderStreakPageHandler", () => {
       row({
         drawing_id: aprMorningId,
         created_at_ms: Date.parse("2026-04-28T03:00:00.000Z"),
-      }),
+      })
     );
     await drawingStore.put(
       row({
         drawing_id: aprEveningId,
         created_at_ms: Date.parse("2026-04-28T22:00:00.000Z"),
-      }),
+      })
     );
     await drawingStore.put(
       row({
         drawing_id: mayId,
         created_at_ms: Date.parse("2026-05-01T10:00:00.000Z"),
-      }),
+      })
     );
 
     const res = await renderStreakPageHandler(cfg, "alice");
@@ -133,7 +127,7 @@ describe("renderStreakPageHandler", () => {
       assert.match(
         res.body,
         new RegExp(`<span class="st-day-num">${day}</span>`),
-        `expected day ${day} to render as an empty in-month cell`,
+        `expected day ${day} to render as an empty in-month cell`
       );
     }
 
@@ -155,7 +149,7 @@ describe("renderStreakPageHandler", () => {
       row({
         drawing_id: midnightId,
         created_at_ms: Date.parse("2026-05-01T00:00:00.000Z"),
-      }),
+      })
     );
     const res = await renderStreakPageHandler(cfg, "alice");
     assert.equal(res.status, 200);
@@ -180,13 +174,13 @@ describe("renderStreakPageHandler", () => {
       row({
         drawing_id: marchId,
         created_at_ms: Date.parse("2026-03-15T10:00:00.000Z"),
-      }),
+      })
     );
     await drawingStore.put(
       row({
         drawing_id: juneId,
         created_at_ms: Date.parse("2026-06-01T10:00:00.000Z"),
-      }),
+      })
     );
     const res = await renderStreakPageHandler(cfg, "alice");
     assert.equal(res.status, 200);
@@ -214,9 +208,7 @@ describe("renderStreakPageHandler", () => {
       now: new Date("2026-05-15T12:00:00.000Z"),
     });
     await userStore.register(rec());
-    await drawingStore.put(
-      row({ created_at_ms: Date.parse("2026-05-10T10:00:00.000Z") }),
-    );
+    await drawingStore.put(row({ created_at_ms: Date.parse("2026-05-10T10:00:00.000Z") }));
     await userStatsStore.recordDailyDrawing({
       user_id: "u".repeat(64),
       date_utc: "2026-05-10",

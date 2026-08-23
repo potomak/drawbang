@@ -2,10 +2,7 @@ import type { UserRecord, UserStore } from "./user-store.js";
 import { UserNotFoundError } from "./user-store.js";
 import type { DrawingStore } from "./drawing-store.js";
 import type { Storage } from "./storage.js";
-import {
-  pathsToInvalidateOnPublish,
-  type CacheInvalidator,
-} from "./cache-invalidation.js";
+import { pathsToInvalidateOnPublish, type CacheInvalidator } from "./cache-invalidation.js";
 
 // The cascade behind both delete-account paths: the user's own
 // POST /auth/account/delete and the operator's
@@ -45,8 +42,7 @@ export interface AccountDeleteReport {
 }
 
 export type AccountDeleteOutcome =
-  | { ok: true; report: AccountDeleteReport }
-  | { ok: false; status: 404 | 409; error: string };
+  { ok: true; report: AccountDeleteReport } | { ok: false; status: 404 | 409; error: string };
 
 // One query + delete round per batch. Small enough to keep the concurrent
 // S3 fan-out sane, big enough that a normal account clears in one pass.
@@ -76,7 +72,7 @@ function objectKeys(drawing_id: string): string[] {
 // we're walking, and a cursor into a mutating index can skip records.
 async function deleteOwnedDrawings(
   username: string,
-  cfg: AccountDeleteConfig,
+  cfg: AccountDeleteConfig
 ): Promise<{ ids: string[]; cleared: number; truncated: boolean }> {
   const ids: string[] = [];
   let cleared = 0;
@@ -107,8 +103,8 @@ async function deleteOwnedDrawings(
             console.error(`[account-delete] failed to remove ${key}:`, e);
             return false;
           }
-        }),
-      ),
+        })
+      )
     );
     cleared += results.filter(Boolean).length;
   }
@@ -119,12 +115,9 @@ async function deleteOwnedDrawings(
 // allowlists, it just executes an authorised decision.
 export async function deleteAccountAndDrawings(
   account: UserRecord,
-  cfg: AccountDeleteConfig,
+  cfg: AccountDeleteConfig
 ): Promise<AccountDeleteOutcome> {
-  const { ids, cleared, truncated } = await deleteOwnedDrawings(
-    account.username,
-    cfg,
-  );
+  const { ids, cleared, truncated } = await deleteOwnedDrawings(account.username, cfg);
   if (truncated) {
     // Account row intentionally left in place: the operation is resumable
     // (the drawings already removed stay removed) and an account whose
@@ -151,9 +144,7 @@ export async function deleteAccountAndDrawings(
   }
 
   if (cfg.cacheInvalidator) {
-    await cfg.cacheInvalidator.invalidate(
-      pathsToInvalidateOnAccountDelete(account.username, ids),
-    );
+    await cfg.cacheInvalidator.invalidate(pathsToInvalidateOnAccountDelete(account.username, ids));
   }
 
   return {
@@ -170,7 +161,7 @@ export async function deleteAccountAndDrawings(
 // pin the exact paths rather than infer them.
 export function pathsToInvalidateOnAccountDelete(
   username: string,
-  drawing_ids: string[],
+  drawing_ids: string[]
 ): string[] {
   const base = pathsToInvalidateOnPublish(username);
   if (drawing_ids.length === 0) return base;

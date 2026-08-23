@@ -7,11 +7,7 @@
 //   npx tsx scripts/reassign-anonymous.ts [--dry-run]
 
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import {
-  DynamoDBDocumentClient,
-  QueryCommand,
-  UpdateCommand,
-} from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 
 const dryRun = process.argv.includes("--dry-run");
 
@@ -67,7 +63,7 @@ async function* listAnonymous(): AsyncGenerator<string> {
         KeyConditionExpression: "username = :u",
         ExpressionAttributeValues: { ":u": "anonymous" },
         ExclusiveStartKey,
-      }),
+      })
     );
     for (const item of r.Items ?? []) {
       const id = (item as { drawing_id?: string }).drawing_id;
@@ -101,7 +97,7 @@ async function main(): Promise<void> {
             ":un": owner.username,
             ":uid": owner.user_id,
           },
-        }),
+        })
       );
       console.log(`  ${id.slice(0, 8)} → ${owner.username}`);
     }
@@ -110,7 +106,7 @@ async function main(): Promise<void> {
   console.log(
     `done. kept ${kept} anonymous, ${[...byOwner.entries()]
       .map(([u, n]) => `${n} → ${u}`)
-      .join(", ")}`,
+      .join(", ")}`
   );
 }
 

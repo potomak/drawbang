@@ -3,11 +3,7 @@ import { PixelCanvas } from "./editor/canvas.js";
 import { decodeGif } from "./editor/gif.js";
 import { activePaletteToRgb, DEFAULT_ACTIVE_PALETTE } from "./editor/palette.js";
 import { tracker } from "./analytics/analytics.js";
-import {
-  loadMockupImage,
-  paintMockupPreview,
-  type MockupConfig,
-} from "./merch-preview.js";
+import { loadMockupImage, paintMockupPreview, type MockupConfig } from "./merch-preview.js";
 import { pickProductFromQuery } from "./merch-query.js";
 import {
   DEFAULT_PLACEMENT,
@@ -193,7 +189,7 @@ function renderCatalog(catalog: MerchCatalog): void {
   productGridEl.innerHTML = "";
   cardPreviews.length = 0;
   if (catalog.products.length === 0) {
-    productGridEl.innerHTML = "<p class=\"muted\">No products available yet.</p>";
+    productGridEl.innerHTML = '<p class="muted">No products available yet.</p>';
     return;
   }
   for (const product of catalog.products) {
@@ -311,8 +307,7 @@ function currentVariant(): MerchVariant | null {
   if (!selectedProduct) return null;
   return (
     selectedProduct.variants.find(
-      (v) =>
-        (v.size ?? null) === selectedSize && (v.color ?? null) === selectedColor,
+      (v) => (v.size ?? null) === selectedSize && (v.color ?? null) === selectedColor
     ) ?? null
   );
 }
@@ -372,7 +367,7 @@ function renderAxisPicker(
   pickerEl: HTMLDivElement,
   stepEl: HTMLElement | null,
   current: string | null,
-  onPick: (value: string) => void,
+  onPick: (value: string) => void
 ): void {
   pickerEl.innerHTML = "";
   if (!selectedProduct) {
@@ -447,7 +442,7 @@ function renderColorPicker(): void {
 function variantExists(size: string | null, color: string | null): boolean {
   if (!selectedProduct) return false;
   return selectedProduct.variants.some(
-    (v) => (v.size ?? null) === size && (v.color ?? null) === color,
+    (v) => (v.size ?? null) === size && (v.color ?? null) === color
   );
 }
 
@@ -517,9 +512,7 @@ async function handleCheckout(): Promise<void> {
       content_ids: [selectedProduct.id],
       content_name: selectedProduct.name,
       num_items: 1,
-      contents: [
-        { id: selectedProduct.id, item_price: variant.retail_cents / 100, quantity: 1 },
-      ],
+      contents: [{ id: selectedProduct.id, item_price: variant.retail_cents / 100, quantity: 1 }],
     },
   });
   checkoutInFlight = true;

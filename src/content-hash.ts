@@ -9,8 +9,7 @@ const nodeCreateHash: ((buf: Uint8Array) => Uint8Array) | null = (() => {
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { createHash } = require("node:crypto") as typeof import("node:crypto");
-      return (buf: Uint8Array) =>
-        new Uint8Array(createHash("sha256").update(buf).digest());
+      return (buf: Uint8Array) => new Uint8Array(createHash("sha256").update(buf).digest());
     } catch {
       return null;
     }

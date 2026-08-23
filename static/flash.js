@@ -51,7 +51,9 @@
     close.className = "flash-close";
     close.setAttribute("aria-label", "Dismiss message");
     close.textContent = "×";
-    close.addEventListener("click", function () { hideFlash(); });
+    close.addEventListener("click", function () {
+      hideFlash();
+    });
 
     el.appendChild(body);
     el.appendChild(close);
@@ -94,7 +96,9 @@
     timer = {
       remainingMs: remaining,
       startedAt: Date.now(),
-      handle: setTimeout(function () { hideFlash(); }, remaining),
+      handle: setTimeout(function () {
+        hideFlash();
+      }, remaining),
     };
   }
 
@@ -145,7 +149,9 @@
       timer = {
         remainingMs: ms,
         startedAt: Date.now(),
-        handle: setTimeout(function () { hideFlash(); }, ms),
+        handle: setTimeout(function () {
+          hideFlash();
+        }, ms),
       };
     }
   }
@@ -175,7 +181,9 @@
       sessionStorage.removeItem("drawbang:pending-flash");
       var pending = JSON.parse(raw);
       if (pending && typeof pending.kind === "string" && typeof pending.message === "string") {
-        var fire = function () { showFlash(pending); };
+        var fire = function () {
+          showFlash(pending);
+        };
         if (document.readyState === "loading") {
           document.addEventListener("DOMContentLoaded", fire, { once: true });
         } else {

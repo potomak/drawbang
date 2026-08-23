@@ -13,10 +13,7 @@ declare global {
   }
 }
 
-export function fbqEvent(
-  name: string,
-  params: Record<string, unknown> = {},
-): void {
+export function fbqEvent(name: string, params: Record<string, unknown> = {}): void {
   if (typeof window === "undefined" || typeof window.fbq !== "function") return;
   try {
     window.fbq("track", name, params);

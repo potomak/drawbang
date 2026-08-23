@@ -10,7 +10,7 @@ test("every retro palette has exactly 16 colors (padded if source is shorter)", 
     assert.equal(
       p.colors.length,
       ACTIVE_PALETTE_SIZE,
-      `${p.id} should have ${ACTIVE_PALETTE_SIZE} colors, has ${p.colors.length}`,
+      `${p.id} should have ${ACTIVE_PALETTE_SIZE} colors, has ${p.colors.length}`
     );
   }
 });
@@ -59,6 +59,6 @@ test("TMS 9918 is padded by repeating White (no transparent slot at the palette 
 test("all six expected palettes ship, in a stable order", () => {
   assert.deepEqual(
     RETRO_PALETTES.map((p) => p.id),
-    ["c64", "vic20", "zx-spectrum", "ega", "intellivision", "tms9918"],
+    ["c64", "vic20", "zx-spectrum", "ega", "intellivision", "tms9918"]
   );
 });

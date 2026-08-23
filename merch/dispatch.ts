@@ -35,7 +35,7 @@ export interface PlacePrintifyOrderDeps {
 
 export async function placePrintifyOrder(
   orderId: string,
-  deps: PlacePrintifyOrderDeps,
+  deps: PlacePrintifyOrderDeps
 ): Promise<void> {
   let order: Order | null = null;
   try {
@@ -65,7 +65,10 @@ export async function placePrintifyOrder(
             now: deps.now ? deps.now() : new Date().toISOString(),
           });
         } catch (counterErr) {
-          console.error("placePrintifyOrder (dry-run): counter increment failed", { orderId, counterErr });
+          console.error("placePrintifyOrder (dry-run): counter increment failed", {
+            orderId,
+            counterErr,
+          });
         }
       }
       console.log("placePrintifyOrder dry-run: order submitted without Printify", { orderId });
@@ -107,14 +110,12 @@ export async function placePrintifyOrder(
       // Printify gets a vector asset it rasterises at print resolution itself.
       const dim = frame.width;
       const sizePx =
-        Math.floor(
-          Math.max(product.print_area_px.width, product.print_area_px.height) / dim,
-        ) * dim;
+        Math.floor(Math.max(product.print_area_px.width, product.print_area_px.height) / dim) * dim;
       const svgBytes = upscaleBitmapToSvg(frame, activePalette, { sizePx });
 
       const image = await deps.printify.uploadImage(
         `drawbang-${order.drawing_id}-f${order.frame}.svg`,
-        svgBytes,
+        svgBytes
       );
 
       const drawingUrl = `${deps.publicBaseUrl}/t/${order.drawing_id}`;
@@ -126,8 +127,9 @@ export async function placePrintifyOrder(
       // gets the same placement.
       const placement = order.placement ?? DEFAULT_PLACEMENT;
       const userImages = expandPlacement(placement, image.id);
-      const placeholders: { position: string; images: typeof userImages }[] =
-        positions.map((position) => ({ position, images: userImages }));
+      const placeholders: { position: string; images: typeof userImages }[] = positions.map(
+        (position) => ({ position, images: userImages })
+      );
 
       // Apply the Draw! brand wordmark to any extra placeholder positions
       // declared by the product config (e.g. the tee's inside-neck label).
@@ -169,9 +171,7 @@ export async function placePrintifyOrder(
         const printifyOrder = await deps.printify.createOrder({
           external_id: order.order_id,
           label: `drawbang ${order.order_id}`,
-          line_items: [
-            { product_id: printifyProductId, variant_id: variant.id, quantity: 1 },
-          ],
+          line_items: [{ product_id: printifyProductId, variant_id: variant.id, quantity: 1 }],
           shipping_method: 1,
           is_printify_express: false,
           send_shipping_notification: false,

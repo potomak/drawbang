@@ -91,9 +91,7 @@ export interface AsyncDispatchEvent {
 type MerchEvent = APIGatewayProxyEventV2 | AsyncDispatchEvent;
 
 function isAsyncDispatchEvent(event: MerchEvent): event is AsyncDispatchEvent {
-  return (
-    typeof (event as AsyncDispatchEvent).async_dispatch_order_id === "string"
-  );
+  return typeof (event as AsyncDispatchEvent).async_dispatch_order_id === "string";
 }
 
 const SANITIZED_FIELDS: ReadonlySet<keyof Order> = new Set([
@@ -108,7 +106,9 @@ async function isDryRunFlag(flags: MerchHandlerDeps["flags"]): Promise<boolean> 
     const flag = await flags.getFlag(MERCH_DRY_RUN_FLAG);
     if (!flag) return false;
     // Flag may carry `enabled` (new) or `value` (compat) — treat either.
-    const v = (flag as { enabled?: boolean; value?: boolean }).enabled ?? (flag as { value?: boolean }).value;
+    const v =
+      (flag as { enabled?: boolean; value?: boolean }).enabled ??
+      (flag as { value?: boolean }).value;
     return Boolean(v);
   } catch {
     return false;
@@ -132,7 +132,7 @@ async function resolveStripeHelper(deps: MerchHandlerDeps): Promise<StripeHelper
 
 export async function handle(
   event: MerchEvent,
-  deps: MerchHandlerDeps,
+  deps: MerchHandlerDeps
 ): Promise<APIGatewayProxyResultV2 | void> {
   if (isAsyncDispatchEvent(event)) {
     if (deps.dispatchSync) {
@@ -168,7 +168,7 @@ interface CheckoutBody {
 
 async function checkout(
   event: APIGatewayProxyEventV2,
-  deps: MerchHandlerDeps,
+  deps: MerchHandlerDeps
 ): Promise<APIGatewayProxyResultV2> {
   let body: CheckoutBody;
   try {
@@ -268,12 +268,10 @@ function variantDisplayName(product: MerchProduct, variant: MerchVariant): strin
 
 async function webhook(
   event: APIGatewayProxyEventV2,
-  deps: MerchHandlerDeps,
+  deps: MerchHandlerDeps
 ): Promise<APIGatewayProxyResultV2> {
   const headers = event.headers ?? {};
-  const signature =
-    headers["stripe-signature"] ??
-    headers["Stripe-Signature"];
+  const signature = headers["stripe-signature"] ?? headers["Stripe-Signature"];
   if (!signature) return json(400, { error: "missing signature" });
   const raw = readRawBody(event);
   const stripeHelper = await resolveStripeHelper(deps);
@@ -306,11 +304,13 @@ async function webhook(
 
 async function handleCheckoutCompleted(
   session: Stripe.Checkout.Session,
-  deps: MerchHandlerDeps,
+  deps: MerchHandlerDeps
 ): Promise<void> {
   const orderId = session.metadata?.order_id;
   if (!orderId) {
-    console.error("checkout.session.completed missing metadata.order_id", { sessionId: session.id });
+    console.error("checkout.session.completed missing metadata.order_id", {
+      sessionId: session.id,
+    });
     return;
   }
 
@@ -334,11 +334,13 @@ async function handleCheckoutCompleted(
 
 async function handlePaymentFailed(
   intent: Stripe.PaymentIntent,
-  deps: MerchHandlerDeps,
+  deps: MerchHandlerDeps
 ): Promise<void> {
   const orderId = intent.metadata?.order_id;
   if (!orderId) {
-    console.error("payment_intent.payment_failed missing metadata.order_id", { intentId: intent.id });
+    console.error("payment_intent.payment_failed missing metadata.order_id", {
+      intentId: intent.id,
+    });
     return;
   }
   const updated = await deps.orders.transition(orderId, "pending", { status: "failed" });
@@ -349,7 +351,7 @@ async function handlePaymentFailed(
 
 function extractShippingAddress(
   session: Stripe.Checkout.Session,
-  email: string | undefined,
+  email: string | undefined
 ): ShippingAddress | undefined {
   const details = session.collected_information?.shipping_details;
   if (!details) return undefined;
@@ -371,7 +373,7 @@ function extractShippingAddress(
 
 async function getOrderRoute(
   event: APIGatewayProxyEventV2,
-  deps: MerchHandlerDeps,
+  deps: MerchHandlerDeps
 ): Promise<APIGatewayProxyResultV2> {
   const id = event.pathParameters?.id;
   if (!id) return json(400, { error: "missing id" });
@@ -391,9 +393,7 @@ function sanitize(order: Order): Partial<Order> {
 
 function readRawBody(event: APIGatewayProxyEventV2): string {
   if (!event.body) return "";
-  return event.isBase64Encoded
-    ? Buffer.from(event.body, "base64").toString("utf8")
-    : event.body;
+  return event.isBase64Encoded ? Buffer.from(event.body, "base64").toString("utf8") : event.body;
 }
 
 function parseJsonBody<T>(event: APIGatewayProxyEventV2): T {
@@ -466,7 +466,8 @@ function bootDeps(): MerchHandlerDeps {
   const liveSecret = requiredWithFallback("STRIPE_SECRET_KEY_LIVE", "STRIPE_SECRET_KEY");
   const liveWebhook = requiredWithFallback("STRIPE_WEBHOOK_SECRET_LIVE", "STRIPE_WEBHOOK_SECRET");
   const testSecret = env("STRIPE_SECRET_KEY_TEST") ?? env("STRIPE_SECRET_KEY") ?? liveSecret;
-  const testWebhook = env("STRIPE_WEBHOOK_SECRET_TEST") ?? env("STRIPE_WEBHOOK_SECRET") ?? liveWebhook;
+  const testWebhook =
+    env("STRIPE_WEBHOOK_SECRET_TEST") ?? env("STRIPE_WEBHOOK_SECRET") ?? liveWebhook;
 
   const stripeLive = new StripeHelper({ secretKey: liveSecret, webhookSecret: liveWebhook });
   const stripeTest = new StripeHelper({ secretKey: testSecret, webhookSecret: testWebhook });
@@ -540,7 +541,7 @@ function bootDeps(): MerchHandlerDeps {
         FunctionName: merchFunctionName,
         InvocationType: "Event",
         Payload: Buffer.from(JSON.stringify(payload)),
-      }),
+      })
     );
   };
 
@@ -560,6 +561,5 @@ function bootDeps(): MerchHandlerDeps {
   return booted;
 }
 
-export const handler = (
-  event: MerchEvent,
-): Promise<APIGatewayProxyResultV2 | void> => handle(event, bootDeps());
+export const handler = (event: MerchEvent): Promise<APIGatewayProxyResultV2 | void> =>
+  handle(event, bootDeps());

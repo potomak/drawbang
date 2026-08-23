@@ -30,7 +30,7 @@ export interface BookmarksHandlerConfig extends BaseHandlerConfig {
 export async function handleBookmark(
   drawing_id: string,
   auth: BookmarksAuth,
-  cfg: BookmarksHandlerConfig,
+  cfg: BookmarksHandlerConfig
 ): Promise<BookmarksResult> {
   if (!DRAWING_ID_RE.test(drawing_id)) return err(400, "invalid drawing_id");
   const now = cfg.now ? cfg.now() : new Date();
@@ -44,18 +44,18 @@ export async function handleBookmark(
     [
       [AlreadyBookmarkedError, 409, "already bookmarked"],
       [BookmarkDrawingNotFoundError, 404, "drawing not found"],
-    ],
+    ]
   );
 }
 
 export async function handleUnbookmark(
   drawing_id: string,
   auth: BookmarksAuth,
-  cfg: BookmarksHandlerConfig,
+  cfg: BookmarksHandlerConfig
 ): Promise<BookmarksResult> {
   if (!DRAWING_ID_RE.test(drawing_id)) return err(400, "invalid drawing_id");
   return toggleAction(
     () => cfg.bookmarksStore.unbookmark({ drawing_id, user_id: auth.user_id }),
-    [[NotBookmarkedError, 409, "not bookmarked"]],
+    [[NotBookmarkedError, 409, "not bookmarked"]]
   );
 }

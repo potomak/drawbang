@@ -2,11 +2,7 @@ import { strict as assert } from "node:assert";
 import { describe, test } from "node:test";
 import { MemoryDrawingStore, type DrawingRow } from "../ingest/drawing-store.js";
 import { MemoryLikesStore } from "../ingest/likes-store.js";
-import {
-  handleLike,
-  handleUnlike,
-  type LikesHandlerConfig,
-} from "../ingest/likes-handler.js";
+import { handleLike, handleUnlike, type LikesHandlerConfig } from "../ingest/likes-handler.js";
 
 const DRAWING_ID = "a".repeat(64);
 const AUTH = { user_id: "u".repeat(64), username: "alice" };

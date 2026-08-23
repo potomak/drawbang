@@ -33,9 +33,13 @@ export class StripeHelper {
     this.webhookSecret = cfg.webhookSecret;
   }
 
-  async createCheckoutSession(args: CreateCheckoutSessionArgs): Promise<{ id: string; url: string }> {
+  async createCheckoutSession(
+    args: CreateCheckoutSessionArgs
+  ): Promise<{ id: string; url: string }> {
     type CreateParams = Parameters<Stripe["checkout"]["sessions"]["create"]>[0];
-    type AllowedCountry = NonNullable<NonNullable<CreateParams>["shipping_address_collection"]>["allowed_countries"][number];
+    type AllowedCountry = NonNullable<
+      NonNullable<CreateParams>["shipping_address_collection"]
+    >["allowed_countries"][number];
 
     const shippingOptions: NonNullable<NonNullable<CreateParams>["shipping_options"]> =
       args.shippingCents > 0

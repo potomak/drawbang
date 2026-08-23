@@ -1,11 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import { QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import {
-  COUNT_GSI_NAME,
-  ProductCountersStore,
-  counterPk,
-} from "../merch/product-counters.js";
+import { COUNT_GSI_NAME, ProductCountersStore, counterPk } from "../merch/product-counters.js";
 
 interface RecordedSend {
   cmd: UpdateCommand | QueryCommand;
@@ -72,8 +68,22 @@ test("incrementOnSubmit issues an UpdateItem with ADD count, SET first/last/dim/
 
 test("listTop queries the all-count GSI with ScanIndexForward=false (count desc) and unwraps Items", async () => {
   const items = [
-    { pk: "a#tee", drawing_id: "a", product_id: "tee", count: 7, first_ordered_at: "t", last_ordered_at: "t" },
-    { pk: "b#mug", drawing_id: "b", product_id: "mug", count: 3, first_ordered_at: "t", last_ordered_at: "t" },
+    {
+      pk: "a#tee",
+      drawing_id: "a",
+      product_id: "tee",
+      count: 7,
+      first_ordered_at: "t",
+      last_ordered_at: "t",
+    },
+    {
+      pk: "b#mug",
+      drawing_id: "b",
+      product_id: "mug",
+      count: 3,
+      first_ordered_at: "t",
+      last_ordered_at: "t",
+    },
   ];
   const { store, calls } = makeStore(async () => ({ Items: items }));
 

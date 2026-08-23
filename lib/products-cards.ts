@@ -11,7 +11,7 @@ import type { ProductCard } from "./templates/products.js";
 export function productCardsFromCounters(
   counters: readonly ProductCounter[],
   catalog: MerchCatalog,
-  now: Date,
+  now: Date
 ): ProductCard[] {
   const byId = new Map(catalog.products.map((p) => [p.id, p]));
   const enriched: Array<{ card: ProductCard; last_ordered_at: string }> = [];
@@ -21,7 +21,7 @@ export function productCardsFromCounters(
     if (!product) continue;
     const cheapestCents = product.variants.reduce(
       (acc, v) => (v.retail_cents < acc ? v.retail_cents : acc),
-      Number.POSITIVE_INFINITY,
+      Number.POSITIVE_INFINITY
     );
     if (!Number.isFinite(cheapestCents)) continue;
     enriched.push({

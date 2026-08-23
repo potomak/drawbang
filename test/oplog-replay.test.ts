@@ -4,12 +4,7 @@ import { ACTIVE_PALETTE_SIZE } from "../config/constants.js";
 import { Bitmap } from "../src/editor/bitmap.js";
 import { newFrame, newLayerMeta } from "../src/editor/layers.js";
 import { OpLogRecorder } from "../src/editor/oplog.js";
-import {
-  applyOp,
-  finalState,
-  replay,
-  type ReplayState,
-} from "../src/editor/oplog-replay.js";
+import { applyOp, finalState, replay, type ReplayState } from "../src/editor/oplog-replay.js";
 
 const DEFAULT_SIZE = 16;
 const DEFAULT_PALETTE = makePalette();
@@ -41,10 +36,7 @@ describe("applyOp / finalState — determinism", () => {
     // Replay twice — same ops, same final state.
     const replayedA = finalState(r.serialize(), { size: DEFAULT_SIZE, palette: DEFAULT_PALETTE });
     const replayedB = finalState(r.serialize(), { size: DEFAULT_SIZE, palette: DEFAULT_PALETTE });
-    assert.deepEqual(
-      Array.from(bm(replayedA, 0).data),
-      Array.from(bm(replayedB, 0).data),
-    );
+    assert.deepEqual(Array.from(bm(replayedA, 0).data), Array.from(bm(replayedB, 0).data));
     // Stroke pixels survived the flip — flip mirrors x, so (2,2) → (13,2), etc.
     assert.equal(bm(replayedA, 0).get(15 - 2, 2), 5);
     assert.equal(bm(replayedA, 0).get(15 - 4, 4), 5);
@@ -134,7 +126,7 @@ describe("replay — timelapse sampling", () => {
     // snapshot. Padding may add held-final frames beyond that.
     assert.ok(
       t.snapshots.length >= N,
-      `expected ≥${N} snapshots for ${N} ops, got ${t.snapshots.length}`,
+      `expected ≥${N} snapshots for ${N} ops, got ${t.snapshots.length}`
     );
   });
 
@@ -166,7 +158,7 @@ describe("replay — timelapse sampling", () => {
     assert.equal(
       a.snapshots.length,
       b.snapshots.length,
-      "snapshot count must depend on op count, not wall-clock spread",
+      "snapshot count must depend on op count, not wall-clock spread"
     );
     assert.equal(a.durationMs, b.durationMs);
   });
@@ -193,7 +185,7 @@ describe("replay — timelapse sampling", () => {
     const t = replay(log, { size: DEFAULT_SIZE, palette: DEFAULT_PALETTE });
     assert.deepEqual(
       Array.from(t.snapshots[t.snapshots.length - 1].data),
-      Array.from(bm(final, final.current).data),
+      Array.from(bm(final, final.current).data)
     );
   });
 

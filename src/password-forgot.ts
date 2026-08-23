@@ -20,7 +20,7 @@ wireFormSubmit({
   handler: async () =>
     forgotPassword(
       emailEl!.value.trim(),
-      await solveChallenge(findWidget(document, "password-forgot-altcha")),
+      await solveChallenge(findWidget(document, "password-forgot-altcha"))
     ),
   onSuccess: () => {
     // Same message either way — we never reveal whether the email exists.

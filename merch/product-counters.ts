@@ -1,9 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import {
-  DynamoDBDocumentClient,
-  QueryCommand,
-  UpdateCommand,
-} from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 
 export interface ProductCounter {
   pk: string;
@@ -78,7 +74,7 @@ export class ProductCountersStore {
           ":product_id": args.product_id,
           ":all": GSI_PARTITION,
         },
-      }),
+      })
     );
   }
 
@@ -96,7 +92,7 @@ export class ProductCountersStore {
         ScanIndexForward: false,
         Limit: args.limit,
         ...(args.exclusiveStartKey ? { ExclusiveStartKey: args.exclusiveStartKey } : {}),
-      }),
+      })
     );
     return {
       items: (out.Items as ProductCounter[] | undefined) ?? [],

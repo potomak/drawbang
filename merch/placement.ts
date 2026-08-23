@@ -7,11 +7,7 @@
 // Pattern presets repeat the same image in an n×n grid with each cell
 // centred and scaled to 1/n so the cells tile cleanly.
 
-export const NAMED_PRESETS = [
-  "full-chest",
-  "left-chest",
-  "right-chest",
-] as const;
+export const NAMED_PRESETS = ["full-chest", "left-chest", "right-chest"] as const;
 
 export const PATTERN_PRESETS = [
   "pattern-2x2",
@@ -47,8 +43,8 @@ export interface PrintifyImageEntry {
 // the placeholder. Margin gives Printify's DTG aligner a small safe zone
 // without sacrificing the corner-pinned look.
 const NAMED: Record<(typeof NAMED_PRESETS)[number], { x: number; y: number; scale: number }> = {
-  "full-chest":  { x: 0.5,   y: 0.5,   scale: 1 },
-  "left-chest":  { x: 0.145, y: 0.145, scale: 0.25 },
+  "full-chest": { x: 0.5, y: 0.5, scale: 1 },
+  "left-chest": { x: 0.145, y: 0.145, scale: 0.25 },
   "right-chest": { x: 0.855, y: 0.145, scale: 0.25 },
 };
 

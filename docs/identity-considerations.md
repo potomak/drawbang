@@ -19,17 +19,17 @@ trade-offs deliberately taken.
   compare (`ingest/password.ts`). No native dependency; runs inside the Lambda
   budget.
 - **Sessions**: HS256 JWT (`ingest/jwt.ts`), payload `{ sub: user_id, un:
-  username }`, ~30-day exp, signed with `JWT_SECRET`. Verified by signature +
+username }`, ~30-day exp, signed with `JWT_SECRET`. Verified by signature +
   exp only — **no DB read per request**. Client stores it in
   `localStorage["drawbang:jwt"]` and mirrors the username to
   `localStorage["drawbang:username"]` (so `static/chrome-identity.js` can
   rewrite the nav link before first paint). Publish/claim send `Authorization:
-  Bearer <jwt>`; the route extracts `{ user_id, username }` and passes it into
+Bearer <jwt>`; the route extracts `{ user_id, username }` and passes it into
   the handlers via `cfg.auth`.
 - **Password reset**: `POST /auth/password/forgot` always returns 200 (no email
   enumeration) and, if the account exists, emails a link to `/password/reset`
   carrying a 1-hour reset-JWT `{ email, tv: token_version, purpose:
-  "password-reset" }` via SES (`ingest/email.ts`). `POST /auth/password/reset`
+"password-reset" }` via SES (`ingest/email.ts`). `POST /auth/password/reset`
   verifies the JWT, requires `tv === token_version`, writes the new hash, and
   **increments `token_version`** — which makes the link single-use. There is
   no signup email verification.
@@ -77,7 +77,7 @@ The security properties that matter here:
 - **Nothing accrues to it.** No per-account streak/total counters are
   recorded against the shared sentinel `user_id`, and no `/u/` cache
   invalidation is issued on an anonymous publish.
-- **Likes and bookmarks are unaffected.** Both are keyed by the *viewer's*
+- **Likes and bookmarks are unaffected.** Both are keyed by the _viewer's_
   `user_id` against a `drawing_id`, so an anonymous drawing is liked and
   bookmarked exactly like any other. Those actions still require a session —
   it's the author who may be anonymous, not the actor.

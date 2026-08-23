@@ -14,18 +14,12 @@ async function readEditor(): Promise<string> {
 describe("editor page OG / meta tags (draw.html)", () => {
   test("emits a name=description matching the agreed copy", async () => {
     const html = await readEditor();
-    assert.match(
-      html,
-      /<meta name="description" content="A 16×16 pixel-art editor"\s*\/>/,
-    );
+    assert.match(html, /<meta name="description" content="A 16×16 pixel-art editor"\s*\/>/);
   });
 
   test("emits a canonical link to the public editor URL", async () => {
     const html = await readEditor();
-    assert.match(
-      html,
-      /<link rel="canonical" href="https:\/\/pixel\.drawbang\.com\/draw"\s*\/>/,
-    );
+    assert.match(html, /<link rel="canonical" href="https:\/\/pixel\.drawbang\.com\/draw"\s*\/>/);
   });
 
   test("emits the full og:* suite with absolute URLs", async () => {
@@ -37,7 +31,7 @@ describe("editor page OG / meta tags (draw.html)", () => {
     assert.match(html, /<meta property="og:url" content="https:\/\/pixel\.drawbang\.com\/draw"/);
     assert.match(
       html,
-      /<meta property="og:image" content="https:\/\/pixel\.drawbang\.com\/og-logo\.png"/,
+      /<meta property="og:image" content="https:\/\/pixel\.drawbang\.com\/og-logo\.png"/
     );
     assert.match(html, /<meta property="og:image:type" content="image\/png"/);
     assert.match(html, /<meta property="og:image:width" content="320"/);

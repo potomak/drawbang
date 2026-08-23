@@ -1,9 +1,5 @@
 import { Bitmap } from "./editor/bitmap.js";
-import {
-  newLayerMeta,
-  type Frame,
-  type LayerMeta,
-} from "./editor/layers.js";
+import { newLayerMeta, type Frame, type LayerMeta } from "./editor/layers.js";
 import type { OpLog } from "./editor/oplog.js";
 
 // IndexedDB-backed "My drawings" store. Replaces what Redis provided in the
@@ -141,11 +137,7 @@ export function migrate(raw: StoredDrawing): StoredDrawing {
 // Reconstructs a list of Frames from a StoredDrawing — convenience for
 // the editor's load path. Each cell is wrapped in a Bitmap of the given
 // dimensions (the editor passes its current size).
-export function framesFromStored(
-  stored: StoredDrawing,
-  width: number,
-  height: number,
-): Frame[] {
+export function framesFromStored(stored: StoredDrawing, width: number, height: number): Frame[] {
   return stored.frames.map((perLayer) => ({
     bitmaps: perLayer.map((data) => new Bitmap(width, height, new Uint8Array(data))),
   }));

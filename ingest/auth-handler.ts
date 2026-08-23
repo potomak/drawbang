@@ -11,20 +11,10 @@ import {
 } from "./user-store.js";
 import type { EmailSender } from "./email.js";
 import type { DrawingStore } from "./drawing-store.js";
-import {
-  pathsToInvalidateOnProfileChange,
-  type CacheInvalidator,
-} from "./cache-invalidation.js";
+import { pathsToInvalidateOnProfileChange, type CacheInvalidator } from "./cache-invalidation.js";
 import { ANONYMOUS_USERNAME, EMAIL_RE, USERNAME_RE } from "../config/constants.js";
-import {
-  verifyChallenge,
-  type ChallengeConfig,
-  type ChallengeFailure,
-} from "./challenge.js";
-import {
-  deleteAccountAndDrawings,
-  type AccountDeleteConfig,
-} from "./account-delete.js";
+import { verifyChallenge, type ChallengeConfig, type ChallengeFailure } from "./challenge.js";
+import { deleteAccountAndDrawings, type AccountDeleteConfig } from "./account-delete.js";
 import type { Storage } from "./storage.js";
 
 // POST /auth/register | /auth/login | /auth/password/forgot | /auth/password/reset.
@@ -41,10 +31,35 @@ const MIN_PASSWORD = 8;
 const MAX_PASSWORD = 200;
 
 const RESERVED_USERNAMES = new Set([
-  "login", "signup", "password", "account", "u", "d", "t", "c", "days", "keys",
-  "gallery", "merch", "products", "canvas", "canvases",
-  "tile", "tiles", "identity", "privacy", "share", "feed", "404", "admin",
-  "api", "ingest", "state", "drawings", "static", "assets",
+  "login",
+  "signup",
+  "password",
+  "account",
+  "u",
+  "d",
+  "t",
+  "c",
+  "days",
+  "keys",
+  "gallery",
+  "merch",
+  "products",
+  "canvas",
+  "canvases",
+  "tile",
+  "tiles",
+  "identity",
+  "privacy",
+  "share",
+  "feed",
+  "404",
+  "admin",
+  "api",
+  "ingest",
+  "state",
+  "drawings",
+  "static",
+  "assets",
   // Sentinel handle for every drawing published without a session, plus
   // the pre-account-system rows scripts/migrate-tiles.ts bucketed there.
   // Reserved here AND as a sentinel row in the drawbang-usernames table,
@@ -118,14 +133,9 @@ interface PasswordResetClaims extends JwtClaims {
 function issueSession(
   user: { user_id: string; username: string },
   cfg: AuthHandlerConfig,
-  nowSec: number,
+  nowSec: number
 ): string {
-  return signJwt(
-    { sub: user.user_id, un: user.username },
-    cfg.jwtSecret,
-    SESSION_TTL_S,
-    nowSec,
-  );
+  return signJwt({ sub: user.user_id, un: user.username }, cfg.jwtSecret, SESSION_TTL_S, nowSec);
 }
 
 function err(status: number, message: string): AuthResult {
@@ -153,10 +163,7 @@ const CHALLENGE_MESSAGES: Record<ChallengeFailure, string> = {
 // is the common failure for a LEGITIMATE user (challenge expired while
 // they filled the form), so it has to survive the CDN. Verified against
 // prod: the origin's 403 arrives as a 404 HTML page, a 400 arrives intact.
-async function challengeGate(
-  payload: unknown,
-  cfg: AuthHandlerConfig,
-): Promise<AuthResult | null> {
+async function challengeGate(payload: unknown, cfg: AuthHandlerConfig): Promise<AuthResult | null> {
   const verdict = await verifyChallenge(payload, cfg.challenge);
   if (verdict.ok) return null;
   return {
@@ -170,7 +177,7 @@ async function challengeGate(
 
 export async function handleRegister(
   req: RegisterRequest,
-  cfg: AuthHandlerConfig,
+  cfg: AuthHandlerConfig
 ): Promise<AuthResult> {
   const email = normalizeEmail(req.email);
   if (!email) return err(400, "invalid email");
@@ -221,10 +228,7 @@ export async function handleRegister(
   };
 }
 
-export async function handleLogin(
-  req: LoginRequest,
-  cfg: AuthHandlerConfig,
-): Promise<AuthResult> {
+export async function handleLogin(req: LoginRequest, cfg: AuthHandlerConfig): Promise<AuthResult> {
   const email = normalizeEmail(req.email);
   if (!email || typeof req.password !== "string") {
     return err(401, "invalid email or password");
@@ -250,7 +254,7 @@ export async function handleLogin(
 
 export async function handleForgotPassword(
   req: ForgotPasswordRequest,
-  cfg: AuthHandlerConfig,
+  cfg: AuthHandlerConfig
 ): Promise<AuthResult> {
   // Gate first here, unlike register: everything downstream either does
   // nothing or sends mail via SES, and nothing on this route is worth
@@ -271,7 +275,7 @@ export async function handleForgotPassword(
     { email: user.email, tv: user.token_version, purpose: "password-reset" },
     cfg.jwtSecret,
     PASSWORD_RESET_TTL_S,
-    nowSec,
+    nowSec
   );
   const link = `${cfg.publicBaseUrl}/password/reset?token=${encodeURIComponent(token)}`;
   try {
@@ -285,7 +289,7 @@ export async function handleForgotPassword(
 
 export async function handleResetPassword(
   req: ResetPasswordRequest,
-  cfg: AuthHandlerConfig,
+  cfg: AuthHandlerConfig
 ): Promise<AuthResult> {
   if (typeof req.token !== "string") return err(400, "missing reset token");
   if (
@@ -314,7 +318,7 @@ export async function handleResetPassword(
       claims.email,
       passwordHash,
       claims.tv,
-      new Date(nowSec * 1000).toISOString(),
+      new Date(nowSec * 1000).toISOString()
     );
     return {
       status: 200,
@@ -351,7 +355,7 @@ export interface SetProfilePictureAuth {
 export async function handleSetProfilePicture(
   req: SetProfilePictureRequest,
   auth: SetProfilePictureAuth,
-  cfg: AuthHandlerConfig,
+  cfg: AuthHandlerConfig
 ): Promise<AuthResult> {
   if (!cfg.drawingStore) return err(500, "drawing store not configured");
   if (req.drawing_id === undefined) {
@@ -404,9 +408,7 @@ export async function handleSetProfilePicture(
   // Drawing pages absorb the change on their own short s-maxage TTL
   // (CC_DRAWING_PAGE in render-handlers.ts).
   if (cfg.cacheInvalidator) {
-    await cfg.cacheInvalidator.invalidate(
-      pathsToInvalidateOnProfileChange(updated.username),
-    );
+    await cfg.cacheInvalidator.invalidate(pathsToInvalidateOnProfileChange(updated.username));
   }
 
   return {
@@ -467,7 +469,7 @@ function normalizeLink(value: unknown): { ok: true; value: string | null } | { o
 
 async function resolveSelf(
   auth: ProfileAuth,
-  cfg: AuthHandlerConfig,
+  cfg: AuthHandlerConfig
 ): Promise<{ ok: true; account: UserRecord } | { ok: false }> {
   const account = await cfg.userStore.getByUsername(auth.username);
   if (!account || account.user_id !== auth.user_id) return { ok: false };
@@ -476,7 +478,7 @@ async function resolveSelf(
 
 export async function handleGetProfile(
   auth: ProfileAuth,
-  cfg: AuthHandlerConfig,
+  cfg: AuthHandlerConfig
 ): Promise<AuthResult> {
   const resolved = await resolveSelf(auth, cfg);
   if (!resolved.ok) return err(401, "authentication required");
@@ -511,7 +513,7 @@ export async function handleGetProfile(
 export async function handleDeleteAccount(
   req: DeleteAccountRequest,
   auth: ProfileAuth,
-  cfg: AuthHandlerConfig,
+  cfg: AuthHandlerConfig
 ): Promise<AuthResult> {
   if (typeof req.password !== "string" || req.password.length === 0) {
     return err(400, "password required to delete the account");
@@ -541,7 +543,7 @@ export async function handleDeleteAccount(
 // is the typed confirmation in the admin UI, plus the allowlist itself.
 export async function handleAdminDeleteAccount(
   username: string,
-  cfg: AuthHandlerConfig,
+  cfg: AuthHandlerConfig
 ): Promise<AuthResult> {
   const normalized = normalizeUsername(username);
   if (!normalized) return err(400, "invalid username");
@@ -579,7 +581,7 @@ function accountDeleteConfig(cfg: AuthHandlerConfig): AccountDeleteConfig | null
 export async function handleUpdateProfile(
   req: UpdateProfileRequest,
   auth: ProfileAuth,
-  cfg: AuthHandlerConfig,
+  cfg: AuthHandlerConfig
 ): Promise<AuthResult> {
   // Same "explicit clear" rule as setProfilePicture — omitting a field
   // is a 400 so a client bug can't silently wipe an existing value.
@@ -606,9 +608,7 @@ export async function handleUpdateProfile(
   // returns — a fire-and-forget request may never be sent. The invalidator
   // catches + logs its own failures, so this can't fail the response.
   if (cfg.cacheInvalidator) {
-    await cfg.cacheInvalidator.invalidate(
-      pathsToInvalidateOnProfileChange(updated.username),
-    );
+    await cfg.cacheInvalidator.invalidate(pathsToInvalidateOnProfileChange(updated.username));
   }
 
   return {

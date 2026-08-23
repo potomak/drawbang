@@ -21,11 +21,11 @@ const FG = "#f0ece4";
 const OUT_SIZE = 320;
 const LOGO_W = 42;
 const LOGO_H = 16;
-const SCALE = 7;            // wordmark renders at 294×112 inside the 320 frame
+const SCALE = 7; // wordmark renders at 294×112 inside the 320 frame
 const LOGO_SCALED_W = LOGO_W * SCALE;
 const LOGO_SCALED_H = LOGO_H * SCALE;
-const X = (OUT_SIZE - LOGO_SCALED_W) / 2;   // 13
-const Y = (OUT_SIZE - LOGO_SCALED_H) / 2;   // 104
+const X = (OUT_SIZE - LOGO_SCALED_W) / 2; // 13
+const Y = (OUT_SIZE - LOGO_SCALED_H) / 2; // 104
 
 // Tint the wordmark by substituting the currentColor binding. The inner
 // SVG is then placed inside an outer 320×320 SVG with the background

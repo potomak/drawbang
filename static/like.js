@@ -7,7 +7,9 @@
   if (typeof window === "undefined") return;
   if (typeof window.drawbangCreateToggleHandler !== "function") return;
 
-  function countEl(btn) { return btn.querySelector("[data-like-count]"); }
+  function countEl(btn) {
+    return btn.querySelector("[data-like-count]");
+  }
   function readCount(btn) {
     var el = countEl(btn);
     if (!el) return 0;
@@ -32,8 +34,14 @@
     initFlag: "__drawbangLikeInit",
     targetAttr: "data-like-target",
     wiredAttr: "data-like-wired",
-    endpoint: function (id) { return "/drawings/" + encodeURIComponent(id) + "/like"; },
-    errorMessages: { press: "Could not like", unpress: "Could not unlike", fallback: "Like failed" },
+    endpoint: function (id) {
+      return "/drawings/" + encodeURIComponent(id) + "/like";
+    },
+    errorMessages: {
+      press: "Could not like",
+      unpress: "Could not unlike",
+      fallback: "Like failed",
+    },
     onOptimistic: function (btn, nextPressed) {
       var prev = readCount(btn);
       prevCounts.set(btn, prev);

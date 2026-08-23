@@ -27,12 +27,9 @@ interface SessionResponse {
 }
 
 export type AuthOutcome =
-  | { ok: true; session: Session }
-  | { ok: false; status: number; error: string };
+  { ok: true; session: Session } | { ok: false; status: number; error: string };
 
-export type ForgotPasswordOutcome =
-  | { ok: true }
-  | { ok: false; status: number; error: string };
+export type ForgotPasswordOutcome = { ok: true } | { ok: false; status: number; error: string };
 
 // TODO (#shared-localstorage): try/catch around localStorage is repeated
 // here and in order.ts, main.ts, privacy.ts, static/toggle-handler.js,
@@ -81,22 +78,16 @@ export async function register(
   email: string,
   username: string,
   password: string,
-  altcha: string,
+  altcha: string
 ): Promise<AuthOutcome> {
   return sessionPost("/auth/register", { email, username, password, altcha });
 }
 
-export async function login(
-  email: string,
-  password: string,
-): Promise<AuthOutcome> {
+export async function login(email: string, password: string): Promise<AuthOutcome> {
   return sessionPost("/auth/login", { email, password });
 }
 
-export async function resetPassword(
-  token: string,
-  password: string,
-): Promise<AuthOutcome> {
+export async function resetPassword(token: string, password: string): Promise<AuthOutcome> {
   return sessionPost("/auth/password/reset", { token, password });
 }
 
@@ -106,12 +97,10 @@ export interface ProfileFields {
 }
 
 export type ProfileOutcome =
-  | { ok: true; profile: ProfileFields }
-  | { ok: false; status: number; error: string };
+  { ok: true; profile: ProfileFields } | { ok: false; status: number; error: string };
 
 export type DeleteAccountOutcome =
-  | { ok: true; drawingsDeleted: number }
-  | { ok: false; status: number; error: string };
+  { ok: true; drawingsDeleted: number } | { ok: false; status: number; error: string };
 
 // Deletes the signed-in account. The current password is required on top
 // of the session because deletion is irreversible, and the account's
@@ -188,7 +177,7 @@ export async function updateProfile(fields: ProfileFields): Promise<ProfileOutco
 
 export async function forgotPassword(
   email: string,
-  altcha: string,
+  altcha: string
 ): Promise<ForgotPasswordOutcome> {
   try {
     const res = await fetch(`${AUTH_BASE}/auth/password/forgot`, {
@@ -206,10 +195,7 @@ export async function forgotPassword(
   }
 }
 
-async function sessionPost(
-  path: string,
-  body: Record<string, unknown>,
-): Promise<AuthOutcome> {
+async function sessionPost(path: string, body: Record<string, unknown>): Promise<AuthOutcome> {
   try {
     const res = await fetch(`${AUTH_BASE}${path}`, {
       method: "POST",

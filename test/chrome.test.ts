@@ -33,10 +33,16 @@ test("renderHeader: header has no primary nav — that moves to the left rail", 
 test("renderHeader: auth slot ships both states, signed-in hidden by default", () => {
   const html = renderHeader();
   // Signed-out fallback (the build-time default).
-  assert.match(html, /<a class="hdr-signin" href="\/login" data-identity-link="1" data-auth-state="signed-out">Sign in<\/a>/);
+  assert.match(
+    html,
+    /<a class="hdr-signin" href="\/login" data-identity-link="1" data-auth-state="signed-out">Sign in<\/a>/
+  );
   // Signed-in slot ships hidden — chrome-identity.js reveals it client-side
   // when localStorage has a username.
-  assert.match(html, /<a class="hdr-profile" href="#" data-identity-link="1" data-auth-state="signed-in" hidden>/);
+  assert.match(
+    html,
+    /<a class="hdr-profile" href="#" data-identity-link="1" data-auth-state="signed-in" hidden>/
+  );
   assert.match(html, /<img class="profile-picture hdr-profile-pic"/);
   assert.match(html, /<span class="hdr-profile-name"><\/span>/);
 });
@@ -63,7 +69,10 @@ test("renderHeader: rails=false suppresses the app-shell wrapper", () => {
 
 test("renderHeader: menu button is rendered hidden so chrome-toggle.js can wire it on mobile", () => {
   const html = renderHeader();
-  assert.match(html, /<button class="hdr-menu" aria-controls="rail-left" aria-expanded="false" aria-label="Menu" hidden>/);
+  assert.match(
+    html,
+    /<button class="hdr-menu" aria-controls="rail-left" aria-expanded="false" aria-label="Menu" hidden>/
+  );
 });
 
 // ===== Footer =====
@@ -138,8 +147,14 @@ test("renderLeftRail: active='products' marks the products link with aria-curren
 
 test("renderLeftRail: followers + following blocks ship hidden so chrome-identity.js can reveal them when signed-in", () => {
   const html = renderLeftRail({});
-  assert.match(html, /<div class="rail-follow" data-profile-username="" data-rail-follow="followers" hidden>/);
-  assert.match(html, /<div class="rail-follow" data-profile-username="" data-rail-follow="following" hidden>/);
+  assert.match(
+    html,
+    /<div class="rail-follow" data-profile-username="" data-rail-follow="followers" hidden>/
+  );
+  assert.match(
+    html,
+    /<div class="rail-follow" data-profile-username="" data-rail-follow="following" hidden>/
+  );
   // The link inside each block has the per-kind marker chrome-identity.js
   // looks for to set the href.
   assert.match(html, /data-rail-follow-link="followers"/);
@@ -155,7 +170,10 @@ test("renderLeftRail: follower/following counts ship as 0 and live behind hydrat
 test("renderLeftRail: bookmarks/sign-out rows ship hidden and wire to chrome-identity.js markers", () => {
   const html = renderLeftRail({});
   assert.match(html, /<a class="rail-link" data-rail-bookmarks href="#" hidden>Bookmarks<\/a>/);
-  assert.match(html, /<a class="rail-link rail-logout" href="\/" data-logout-link="1" hidden>Sign out<\/a>/);
+  assert.match(
+    html,
+    /<a class="rail-link rail-logout" href="\/" data-logout-link="1" hidden>Sign out<\/a>/
+  );
   assert.doesNotMatch(html, /data-rail-account/);
 });
 
@@ -170,7 +188,10 @@ test("renderLeftRail: secondary group has the social row + Privacy + Feedback, a
   assert.match(html, /href="https:\/\/www\.threads\.net\/@drawbang256"/);
   // Privacy + Feedback live in a nav below the social row.
   assert.match(html, /href="\/privacy"[^>]*>Privacy</);
-  assert.match(html, /href="https:\/\/github\.com\/potomak\/drawbang\/issues\/new\?labels=feedback"/);
+  assert.match(
+    html,
+    /href="https:\/\/github\.com\/potomak\/drawbang\/issues\/new\?labels=feedback"/
+  );
 });
 
 test("renderLeftRail: identity-link marker present on the only element the patcher should rewrite (= no false matches)", () => {

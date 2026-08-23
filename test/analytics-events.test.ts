@@ -24,8 +24,8 @@ function installVendors(): {
 } {
   const gtagCalls: Args[] = [];
   const fbqCalls: Args[] = [];
-  const g: MockWin = (globalThis as unknown as { window?: MockWin }).window ??
-    (globalThis as unknown as MockWin);
+  const g: MockWin =
+    (globalThis as unknown as { window?: MockWin }).window ?? (globalThis as unknown as MockWin);
   // Some node:test environments don't have a globalThis.window; the vendor
   // wrappers guard on `typeof window === 'undefined'` so we must materialise one.
   (globalThis as { window?: MockWin }).window = g;
@@ -62,7 +62,7 @@ describe("renderAnalytics() — DNT / opt-out gate", () => {
     const html = renderAnalytics();
     assert.ok(
       html.includes(JSON.stringify(ANALYTICS_OPT_OUT_KEY)),
-      "expected the opt-out key to appear as a JSON-quoted literal",
+      "expected the opt-out key to appear as a JSON-quoted literal"
     );
   });
 
@@ -121,12 +121,10 @@ describe("Tracker — typed event methods", () => {
     tracker.shareClick("reddit");
     tracker.forkClick("abcd1234");
     tracker.makeMerchClick("abcd1234");
-    assert.deepEqual(vendors.gtag.map((c) => c[1]), [
-      "copy_share_link_click",
-      "share_click",
-      "fork_click",
-      "make_merch_click",
-    ]);
+    assert.deepEqual(
+      vendors.gtag.map((c) => c[1]),
+      ["copy_share_link_click", "share_click", "fork_click", "make_merch_click"]
+    );
     assert.deepEqual(vendors.gtag[1][2], { target: "reddit" });
     assert.deepEqual(vendors.gtag[2][2], { drawing_id: "abcd1234" });
     assert.deepEqual(vendors.gtag[3][2], { drawing_id: "abcd1234" });

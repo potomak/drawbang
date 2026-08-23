@@ -22,7 +22,7 @@ User-facing requirements (already aligned):
 - **Claim requires PoW** (not just publish). Without this, a takeover
   attacker can keygen → claim → keygen → claim → … for free. PoW makes
   the cost per claim O(work), not O(keygen).
-- Per-pubkey-per-canvas cooldown of 15 min between *publishes* (defense
+- Per-pubkey-per-canvas cooldown of 15 min between _publishes_ (defense
   in depth on top of claim PoW; mainly throttles single-key burst).
 - Editor home page: CTA banner ("This week's canvas — claim a tile →").
 - Editor in tile-claim mode (URL `?c=&x=&y=`): banner makes it visually
@@ -67,15 +67,15 @@ S3 stays as the rendering output (HTML pages), not the live state.
 
 - **Claim PoW**: `POST /canvas/claim` body includes `baseline` + `nonce`
   such that `sha256("claim:" ‖ canvas_id ‖ x ‖ y ‖ pubkey ‖ baseline ‖ nonce)`
-  has ≥ `required_bits` leading zero bits. Difficulty is the *same* table
+  has ≥ `required_bits` leading zero bits. Difficulty is the _same_ table
   as publish PoW (`config/pow.json`), keyed on `last_publish_at` of the
   canvas (not the global one) — so a quiet canvas eases off, a busy one
   hardens. Lives next to `last-publish.json` as
   `public/state/canvas/<id>.json` with `{last_claim_at, required_bits}`.
-- **Cooldown** (per-pubkey-per-canvas, 15 min between *publishes*) is
+- **Cooldown** (per-pubkey-per-canvas, 15 min between _publishes_) is
   enforced in a single `TransactWriteItems` alongside the publish-tile
   update.
-- **Locking** is enforced at *both* claim and publish entry points
+- **Locking** is enforced at _both_ claim and publish entry points
   (canvas-first, claim-TTL second) so a 23:59 Sunday claim can't be
   published Monday 00:01.
 
@@ -96,13 +96,13 @@ current canvas's manifest on every claim/publish, so even if the Monday
 ### Content-addressing × multiple canvases
 
 Drawing IDs are content-addressed (`sha256(gif_bytes)`), so the same gif
-*can* legitimately appear in two different canvases (different weeks).
+_can_ legitimately appear in two different canvases (different weeks).
 The current `handleIngest` early-returns on `exists(publishedKey)` —
-that short-circuit must move *below* the canvas-claim branch.
+that short-circuit must move _below_ the canvas-claim branch.
 
 Drawing metadata gains `canvases: Array<{id, name, x, y, claimed_by}>`
 (true array, mutated over time). `claimed_by` is the pubkey of the
-user who claimed *this* tile use — not necessarily the original
+user who claimed _this_ tile use — not necessarily the original
 drawing author. Each successful canvas publish appends one entry and
 **re-renders `public/d/<id>.html`** so the drawing page reflects the
 new membership immediately. The drawing page renders each canvas
@@ -129,14 +129,14 @@ bounds the blast radius of the multi-writer scenario.
 - `src/submit.ts` includes optional `canvas_claim: {canvas_id, x, y}`
   in the ingest payload when tile-claim mode is active.
 - `src/layout/chrome.ts` `NAV_LINKS` gains `{href: "/canvases",
-  label: "Canvases", id: "canvases"}`.
+label: "Canvases", id: "canvases"}`.
 
 ### Pages added
 
-| URL | Rendered by | Notes |
-|-----|-------------|-------|
-| `/canvases` | `builder/templates/canvases-archive.ts` | Index: current canvas card + past canvases newest-first. |
-| `/canvases/<canvas_id>` | `builder/templates/canvas.ts` | 16×16 grid of tile slots. For **active** canvas, page ships an inline script that hydrates tile states from `GET /canvas/{id}/state` (so it's live). For **locked** canvas, the final state is baked into the HTML by the builder — no JS needed. |
+| URL                     | Rendered by                             | Notes                                                                                                                                                                                                                                             |
+| ----------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/canvases`             | `builder/templates/canvases-archive.ts` | Index: current canvas card + past canvases newest-first.                                                                                                                                                                                          |
+| `/canvases/<canvas_id>` | `builder/templates/canvas.ts`           | 16×16 grid of tile slots. For **active** canvas, page ships an inline script that hydrates tile states from `GET /canvas/{id}/state` (so it's live). For **locked** canvas, the final state is baked into the HTML by the builder — no JS needed. |
 
 CloudFront Function (existing) gains `/canvases` → `/canvases.html` and
 `/canvases/<id>` → `/canvases/<id>.html` rewrites. The `/canvas/*` API
@@ -155,15 +155,16 @@ canvas publish, so the page is live at publish time.
 
 ## Endpoints (new)
 
-| Method + path | Purpose |
-|--------------|---------|
-| `POST /canvas/claim` | Validate Ed25519 sig over `claim:<canvas>:<x>:<y>`, verify claim PoW against canvas's required bits, conditional-put tile in DDB. Returns `{claim_expires_at, edit_url}`. |
-| `GET /canvas/{id}/state` | One DDB Query → `{tiles: [{x, y, drawing_id?, claimed_by?, claim_expires_at?}], required_bits, last_claim_at, closes_at}`. CloudFront 15-s cache. |
-| `POST /ingest` (extended) | Accept optional `canvas_claim: {canvas_id, x, y}`. Reorder so canvas branch runs *before* idempotency short-circuit. `TransactWriteItems` for publish-tile + cooldown. On success, push entry into drawing's `canvases[]` and re-render `public/d/<id>.html`. |
+| Method + path             | Purpose                                                                                                                                                                                                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /canvas/claim`      | Validate Ed25519 sig over `claim:<canvas>:<x>:<y>`, verify claim PoW against canvas's required bits, conditional-put tile in DDB. Returns `{claim_expires_at, edit_url}`.                                                                                     |
+| `GET /canvas/{id}/state`  | One DDB Query → `{tiles: [{x, y, drawing_id?, claimed_by?, claim_expires_at?}], required_bits, last_claim_at, closes_at}`. CloudFront 15-s cache.                                                                                                             |
+| `POST /ingest` (extended) | Accept optional `canvas_claim: {canvas_id, x, y}`. Reorder so canvas branch runs _before_ idempotency short-circuit. `TransactWriteItems` for publish-tile + cooldown. On success, push entry into drawing's `canvases[]` and re-render `public/d/<id>.html`. |
 
 ## Files
 
 **New**
+
 - `config/canvases.ts` — `TILES_PER_SIDE = 16`, `CLAIM_TTL_S = 1800`,
   `PUBLISH_COOLDOWN_S = 900`, `canvasIdForDate(d)` returning
   `canvas-YYYY-Www`, opens/closes from ISO week.
@@ -177,6 +178,7 @@ canvas publish, so the page is live at publish time.
 - `src/canvas-banner.ts` — editor CTA + tile-claim banner.
 
 **Modified**
+
 - `ingest/handler.ts` — accept `canvas_claim`; reorder idempotency;
   thread `canvases[]` into metadata; re-render drawing page with
   canvas info.
@@ -275,37 +277,21 @@ from the same pubkey.
 Sequenced for clean PRs, each green on its own:
 
 **Phase 0 — config + identity helpers** (no infra changes)
+
 1. `config/canvases.ts` + ISO-week helpers + unit tests.
 2. Claim-PoW codec in `src/pow.ts` + worker support + tests.
 
-**Phase 1 — infra**
-3. SAM: `CanvasTilesTable` + `CanvasCooldownsTable` + IAM grants + TTL.
-4. `ingest/canvas-store.ts` + an in-memory implementation for dev/tests.
+**Phase 1 — infra** 3. SAM: `CanvasTilesTable` + `CanvasCooldownsTable` + IAM grants + TTL. 4. `ingest/canvas-store.ts` + an in-memory implementation for dev/tests.
 
-**Phase 2 — ingest API**
-5. `POST /canvas/claim` (lambda + dev-server + tests).
-6. `GET /canvas/{id}/state` (lambda + dev-server + tests).
-7. Extend `POST /ingest`: accept `canvas_claim`, reorder idempotency,
-   transact-write cooldown, mutate `canvases[]`, re-render drawing
-   page. **(Riskiest PR — review carefully.)**
+**Phase 2 — ingest API** 5. `POST /canvas/claim` (lambda + dev-server + tests). 6. `GET /canvas/{id}/state` (lambda + dev-server + tests). 7. Extend `POST /ingest`: accept `canvas_claim`, reorder idempotency,
+transact-write cooldown, mutate `canvases[]`, re-render drawing
+page. **(Riskiest PR — review carefully.)**
 
-**Phase 3 — builder**
-8. `builder/canvas-pass.ts` rollover + lock + reconciliation.
-9. `builder/templates/canvas.ts` + integration into build pipeline.
-10. `builder/templates/canvases-archive.ts` + `/canvases` route.
-11. Patch `builder/templates/drawing.ts` for canvas memberships.
+**Phase 3 — builder** 8. `builder/canvas-pass.ts` rollover + lock + reconciliation. 9. `builder/templates/canvas.ts` + integration into build pipeline. 10. `builder/templates/canvases-archive.ts` + `/canvases` route. 11. Patch `builder/templates/drawing.ts` for canvas memberships.
 
-**Phase 4 — editor**
-12. `src/canvas-banner.ts` (home CTA + tile-claim banner).
-13. `src/main.ts` URL-param parsing + banner wiring.
-14. `src/submit.ts` canvas-claim payload.
-15. `src/layout/chrome.ts` "Canvases" nav link.
+**Phase 4 — editor** 12. `src/canvas-banner.ts` (home CTA + tile-claim banner). 13. `src/main.ts` URL-param parsing + banner wiring. 14. `src/submit.ts` canvas-claim payload. 15. `src/layout/chrome.ts` "Canvases" nav link.
 
-**Phase 5 — wiring + ship**
-16. CloudFront Function rewrites + deploy.yml invalidations.
-17. `vite.config.ts` proxy + `dev-bucket` clean-URL rewrites.
-18. E2E test in `test/canvas.test.ts` (full claim→publish loop).
-19. CLAUDE.md update.
+**Phase 5 — wiring + ship** 16. CloudFront Function rewrites + deploy.yml invalidations. 17. `vite.config.ts` proxy + `dev-bucket` clean-URL rewrites. 18. E2E test in `test/canvas.test.ts` (full claim→publish loop). 19. CLAUDE.md update.
 
 Each issue lands as its own PR. Phases 0–1 are pure additions; the
 risky one is issue 7. Phases 3–4 can run in parallel after Phase 2

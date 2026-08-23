@@ -25,15 +25,27 @@ function party(r: UserRecord): FollowParty {
 
 async function seed() {
   const users = new MemoryUserStore();
-  const alice = await users.register(rec({
-    email: "alice@example.com", user_id: "a".repeat(64), username: "alice",
-  }));
-  const bob = await users.register(rec({
-    email: "bob@example.com", user_id: "b".repeat(64), username: "bob",
-  }));
-  const carol = await users.register(rec({
-    email: "carol@example.com", user_id: "c".repeat(64), username: "carol",
-  }));
+  const alice = await users.register(
+    rec({
+      email: "alice@example.com",
+      user_id: "a".repeat(64),
+      username: "alice",
+    })
+  );
+  const bob = await users.register(
+    rec({
+      email: "bob@example.com",
+      user_id: "b".repeat(64),
+      username: "bob",
+    })
+  );
+  const carol = await users.register(
+    rec({
+      email: "carol@example.com",
+      user_id: "c".repeat(64),
+      username: "carol",
+    })
+  );
   return { users, alice, bob, carol };
 }
 
@@ -57,7 +69,7 @@ describe("MemoryFollowsStore", () => {
     await follows.follow({ follower: party(alice), followee: party(bob), created_at_ms: 1 });
     await assert.rejects(
       follows.follow({ follower: party(alice), followee: party(bob), created_at_ms: 2 }),
-      AlreadyFollowingError,
+      AlreadyFollowingError
     );
     // The double-follow attempt must not bump the counters again.
     const b = await users.getByEmail("bob@example.com");
@@ -69,7 +81,7 @@ describe("MemoryFollowsStore", () => {
     const follows = new MemoryFollowsStore(users);
     await assert.rejects(
       follows.unfollow({ follower: party(alice), followee: party(bob) }),
-      NotFollowingError,
+      NotFollowingError
     );
   });
 
@@ -94,7 +106,7 @@ describe("MemoryFollowsStore", () => {
     // A second unfollow throws — counters don't move.
     await assert.rejects(
       follows.unfollow({ follower: party(alice), followee: party(bob) }),
-      NotFollowingError,
+      NotFollowingError
     );
     const a = await users.getByEmail("alice@example.com");
     assert.equal(a?.following_count, 0);
@@ -141,9 +153,13 @@ describe("MemoryFollowsStore", () => {
 
   test("listFollowing paginates with a cursor", async () => {
     const { users, alice, bob, carol } = await seed();
-    const dan = await users.register(rec({
-      email: "dan@example.com", user_id: "d".repeat(64), username: "dan",
-    }));
+    const dan = await users.register(
+      rec({
+        email: "dan@example.com",
+        user_id: "d".repeat(64),
+        username: "dan",
+      })
+    );
     const follows = new MemoryFollowsStore(users);
     await follows.follow({ follower: party(alice), followee: party(bob), created_at_ms: 10 });
     await follows.follow({ follower: party(alice), followee: party(carol), created_at_ms: 20 });

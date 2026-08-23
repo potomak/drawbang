@@ -48,8 +48,18 @@ export interface TilePageView {
 }
 
 const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 // Locale-neutral, server-renderable formatting of an ISO timestamp.
@@ -72,7 +82,8 @@ function renderChainSection(v: TilePageView): string {
   const ancestors = v.ancestors ?? [];
   if (ancestors.length === 0) return "";
   const links = ancestors.map(
-    (a) => `          <li class="dr-chain-item"><a class="dr-chain-link" href="/d/${esc(a.id)}" aria-label="Drawing ${esc(a.id_short)}"><img class="dr-chain-thumb" src="/tiles/${esc(a.id)}.gif" alt="drawing ${esc(a.id_short)}" width="48" height="48" loading="lazy" /></a></li>`,
+    (a) =>
+      `          <li class="dr-chain-item"><a class="dr-chain-link" href="/d/${esc(a.id)}" aria-label="Drawing ${esc(a.id_short)}"><img class="dr-chain-thumb" src="/tiles/${esc(a.id)}.gif" alt="drawing ${esc(a.id_short)}" width="48" height="48" loading="lazy" /></a></li>`
   );
   const current = `          <li class="dr-chain-item dr-chain-current" aria-current="page"><img class="dr-chain-thumb" src="/tiles/${esc(v.drawing_id)}.gif" alt="this drawing, ${esc(v.id_short)}" width="48" height="48" /></li>`;
   return `      <section class="dr-chain">
@@ -101,14 +112,15 @@ export default function renderTilePage(v: TilePageView): string {
       ? ` · ${v.frames} ${v.frames === 1 ? "frame" : "frames"}`
       : "";
   const forks = v.forks ?? [];
-  const forksSection = forks.length > 0
-    ? `      <section class="dr-forks">
+  const forksSection =
+    forks.length > 0
+      ? `      <section class="dr-forks">
         <p class="panel-h">Remixes · ${forks.length}</p>
         <ul class="img-grid">
 ${forks.map(renderItem).join("\n")}
         </ul>
       </section>`
-    : "";
+      : "";
   const chainSection = renderChainSection(v);
   const ogMeta = `<meta name="description" content="Pixel art from Draw! · Create your own at https://pixel.drawbang.com" />
     <link rel="canonical" href="${esc(v.public_base_url)}/d/${esc(v.drawing_id)}" />

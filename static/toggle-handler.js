@@ -14,7 +14,11 @@
   var JWT_KEY = "drawbang:jwt";
 
   function token() {
-    try { return localStorage.getItem(JWT_KEY) || null; } catch (e) { return null; }
+    try {
+      return localStorage.getItem(JWT_KEY) || null;
+    } catch (e) {
+      return null;
+    }
   }
 
   function flash(kind, message) {
@@ -53,7 +57,10 @@
 
     function onClick(btn) {
       var t = token();
-      if (!t) { redirectToLogin(); return; }
+      if (!t) {
+        redirectToLogin();
+        return;
+      }
       if (btn.disabled) return;
       btn.disabled = true;
       var target = btn.getAttribute(config.targetAttr) || "";
@@ -73,26 +80,36 @@
             if (config.onSuccess) config.onSuccess(btn, nextPressed, wasPressed);
             return;
           }
-          if (res.status === 401) { redirectToLogin(); return; }
+          if (res.status === 401) {
+            redirectToLogin();
+            return;
+          }
           return res.text().then(function (text) {
             var msg = nextPressed ? config.errorMessages.press : config.errorMessages.unpress;
-            try { var j = JSON.parse(text); if (j && j.error) msg = j.error; } catch (e) {}
+            try {
+              var j = JSON.parse(text);
+              if (j && j.error) msg = j.error;
+            } catch (e) {}
             throw new Error(msg);
           });
         })
         .catch(function (e) {
           setPressed(btn, wasPressed);
           if (config.onRevert) config.onRevert(btn, nextPressed, wasPressed);
-          flash("error", (e && e.message) ? e.message : config.errorMessages.fallback);
+          flash("error", e && e.message ? e.message : config.errorMessages.fallback);
         })
-        .then(function () { btn.disabled = false; });
+        .then(function () {
+          btn.disabled = false;
+        });
     }
 
     function wire(btn) {
       if (btn.hasAttribute(config.wiredAttr)) return;
       btn.setAttribute(config.wiredAttr, "1");
       if (config.beforeWire && config.beforeWire(btn) === false) return;
-      btn.addEventListener("click", function () { onClick(btn); });
+      btn.addEventListener("click", function () {
+        onClick(btn);
+      });
     }
 
     function wireAll() {
@@ -105,13 +122,19 @@
       if (typeof MutationObserver !== "function") return;
       var mo = new MutationObserver(function (mutations) {
         for (var i = 0; i < mutations.length; i++) {
-          if (mutations[i].addedNodes.length > 0) { wireAll(); return; }
+          if (mutations[i].addedNodes.length > 0) {
+            wireAll();
+            return;
+          }
         }
       });
       mo.observe(document.body, { childList: true, subtree: true });
     }
 
-    function init() { wireAll(); startObserver(); }
+    function init() {
+      wireAll();
+      startObserver();
+    }
 
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", init, { once: true });

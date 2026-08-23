@@ -8,7 +8,7 @@ export interface ProductLike {
 
 export function pickProductFromQuery<T extends ProductLike>(
   products: readonly T[],
-  productId: string | null | undefined,
+  productId: string | null | undefined
 ): T | null {
   if (!productId) return null;
   return products.find((p) => p.id === productId) ?? null;

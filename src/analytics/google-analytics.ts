@@ -16,10 +16,7 @@ declare global {
   }
 }
 
-export function gtagEvent(
-  name: string,
-  params: Record<string, unknown> = {},
-): void {
+export function gtagEvent(name: string, params: Record<string, unknown> = {}): void {
   if (typeof window === "undefined" || typeof window.gtag !== "function") return;
   try {
     window.gtag("event", name, params);

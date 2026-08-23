@@ -32,7 +32,8 @@ export function encodeShare(d: Drawing): string {
   const buf = new Uint8Array(1 + ACTIVE_PALETTE_SIZE + 1 + frameByteLen * d.frames.length);
   let p = 0;
   buf[p++] = VERSION;
-  buf.set(d.activePalette, p); p += ACTIVE_PALETTE_SIZE;
+  buf.set(d.activePalette, p);
+  p += ACTIVE_PALETTE_SIZE;
   buf[p++] = d.frames.length;
 
   for (const frame of d.frames) {

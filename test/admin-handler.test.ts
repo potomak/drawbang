@@ -1,25 +1,15 @@
 import { strict as assert } from "node:assert";
 import { describe, test } from "node:test";
-import {
-  DescribeTableCommand,
-  type DynamoDBClient,
-} from "@aws-sdk/client-dynamodb";
+import { DescribeTableCommand, type DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
   GetQueryResultsCommand,
   StartQueryCommand,
   type CloudWatchLogsClient,
 } from "@aws-sdk/client-cloudwatch-logs";
 import { handleAdminRoute, parseRange } from "../ingest/admin-handler.js";
-import {
-  MemoryDrawingStore,
-  type DrawingRow,
-  type DrawingStore,
-} from "../ingest/drawing-store.js";
+import { MemoryDrawingStore, type DrawingRow, type DrawingStore } from "../ingest/drawing-store.js";
 import { MemoryUserStore, type UserStore } from "../ingest/user-store.js";
-import {
-  MemoryUserStatsStore,
-  type UserStatsStore,
-} from "../ingest/user-stats-store.js";
+import { MemoryUserStatsStore, type UserStatsStore } from "../ingest/user-stats-store.js";
 import { renderAdminInner, renderAdminShell } from "../lib/templates/admin.js";
 
 // Fakes the AWS SDK clients with handcrafted responses. Tests stay
@@ -53,10 +43,7 @@ function fakeCwLogs(scenario: InsightsScenario): {
   startedQueries: string[];
 } {
   const startedQueries: string[] = [];
-  const queryIdToRows = new Map<
-    string,
-    Array<Array<{ field: string; value: string }>>
-  >();
+  const queryIdToRows = new Map<string, Array<Array<{ field: string; value: string }>>>();
   let nextId = 1;
   const client = {
     send: (async (cmd: { input: SendInput }) => {
@@ -122,7 +109,7 @@ function baseCfg(args: {
 // signup-window assertions don't depend on the wall clock.
 async function seedUser(
   userStore: MemoryUserStore,
-  args: { username: string; email?: string; daysAgo?: number; user_id?: string },
+  args: { username: string; email?: string; daysAgo?: number; user_id?: string }
 ): Promise<string> {
   const user_id = args.user_id ?? args.username.padEnd(64, "0");
   await userStore.register({
@@ -131,9 +118,7 @@ async function seedUser(
     username: args.username,
     password_hash: "scrypt$never$rendered",
     token_version: 0,
-    created_at: new Date(
-      FIXED_NOW.getTime() - (args.daysAgo ?? 0) * DAY_MS,
-    ).toISOString(),
+    created_at: new Date(FIXED_NOW.getTime() - (args.daysAgo ?? 0) * DAY_MS).toISOString(),
   });
   return user_id;
 }
@@ -154,7 +139,9 @@ describe("handleAdminRoute", () => {
   test("renders the inner HTML fragment with private,no-store cache-control", async () => {
     const cfg = baseCfg({});
     const res = await handleAdminRoute({
-      cfg, range: "24h", adminUsername: "potomak",
+      cfg,
+      range: "24h",
+      adminUsername: "potomak",
     });
     assert.equal(res.status, 200);
     assert.equal(res.cacheControl, "private, no-store");
@@ -170,7 +157,9 @@ describe("handleAdminRoute", () => {
       itemCounts: { "drawbang-users": 42, "drawbang-drawings": 1337 },
     });
     const res = await handleAdminRoute({
-      cfg, range: "24h", adminUsername: "potomak",
+      cfg,
+      range: "24h",
+      adminUsername: "potomak",
     });
     assert.match(res.body, /Total users[\s\S]*?>42</);
     assert.match(res.body, /Total drawings[\s\S]*?>1,337</);
@@ -212,25 +201,31 @@ describe("handleAdminRoute", () => {
         matchers: [
           {
             contains: 'route = "POST /ingest"',
-            rows: [[
-              { field: "succ", value: "180" },
-              { field: "fail", value: "20" },
-              { field: "total", value: "200" },
-            ]],
+            rows: [
+              [
+                { field: "succ", value: "180" },
+                { field: "fail", value: "20" },
+                { field: "total", value: "200" },
+              ],
+            ],
           },
           {
             contains: 'route = "POST /auth/register"',
-            rows: [[
-              { field: "succ", value: "10" },
-              { field: "fail", value: "0" },
-              { field: "total", value: "10" },
-            ]],
+            rows: [
+              [
+                { field: "succ", value: "10" },
+                { field: "fail", value: "0" },
+                { field: "total", value: "10" },
+              ],
+            ],
           },
         ],
       },
     });
     const res = await handleAdminRoute({
-      cfg, range: "7d", adminUsername: "potomak",
+      cfg,
+      range: "7d",
+      adminUsername: "potomak",
     });
     assert.match(res.body, /Publish success[\s\S]*?>90\.0%</);
     assert.match(res.body, /180 of 200/);
@@ -267,7 +262,9 @@ describe("handleAdminRoute", () => {
       },
     });
     const res = await handleAdminRoute({
-      cfg, range: "30d", adminUsername: "potomak",
+      cfg,
+      range: "30d",
+      adminUsername: "potomak",
     });
     assert.match(res.body, /Recent failures/);
     assert.match(res.body, /invalid_gif/);
@@ -284,7 +281,9 @@ describe("handleAdminRoute", () => {
       scenario: { matchers: [{ contains: "status >= 400", rows: [] }] },
     });
     const res = await handleAdminRoute({
-      cfg, range: "24h", adminUsername: "potomak",
+      cfg,
+      range: "24h",
+      adminUsername: "potomak",
     });
     assert.match(res.body, /site is healthy/);
   });
@@ -292,18 +291,22 @@ describe("handleAdminRoute", () => {
   test("range param widens the Insights time window", async () => {
     const cfg = baseCfg({});
     await handleAdminRoute({
-      cfg, range: "24h", adminUsername: "potomak",
+      cfg,
+      range: "24h",
+      adminUsername: "potomak",
     });
     const startedSnapshot24h = cfg.cwSpy.startedQueries.length;
 
     const cfg2 = baseCfg({});
     await handleAdminRoute({
-      cfg: cfg2, range: "30d", adminUsername: "potomak",
+      cfg: cfg2,
+      range: "30d",
+      adminUsername: "potomak",
     });
     assert.equal(
       cfg2.cwSpy.startedQueries.length,
       startedSnapshot24h,
-      "both ranges should issue the same number of queries (3)",
+      "both ranges should issue the same number of queries (3)"
     );
     assert.equal(startedSnapshot24h, 3);
   });
@@ -315,16 +318,20 @@ describe("handleAdminRoute", () => {
     // 4 / 3 days ≈ 1.3 publishes/day.
     await store.put(drawingRow({ drawing_id: "1".repeat(64), created_at_ms: newest - 3 * DAY_MS }));
     await store.put(drawingRow({ drawing_id: "2".repeat(64), created_at_ms: newest - 2 * DAY_MS }));
-    await store.put(drawingRow({
-      drawing_id: "3".repeat(64),
-      created_at_ms: newest - 1 * DAY_MS,
-      parent_id: "1".repeat(64),
-    }));
+    await store.put(
+      drawingRow({
+        drawing_id: "3".repeat(64),
+        created_at_ms: newest - 1 * DAY_MS,
+        parent_id: "1".repeat(64),
+      })
+    );
     await store.put(drawingRow({ drawing_id: "4".repeat(64), created_at_ms: newest }));
 
     const cfg = baseCfg({ drawingStore: store });
     const res = await handleAdminRoute({
-      cfg, range: "24h", adminUsername: "potomak",
+      cfg,
+      range: "24h",
+      adminUsername: "potomak",
     });
     assert.match(res.body, /Product KPIs \(last 4 drawings\)/);
     assert.match(res.body, /Remix rate[\s\S]*?>25\.0%</);
@@ -339,7 +346,9 @@ describe("handleAdminRoute", () => {
     };
     const cfg = baseCfg({ drawingStore: failing });
     const res = await handleAdminRoute({
-      cfg, range: "24h", adminUsername: "potomak",
+      cfg,
+      range: "24h",
+      adminUsername: "potomak",
     });
     assert.equal(res.status, 200);
     assert.match(res.body, /Product KPIs/);
@@ -352,7 +361,9 @@ describe("handleAdminRoute", () => {
     await store.put(drawingRow({ parent_id: "b".repeat(64) }));
     const cfg = baseCfg({ drawingStore: store });
     const res = await handleAdminRoute({
-      cfg, range: "24h", adminUsername: "potomak",
+      cfg,
+      range: "24h",
+      adminUsername: "potomak",
     });
     assert.match(res.body, /Product KPIs \(last 1 drawings\)/);
     assert.match(res.body, /Remix rate[\s\S]*?>100\.0%</);

@@ -1,9 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import {
-  NoopInvalidator,
-  pathsToInvalidateOnPublish,
-} from "../ingest/cache-invalidation.js";
+import { NoopInvalidator, pathsToInvalidateOnPublish } from "../ingest/cache-invalidation.js";
 
 test("pathsToInvalidateOnPublish: home feed + gallery + that user's profile + RSS", () => {
   assert.deepEqual(pathsToInvalidateOnPublish("alice"), [

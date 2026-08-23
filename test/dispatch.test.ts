@@ -192,10 +192,7 @@ test("happy path: upload -> create product -> create order -> submitted", async 
   // Image upload: uses deterministic filename derived from drawing_id + frame
   assert.equal(printifyCalls.uploadImage.length, 1);
   const upload = printifyCalls.uploadImage[0];
-  assert.equal(
-    upload.filename,
-    `drawbang-${"f".repeat(64)}-f0.svg`,
-  );
+  assert.equal(upload.filename, `drawbang-${"f".repeat(64)}-f0.svg`);
   assert.ok(upload.bytesLen > 0, "non-empty PNG");
 
   // Product creation: title, blueprint, print provider, single variant + placeholder
@@ -233,11 +230,7 @@ test("happy path: upload -> create product -> create order -> submitted", async 
   assert.equal(ordersCalls.transition.length, 3);
   assert.deepEqual(
     ordersCalls.transition.map((t) => t.patch),
-    [
-      { printify_product_id: "prod_42" },
-      { printify_order_id: "po_42" },
-      { status: "submitted" },
-    ],
+    [{ printify_product_id: "prod_42" }, { printify_order_id: "po_42" }, { status: "submitted" }]
   );
   for (const t of ordersCalls.transition) {
     assert.equal(t.id, "ord_42");
@@ -258,7 +251,7 @@ test("idempotent: prior printify_product_id skips upload + createProduct", async
   // Only the order_id stamp + final submitted; no product_id (already set).
   assert.deepEqual(
     ordersCalls.transition.map((t) => t.patch),
-    [{ printify_order_id: "po_1" }, { status: "submitted" }],
+    [{ printify_order_id: "po_1" }, { status: "submitted" }]
   );
 });
 
@@ -275,7 +268,7 @@ test("idempotent: prior printify_order_id skips createOrder, still calls sendToP
   assert.equal(printifyCalls.sendToProduction[0], "po_existing");
   assert.deepEqual(
     ordersCalls.transition.map((t) => t.patch),
-    [{ status: "submitted" }],
+    [{ status: "submitted" }]
   );
 });
 
@@ -302,7 +295,7 @@ test("placeholder_positions: each configured position uploads the same image", a
   const placeholders = printifyCalls.createProduct[0].print_areas[0].placeholders;
   assert.deepEqual(
     placeholders.map((p) => p.position),
-    ["front_1", "front_2", "front_3", "front_4"],
+    ["front_1", "front_2", "front_3", "front_4"]
   );
   // Same image id repeated in every position.
   for (const p of placeholders) {
@@ -337,7 +330,7 @@ test("upscale to a giant print area still uploads a tiny SVG", async () => {
   assert.ok(printifyCalls.uploadImage[0].bytesLen > 0);
   assert.ok(
     printifyCalls.uploadImage[0].bytesLen < 32_000,
-    `SVG bytes ${printifyCalls.uploadImage[0].bytesLen} unexpectedly large for a 16×16 source`,
+    `SVG bytes ${printifyCalls.uploadImage[0].bytesLen} unexpectedly large for a 16×16 source`
   );
 });
 
@@ -458,7 +451,7 @@ test("createOrder 409 with an existing external_id recovers via findOrderByExter
       { printify_product_id: "prod_99" },
       { printify_order_id: "po_recovered" },
       { status: "submitted" },
-    ],
+    ]
   );
 });
 
@@ -615,7 +608,7 @@ test("productCounters: race-loser whose paid->submitted transition returns null 
   const transition: OrdersStore["transition"] = (async (
     _id: string,
     _expected: OrderStatus,
-    patch: Partial<Order>,
+    patch: Partial<Order>
   ) => {
     // First two transitions (printify_product_id stamp, printify_order_id
     // stamp) succeed and return a fake order. The third — the status
@@ -738,7 +731,11 @@ test("placement: brand decorations stay centred regardless of user-facing placem
     order: makeOrder({ placement: "pattern-4x4" }),
   });
   deps.catalog = catalogWithNeck;
-  deps.brandLogo = { async getImageId() { return "img_brand_42"; } };
+  deps.brandLogo = {
+    async getImageId() {
+      return "img_brand_42";
+    },
+  };
 
   await placePrintifyOrder("ord_42", deps);
 
@@ -751,7 +748,11 @@ test("placement: brand decorations stay centred regardless of user-facing placem
   assert.equal(placeholders[1].position, "neck");
   assert.equal(placeholders[1].images.length, 1);
   assert.deepEqual(placeholders[1].images[0], {
-    id: "img_brand_42", x: 0.5, y: 0.5, scale: 1, angle: 0,
+    id: "img_brand_42",
+    x: 0.5,
+    y: 0.5,
+    scale: 1,
+    angle: 0,
   });
 });
 

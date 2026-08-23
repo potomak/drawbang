@@ -41,14 +41,14 @@ function makeCfg(): { cfg: AuthHandlerConfig; email: CapturingEmail } {
 // validates fields before spending the challenge, and those tests pin it.
 async function register(
   cfg: AuthHandlerConfig,
-  body: Record<string, unknown>,
+  body: Record<string, unknown>
 ): Promise<ReturnType<typeof handleRegister>> {
   return handleRegister({ ...body, altcha: await solvedPayload(cfg.challenge) }, cfg);
 }
 
 async function forgot(
   cfg: AuthHandlerConfig,
-  body: Record<string, unknown>,
+  body: Record<string, unknown>
 ): Promise<ReturnType<typeof handleForgotPassword>> {
   return handleForgotPassword({ ...body, altcha: await solvedPayload(cfg.challenge) }, cfg);
 }
@@ -95,10 +95,26 @@ describe("auth: register", () => {
   });
 
   test("validates email, username, password", async () => {
-    assert.equal((await handleRegister({ email: "nope", username: "alice", password: "password123" }, cfg)).status, 400);
-    assert.equal((await handleRegister({ email: "a@b.com", username: "x", password: "password123" }, cfg)).status, 400);
-    assert.equal((await handleRegister({ email: "a@b.com", username: "admin", password: "password123" }, cfg)).status, 400);
-    assert.equal((await handleRegister({ email: "a@b.com", username: "alice", password: "short" }, cfg)).status, 400);
+    assert.equal(
+      (await handleRegister({ email: "nope", username: "alice", password: "password123" }, cfg))
+        .status,
+      400
+    );
+    assert.equal(
+      (await handleRegister({ email: "a@b.com", username: "x", password: "password123" }, cfg))
+        .status,
+      400
+    );
+    assert.equal(
+      (await handleRegister({ email: "a@b.com", username: "admin", password: "password123" }, cfg))
+        .status,
+      400
+    );
+    assert.equal(
+      (await handleRegister({ email: "a@b.com", username: "alice", password: "short" }, cfg))
+        .status,
+      400
+    );
   });
 });
 
@@ -113,22 +129,54 @@ describe("auth: wrong-typed body fields 4xx cleanly (#type-safety)", () => {
   });
 
   test("register", async () => {
-    assert.equal((await handleRegister({ email: 123, username: "alice", password: "password123" } as never, cfg)).status, 400);
-    assert.equal((await handleRegister({ email: "a@b.com", username: { x: 1 }, password: "password123" } as never, cfg)).status, 400);
-    assert.equal((await handleRegister({ email: "a@b.com", username: "alice", password: 42 } as never, cfg)).status, 400);
+    assert.equal(
+      (
+        await handleRegister(
+          { email: 123, username: "alice", password: "password123" } as never,
+          cfg
+        )
+      ).status,
+      400
+    );
+    assert.equal(
+      (
+        await handleRegister(
+          { email: "a@b.com", username: { x: 1 }, password: "password123" } as never,
+          cfg
+        )
+      ).status,
+      400
+    );
+    assert.equal(
+      (await handleRegister({ email: "a@b.com", username: "alice", password: 42 } as never, cfg))
+        .status,
+      400
+    );
   });
 
   test("login", async () => {
-    assert.equal((await handleLogin({ email: ["a@b.com"], password: "password123" } as never, cfg)).status, 401);
-    assert.equal((await handleLogin({ email: "a@b.com", password: null } as never, cfg)).status, 401);
+    assert.equal(
+      (await handleLogin({ email: ["a@b.com"], password: "password123" } as never, cfg)).status,
+      401
+    );
+    assert.equal(
+      (await handleLogin({ email: "a@b.com", password: null } as never, cfg)).status,
+      401
+    );
   });
 
   test("forgot + reset", async () => {
     // Forgot always answers 200 (no email enumeration) — a wrong-typed
     // email must not break that contract.
     assert.equal((await forgot(cfg, { email: 7 } as never)).status, 200);
-    assert.equal((await handleResetPassword({ token: 99, password: "password123" } as never, cfg)).status, 400);
-    assert.equal((await handleResetPassword({ token: "x.y.z", password: {} } as never, cfg)).status, 400);
+    assert.equal(
+      (await handleResetPassword({ token: 99, password: "password123" } as never, cfg)).status,
+      400
+    );
+    assert.equal(
+      (await handleResetPassword({ token: "x.y.z", password: {} } as never, cfg)).status,
+      400
+    );
   });
 });
 
@@ -167,8 +215,14 @@ describe("auth: password reset", () => {
     assert.equal(confirm.status, 200);
 
     // Old password no longer works; new one does.
-    assert.equal((await handleLogin({ email: "a@b.com", password: "password123" }, cfg)).status, 401);
-    assert.equal((await handleLogin({ email: "a@b.com", password: "newpassword1" }, cfg)).status, 200);
+    assert.equal(
+      (await handleLogin({ email: "a@b.com", password: "password123" }, cfg)).status,
+      401
+    );
+    assert.equal(
+      (await handleLogin({ email: "a@b.com", password: "newpassword1" }, cfg)).status,
+      200
+    );
 
     // Reusing the same reset token fails (token_version bumped).
     const replay = await handleResetPassword({ token, password: "anotherpass1" }, cfg);

@@ -57,7 +57,7 @@ export async function handleHydrate(
   rawDrawings: string | null,
   rawUsers: string | null,
   auth: HydrateAuth | null,
-  cfg: HydrateHandlerConfig,
+  cfg: HydrateHandlerConfig
 ): Promise<HydrateResult> {
   const drawing_ids = parseCsv(rawDrawings, DRAWING_ID_RE);
   if (drawing_ids === null) return err(400, "invalid drawings");
@@ -93,9 +93,10 @@ export async function handleHydrate(
   for (const rec of userRecords) {
     if (rec) target_user_ids.push(rec.user_id);
   }
-  const followed = target_user_ids.length > 0 && auth
-    ? await cfg.followsStore.listFollowed(auth.user_id, target_user_ids)
-    : [];
+  const followed =
+    target_user_ids.length > 0 && auth
+      ? await cfg.followsStore.listFollowed(auth.user_id, target_user_ids)
+      : [];
 
   const likedSet = new Set(liked);
   const bookmarkedSet = new Set(bookmarked);
@@ -117,11 +118,7 @@ export async function handleHydrate(
       profile_picture_drawing_id: rec?.profile_picture_drawing_id ?? null,
       follower_count: rec?.follower_count ?? 0,
       following_count: rec?.following_count ?? 0,
-      viewer_follows: auth
-        ? rec
-          ? followedSet.has(rec.user_id)
-          : false
-        : null,
+      viewer_follows: auth ? (rec ? followedSet.has(rec.user_id) : false) : null,
     };
   }
 

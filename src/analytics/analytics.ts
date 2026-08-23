@@ -30,14 +30,7 @@ export interface PixelContentItem {
   quantity?: number;
 }
 
-export type EditorTool =
-  | "pixel"
-  | "erase"
-  | "fill"
-  | "eyedrop"
-  | "shift"
-  | "clear"
-  | string;
+export type EditorTool = "pixel" | "erase" | "fill" | "eyedrop" | "shift" | "clear" | string;
 
 export type GifDownloadSource = "editor" | "drawing_page";
 export type ShareTarget = "reddit" | "x" | "threads" | "web_share";
@@ -200,11 +193,7 @@ export class Tracker {
     gtagEvent("order_status_view", { status });
   }
 
-  purchase(args: {
-    transaction_id: string;
-    value: number;
-    items: AnalyticsItem[];
-  }): void {
+  purchase(args: { transaction_id: string; value: number; items: AnalyticsItem[] }): void {
     gtagEvent("purchase", {
       currency: "USD",
       transaction_id: args.transaction_id,

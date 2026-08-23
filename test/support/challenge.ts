@@ -16,9 +16,7 @@ import { mintChallenge, type ChallengeConfig } from "../../ingest/challenge.js";
 // either way. Production difficulty is exercised in challenge.test.ts.
 export const TEST_DIFFICULTY = { cost: 1, counterMin: 0, counterMax: 2 };
 
-export function testChallengeConfig(
-  over: Partial<ChallengeConfig> = {},
-): ChallengeConfig {
+export function testChallengeConfig(over: Partial<ChallengeConfig> = {}): ChallengeConfig {
   return {
     secret: "test-challenge-secret",
     challengeStore: new MemoryChallengeStore(),

@@ -27,10 +27,7 @@ import {
   ListInvalidationsCommand,
   GetInvalidationCommand,
 } from "@aws-sdk/client-cloudfront";
-import {
-  LambdaClient,
-  GetFunctionConfigurationCommand,
-} from "@aws-sdk/client-lambda";
+import { LambdaClient, GetFunctionConfigurationCommand } from "@aws-sdk/client-lambda";
 
 // ── What we measure ─────────────────────────────────────────────────────────
 const CF_DISTRIBUTION_ID = "E6J784BTWEBRC"; // pixel.drawbang.com
@@ -114,12 +111,8 @@ const lambda = new LambdaClient({ region: REGION });
 
 // ── Time window: first of month UTC → now ───────────────────────────────────
 const now = new Date();
-const start = new Date(
-  Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
-);
-const monthDays = new Date(
-  Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0),
-).getUTCDate();
+const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+const monthDays = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
 const elapsedHours = Math.max(1, (now.getTime() - start.getTime()) / 3600_000);
 const elapsedDays = elapsedHours / 24;
 
@@ -133,7 +126,7 @@ async function metric(
   namespace: string,
   name: string,
   dims: Dimension[],
-  stat: "Sum" | "Average",
+  stat: "Sum" | "Average"
 ): Promise<number> {
   const out = await cw.send(
     new GetMetricStatisticsCommand({
@@ -144,7 +137,7 @@ async function metric(
       EndTime: now,
       Period: 86400,
       Statistics: [stat],
-    }),
+    })
   );
   const pts = out.Datapoints ?? [];
   if (pts.length === 0) return 0;
@@ -191,7 +184,7 @@ async function gather(): Promise<GatherResult> {
         totalDurationMs: durSum,
         memoryMB: cfg.MemorySize ?? 128,
       };
-    }),
+    })
   );
 
   const ddb: DdbUsage[] = await Promise.all(
@@ -202,17 +195,17 @@ async function gather(): Promise<GatherResult> {
         metric("AWS/DynamoDB", "ConsumedWriteCapacityUnits", dims, "Sum"),
       ]);
       return { name: t, rcu, wcu };
-    }),
+    })
   );
 
   const list = await cf.send(
     new ListInvalidationsCommand({
       DistributionId: CF_DISTRIBUTION_ID,
       MaxItems: "1000",
-    }),
+    })
   );
   const items = (list.InvalidationList?.Items ?? []).filter(
-    (it) => it.CreateTime && it.CreateTime >= start,
+    (it) => it.CreateTime && it.CreateTime >= start
   );
   const details = await Promise.all(
     items.map((it) =>
@@ -220,13 +213,13 @@ async function gather(): Promise<GatherResult> {
         new GetInvalidationCommand({
           DistributionId: CF_DISTRIBUTION_ID,
           Id: it.Id!,
-        }),
-      ),
-    ),
+        })
+      )
+    )
   );
   const invPaths = details.reduce(
     (s, d) => s + (d.Invalidation?.InvalidationBatch?.Paths?.Quantity ?? 0),
-    0,
+    0
   );
 
   return {
@@ -258,7 +251,7 @@ function compute(d: GatherResult): CostBreakdown {
   }, 0);
   const ddbTotal = d.ddb.reduce(
     (s, t) => s + (t.rcu / 1e6) * DDB_READ_PER_M + (t.wcu / 1e6) * DDB_WRITE_PER_M,
-    0,
+    0
   );
   const invBillablePaths = Math.max(0, d.inv.paths - CF_INVALIDATION_FREE_PATHS);
   const invTotal = invBillablePaths * CF_INVALIDATION_PER_PATH;
@@ -294,7 +287,7 @@ function writeLast(mtd: number): void {
   mkdirSync(STATE_DIR, { recursive: true });
   writeFileSync(
     STATE_FILE,
-    JSON.stringify({ date: now.toISOString().slice(0, 10), mtd_cost: mtd }),
+    JSON.stringify({ date: now.toISOString().slice(0, 10), mtd_cost: mtd })
   );
 }
 
@@ -323,18 +316,14 @@ function buildReport(d: GatherResult, c: CostBreakdown): string {
     priorDaily = last.mtd_cost / Math.max(1, prevDay);
   }
   const deltaLine =
-    priorDaily > 0
-      ? `  Δ daily-rate vs prior: ${(todayDaily / priorDaily).toFixed(2)}×`
-      : "";
+    priorDaily > 0 ? `  Δ daily-rate vs prior: ${(todayDaily / priorDaily).toFixed(2)}×` : "";
 
   const flags: string[] = [];
   if (c.total > MTD_ALERT_THRESHOLD) {
     flags.push(`MTD > $${MTD_ALERT_THRESHOLD.toFixed(2)}`);
   }
   if (d.inv.paths > INV_PATHS_ALERT) {
-    flags.push(
-      `invalidations ${d.inv.paths}/${CF_INVALIDATION_FREE_PATHS} paths (>80%)`,
-    );
+    flags.push(`invalidations ${d.inv.paths}/${CF_INVALIDATION_FREE_PATHS} paths (>80%)`);
   }
   if (priorDaily > 0 && todayDaily > priorDaily * 3) {
     flags.push("daily rate >3× prior");
@@ -351,8 +340,7 @@ function buildReport(d: GatherResult, c: CostBreakdown): string {
   ];
   if (deltaLine) body.push(deltaLine);
 
-  const flagLine =
-    flags.length > 0 ? `\n⚠ flags: ${flags.join("; ")}` : "";
+  const flagLine = flags.length > 0 ? `\n⚠ flags: ${flags.join("; ")}` : "";
   const day1Indexed = now.getUTCDate();
   return [
     `Drawbang cost — MTD ${day} (day ${day1Indexed} of ${monthDays})`,
@@ -372,17 +360,14 @@ async function postDiscord(content: string): Promise<void> {
   if (!token || !channelId) {
     throw new Error("missing DISCORD_BOT_TOKEN or DISCORD_CHANNEL_ID");
   }
-  const res = await fetch(
-    `https://discord.com/api/v10/channels/${channelId}/messages`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bot ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ content }),
+  const res = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bot ${token}`,
+      "Content-Type": "application/json",
     },
-  );
+    body: JSON.stringify({ content }),
+  });
   if (!res.ok) {
     throw new Error(`Discord POST ${res.status}: ${await res.text()}`);
   }

@@ -1,8 +1,4 @@
-import type {
-  APIGatewayProxyEventV2,
-  APIGatewayProxyResultV2,
-  Context,
-} from "aws-lambda";
+import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2, Context } from "aws-lambda";
 import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import {
   encodeShareMp4FromStorage,
@@ -66,7 +62,8 @@ const challengesTable = required("DRAWBANG_CHALLENGES_TABLE");
 const cfDistributionId = process.env.CF_DISTRIBUTION_ID ?? "";
 // /products feeds off this table (drawing_id × product_id → count) which
 // the merch dispatch increments on each paid-→-submitted transition.
-const productCountersTable = process.env.DRAWBANG_PRODUCT_COUNTERS_TABLE ?? "drawbang-product-counters";
+const productCountersTable =
+  process.env.DRAWBANG_PRODUCT_COUNTERS_TABLE ?? "drawbang-product-counters";
 const jwtSecret = required("JWT_SECRET");
 // Optional: until SES is wired, password-reset emails fail at send time
 // (caught + logged in the handler) but the rest of ingest stays up.
@@ -80,13 +77,12 @@ const adminUsernames = new Set(
   (process.env.ADMIN_USERNAMES ?? "")
     .split(",")
     .map((s) => s.trim())
-    .filter(Boolean),
+    .filter(Boolean)
 );
 // Log group queried by the /admin page. Defaults to the conventional
 // `/aws/lambda/<function>` location; override via env when the Lambda
 // is reused for testing against a different log stream.
-const ingestLogGroup =
-  process.env.INGEST_LOG_GROUP ?? "/aws/lambda/drawbang-ingest";
+const ingestLogGroup = process.env.INGEST_LOG_GROUP ?? "/aws/lambda/drawbang-ingest";
 
 // Reused across invocations in a warm Lambda container. Cold start pays the
 // SDK init cost once; subsequent requests reuse the connection pool.
@@ -130,8 +126,7 @@ const cacheInvalidator = cfDistributionId
 // merch function's MERCH_FUNCTION_NAME. The Event-type invoke resolves as
 // soon as Lambda queues the payload (a few ms), so awaiting it doesn't
 // hold the publish response.
-const ingestFunctionName =
-  process.env.INGEST_FUNCTION_NAME ?? "drawbang-ingest";
+const ingestFunctionName = process.env.INGEST_FUNCTION_NAME ?? "drawbang-ingest";
 const lambdaClient = new LambdaClient({});
 const deferPostPublish = async (job: PostPublishJob): Promise<void> => {
   const payload: PostPublishEvent = { kind: "post-publish", ...job };
@@ -140,7 +135,7 @@ const deferPostPublish = async (job: PostPublishJob): Promise<void> => {
       FunctionName: ingestFunctionName,
       InvocationType: "Event",
       Payload: Buffer.from(JSON.stringify(payload)),
-    }),
+    })
   );
 };
 // One cold-start snapshot per container. "Was the ffmpeg binary actually
@@ -272,7 +267,7 @@ const routes = createRoutes({
 
 export async function handler(
   event: APIGatewayProxyEventV2 | PostPublishEvent | EncodeShareMp4Event,
-  context: Context,
+  context: Context
 ): Promise<APIGatewayProxyResultV2 | void> {
   // Async self-invoke events carry no requestContext.http, so they must
   // be detected before any HTTP routing touches the event shape.
@@ -306,8 +301,7 @@ export async function handler(
   // Memoized so the Bearer JWT is verified at most once per request even
   // when the matched route and its handler both ask for the session.
   let authMemo: ReturnType<typeof authFromBearer> | undefined;
-  const authHeader = () =>
-    event.headers?.authorization ?? event.headers?.Authorization ?? null;
+  const authHeader = () => event.headers?.authorization ?? event.headers?.Authorization ?? null;
   const req: RouteRequest = {
     method,
     path,
@@ -326,10 +320,7 @@ export async function handler(
   return adaptResult(await dispatch(routes, req), event);
 }
 
-function adaptResult(
-  result: RouteResult,
-  event: APIGatewayProxyEventV2,
-): APIGatewayProxyResultV2 {
+function adaptResult(result: RouteResult, event: APIGatewayProxyEventV2): APIGatewayProxyResultV2 {
   switch (result.kind) {
     case "render":
       return {
@@ -375,5 +366,5 @@ function required(name: string): string {
 function rawBody(event: APIGatewayProxyEventV2): string {
   return event.isBase64Encoded && event.body
     ? Buffer.from(event.body, "base64").toString("utf8")
-    : event.body ?? "";
+    : (event.body ?? "");
 }

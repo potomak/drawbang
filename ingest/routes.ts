@@ -6,12 +6,7 @@ import {
 } from "./handler.js";
 import { ANONYMOUS_USER_ID, ANONYMOUS_USERNAME } from "../config/constants.js";
 import { JwtError, verifyJwt } from "./jwt.js";
-import {
-  authErrorCode,
-  estimateBase64Bytes,
-  ingestErrorCode,
-  logOutcome,
-} from "./log-outcome.js";
+import { authErrorCode, estimateBase64Bytes, ingestErrorCode, logOutcome } from "./log-outcome.js";
 import {
   handleForgotPassword,
   handleGetProfile,
@@ -160,11 +155,12 @@ const HEX64 = "[0-9a-f]{64}";
 
 export function createRoutes(deps: RouteDeps): Route[] {
   const render = (response: RenderResponse): RouteResult => ({ kind: "render", response });
-  const json = (
-    status: number,
-    body: unknown,
-    headers?: Record<string, string>,
-  ): RouteResult => ({ kind: "json", status, body, headers });
+  const json = (status: number, body: unknown, headers?: Record<string, string>): RouteResult => ({
+    kind: "json",
+    status,
+    body,
+    headers,
+  });
 
   const routes: Route[] = [
     // Publishing does NOT require an account. With a session the drawing is
@@ -210,9 +206,12 @@ export function createRoutes(deps: RouteDeps): Route[] {
         const route = "GET /admin/data";
         if (!deps.admin.isAllowed(auth!.username)) {
           logOutcome({
-            requestId: req.requestId, route, status: 403,
+            requestId: req.requestId,
+            route,
+            status: 403,
             duration_ms: Date.now() - req.t0,
-            user_id: auth!.user_id, username: auth!.username,
+            user_id: auth!.user_id,
+            username: auth!.username,
             error_code: "forbidden",
           });
           return json(403, { error: "not authorised" });
@@ -222,9 +221,12 @@ export function createRoutes(deps: RouteDeps): Route[] {
           adminUsername: auth!.username,
         });
         logOutcome({
-          requestId: req.requestId, route, status: rendered.status,
+          requestId: req.requestId,
+          route,
+          status: rendered.status,
           duration_ms: Date.now() - req.t0,
-          user_id: auth!.user_id, username: auth!.username,
+          user_id: auth!.user_id,
+          username: auth!.username,
         });
         return render(rendered);
       },
@@ -243,18 +245,24 @@ export function createRoutes(deps: RouteDeps): Route[] {
         const route = "DELETE /admin/users/{username}";
         if (!deps.admin.isAllowed(auth!.username)) {
           logOutcome({
-            requestId: req.requestId, route, status: 403,
+            requestId: req.requestId,
+            route,
+            status: 403,
             duration_ms: Date.now() - req.t0,
-            user_id: auth!.user_id, username: auth!.username,
+            user_id: auth!.user_id,
+            username: auth!.username,
             error_code: "forbidden",
           });
           return json(403, { error: "not authorised" });
         }
         const result = await handleAdminDeleteAccount(params[0], deps.authConfig);
         logOutcome({
-          requestId: req.requestId, route, status: result.status,
+          requestId: req.requestId,
+          route,
+          status: result.status,
           duration_ms: Date.now() - req.t0,
-          user_id: auth!.user_id, username: auth!.username,
+          user_id: auth!.user_id,
+          username: auth!.username,
           ...(result.status >= 400
             ? { error_message: String((result.body as { error?: string }).error ?? "") }
             : {}),
@@ -275,32 +283,47 @@ export function createRoutes(deps: RouteDeps): Route[] {
         const route = "GET /admin/merch/flags";
         if (!deps.admin.isAllowed(auth!.username)) {
           logOutcome({
-            requestId: req.requestId, route, status: 403,
+            requestId: req.requestId,
+            route,
+            status: 403,
             duration_ms: Date.now() - req.t0,
-            user_id: auth!.user_id, username: auth!.username,
+            user_id: auth!.user_id,
+            username: auth!.username,
             error_code: "forbidden",
           });
           return json(403, { error: "not authorised" });
         }
         if (!deps.admin.flagsStore) {
           logOutcome({
-            requestId: req.requestId, route, status: 500,
+            requestId: req.requestId,
+            route,
+            status: 500,
             duration_ms: Date.now() - req.t0,
-            user_id: auth!.user_id, username: auth!.username,
+            user_id: auth!.user_id,
+            username: auth!.username,
             error_code: "flags_store_not_wired",
           });
           return json(500, { error: "flags store not configured" });
         }
         const store = deps.admin.flagsStore;
         const row = await store.getFlag("merch_dry_run");
-        const val = (row as { enabled?: boolean; value?: boolean } | null)?.enabled ?? (row as { value?: boolean } | null)?.value;
+        const val =
+          (row as { enabled?: boolean; value?: boolean } | null)?.enabled ??
+          (row as { value?: boolean } | null)?.value;
         const body = row
-          ? { merch_dry_run: Boolean(val), updated_at: row.updated_at ?? null, updated_by: row.updated_by ?? null }
+          ? {
+              merch_dry_run: Boolean(val),
+              updated_at: row.updated_at ?? null,
+              updated_by: row.updated_by ?? null,
+            }
           : { merch_dry_run: true, updated_at: null, updated_by: null };
         logOutcome({
-          requestId: req.requestId, route, status: 200,
+          requestId: req.requestId,
+          route,
+          status: 200,
           duration_ms: Date.now() - req.t0,
-          user_id: auth!.user_id, username: auth!.username,
+          user_id: auth!.user_id,
+          username: auth!.username,
         });
         return json(200, body, { "Cache-Control": "private, no-store" });
       },
@@ -314,18 +337,24 @@ export function createRoutes(deps: RouteDeps): Route[] {
         const route = "POST /admin/merch/flags";
         if (!deps.admin.isAllowed(auth!.username)) {
           logOutcome({
-            requestId: req.requestId, route, status: 403,
+            requestId: req.requestId,
+            route,
+            status: 403,
             duration_ms: Date.now() - req.t0,
-            user_id: auth!.user_id, username: auth!.username,
+            user_id: auth!.user_id,
+            username: auth!.username,
             error_code: "forbidden",
           });
           return json(403, { error: "not authorised" });
         }
         if (!deps.admin.flagsStore) {
           logOutcome({
-            requestId: req.requestId, route, status: 500,
+            requestId: req.requestId,
+            route,
+            status: 500,
             duration_ms: Date.now() - req.t0,
-            user_id: auth!.user_id, username: auth!.username,
+            user_id: auth!.user_id,
+            username: auth!.username,
             error_code: "flags_store_not_wired",
           });
           return json(500, { error: "flags store not configured" });
@@ -335,9 +364,12 @@ export function createRoutes(deps: RouteDeps): Route[] {
           raw = await req.body();
         } catch {
           logOutcome({
-            requestId: req.requestId, route, status: 400,
+            requestId: req.requestId,
+            route,
+            status: 400,
             duration_ms: Date.now() - req.t0,
-            user_id: auth!.user_id, username: auth!.username,
+            user_id: auth!.user_id,
+            username: auth!.username,
             error_code: "bad_json",
           });
           return json(400, { error: "bad json body" });
@@ -347,9 +379,12 @@ export function createRoutes(deps: RouteDeps): Route[] {
           parsed = JSON.parse(raw);
         } catch {
           logOutcome({
-            requestId: req.requestId, route, status: 400,
+            requestId: req.requestId,
+            route,
+            status: 400,
             duration_ms: Date.now() - req.t0,
-            user_id: auth!.user_id, username: auth!.username,
+            user_id: auth!.user_id,
+            username: auth!.username,
             error_code: "bad_json",
           });
           return json(400, { error: "bad json body" });
@@ -357,25 +392,34 @@ export function createRoutes(deps: RouteDeps): Route[] {
         const obj = parsed as Record<string, unknown>;
         if (typeof obj.merch_dry_run !== "boolean") {
           logOutcome({
-            requestId: req.requestId, route, status: 400,
+            requestId: req.requestId,
+            route,
+            status: 400,
             duration_ms: Date.now() - req.t0,
-            user_id: auth!.user_id, username: auth!.username,
+            user_id: auth!.user_id,
+            username: auth!.username,
             error_code: "bad_merch_dry_run",
           });
           return json(400, { error: "bad merch_dry_run: expected boolean" });
         }
         const store = deps.admin.flagsStore;
         const row = await store.setFlag("merch_dry_run", obj.merch_dry_run, auth!.username);
-        const outVal = (row as { enabled?: boolean; value?: boolean }).enabled ?? (row as { value?: boolean }).value ?? obj.merch_dry_run;
+        const outVal =
+          (row as { enabled?: boolean; value?: boolean }).enabled ??
+          (row as { value?: boolean }).value ??
+          obj.merch_dry_run;
         const body = {
           merch_dry_run: Boolean(outVal),
           updated_at: row.updated_at ?? null,
           updated_by: row.updated_by ?? null,
         };
         logOutcome({
-          requestId: req.requestId, route, status: 200,
+          requestId: req.requestId,
+          route,
+          status: 200,
           duration_ms: Date.now() - req.t0,
-          user_id: auth!.user_id, username: auth!.username,
+          user_id: auth!.user_id,
+          username: auth!.username,
         });
         return json(200, body, { "Cache-Control": "private, no-store" });
       },
@@ -387,7 +431,9 @@ export function createRoutes(deps: RouteDeps): Route[] {
       pattern: /^\/$/,
       auth: "none",
       handler: async (req) =>
-        render(await renderHomePageHandler(deps.renderConfig, req.query("cursor"), req.query("sort"))),
+        render(
+          await renderHomePageHandler(deps.renderConfig, req.query("cursor"), req.query("sort"))
+        ),
     },
     {
       methods: ["GET"],
@@ -460,15 +506,13 @@ export function createRoutes(deps: RouteDeps): Route[] {
       methods: ["GET"],
       pattern: new RegExp(`^\\/d\\/(${HEX64})$`),
       auth: "none",
-      handler: async (_req, [id]) =>
-        render(await renderDrawingPageHandler(deps.renderConfig, id)),
+      handler: async (_req, [id]) => render(await renderDrawingPageHandler(deps.renderConfig, id)),
     },
     {
       methods: ["GET"],
       pattern: new RegExp(`^\\/embed\\/(${HEX64})$`),
       auth: "none",
-      handler: async (_req, [id]) =>
-        render(await renderEmbedPageHandler(deps.renderConfig, id)),
+      handler: async (_req, [id]) => render(await renderEmbedPageHandler(deps.renderConfig, id)),
     },
     {
       methods: ["GET"],
@@ -576,8 +620,7 @@ export function createRoutes(deps: RouteDeps): Route[] {
           duration_ms: Date.now() - req.t0,
           user_id: auth!.user_id,
           username: auth!.username,
-          error_code:
-            result.status === 200 ? undefined : (result.body as { error: string }).error,
+          error_code: result.status === 200 ? undefined : (result.body as { error: string }).error,
         });
         return json(result.status, result.body);
       },
@@ -606,8 +649,7 @@ export function createRoutes(deps: RouteDeps): Route[] {
           user_id: auth!.user_id,
           username: auth!.username,
           drawing_id: id,
-          error_code:
-            result.status === 200 ? undefined : (result.body as { error: string }).error,
+          error_code: result.status === 200 ? undefined : (result.body as { error: string }).error,
         });
         return json(result.status, result.body);
       },
@@ -668,7 +710,7 @@ export function createRoutes(deps: RouteDeps): Route[] {
           req.query("drawings"),
           req.query("users"),
           auth,
-          deps.hydrateConfig,
+          deps.hydrateConfig
         );
         return json(result.status, result.body, result.headers);
       },
@@ -751,7 +793,7 @@ export async function dispatch(routes: Route[], req: RouteRequest): Promise<Rout
 // authenticated account, or null when the header is missing/invalid/expired.
 export function authFromBearer(
   header: string | null | undefined,
-  jwtSecret: string,
+  jwtSecret: string
 ): AuthedUser | null {
   const m = /^Bearer\s+(.+)$/i.exec(header ?? "");
   if (!m) return null;
@@ -771,7 +813,7 @@ export function authFromBearer(
 async function ingestRoute(
   req: RouteRequest,
   auth: AuthedUser | null,
-  deps: RouteDeps,
+  deps: RouteDeps
 ): Promise<RouteResult> {
   const route = "POST /ingest";
   // No session → anonymous publish. A supplied-but-unverifiable token is a
@@ -779,7 +821,9 @@ async function ingestRoute(
   // beats attributing their drawing to the anonymous sentinel.
   if (!auth && req.hasAuthHeader()) {
     logOutcome({
-      requestId: req.requestId, route, status: 401,
+      requestId: req.requestId,
+      route,
+      status: 401,
       duration_ms: Date.now() - req.t0,
       error_code: "unauthorized",
     });
@@ -799,10 +843,14 @@ async function ingestRoute(
     body = JSON.parse(await req.body()) as IngestRequest;
   } catch {
     logOutcome({
-      requestId: req.requestId, route, status: 400,
+      requestId: req.requestId,
+      route,
+      status: 400,
       duration_ms: Date.now() - req.t0,
-      user_id: logUserId, username: logUsername,
-      error_code: "bad_json", error_message: "bad json body",
+      user_id: logUserId,
+      username: logUsername,
+      error_code: "bad_json",
+      error_message: "bad json body",
     });
     return { kind: "json", status: 400, body: { error: "bad json body" } };
   }
@@ -817,9 +865,12 @@ async function ingestRoute(
   const success = result.status === 200 || result.status === 202;
   const errorMessage = !success ? (result.body as { error?: string }).error : undefined;
   logOutcome({
-    requestId: req.requestId, route, status: result.status,
+    requestId: req.requestId,
+    route,
+    status: result.status,
     duration_ms: Date.now() - req.t0,
-    user_id: logUserId, username: logUsername,
+    user_id: logUserId,
+    username: logUsername,
     drawing_id: success ? (result.body as { id: string }).id : undefined,
     parent_id: body.parent ?? null,
     gif_size_bytes: gifSize,
@@ -838,9 +889,12 @@ async function authRoute(req: RouteRequest, deps: RouteDeps): Promise<RouteResul
     body = JSON.parse(await req.body()) as Record<string, unknown>;
   } catch {
     logOutcome({
-      requestId: req.requestId, route, status: 400,
+      requestId: req.requestId,
+      route,
+      status: 400,
       duration_ms: Date.now() - req.t0,
-      error_code: "bad_json", error_message: "bad json body",
+      error_code: "bad_json",
+      error_message: "bad json body",
     });
     return { kind: "json", status: 400, body: { error: "bad json body" } };
   }
@@ -863,7 +917,9 @@ async function authRoute(req: RouteRequest, deps: RouteDeps): Promise<RouteResul
       auth = req.auth();
       if (!auth) {
         logOutcome({
-          requestId: req.requestId, route, status: 401,
+          requestId: req.requestId,
+          route,
+          status: 401,
           duration_ms: Date.now() - req.t0,
           error_code: "unauthorized",
         });
@@ -882,7 +938,9 @@ async function authRoute(req: RouteRequest, deps: RouteDeps): Promise<RouteResul
       auth = req.auth();
       if (!auth) {
         logOutcome({
-          requestId: req.requestId, route, status: 401,
+          requestId: req.requestId,
+          route,
+          status: 401,
           duration_ms: Date.now() - req.t0,
           error_code: "unauthorized",
         });
@@ -891,7 +949,7 @@ async function authRoute(req: RouteRequest, deps: RouteDeps): Promise<RouteResul
       result = await handleDeleteAccount(
         body,
         { user_id: auth.user_id, username: auth.username },
-        deps.authConfig,
+        deps.authConfig
       );
       break;
     }
@@ -899,7 +957,9 @@ async function authRoute(req: RouteRequest, deps: RouteDeps): Promise<RouteResul
       auth = req.auth();
       if (!auth) {
         logOutcome({
-          requestId: req.requestId, route, status: 401,
+          requestId: req.requestId,
+          route,
+          status: 401,
           duration_ms: Date.now() - req.t0,
           error_code: "unauthorized",
         });
@@ -915,7 +975,9 @@ async function authRoute(req: RouteRequest, deps: RouteDeps): Promise<RouteResul
     default:
       // Unknown /auth/* subpath → 404, same as the table fallthrough.
       logOutcome({
-        requestId: req.requestId, route, status: 404,
+        requestId: req.requestId,
+        route,
+        status: 404,
         duration_ms: Date.now() - req.t0,
       });
       return { kind: "text", status: 404, body: "not found" };
@@ -924,12 +986,12 @@ async function authRoute(req: RouteRequest, deps: RouteDeps): Promise<RouteResul
   // verified JWT for profile-picture/profile. Failure bodies don't carry
   // identity, so it stays undefined.
   const success = result.status >= 200 && result.status < 300;
-  const successBody = success
-    ? (result.body as { user_id?: string; username?: string })
-    : null;
+  const successBody = success ? (result.body as { user_id?: string; username?: string }) : null;
   const errorMessage = !success ? (result.body as { error?: string }).error : undefined;
   logOutcome({
-    requestId: req.requestId, route, status: result.status,
+    requestId: req.requestId,
+    route,
+    status: result.status,
     duration_ms: Date.now() - req.t0,
     user_id: auth?.user_id ?? successBody?.user_id,
     username: auth?.username ?? successBody?.username,

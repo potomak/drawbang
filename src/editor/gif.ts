@@ -169,10 +169,13 @@ function buildDrawbangExtension(activePalette: Uint8Array): Uint8Array {
   out[p++] = 0x21;
   out[p++] = 0xff;
   out[p++] = 0x0b;
-  out.set(ident, p); p += 8;
-  out.set(DRAWBANG_APP_AUTH_CODE, p); p += 3;
+  out.set(ident, p);
+  p += 8;
+  out.set(DRAWBANG_APP_AUTH_CODE, p);
+  p += 3;
   out[p++] = ACTIVE_PALETTE_SIZE;
-  out.set(activePalette, p); p += ACTIVE_PALETTE_SIZE;
+  out.set(activePalette, p);
+  p += ACTIVE_PALETTE_SIZE;
   out[p++] = 0x00;
   return out;
 }

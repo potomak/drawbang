@@ -1,8 +1,4 @@
-import {
-  ACTIVE_PALETTE_SIZE,
-  FRAME_DELAY_MS,
-  MAX_FRAMES,
-} from "../../config/constants.js";
+import { ACTIVE_PALETTE_SIZE, FRAME_DELAY_MS, MAX_FRAMES } from "../../config/constants.js";
 import { LOGO_BITMAP, LOGO_H, LOGO_W } from "../layout/logo-bitmap.js";
 import { Bitmap, TRANSPARENT } from "./bitmap.js";
 import { activePaletteToRgb, type RGB } from "./palette.js";
@@ -86,7 +82,7 @@ export function analyzePalette(frames: Bitmap[], activePalette: Uint8Array): Pal
 // so every off-site artifact of a drawing reads as one family.
 export function deriveShareColors(
   frames: Bitmap[],
-  activePalette: Uint8Array,
+  activePalette: Uint8Array
 ): { bg: RGB; fg: RGB } {
   const { bg, fg } = analyzePalette(frames, activePalette);
   return { bg, fg };
@@ -130,9 +126,7 @@ export function encodeShareGif({
   const delay = Math.max(1, Math.round(delayMs / 10));
   for (const frame of frames) {
     if (frame.width !== size || frame.height !== size) {
-      throw new Error(
-        `encodeShareGif: frame ${frame.width}x${frame.height} != ${size}x${size}`,
-      );
+      throw new Error(`encodeShareGif: frame ${frame.width}x${frame.height} != ${size}x${size}`);
     }
     const composed = composeFrame(chrome, frame, { size, artScale, artX, artY });
     writer.addFrame(0, 0, SHARE_W, SHARE_H, composed, {
@@ -157,7 +151,7 @@ function countUsage(frames: Bitmap[]): Uint32Array {
 function deriveColors(
   paletteRgb: RGB[],
   usage: Uint32Array,
-  usedSlots: number[],
+  usedSlots: number[]
 ): { bg: RGB; fg: RGB } {
   if (usedSlots.length === 0) {
     return { bg: FALLBACK_BG, fg: FALLBACK_FG };
@@ -228,8 +222,22 @@ function paintSwatch(buf: Uint8Array, usedSlots: number[]): void {
   const blockH = rows * (SWATCH_SIZE + SWATCH_GUTTER) - SWATCH_GUTTER;
 
   // Foreground border around the block, thickness = SWATCH_BORDER.
-  fillRect(buf, SWATCH_X - SWATCH_BORDER, SWATCH_Y - SWATCH_BORDER, blockW + 2 * SWATCH_BORDER, SWATCH_BORDER, FG_SLOT);
-  fillRect(buf, SWATCH_X - SWATCH_BORDER, SWATCH_Y + blockH, blockW + 2 * SWATCH_BORDER, SWATCH_BORDER, FG_SLOT);
+  fillRect(
+    buf,
+    SWATCH_X - SWATCH_BORDER,
+    SWATCH_Y - SWATCH_BORDER,
+    blockW + 2 * SWATCH_BORDER,
+    SWATCH_BORDER,
+    FG_SLOT
+  );
+  fillRect(
+    buf,
+    SWATCH_X - SWATCH_BORDER,
+    SWATCH_Y + blockH,
+    blockW + 2 * SWATCH_BORDER,
+    SWATCH_BORDER,
+    FG_SLOT
+  );
   fillRect(buf, SWATCH_X - SWATCH_BORDER, SWATCH_Y, SWATCH_BORDER, blockH, FG_SLOT);
   fillRect(buf, SWATCH_X + blockW, SWATCH_Y, SWATCH_BORDER, blockH, FG_SLOT);
 

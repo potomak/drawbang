@@ -32,19 +32,13 @@ describe("MemoryUserStore", () => {
   test("rejects a duplicate email", async () => {
     const s = new MemoryUserStore();
     await s.register(rec());
-    await assert.rejects(
-      () => s.register(rec({ username: "alice2" })),
-      EmailTakenError,
-    );
+    await assert.rejects(() => s.register(rec({ username: "alice2" })), EmailTakenError);
   });
 
   test("rejects a duplicate username", async () => {
     const s = new MemoryUserStore();
     await s.register(rec());
-    await assert.rejects(
-      () => s.register(rec({ email: "bob@example.com" })),
-      UsernameTakenError,
-    );
+    await assert.rejects(() => s.register(rec({ email: "bob@example.com" })), UsernameTakenError);
   });
 
   test("updatePassword bumps token_version (single use)", async () => {
@@ -54,14 +48,14 @@ describe("MemoryUserStore", () => {
       "alice@example.com",
       "scrypt$new$hash",
       0,
-      "2026-05-23T01:00:00.000Z",
+      "2026-05-23T01:00:00.000Z"
     );
     assert.equal(updated.token_version, 1);
     assert.equal(updated.password_hash, "scrypt$new$hash");
     // Replaying the same expected version now fails.
     await assert.rejects(
       () => s.updatePassword("alice@example.com", "x", 0, "now"),
-      TokenVersionMismatchError,
+      TokenVersionMismatchError
     );
   });
 
@@ -69,7 +63,7 @@ describe("MemoryUserStore", () => {
     const s = new MemoryUserStore();
     await assert.rejects(
       () => s.updatePassword("nobody@example.com", "x", 0, "now"),
-      TokenVersionMismatchError,
+      TokenVersionMismatchError
     );
   });
 
@@ -93,7 +87,7 @@ describe("MemoryUserStore", () => {
           email: `u${i}@example.com`,
           username: `user${i}`,
           user_id: String(i).repeat(64),
-        }),
+        })
       );
     }
     const capped = await s.listUsers({ limit: 2 });

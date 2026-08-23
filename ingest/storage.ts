@@ -6,13 +6,13 @@ export interface Storage {
     key: string,
     bytes: Buffer | Uint8Array,
     contentType: string,
-    cacheControl?: string,
+    cacheControl?: string
   ): Promise<boolean>;
   put(
     key: string,
     bytes: Buffer | Uint8Array,
     contentType: string,
-    cacheControl?: string,
+    cacheControl?: string
   ): Promise<void>;
   getJSON<T>(key: string): Promise<T | null>;
   exists(key: string): Promise<boolean>;
@@ -34,7 +34,7 @@ export class FsStorage implements Storage {
     key: string,
     bytes: Buffer | Uint8Array,
     contentType: string,
-    cacheControl?: string,
+    cacheControl?: string
   ): Promise<boolean> {
     if (await this.exists(key)) return false;
     await this.put(key, bytes, contentType, cacheControl);
@@ -47,7 +47,7 @@ export class FsStorage implements Storage {
     key: string,
     bytes: Buffer | Uint8Array,
     _contentType: string,
-    _cacheControl?: string,
+    _cacheControl?: string
   ): Promise<void> {
     const full = this.full(key);
     await fs.mkdir(path.dirname(full), { recursive: true });

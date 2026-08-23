@@ -22,7 +22,7 @@ wireFormSubmit({
       emailEl!.value.trim(),
       usernameEl!.value.trim().toLowerCase(),
       passwordEl!.value,
-      await solveChallenge(findWidget(document, "signup-altcha")),
+      await solveChallenge(findWidget(document, "signup-altcha"))
     ),
   onSuccess: (res) => {
     setPendingFlash({

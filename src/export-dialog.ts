@@ -131,7 +131,10 @@ export function exportShareCaption(): string {
   return "Made with Draw! #draw16";
 }
 
-export function createExportDialog(cfg: ExportDialogConfig): { open: () => Promise<void>; close: () => void } {
+export function createExportDialog(cfg: ExportDialogConfig): {
+  open: () => Promise<void>;
+  close: () => void;
+} {
   let lastSupport: VideoSupport | null = null;
   let inflight = false;
 
@@ -150,7 +153,7 @@ export function createExportDialog(cfg: ExportDialogConfig): { open: () => Promi
     if (inflight) return;
     if (!lastSupport) return;
     const kindEl = cfg.optionsContainer.querySelector<HTMLInputElement>(
-      'input[name="ed-export-format"]:checked',
+      'input[name="ed-export-format"]:checked'
     );
     if (!kindEl) return;
     const kind = kindEl.value as ExportFormatKind;

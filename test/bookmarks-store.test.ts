@@ -48,7 +48,7 @@ describe("MemoryBookmarksStore", () => {
     await bookmarks.bookmark({ drawing_id, user_id, created_at_ms: 1 });
     await assert.rejects(
       bookmarks.bookmark({ drawing_id, user_id, created_at_ms: 2 }),
-      AlreadyBookmarkedError,
+      AlreadyBookmarkedError
     );
     const page = await bookmarks.listByUser(user_id, { limit: 10 });
     assert.equal(page.items.length, 1, "double-bookmark must not duplicate the row");
@@ -62,7 +62,7 @@ describe("MemoryBookmarksStore", () => {
         user_id: "b".repeat(64),
         created_at_ms: 1,
       }),
-      BookmarkDrawingNotFoundError,
+      BookmarkDrawingNotFoundError
     );
   });
 
@@ -90,7 +90,7 @@ describe("MemoryBookmarksStore", () => {
 
     await assert.rejects(
       bookmarks.unbookmark({ drawing_id, user_id: "b".repeat(64) }),
-      NotBookmarkedError,
+      NotBookmarkedError
     );
   });
 

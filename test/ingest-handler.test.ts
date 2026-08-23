@@ -31,7 +31,7 @@ class MemoryStorage implements Storage {
     key: string,
     bytes: Buffer | Uint8Array,
     contentType: string,
-    cacheControl?: string,
+    cacheControl?: string
   ): Promise<boolean> {
     if (this.store.has(key)) return false;
     await this.put(key, bytes, contentType, cacheControl);
@@ -41,19 +41,27 @@ class MemoryStorage implements Storage {
     key: string,
     bytes: Buffer | Uint8Array,
     _contentType: string,
-    _cacheControl?: string,
+    _cacheControl?: string
   ): Promise<void> {
     const u = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
     this.store.set(key, u);
     this.puts.push({ key, bytes: u });
   }
-  async getJSON<T>(_key: string): Promise<T | null> { return null; }
-  async exists(key: string): Promise<boolean> { return this.store.has(key); }
-  async listPrefix(_prefix: string): Promise<string[]> { return []; }
+  async getJSON<T>(_key: string): Promise<T | null> {
+    return null;
+  }
+  async exists(key: string): Promise<boolean> {
+    return this.store.has(key);
+  }
+  async listPrefix(_prefix: string): Promise<string[]> {
+    return [];
+  }
   async getBytes(key: string): Promise<Uint8Array | null> {
     return this.store.get(key) ?? null;
   }
-  async remove(key: string): Promise<void> { this.store.delete(key); }
+  async remove(key: string): Promise<void> {
+    this.store.delete(key);
+  }
 }
 
 const PUBLIC_BASE = "https://example.test";
@@ -90,7 +98,7 @@ describe("handleIngest", () => {
     const h = makeHarness();
     const res = await handleIngest(
       { gif: "this is not base64 !!!" },
-      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore },
+      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore }
     );
     // Buffer.from is lenient and will decode any string; the rejection
     // lands at validateGif as 'gif too short' or 'not a GIF89a'. Either
@@ -106,7 +114,7 @@ describe("handleIngest", () => {
     const notAGif = Buffer.from("just plain text padded to 13+ bytes here").toString("base64");
     const res = await handleIngest(
       { gif: notAGif },
-      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore },
+      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore }
     );
     assert.equal(res.status, 400);
     const body = res.body as { error: string };
@@ -126,7 +134,7 @@ describe("handleIngest", () => {
     const b64 = Buffer.from(stripped).toString("base64");
     const res = await handleIngest(
       { gif: b64 },
-      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore },
+      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore }
     );
     assert.equal(res.status, 400);
     const body = res.body as { error: string };
@@ -139,7 +147,7 @@ describe("handleIngest", () => {
     const id = await contentHashHex(gif);
     const res = await handleIngest(
       { gif: Buffer.from(gif).toString("base64") },
-      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore },
+      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore }
     );
     assert.equal(res.status, 202);
     const body = res.body as { id: string; share_url: string };
@@ -156,7 +164,7 @@ describe("handleIngest", () => {
 
     const first = await handleIngest(
       { gif: b64 },
-      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore },
+      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore }
     );
     assert.equal(first.status, 202);
     const firstId = (first.body as { id: string }).id;
@@ -164,11 +172,15 @@ describe("handleIngest", () => {
 
     const second = await handleIngest(
       { gif: b64 },
-      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore },
+      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore }
     );
     assert.equal(second.status, 200);
     assert.equal((second.body as { id: string }).id, firstId);
-    assert.equal(h.storage.puts.length, writesAfterFirst, "idempotent re-publish should not write again");
+    assert.equal(
+      h.storage.puts.length,
+      writesAfterFirst,
+      "idempotent re-publish should not write again"
+    );
   });
 
   test("re-publish self-heals a missing DDB row without re-writing storage", async () => {
@@ -182,7 +194,7 @@ describe("handleIngest", () => {
 
     const res = await handleIngest(
       { gif: Buffer.from(gif).toString("base64") },
-      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore },
+      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore }
     );
     assert.equal(res.status, 200);
     const row = await h.drawingStore.get(id);
@@ -192,7 +204,7 @@ describe("handleIngest", () => {
     assert.equal(
       h.storage.puts.length,
       putsBefore,
-      "self-heal must not regenerate the gif or sidecars",
+      "self-heal must not regenerate the gif or sidecars"
     );
   });
 
@@ -208,7 +220,7 @@ describe("handleIngest", () => {
         auth: AUTH,
         drawingStore: h.drawingStore,
         now: () => new Date("2026-06-08T17:30:00.000Z"),
-      },
+      }
     );
     assert.equal(res.status, 202);
     const id = (res.body as { id: string }).id;
@@ -251,7 +263,7 @@ describe("handleIngest", () => {
     const gif = makeGif(4);
     const res = await handleIngest(
       { gif: Buffer.from(gif).toString("base64") },
-      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore },
+      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore }
     );
     assert.equal(res.status, 202);
     const id = (res.body as { id: string }).id;
@@ -264,12 +276,15 @@ describe("handleIngest", () => {
     const gif = makeGif(20);
     const layersBlob = JSON.stringify({
       v: 1,
-      layers: [{ name: "L1", visible: true }, { name: "L2", visible: false }],
+      layers: [
+        { name: "L1", visible: true },
+        { name: "L2", visible: false },
+      ],
       frames: [["aaaa", "bbbb"]],
     });
     const res = await handleIngest(
       { gif: Buffer.from(gif).toString("base64"), layers_json: layersBlob },
-      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore },
+      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore }
     );
     assert.equal(res.status, 202);
     const id = (res.body as { id: string }).id;
@@ -283,7 +298,7 @@ describe("handleIngest", () => {
     const tooBig = "x".repeat(65 * 1024);
     const res = await handleIngest(
       { gif: Buffer.from(gif).toString("base64"), layers_json: tooBig },
-      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore },
+      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore }
     );
     assert.equal(res.status, 202);
     const id = (res.body as { id: string }).id;
@@ -296,7 +311,7 @@ describe("handleIngest", () => {
     const gif = makeGif(22);
     const res = await handleIngest(
       { gif: Buffer.from(gif).toString("base64") },
-      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore },
+      { storage: h.storage, publicBaseUrl: PUBLIC_BASE, auth: AUTH, drawingStore: h.drawingStore }
     );
     assert.equal(res.status, 202);
     const id = (res.body as { id: string }).id;
@@ -340,7 +355,10 @@ describe("deferred post-publish tail", () => {
     const id = "a".repeat(64);
     const ok = { kind: "post-publish", drawing_id: id, username: "alice", prompt_tagged: false };
     assert.ok(isPostPublishEvent(ok));
-    assert.ok(isPostPublishEvent({ ...ok, username: null }), "anonymous publishes carry a null username");
+    assert.ok(
+      isPostPublishEvent({ ...ok, username: null }),
+      "anonymous publishes carry a null username"
+    );
     assert.ok(!isPostPublishEvent({ ...ok, drawing_id: "nope" }));
     assert.ok(!isPostPublishEvent({ ...ok, prompt_tagged: undefined }));
     assert.ok(!isPostPublishEvent({ requestContext: { http: { method: "GET" } } }));
@@ -356,7 +374,12 @@ describe("deferred post-publish tail", () => {
     // The two guards must not claim each other's events.
     assert.ok(!isPostPublishEvent({ kind: "encode-share-mp4", drawing_id: id }));
     assert.ok(
-      !isEncodeShareMp4Event({ kind: "post-publish", drawing_id: id, username: null, prompt_tagged: false }),
+      !isEncodeShareMp4Event({
+        kind: "post-publish",
+        drawing_id: id,
+        username: null,
+        prompt_tagged: false,
+      })
     );
   });
 
@@ -371,8 +394,10 @@ describe("deferred post-publish tail", () => {
         publicBaseUrl: PUBLIC_BASE,
         auth: AUTH,
         drawingStore: h.drawingStore,
-        deferPostPublish: async (job) => { jobs.push(job); },
-      },
+        deferPostPublish: async (job) => {
+          jobs.push(job);
+        },
+      }
     );
     assert.equal(res.status, 202);
     const id = (res.body as { id: string }).id;
@@ -395,7 +420,7 @@ describe("deferred post-publish tail", () => {
         drawingStore: h.drawingStore,
         cacheInvalidator: inv,
         deferPostPublish: async () => {},
-      },
+      }
     );
     assert.deepEqual(inv.calls, [], "invalidation belongs to the deferred tail");
   });
@@ -410,8 +435,10 @@ describe("deferred post-publish tail", () => {
         publicBaseUrl: PUBLIC_BASE,
         auth: null,
         drawingStore: h.drawingStore,
-        deferPostPublish: async (job) => { jobs.push(job); },
-      },
+        deferPostPublish: async (job) => {
+          jobs.push(job);
+        },
+      }
     );
     assert.equal(jobs[0].username, null);
   });
@@ -427,8 +454,10 @@ describe("deferred post-publish tail", () => {
         auth: AUTH,
         drawingStore: h.drawingStore,
         cacheInvalidator: inv,
-        deferPostPublish: async () => { throw new Error("lambda invoke down"); },
-      },
+        deferPostPublish: async () => {
+          throw new Error("lambda invoke down");
+        },
+      }
     );
     assert.equal(res.status, 202);
     const id = (res.body as { id: string }).id;
@@ -447,7 +476,7 @@ describe("deferred post-publish tail", () => {
         publicBaseUrl: PUBLIC_BASE,
         auth: AUTH,
         drawingStore: h.drawingStore,
-      },
+      }
     );
     const id = (res.body as { id: string }).id;
     assert.ok(h.storage.puts.some((p) => p.key === `public/tiles/${id}-large.gif`));
@@ -465,17 +494,23 @@ describe("deferred post-publish tail", () => {
       {
         storage: h.storage,
         cacheInvalidator: inv,
-        encodeMp4: async (bytes) => { seen.push(bytes); return new Uint8Array([9, 9]); },
-      },
+        encodeMp4: async (bytes) => {
+          seen.push(bytes);
+          return new Uint8Array([9, 9]);
+        },
+      }
     );
     const large = await h.storage.getBytes(`public/tiles/${id}-large.gif`);
     assert.ok(large && large.length > 0, "-large.gif rendered from the published bytes");
     assert.equal(seen.length, 1, "mp4 encoder fed the rendered -large.gif");
     assert.deepEqual(seen[0], large);
-    assert.deepEqual(await h.storage.getBytes(`public/tiles/${id}-large.mp4`), new Uint8Array([9, 9]));
-    assert.deepEqual(inv.calls, [[
-      "/", "/feed/items*", "/gallery*", "/u/alice*", "/feed.rss", "/prompts*",
-    ]]);
+    assert.deepEqual(
+      await h.storage.getBytes(`public/tiles/${id}-large.mp4`),
+      new Uint8Array([9, 9])
+    );
+    assert.deepEqual(inv.calls, [
+      ["/", "/feed/items*", "/gallery*", "/u/alice*", "/feed.rss", "/prompts*"],
+    ]);
   });
 
   test("runPostPublish still invalidates when the source gif is missing", async () => {
@@ -484,7 +519,7 @@ describe("deferred post-publish tail", () => {
     const inv = new NoopInvalidator();
     await runPostPublish(
       { drawing_id: "c".repeat(64), username: null, prompt_tagged: false },
-      { storage: h.storage, cacheInvalidator: inv, encodeMp4: async () => new Uint8Array() },
+      { storage: h.storage, cacheInvalidator: inv, encodeMp4: async () => new Uint8Array() }
     );
     assert.equal(inv.calls.length, 1);
     assert.equal(h.storage.puts.length, 0, "no sidecar written without source bytes");
@@ -537,14 +572,19 @@ describe("handleIngest daily-prompt tagging", () => {
         publicBaseUrl: PUBLIC_BASE,
         auth: AUTH,
         drawingStore: h.drawingStore,
-        deferPostPublish: async (job) => { jobs.push(job); },
+        deferPostPublish: async (job) => {
+          jobs.push(job);
+        },
         now: () => PROMPT_NOW,
-      },
+      }
     );
     assert.equal(res.status, 202);
     const row = await h.drawingStore.get((res.body as { id: string }).id);
     assert.equal(row!.prompt_id, TODAY_SLUG);
-    assert.deepEqual(jobs.map((j) => j.prompt_tagged), [true]);
+    assert.deepEqual(
+      jobs.map((j) => j.prompt_tagged),
+      [true]
+    );
   });
 
   test("stale or garbage slug never fails the publish and is never stored", async () => {
@@ -564,18 +604,24 @@ describe("handleIngest daily-prompt tagging", () => {
           publicBaseUrl: PUBLIC_BASE,
           auth: AUTH,
           drawingStore: h.drawingStore,
-          deferPostPublish: async (job) => { jobs.push(job); },
+          deferPostPublish: async (job) => {
+            jobs.push(job);
+          },
           now: () => PROMPT_NOW,
-        },
+        }
       );
-      assert.equal(res.status, 202, `publish should succeed for prompt ${JSON.stringify(c.prompt)}`);
+      assert.equal(
+        res.status,
+        202,
+        `publish should succeed for prompt ${JSON.stringify(c.prompt)}`
+      );
       const row = await h.drawingStore.get((res.body as { id: string }).id);
       assert.ok(row, "drawing row should exist");
       assert.ok(!("prompt_id" in row!), `prompt_id must be absent for ${JSON.stringify(c.prompt)}`);
       assert.deepEqual(
         jobs.map((j) => j.prompt_tagged),
         [false],
-        `unexpected prompt tag for ${JSON.stringify(c.prompt)}`,
+        `unexpected prompt tag for ${JSON.stringify(c.prompt)}`
       );
     }
   });
@@ -591,15 +637,21 @@ describe("handleIngest daily-prompt tagging", () => {
         publicBaseUrl: PUBLIC_BASE,
         auth: AUTH,
         drawingStore: h.drawingStore,
-        deferPostPublish: async (job) => { jobs.push(job); },
+        deferPostPublish: async (job) => {
+          jobs.push(job);
+        },
         now: () => PROMPT_NOW,
-      },
+      }
     );
     assert.equal(res.status, 202);
     const row = await h.drawingStore.get((res.body as { id: string }).id);
     assert.ok(!("prompt_id" in row!), "prompt_id must be absent when no prompt is sent");
     assert.deepEqual(jobs, [
-      { drawing_id: (res.body as { id: string }).id, username: AUTH.username, prompt_tagged: false },
+      {
+        drawing_id: (res.body as { id: string }).id,
+        username: AUTH.username,
+        prompt_tagged: false,
+      },
     ]);
   });
 });
@@ -650,7 +702,7 @@ describe("handleIngest without a session", () => {
         publicBaseUrl: PUBLIC_BASE,
         auth: null,
         drawingStore: h.drawingStore,
-      },
+      }
     );
     assert.equal(res.status, 202);
     const id = (res.body as { id: string }).id;
@@ -674,7 +726,7 @@ describe("handleIngest without a session", () => {
         auth: null,
         drawingStore: h.drawingStore,
         userStatsStore: stats,
-      },
+      }
     );
     assert.equal(res.status, 202);
     // The sentinel user_id is shared by every anonymous publish; crediting
@@ -693,7 +745,7 @@ describe("handleIngest without a session", () => {
         auth: AUTH,
         drawingStore: h.drawingStore,
         userStatsStore: stats,
-      },
+      }
     );
     assert.ok(await stats.get(AUTH.user_id), "an attributed publish must still count");
   });
@@ -709,7 +761,7 @@ describe("handleIngest without a session", () => {
         auth: null,
         drawingStore: h.drawingStore,
         cacheInvalidator: inv,
-      },
+      }
     );
     assert.deepEqual(inv.calls, [["/", "/feed/items*", "/gallery*", "/feed.rss"]]);
   });
@@ -721,13 +773,19 @@ describe("handleIngest without a session", () => {
       publicBaseUrl: PUBLIC_BASE,
       drawingStore: h.drawingStore,
     };
-    await handleIngest({ gif: Buffer.from(makeGif(25)).toString("base64") }, { ...cfg, auth: null });
-    await handleIngest({ gif: Buffer.from(makeGif(26)).toString("base64") }, { ...cfg, auth: AUTH });
+    await handleIngest(
+      { gif: Buffer.from(makeGif(25)).toString("base64") },
+      { ...cfg, auth: null }
+    );
+    await handleIngest(
+      { gif: Buffer.from(makeGif(26)).toString("base64") },
+      { ...cfg, auth: AUTH }
+    );
     const page = await h.drawingStore.queryGallery({ limit: 10 });
     assert.equal(page.items.length, 2);
     assert.deepEqual(
       new Set(page.items.map((r) => r.username)),
-      new Set([ANONYMOUS_USERNAME, AUTH.username]),
+      new Set([ANONYMOUS_USERNAME, AUTH.username])
     );
   });
 
@@ -741,7 +799,7 @@ describe("handleIngest without a session", () => {
         publicBaseUrl: PUBLIC_BASE,
         auth: null,
         drawingStore: h.drawingStore,
-      },
+      }
     );
     const row = await h.drawingStore.get((res.body as { id: string }).id);
     assert.equal(row!.parent_id, parent);

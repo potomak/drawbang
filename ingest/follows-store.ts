@@ -75,10 +75,7 @@ export interface FollowsStore {
   unfollow(args: UnfollowArgs): Promise<void>;
   // Returns the subset of `target_user_ids` the viewer currently follows.
   // Order is not guaranteed.
-  listFollowed(
-    follower_user_id: string,
-    target_user_ids: string[],
-  ): Promise<string[]>;
+  listFollowed(follower_user_id: string, target_user_ids: string[]): Promise<string[]>;
   // Newest-first edges where `user_id` is the followee (people who follow them).
   listFollowers(user_id: string, opts: FollowsQueryOpts): Promise<FollowsPage>;
   // Newest-first edges where `user_id` is the follower (people they follow).
@@ -102,16 +99,12 @@ export class NotFollowingError extends Error {
 // -- Cursor codec -------------------------------------------------------------
 
 function base64UrlEncode(s: string): string {
-  const b =
-    typeof Buffer !== "undefined"
-      ? Buffer.from(s, "utf8").toString("base64")
-      : btoa(s);
+  const b = typeof Buffer !== "undefined" ? Buffer.from(s, "utf8").toString("base64") : btoa(s);
   return b.replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
 }
 
 function base64UrlDecode(s: string): string {
-  const padded =
-    s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4);
+  const padded = s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4);
   return typeof Buffer !== "undefined"
     ? Buffer.from(padded, "base64").toString("utf8")
     : atob(padded);
@@ -121,9 +114,7 @@ export function encodeFollowCursor(c: FollowCursor): string {
   return base64UrlEncode(`${c.created_at_ms}:${c.other_user_id}`);
 }
 
-export function decodeFollowCursor(
-  s: string | null | undefined,
-): FollowCursor | null {
+export function decodeFollowCursor(s: string | null | undefined): FollowCursor | null {
   if (!s) return null;
   let raw: string;
   try {
@@ -155,8 +146,7 @@ export class DynamoFollowsStore implements FollowsStore {
   constructor(opts: DynamoFollowsStoreOptions) {
     this.followsTable = opts.followsTable;
     this.usersTable = opts.usersTable;
-    this.doc =
-      opts.client ?? DynamoDBDocumentClient.from(new DynamoDBClient({}));
+    this.doc = opts.client ?? DynamoDBDocumentClient.from(new DynamoDBClient({}));
   }
 
   async follow(args: FollowArgs): Promise<void> {
@@ -196,7 +186,7 @@ export class DynamoFollowsStore implements FollowsStore {
               },
             },
           ],
-        }),
+        })
       );
     } catch (e) {
       throw mapTransactError(e, "follow");
@@ -237,17 +227,14 @@ export class DynamoFollowsStore implements FollowsStore {
               },
             },
           ],
-        }),
+        })
       );
     } catch (e) {
       throw mapTransactError(e, "unfollow");
     }
   }
 
-  async listFollowed(
-    follower_user_id: string,
-    target_user_ids: string[],
-  ): Promise<string[]> {
+  async listFollowed(follower_user_id: string, target_user_ids: string[]): Promise<string[]> {
     if (target_user_ids.length === 0) return [];
     const r = await this.doc.send(
       new BatchGetCommand({
@@ -260,16 +247,13 @@ export class DynamoFollowsStore implements FollowsStore {
             ProjectionExpression: "followee_user_id",
           },
         },
-      }),
+      })
     );
     const items = r.Responses?.[this.followsTable] ?? [];
     return items.map((it) => String(it.followee_user_id));
   }
 
-  async listFollowers(
-    user_id: string,
-    opts: FollowsQueryOpts,
-  ): Promise<FollowsPage> {
+  async listFollowers(user_id: string, opts: FollowsQueryOpts): Promise<FollowsPage> {
     // GSI2-followee — newest-first edges keyed on the followee.
     const exclusiveStartKey = opts.cursor
       ? {
@@ -288,17 +272,15 @@ export class DynamoFollowsStore implements FollowsStore {
         ScanIndexForward: false,
         Limit: opts.limit,
         ExclusiveStartKey: exclusiveStartKey,
-      }),
+      })
     );
-    const items: FollowEdge[] = ((r.Items as FollowEdge[] | undefined) ?? []).map(
-      (it) => ({
-        follower_user_id: String(it.follower_user_id),
-        follower_username: String(it.follower_username),
-        followee_user_id: String(it.followee_user_id),
-        followee_username: String(it.followee_username),
-        created_at_ms: Number(it.created_at_ms),
-      }),
-    );
+    const items: FollowEdge[] = ((r.Items as FollowEdge[] | undefined) ?? []).map((it) => ({
+      follower_user_id: String(it.follower_user_id),
+      follower_username: String(it.follower_username),
+      followee_user_id: String(it.followee_user_id),
+      followee_username: String(it.followee_username),
+      created_at_ms: Number(it.created_at_ms),
+    }));
     const last = r.LastEvaluatedKey;
     const next_cursor: FollowCursor | null = last
       ? {
@@ -309,10 +291,7 @@ export class DynamoFollowsStore implements FollowsStore {
     return { items, next_cursor };
   }
 
-  async listFollowing(
-    user_id: string,
-    opts: FollowsQueryOpts,
-  ): Promise<FollowsPage> {
+  async listFollowing(user_id: string, opts: FollowsQueryOpts): Promise<FollowsPage> {
     // GSI1-follower — newest-first edges keyed on the follower.
     const exclusiveStartKey = opts.cursor
       ? {
@@ -331,17 +310,15 @@ export class DynamoFollowsStore implements FollowsStore {
         ScanIndexForward: false,
         Limit: opts.limit,
         ExclusiveStartKey: exclusiveStartKey,
-      }),
+      })
     );
-    const items: FollowEdge[] = ((r.Items as FollowEdge[] | undefined) ?? []).map(
-      (it) => ({
-        follower_user_id: String(it.follower_user_id),
-        follower_username: String(it.follower_username),
-        followee_user_id: String(it.followee_user_id),
-        followee_username: String(it.followee_username),
-        created_at_ms: Number(it.created_at_ms),
-      }),
-    );
+    const items: FollowEdge[] = ((r.Items as FollowEdge[] | undefined) ?? []).map((it) => ({
+      follower_user_id: String(it.follower_user_id),
+      follower_username: String(it.follower_username),
+      followee_user_id: String(it.followee_user_id),
+      followee_username: String(it.followee_username),
+      created_at_ms: Number(it.created_at_ms),
+    }));
     const last = r.LastEvaluatedKey;
     const next_cursor: FollowCursor | null = last
       ? {
@@ -361,8 +338,7 @@ function mapTransactError(e: unknown, op: "follow" | "unfollow"): unknown {
   if (typeof e !== "object" || e === null) return e;
   const name = (e as { name?: unknown }).name;
   if (name !== "TransactionCanceledException") return e;
-  const reasons = (e as { CancellationReasons?: CancellationReason[] })
-    .CancellationReasons;
+  const reasons = (e as { CancellationReasons?: CancellationReason[] }).CancellationReasons;
   if (!Array.isArray(reasons)) return e;
   // Item 0 = follows-table guard; items 1+2 = users-table existence.
   if (reasons[0]?.Code === "ConditionalCheckFailed") {
@@ -384,8 +360,7 @@ export class MemoryFollowsStore implements FollowsStore {
   constructor(private readonly userStore: MemoryUserStore) {}
 
   async follow(args: FollowArgs): Promise<void> {
-    const edges =
-      this.byFollower.get(args.follower.user_id) ?? new Map<string, FollowEdge>();
+    const edges = this.byFollower.get(args.follower.user_id) ?? new Map<string, FollowEdge>();
     if (edges.has(args.followee.user_id)) throw new AlreadyFollowingError();
     edges.set(args.followee.user_id, {
       follower_user_id: args.follower.user_id,
@@ -410,10 +385,7 @@ export class MemoryFollowsStore implements FollowsStore {
     this.userStore.bumpFollowCounts(args.followee.email, "follower_count", -1);
   }
 
-  async listFollowed(
-    follower_user_id: string,
-    target_user_ids: string[],
-  ): Promise<string[]> {
+  async listFollowed(follower_user_id: string, target_user_ids: string[]): Promise<string[]> {
     const edges = this.byFollower.get(follower_user_id);
     if (!edges) return [];
     const out: string[] = [];
@@ -423,10 +395,7 @@ export class MemoryFollowsStore implements FollowsStore {
     return out;
   }
 
-  async listFollowers(
-    user_id: string,
-    opts: FollowsQueryOpts,
-  ): Promise<FollowsPage> {
+  async listFollowers(user_id: string, opts: FollowsQueryOpts): Promise<FollowsPage> {
     const all: FollowEdge[] = [];
     for (const edges of this.byFollower.values()) {
       const edge = edges.get(user_id);
@@ -435,10 +404,7 @@ export class MemoryFollowsStore implements FollowsStore {
     return this.page(all, opts, (e) => e.follower_user_id);
   }
 
-  async listFollowing(
-    user_id: string,
-    opts: FollowsQueryOpts,
-  ): Promise<FollowsPage> {
+  async listFollowing(user_id: string, opts: FollowsQueryOpts): Promise<FollowsPage> {
     const edges = this.byFollower.get(user_id);
     const all: FollowEdge[] = edges ? [...edges.values()] : [];
     return this.page(all, opts, (e) => e.followee_user_id);
@@ -447,7 +413,7 @@ export class MemoryFollowsStore implements FollowsStore {
   private page(
     edges: FollowEdge[],
     opts: FollowsQueryOpts,
-    otherSide: (e: FollowEdge) => string,
+    otherSide: (e: FollowEdge) => string
   ): FollowsPage {
     const sorted = [...edges].sort((a, b) => {
       if (b.created_at_ms !== a.created_at_ms) {
@@ -461,8 +427,7 @@ export class MemoryFollowsStore implements FollowsStore {
       start = sorted.findIndex(
         (e) =>
           e.created_at_ms < c.created_at_ms ||
-          (e.created_at_ms === c.created_at_ms &&
-            otherSide(e) < c.other_user_id),
+          (e.created_at_ms === c.created_at_ms && otherSide(e) < c.other_user_id)
       );
       if (start < 0) start = sorted.length;
     }

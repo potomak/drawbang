@@ -29,7 +29,7 @@ export interface LikesHandlerConfig extends BaseHandlerConfig {
 export async function handleLike(
   drawing_id: string,
   auth: LikesAuth,
-  cfg: LikesHandlerConfig,
+  cfg: LikesHandlerConfig
 ): Promise<LikesResult> {
   if (!DRAWING_ID_RE.test(drawing_id)) return err(400, "invalid drawing_id");
   // TODO (#now-idiom): standardise the now() seam idiom across handlers —
@@ -45,14 +45,14 @@ export async function handleLike(
     [
       [AlreadyLikedError, 409, "already liked"],
       [DrawingNotFoundError, 404, "drawing not found"],
-    ],
+    ]
   );
 }
 
 export async function handleUnlike(
   drawing_id: string,
   auth: LikesAuth,
-  cfg: LikesHandlerConfig,
+  cfg: LikesHandlerConfig
 ): Promise<LikesResult> {
   if (!DRAWING_ID_RE.test(drawing_id)) return err(400, "invalid drawing_id");
   return toggleAction(
@@ -60,6 +60,6 @@ export async function handleUnlike(
     [
       [NotLikedError, 409, "not liked"],
       [DrawingNotFoundError, 404, "drawing not found"],
-    ],
+    ]
   );
 }

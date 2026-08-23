@@ -28,12 +28,22 @@ import type { Challenge } from "altcha-lib/types";
 // method matching, param extraction, and the 404 fallthrough.
 
 class NullStorage implements Storage {
-  async putIfAbsent(): Promise<boolean> { return true; }
+  async putIfAbsent(): Promise<boolean> {
+    return true;
+  }
   async put(): Promise<void> {}
-  async getJSON<T>(): Promise<T | null> { return null; }
-  async exists(): Promise<boolean> { return false; }
-  async listPrefix(): Promise<string[]> { return []; }
-  async getBytes(): Promise<Uint8Array | null> { return null; }
+  async getJSON<T>(): Promise<T | null> {
+    return null;
+  }
+  async exists(): Promise<boolean> {
+    return false;
+  }
+  async listPrefix(): Promise<string[]> {
+    return [];
+  }
+  async getBytes(): Promise<Uint8Array | null> {
+    return null;
+  }
   async remove(): Promise<void> {}
 }
 
@@ -165,7 +175,7 @@ describe("shared route table", () => {
       assert.deepEqual(
         (res as { body: unknown }).body,
         { error: "authentication required" },
-        `${r.method} ${r.path}`,
+        `${r.method} ${r.path}`
       );
     }
   });
@@ -175,7 +185,7 @@ describe("shared route table", () => {
     // which proves the route no longer gates the publish on a session.
     const res = await dispatch(
       routes,
-      makeReq({ method: "POST", path: "/ingest", auth: null, body: "{}" }),
+      makeReq({ method: "POST", path: "/ingest", auth: null, body: "{}" })
     );
     assert.equal(res.kind, "json");
     assert.equal((res as { status: number }).status, 400);
@@ -193,7 +203,7 @@ describe("shared route table", () => {
         auth: null,
         hasAuthHeader: true,
         body: "{}",
-      }),
+      })
     );
     assert.equal(res.kind, "json");
     assert.equal((res as { status: number }).status, 401);
@@ -205,7 +215,7 @@ describe("shared route table", () => {
     // user must not be able to delete anyone.
     const res = await dispatch(
       routes,
-      makeReq({ method: "DELETE", path: "/admin/users/someoneelse", auth: VIEWER }),
+      makeReq({ method: "DELETE", path: "/admin/users/someoneelse", auth: VIEWER })
     );
     assert.equal((res as { status: number }).status, 403);
     assert.deepEqual((res as { body: unknown }).body, { error: "not authorised" });
@@ -214,7 +224,7 @@ describe("shared route table", () => {
   test("DELETE /admin/users/{username} requires a session at all", async () => {
     const res = await dispatch(
       routes,
-      makeReq({ method: "DELETE", path: "/admin/users/someoneelse" }),
+      makeReq({ method: "DELETE", path: "/admin/users/someoneelse" })
     );
     assert.equal((res as { status: number }).status, 401);
   });
@@ -224,7 +234,7 @@ describe("shared route table", () => {
     // so a 404 from the handler proves the gate let the call through.
     const res = await dispatch(
       routes,
-      makeReq({ method: "DELETE", path: "/admin/users/ghostuser", auth: ADMIN }),
+      makeReq({ method: "DELETE", path: "/admin/users/ghostuser", auth: ADMIN })
     );
     assert.equal((res as { status: number }).status, 404);
   });
@@ -232,7 +242,7 @@ describe("shared route table", () => {
   test("DELETE /drawings/{id} requires a session", async () => {
     const res = await dispatch(
       routes,
-      makeReq({ method: "DELETE", path: `/drawings/${"a".repeat(64)}` }),
+      makeReq({ method: "DELETE", path: `/drawings/${"a".repeat(64)}` })
     );
     assert.equal(res.kind, "json");
     assert.equal((res as { status: number }).status, 401);
@@ -244,7 +254,7 @@ describe("shared route table", () => {
     const id = "a".repeat(64);
     const res = await dispatch(
       routes,
-      makeReq({ method: "DELETE", path: `/drawings/${id}/like`, auth: VIEWER }),
+      makeReq({ method: "DELETE", path: `/drawings/${id}/like`, auth: VIEWER })
     );
     assert.equal((res as { status: number }).status, 404, "unlike of a missing drawing");
     assert.deepEqual((res as { body: unknown }).body, { error: "drawing not found" });
@@ -264,9 +274,14 @@ describe("shared route table", () => {
       frames: 1,
       gif_size_bytes: 100,
     });
-    const res = await dispatch(createRoutes(deps), makeReq({
-      method: "DELETE", path: `/drawings/${id}`, auth: VIEWER,
-    }));
+    const res = await dispatch(
+      createRoutes(deps),
+      makeReq({
+        method: "DELETE",
+        path: `/drawings/${id}`,
+        auth: VIEWER,
+      })
+    );
     assert.equal((res as { status: number }).status, 403);
   });
 
@@ -287,7 +302,7 @@ describe("shared route table", () => {
   test("path params reach the handler (like toggle on a missing drawing → 404)", async () => {
     const res = await dispatch(
       routes,
-      makeReq({ method: "POST", path: `/drawings/${"e".repeat(64)}/like`, auth: VIEWER }),
+      makeReq({ method: "POST", path: `/drawings/${"e".repeat(64)}/like`, auth: VIEWER })
     );
     assert.equal(res.kind, "json");
     assert.equal((res as { status: number }).status, 404);
@@ -310,12 +325,12 @@ describe("shared route table", () => {
     const table = createRoutes(deps);
     const like = await dispatch(
       table,
-      makeReq({ method: "POST", path: `/drawings/${id}/like`, auth: VIEWER }),
+      makeReq({ method: "POST", path: `/drawings/${id}/like`, auth: VIEWER })
     );
     assert.equal((like as { status: number }).status, 200);
     const unlike = await dispatch(
       table,
-      makeReq({ method: "DELETE", path: `/drawings/${id}/like`, auth: VIEWER }),
+      makeReq({ method: "DELETE", path: `/drawings/${id}/like`, auth: VIEWER })
     );
     assert.equal((unlike as { status: number }).status, 200);
   });
@@ -327,7 +342,7 @@ describe("shared route table", () => {
         method: "GET",
         path: "/hydrate",
         query: { drawings: "f".repeat(64) },
-      }),
+      })
     );
     assert.equal(res.kind, "json");
     assert.equal((res as { status: number }).status, 200);
@@ -338,21 +353,18 @@ describe("shared route table", () => {
     assert.equal(shell.kind, "render");
     const denied = await dispatch(
       routes,
-      makeReq({ method: "GET", path: "/admin/data", auth: VIEWER }),
+      makeReq({ method: "GET", path: "/admin/data", auth: VIEWER })
     );
     assert.equal((denied as { status: number }).status, 403);
     const allowed = await dispatch(
       routes,
-      makeReq({ method: "GET", path: "/admin/data", auth: ADMIN }),
+      makeReq({ method: "GET", path: "/admin/data", auth: ADMIN })
     );
     assert.equal(allowed.kind, "render");
   });
 
   test("unknown POST /auth/* subpath is a 404", async () => {
-    const res = await dispatch(
-      routes,
-      makeReq({ method: "POST", path: "/auth/nope", body: "{}" }),
-    );
+    const res = await dispatch(routes, makeReq({ method: "POST", path: "/auth/nope", body: "{}" }));
     assert.equal(res.kind, "text");
     assert.equal((res as { status: number }).status, 404);
   });
@@ -369,7 +381,7 @@ describe("shared route table", () => {
           password: "password123",
           altcha: await solvedPayload(deps.authConfig.challenge),
         }),
-      }),
+      })
     );
     assert.equal(res.kind, "json");
     assert.equal((res as { status: number }).status, 201);
@@ -398,7 +410,7 @@ describe("shared route table", () => {
           username: "nogate",
           password: "password123",
         }),
-      }),
+      })
     );
     // 400 rather than 403 so CloudFront does not rewrite it to /404.html.
     assert.equal((res as { status: number }).status, 400);
@@ -410,7 +422,7 @@ describe("shared route table", () => {
     // Dev server wires no stats store and has always 404ed this path.
     const withoutStore = await dispatch(
       routes,
-      makeReq({ method: "GET", path: `/users/${hexUserId}/stats` }),
+      makeReq({ method: "GET", path: `/users/${hexUserId}/stats` })
     );
     assert.equal(withoutStore.kind, "text");
     assert.equal((withoutStore as { status: number }).status, 404);
@@ -418,7 +430,7 @@ describe("shared route table", () => {
     const withStore = createRoutes(makeDeps({ userStats: true }));
     const res = await dispatch(
       withStore,
-      makeReq({ method: "GET", path: `/users/${hexUserId}/stats` }),
+      makeReq({ method: "GET", path: `/users/${hexUserId}/stats` })
     );
     assert.equal(res.kind, "json");
     assert.equal((res as { status: number }).status, 200);
@@ -427,7 +439,7 @@ describe("shared route table", () => {
   test("bad JSON on POST /ingest is a 400, not a crash", async () => {
     const res = await dispatch(
       routes,
-      makeReq({ method: "POST", path: "/ingest", auth: VIEWER, body: "{nope" }),
+      makeReq({ method: "POST", path: "/ingest", auth: VIEWER, body: "{nope" })
     );
     assert.equal((res as { status: number }).status, 400);
     assert.deepEqual((res as { body: unknown }).body, { error: "bad json body" });

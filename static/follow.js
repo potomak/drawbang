@@ -15,7 +15,11 @@
   if (typeof window.drawbangCreateToggleHandler !== "function") return;
 
   function viewerUsername() {
-    try { return localStorage.getItem("drawbang:username") || null; } catch (e) { return null; }
+    try {
+      return localStorage.getItem("drawbang:username") || null;
+    } catch (e) {
+      return null;
+    }
   }
 
   function bumpProfileCounter(delta) {
@@ -35,8 +39,14 @@
     initFlag: "__drawbangFollowInit",
     targetAttr: "data-follow-target",
     wiredAttr: "data-follow-wired",
-    endpoint: function (un) { return "/users/" + encodeURIComponent(un) + "/follow"; },
-    errorMessages: { press: "Could not follow", unpress: "Could not unfollow", fallback: "Follow failed" },
+    endpoint: function (un) {
+      return "/users/" + encodeURIComponent(un) + "/follow";
+    },
+    errorMessages: {
+      press: "Could not follow",
+      unpress: "Could not unfollow",
+      fallback: "Follow failed",
+    },
     onPressed: function (btn, pressed) {
       var label = btn.querySelector(".follow-label");
       if (label) label.textContent = pressed ? "Following" : "Follow";

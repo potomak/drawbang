@@ -17,7 +17,7 @@ test("Heavy Cotton Tee carries only S, M, L, XL, 2XL (no 3XL / 4XL)", () => {
   assert.deepEqual(
     [...sizes].sort(),
     ["2XL", "L", "M", "S", "XL"],
-    "tee sizes must be exactly S, M, L, XL, 2XL",
+    "tee sizes must be exactly S, M, L, XL, 2XL"
   );
 });
 
@@ -41,7 +41,7 @@ test("no variant in the catalog carries a legacy `label` field", () => {
       assert.equal(
         (variant as unknown as { label?: string }).label,
         undefined,
-        `${product.id} variant ${variant.id} still has a label field`,
+        `${product.id} variant ${variant.id} still has a label field`
       );
     }
   }

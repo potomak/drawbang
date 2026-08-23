@@ -1,11 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import {
-  GetCommand,
-  PutCommand,
-  QueryCommand,
-  UpdateCommand,
-} from "@aws-sdk/lib-dynamodb";
+import { GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { OrdersStore, STATUS_GSI_NAME, type Order } from "../merch/orders.js";
 
 interface RecordedSend {
@@ -76,7 +71,11 @@ test("getOrder returns null when no item is found", async () => {
 });
 
 test("transition issues an UpdateItem with status condition + status alias and returns the new order", async () => {
-  const updated = fixtureOrder({ status: "paid", stripe_session_id: "cs_test_1", updated_at: "later" });
+  const updated = fixtureOrder({
+    status: "paid",
+    stripe_session_id: "cs_test_1",
+    updated_at: "later",
+  });
   const { store, calls } = makeStore(async () => ({ Attributes: updated }));
 
   const out = await store.transition("ord_1", "pending", {
@@ -108,7 +107,7 @@ test("transition issues an UpdateItem with status condition + status alias and r
   // updated_at is auto-stamped to a fresh ISO timestamp
   assert.ok(
     values.some((v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v)),
-    "auto updated_at stamp",
+    "auto updated_at stamp"
   );
 });
 
@@ -130,10 +129,7 @@ test("transition rethrows non-condition failures", async () => {
     throw err;
   });
 
-  await assert.rejects(
-    () => store.transition("ord_1", "pending", { status: "paid" }),
-    /boom/,
-  );
+  await assert.rejects(() => store.transition("ord_1", "pending", { status: "paid" }), /boom/);
 });
 
 test("listByStatus queries the status-created_at GSI and unwraps Items", async () => {

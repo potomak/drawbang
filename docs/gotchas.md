@@ -77,7 +77,7 @@ to spare the next agent / contributor an hour of head-scratching.
   `gallery.css` is now `gallery-v2.css`).
 - **Every served URL pattern MUST be in `deploy.yml`'s CloudFront
   invalidation list.** The "day/key/drawing pages are immutable per
-  builder invariant" reasoning is true for *daily incremental builds*
+  builder invariant" reasoning is true for _daily incremental builds_
   but **false on any template-wide refactor** (chrome, footer, logo,
   global CSS, etc.). When a refactor changes the rendered HTML for
   existing pages, omitting `/d/*` / `/days/*` / `/keys/*` from the
@@ -101,10 +101,10 @@ to spare the next agent / contributor an hour of head-scratching.
   path that `vite.config.ts` means to proxy gets a 404 page instead.
   Two facets are fixed — non-GET methods are exempt (`POST /ingest` was
   404ing, which broke the entire documented publish loop) and `/@…`
-  paths are exempt (`/@vite/client` was 404ing, which broke HMR *and*
+  paths are exempt (`/@vite/client` was 404ing, which broke HMR _and_
   stopped page scripts evaluating, so `/login` and `/signup` fell back to
   native GET form submits that put the password in the URL bar).
-- **Still unfixed:** proxied *GET* routes (`/d/<id>`, `/u/<un>`, `/`) are
+- **Still unfixed:** proxied _GET_ routes (`/d/<id>`, `/u/<un>`, `/`) are
   shadowed by the same rule. Read those off `localhost:8787` directly.
   Fixing it properly means teaching the plugin about the proxy table.
 
@@ -115,7 +115,7 @@ to spare the next agent / contributor an hour of head-scratching.
   `keySignature` in the signed challenge and never looks at
   `solution.counter`. A test that mutates the counter and expects a
   rejection will fail — mutate `derivedKey` instead. (Tampering with the
-  challenge *parameters* is caught separately, by the challenge HMAC.)
+  challenge _parameters_ is caught separately, by the challenge HMAC.)
 - **`verifySolution()` does not stop replay.** It has no idea whether a
   solution was already spent. `ingest/challenge-store.ts` is what enforces
   single use; without it the gate is decoration. Don't "simplify" it away.
@@ -126,7 +126,7 @@ to spare the next agent / contributor an hour of head-scratching.
 - The widget (`altcha` npm) is v3 and the server lib (`altcha-lib`) is v2;
   they interoperate — v2 of the lib is the version that speaks v3's PoW
   format. The `v1` API is still exported at `altcha-lib/v1` and is a
-  *different*, incompatible scheme.
+  _different_, incompatible scheme.
 - **The widget renders a `required` checkbox inside your form.** On a form
   without `novalidate`, native constraint validation blocks submission
   before any JS submit handler runs — no request, no error message,
@@ -158,7 +158,7 @@ Bitten twice:
   operator sees "Couldn't load admin data" instead of "Not authorised".
   Cosmetic, still unfixed.
 
-To see what the origin *really* returned, hit the `execute-api` URL
+To see what the origin _really_ returned, hit the `execute-api` URL
 directly (see "Verifying against production" in CLAUDE.md).
 
 ## Vite dev server shadows proxied GET routes
@@ -201,7 +201,7 @@ The Lambda runs **arm64** and resolves ffmpeg at `/var/task/ffmpeg`
 `encodeShareMp4` fails locally with `spawn ffmpeg ENOENT` and tells you
 nothing about prod.
 
-To run the *exact* prod command on real bytes:
+To run the _exact_ prod command on real bytes:
 
 ```
 npm install --no-save --force @ffmpeg-installer/linux-x64
@@ -229,7 +229,7 @@ three attempts to learn, so you don't repeat it:
   present); ffmpeg rejecting the content (the exact `-large.gif` encoded
   to a valid 18 KB mp4 locally); the Lambda timeout (worst-case tail is
   6.7 s against 30 s — see "Publish latency" in CLAUDE.md).
-- **Confirmed:** the tail *was* running — each retry rewrote
+- **Confirmed:** the tail _was_ running — each retry rewrote
   `-large.gif`, moving its `Last-Modified` while the `ETag` stayed
   identical (the re-render is deterministic). So the gif step succeeded
   and the mp4 step failed silently, twice, only via the async
@@ -242,8 +242,7 @@ three attempts to learn, so you don't repeat it:
 ## GitHub Actions
 
 - **Find a deploy run via the workflow, not the repo.**
-  `/actions/runs?branch=master` returns the newest run of *any* workflow,
+  `/actions/runs?branch=master` returns the newest run of _any_ workflow,
   so a CodeQL run that raced your push will be picked instead and you'll
   watch the wrong jobs. Use
   `/actions/workflows/deploy.yml/runs?branch=master`.
-

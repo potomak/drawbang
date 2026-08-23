@@ -31,7 +31,7 @@ test("every product in config/merch.json has a corresponding mockup config", () 
     assert.ok(cfg.mockup_width > 0 && cfg.mockup_height > 0);
     assert.ok(
       Array.isArray(cfg.placeholders) && cfg.placeholders.length > 0,
-      `${product.id}: placeholders must be a non-empty array`,
+      `${product.id}: placeholders must be a non-empty array`
     );
   }
 });
@@ -44,11 +44,11 @@ test("mockup placeholder rectangles fit inside the mockup canvas", () => {
       assert.ok(width > 0 && height > 0, `${id}[${i}]: placeholder dims must be positive`);
       assert.ok(
         x + width <= cfg.mockup_width,
-        `${id}[${i}]: x+width (${x + width}) exceeds mockup_width (${cfg.mockup_width})`,
+        `${id}[${i}]: x+width (${x + width}) exceeds mockup_width (${cfg.mockup_width})`
       );
       assert.ok(
         y + height <= cfg.mockup_height,
-        `${id}[${i}]: y+height (${y + height}) exceeds mockup_height (${cfg.mockup_height})`,
+        `${id}[${i}]: y+height (${y + height}) exceeds mockup_height (${cfg.mockup_height})`
       );
     });
   }

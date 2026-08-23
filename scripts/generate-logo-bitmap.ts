@@ -61,4 +61,6 @@ ${rows.join("\n")}
 
 const outPath = resolve(import.meta.dirname, "..", "src", "layout", "logo-bitmap.ts");
 writeFileSync(outPath, out);
-console.log(`wrote ${outPath} (${LOGO_W}×${LOGO_H} bitmap, ${bits.reduce((s, b) => s + b, 0)} ink pixels)`);
+console.log(
+  `wrote ${outPath} (${LOGO_W}×${LOGO_H} bitmap, ${bits.reduce((s, b) => s + b, 0)} ink pixels)`
+);

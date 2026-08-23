@@ -7,7 +7,7 @@ next anomaly surfaces within a day instead of at quarter-end.
 
 ## What the $11.60 actually was
 
-AWS bills CloudFront invalidations at $0.005 per *requested path* beyond
+AWS bills CloudFront invalidations at $0.005 per _requested path_ beyond
 the first 1,000 paths per month per account. Wildcards count as one path
 each (verified via `aws cloudfront get-invalidation`: a `/*` invalidation
 returns `Paths.Quantity = 1`).
@@ -15,11 +15,11 @@ returns `Paths.Quantity = 1`).
 May 2026 breakdown (computed from `list-invalidations` +
 `get-invalidation` against distribution `E6J784BTWEBRC`):
 
-| Month | Total paths | Billable (>1,000) | Cost |
-|---|---|---|---|
-| 2026-04 | 93 | 0 | $0 |
-| 2026-05 | **3,319** | 2,319 | **$11.60** |
-| 2026-06 (so far) | 14 | 0 | $0 |
+| Month            | Total paths | Billable (>1,000) | Cost       |
+| ---------------- | ----------- | ----------------- | ---------- |
+| 2026-04          | 93          | 0                 | $0         |
+| 2026-05          | **3,319**   | 2,319             | **$11.60** |
+| 2026-06 (so far) | 14          | 0                 | $0         |
 
 The May total is bimodal: a handful of small runtime invalidations from
 the Lambda (publish: 5 paths each, profile-picture change: 1 path each),
@@ -84,14 +84,14 @@ flattens to ~1 origin hit per unique URL per TTL window.
 
 Computed from CloudWatch + CloudFront APIs, no Cost Explorer:
 
-| Service | Usage | Cost |
-|---|---|---|
-| CloudFront requests | 25,567 | $0.019 |
-| CloudFront egress | 0.089 GB | $0.008 |
-| Lambda (`drawbang-ingest`, 256 MB) | 1,409 invs, 822 ms avg | $0.005 |
-| DynamoDB (9 tables, on-demand) | 3,640 RCU + ~few hundred WCU | $0.001 |
-| Invalidations (runtime, post-fix) | ~50–100 paths/mo | $0 |
-| **Total runtime, post-fix** | | **~$0.04/mo** |
+| Service                            | Usage                        | Cost          |
+| ---------------------------------- | ---------------------------- | ------------- |
+| CloudFront requests                | 25,567                       | $0.019        |
+| CloudFront egress                  | 0.089 GB                     | $0.008        |
+| Lambda (`drawbang-ingest`, 256 MB) | 1,409 invs, 822 ms avg       | $0.005        |
+| DynamoDB (9 tables, on-demand)     | 3,640 RCU + ~few hundred WCU | $0.001        |
+| Invalidations (runtime, post-fix)  | ~50–100 paths/mo             | $0            |
+| **Total runtime, post-fix**        |                              | **~$0.04/mo** |
 
 ## Pricing constants used
 

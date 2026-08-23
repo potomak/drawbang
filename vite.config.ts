@@ -81,8 +81,6 @@ export default defineConfig({
     // (npm run ingest:dev on :8787) so the editor stays on a single origin
     // and uses its default relative URLs. Mirrors the prod CloudFront
     // setup where everything appears under one hostname.
-    proxy: Object.fromEntries(
-      DEV_PROXY_PATHS.map((p) => [p, DEV_PROXY_TARGET]),
-    ),
+    proxy: Object.fromEntries(DEV_PROXY_PATHS.map((p) => [p, DEV_PROXY_TARGET])),
   },
 });

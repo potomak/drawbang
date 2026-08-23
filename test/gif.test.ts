@@ -61,7 +61,7 @@ for (const size of DRAWING_SIZES) {
   test(`round-trip at ${size}x${size}: encode then decode preserves frame data + palette`, () => {
     const frame = new Bitmap(size, size);
     // Diagonal stripe + a transparent corner.
-    for (let i = 0; i < size; i++) frame.set(i, i, ((i % 15) + 1));
+    for (let i = 0; i < size; i++) frame.set(i, i, (i % 15) + 1);
     frame.set(0, size - 1, TRANSPARENT);
 
     const bytes = encodeGif({
@@ -94,7 +94,10 @@ test("validateGif rejects a disallowed size (24x24)", () => {
   const frame = new Bitmap(16, 16);
   const bytes = encodeGif({ frames: [frame], activePalette: DEFAULT_ACTIVE_PALETTE });
   const tampered = new Uint8Array(bytes);
-  tampered[6] = 24; tampered[7] = 0; tampered[8] = 24; tampered[9] = 0;
+  tampered[6] = 24;
+  tampered[7] = 0;
+  tampered[8] = 24;
+  tampered[9] = 0;
   assert.throws(() => validateGif(tampered), /size 24 not allowed/);
 });
 

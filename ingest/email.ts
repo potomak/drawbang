@@ -32,7 +32,7 @@ export class SesEmailSender implements EmailSender {
           Subject: { Data: "Reset your Draw! password" },
           Body: { Text: { Data: text } },
         },
-      }),
+      })
     );
   }
 }

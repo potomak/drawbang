@@ -20,8 +20,7 @@ function makeFetch(calls: RecordedCall[], responses: StubResponse[]): typeof fet
     const url = typeof input === "string" ? input : input.toString();
     const headers = (init?.headers ?? {}) as Record<string, string>;
     const rawBody = init?.body;
-    const parsedBody =
-      typeof rawBody === "string" ? JSON.parse(rawBody) : undefined;
+    const parsedBody = typeof rawBody === "string" ? JSON.parse(rawBody) : undefined;
     calls.push({
       url,
       method: init?.method ?? "GET",
@@ -31,13 +30,10 @@ function makeFetch(calls: RecordedCall[], responses: StubResponse[]): typeof fet
 
     const r = responses.shift();
     if (!r) throw new Error(`unexpected fetch call to ${url}`);
-    return new Response(
-      r.body !== undefined ? JSON.stringify(r.body) : null,
-      {
-        status: r.status,
-        headers: { "Content-Type": "application/json", ...(r.headers ?? {}) },
-      },
-    );
+    return new Response(r.body !== undefined ? JSON.stringify(r.body) : null, {
+      status: r.status,
+      headers: { "Content-Type": "application/json", ...(r.headers ?? {}) },
+    });
   }) as typeof fetch;
 }
 
@@ -117,8 +113,14 @@ test("createOrder posts to the shop orders endpoint with our external_id", async
     is_printify_express: false,
     send_shipping_notification: false,
     address_to: {
-      first_name: "A", last_name: "B", email: "a@b.example",
-      country: "US", region: "CA", address1: "1 Main", city: "SF", zip: "94110",
+      first_name: "A",
+      last_name: "B",
+      email: "a@b.example",
+      country: "US",
+      region: "CA",
+      address1: "1 Main",
+      city: "SF",
+      zip: "94110",
     },
   });
 
@@ -144,7 +146,9 @@ test("getOrder GETs the shop order endpoint without a body", async () => {
 test("retries 429 + Retry-After then succeeds", async () => {
   const calls: RecordedCall[] = [];
   let sleptMs: number[] = [];
-  const sleep = async (ms: number) => { sleptMs.push(ms); };
+  const sleep = async (ms: number) => {
+    sleptMs.push(ms);
+  };
   const client = new PrintifyClient({
     token: "tok",
     shopId: "shop_42",
@@ -172,7 +176,9 @@ test("retries 5xx on the default backoff schedule then succeeds", async () => {
       { status: 502, body: { error: "down" } },
       { status: 200, body: { id: "po_1", status: "pending" } },
     ]),
-    sleepImpl: async (ms) => { sleptMs.push(ms); },
+    sleepImpl: async (ms) => {
+      sleptMs.push(ms);
+    },
   });
 
   const out = await client.getOrder("po_1");
@@ -188,7 +194,9 @@ test("4xx (non-429, non-retryable code) throws PrintifyError immediately, no ret
     token: "tok",
     shopId: "shop_42",
     fetchImpl: makeFetch(calls, [{ status: 400, body: { error: "bad input" } }]),
-    sleepImpl: async (ms) => { sleptMs.push(ms); },
+    sleepImpl: async (ms) => {
+      sleptMs.push(ms);
+    },
   });
 
   await assert.rejects(
@@ -198,7 +206,7 @@ test("4xx (non-429, non-retryable code) throws PrintifyError immediately, no ret
       assert.equal(err.status, 400);
       assert.deepEqual(err.body, { error: "bad input" });
       return true;
-    },
+    }
   );
   assert.equal(calls.length, 1);
   assert.deepEqual(sleptMs, []);
@@ -218,7 +226,9 @@ test("retries HTTP 400 + Printify code 8502 on the slow backoff schedule then su
       { status: 400, body: { status: "error", code: 8502, message: "Operation failed." } },
       { status: 200, body: { id: "po_1" } },
     ]),
-    sleepImpl: async (ms) => { sleptMs.push(ms); },
+    sleepImpl: async (ms) => {
+      sleptMs.push(ms);
+    },
   });
 
   const out = await client.sendToProduction("po_1");
@@ -242,7 +252,7 @@ test("HTTP 400 with code != 8502 does not slow-retry", async () => {
 
   await assert.rejects(
     () => client.sendToProduction("po_1"),
-    (err: unknown) => err instanceof PrintifyError && err.status === 400,
+    (err: unknown) => err instanceof PrintifyError && err.status === 400
   );
   assert.equal(calls.length, 1);
 });
@@ -265,7 +275,7 @@ test("8502 retries are exhausted -> PrintifyError surfaces", async () => {
     (err: unknown) =>
       err instanceof PrintifyError &&
       err.status === 400 &&
-      (err.body as { code?: number } | undefined)?.code === 8502,
+      (err.body as { code?: number } | undefined)?.code === 8502
   );
   // initial attempt + 3 slow retries = 4 calls
   assert.equal(calls.length, 4);
@@ -273,7 +283,10 @@ test("8502 retries are exhausted -> PrintifyError surfaces", async () => {
 
 test("gives up after exhausting the retry schedule and throws PrintifyError", async () => {
   const calls: RecordedCall[] = [];
-  const responses = Array.from({ length: 5 }, () => ({ status: 503 as const, body: { error: "down" } }));
+  const responses = Array.from({ length: 5 }, () => ({
+    status: 503 as const,
+    body: { error: "down" },
+  }));
   const client = new PrintifyClient({
     token: "tok",
     shopId: "shop_42",
@@ -283,7 +296,7 @@ test("gives up after exhausting the retry schedule and throws PrintifyError", as
 
   await assert.rejects(
     () => client.getOrder("po_1"),
-    (err: unknown) => err instanceof PrintifyError && err.status === 503,
+    (err: unknown) => err instanceof PrintifyError && err.status === 503
   );
   // initial attempt + 4 retries = 5 calls
   assert.equal(calls.length, 5);

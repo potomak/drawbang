@@ -77,12 +77,10 @@ export async function loadAdminUsers(args: {
   startMs: number;
 }): Promise<AdminView["users"]> {
   const page = await args.userStore.listUsers({ limit: USER_SCAN_LIMIT });
-  const sorted = [...page.users].sort((a, b) =>
-    b.created_at.localeCompare(a.created_at),
-  );
+  const sorted = [...page.users].sort((a, b) => b.created_at.localeCompare(a.created_at));
   const shown = sorted.slice(0, USER_ROWS_LIMIT);
   const stats = await Promise.all(
-    shown.map((u) => args.userStatsStore.get(u.user_id).catch(() => null)),
+    shown.map((u) => args.userStatsStore.get(u.user_id).catch(() => null))
   );
   const rows = shown.map((u, i) => toAdminUserRow(u, stats[i]));
   return {
@@ -102,7 +100,7 @@ function signedUpSince(u: UserSummary, startMs: number): boolean {
 
 function toAdminUserRow(
   u: UserSummary,
-  stats: Awaited<ReturnType<UserStatsStore["get"]>>,
+  stats: Awaited<ReturnType<UserStatsStore["get"]>>
 ): AdminUserRow {
   return {
     username: u.username,
@@ -121,9 +119,7 @@ function toAdminUserRow(
   };
 }
 
-export function computeProductKpis(
-  page: QueryPage | null,
-): AdminView["kpis"] {
+export function computeProductKpis(page: QueryPage | null): AdminView["kpis"] {
   if (!page) return null;
   const scanned = page.items.length;
   // `!= null` on purpose: DDB omits parent_id on non-fork rows (GSI3
@@ -156,19 +152,20 @@ export function rangeStartMs(range: AdminRange, now: Date): number {
 
 function rangeMs(range: AdminRange): number {
   switch (range) {
-    case "24h": return 24 * 60 * 60 * 1000;
-    case "7d":  return 7 * 24 * 60 * 60 * 1000;
-    case "30d": return 30 * 24 * 60 * 60 * 1000;
+    case "24h":
+      return 24 * 60 * 60 * 1000;
+    case "7d":
+      return 7 * 24 * 60 * 60 * 1000;
+    case "30d":
+      return 30 * 24 * 60 * 60 * 1000;
   }
 }
 
-export async function handleAdminRoute(
-  args: {
-    cfg: AdminHandlerConfig;
-    range: AdminRange;
-    adminUsername: string;
-  },
-): Promise<RenderResponse> {
+export async function handleAdminRoute(args: {
+  cfg: AdminHandlerConfig;
+  range: AdminRange;
+  adminUsername: string;
+}): Promise<RenderResponse> {
   const { cfg, range, adminUsername } = args;
   const now = (cfg.now ?? (() => new Date()))();
   const endMs = now.getTime();
@@ -236,10 +233,10 @@ export async function handleAdminRoute(
 
 async function describeItemCount(
   client: Pick<DynamoDBClient, "send">,
-  tableName: string,
+  tableName: string
 ): Promise<number | null> {
   const out = (await client.send(
-    new DescribeTableCommand({ TableName: tableName }) as never,
+    new DescribeTableCommand({ TableName: tableName }) as never
   )) as unknown as { Table?: { ItemCount?: number } };
   return out.Table?.ItemCount ?? null;
 }
@@ -287,7 +284,10 @@ async function loadMerchFlags(flagsStore?: AnyFlagsStore): Promise<AdminView["me
     // No row yet — default to dry-run true (safe) with no timestamp.
     return { merch_dry_run: true, updated_at: null, updated_by: null };
   }
-  const val = (row as { enabled?: boolean; value?: boolean }).enabled ?? (row as { value?: boolean }).value ?? true;
+  const val =
+    (row as { enabled?: boolean; value?: boolean }).enabled ??
+    (row as { value?: boolean }).value ??
+    true;
   return {
     merch_dry_run: Boolean(val),
     updated_at: row.updated_at ?? null,
@@ -308,7 +308,10 @@ export async function handleGetMerchFlags(args: {
       headers: { "Cache-Control": "private, no-store" },
     };
   }
-  const val = (row as { enabled?: boolean; value?: boolean }).enabled ?? (row as { value?: boolean }).value ?? true;
+  const val =
+    (row as { enabled?: boolean; value?: boolean }).enabled ??
+    (row as { value?: boolean }).value ??
+    true;
   return {
     status: 200,
     body: {
@@ -336,7 +339,10 @@ export async function handleSetMerchFlags(args: {
     return { status: 400, body: { error: "bad merch_dry_run: expected boolean" } };
   }
   const row = await args.flagsStore.setFlag("merch_dry_run", obj.merch_dry_run, args.username);
-  const val = (row as { enabled?: boolean; value?: boolean }).enabled ?? (row as { value?: boolean }).value ?? obj.merch_dry_run;
+  const val =
+    (row as { enabled?: boolean; value?: boolean }).enabled ??
+    (row as { value?: boolean }).value ??
+    obj.merch_dry_run;
   return {
     status: 200,
     body: {

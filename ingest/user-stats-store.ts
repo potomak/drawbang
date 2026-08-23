@@ -1,9 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import {
-  DynamoDBDocumentClient,
-  GetCommand,
-  UpdateCommand,
-} from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 
 // Per-user_id aggregated stats for streaks + badges (#115, #116).
 //
@@ -110,14 +106,11 @@ export class DynamoUserStatsStore implements UserStatsStore {
   constructor(opts: DynamoUserStatsStoreOptions) {
     this.table = opts.tableName;
     this.maxRetries = opts.maxRetries ?? 5;
-    this.doc =
-      opts.client ?? DynamoDBDocumentClient.from(new DynamoDBClient({}));
+    this.doc = opts.client ?? DynamoDBDocumentClient.from(new DynamoDBClient({}));
   }
 
   async get(user_id: string): Promise<UserStatsRow | null> {
-    const r = await this.doc.send(
-      new GetCommand({ TableName: this.table, Key: { user_id } }),
-    );
+    const r = await this.doc.send(new GetCommand({ TableName: this.table, Key: { user_id } }));
     if (!r.Item) return null;
     return this.normalize(r.Item, user_id);
   }
@@ -134,14 +127,14 @@ export class DynamoUserStatsStore implements UserStatsStore {
       }
     }
     throw new Error(
-      `recordDailyDrawing: optimistic-concurrency retries exhausted for ${args.user_id}`,
+      `recordDailyDrawing: optimistic-concurrency retries exhausted for ${args.user_id}`
     );
   }
 
   private dailyUpdate(
     args: RecordDailyDrawingArgs,
     prior: UserStatsRow | null,
-    next: NextDailyState,
+    next: NextDailyState
   ): UpdateCommand {
     const expr =
       "SET daily_total = :dt, daily_streak_current = :dsc, daily_streak_longest = :dsl, daily_last_date = :dld, updated_at = :now";
@@ -163,7 +156,8 @@ export class DynamoUserStatsStore implements UserStatsStore {
           TableName: this.table,
           Key: { user_id: args.user_id },
           UpdateExpression: expr,
-          ConditionExpression: "daily_total = :prior_dt_only AND attribute_not_exists(daily_last_date)",
+          ConditionExpression:
+            "daily_total = :prior_dt_only AND attribute_not_exists(daily_last_date)",
           ExpressionAttributeValues: values,
           ReturnValues: "ALL_NEW",
         });

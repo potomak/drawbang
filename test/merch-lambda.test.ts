@@ -58,7 +58,11 @@ interface StubBehavior {
   ordersStub?: Partial<{
     createOrder: (o: Order) => Promise<void>;
     getOrder: (id: string) => Promise<Order | null>;
-    transition: (id: string, expectedStatus: OrderStatus, patch: Partial<Order>) => Promise<Order | null>;
+    transition: (
+      id: string,
+      expectedStatus: OrderStatus,
+      patch: Partial<Order>
+    ) => Promise<Order | null>;
   }>;
   stripeStub?: Partial<{
     createCheckoutSession: StripeHelper["createCheckoutSession"];
@@ -105,7 +109,9 @@ function buildDeps(stub: StubBehavior = {}): {
       // Default to an unhandled event type so the dispatcher is a clean no-op
       // for tests focused on signature/transport behavior. Tests that exercise
       // dispatch live in test/merch-webhook.test.ts.
-      return { id: "evt_default", type: "ping" } as unknown as ReturnType<StripeHelper["parseWebhook"]>;
+      return { id: "evt_default", type: "ping" } as unknown as ReturnType<
+        StripeHelper["parseWebhook"]
+      >;
     },
   } as unknown as StripeHelper;
 
@@ -129,7 +135,7 @@ function event(
     isBase64Encoded?: boolean;
     headers?: Record<string, string>;
     pathParameters?: Record<string, string>;
-  } = {},
+  } = {}
 ): APIGatewayProxyEventV2 {
   const [method] = routeKey.split(" ");
   const body =
@@ -144,7 +150,13 @@ function event(
     rawQueryString: "",
     headers: opts.headers ?? {},
     requestContext: {
-      http: { method, path: routeKey.split(" ")[1], protocol: "HTTP/1.1", sourceIp: "x", userAgent: "x" },
+      http: {
+        method,
+        path: routeKey.split(" ")[1],
+        protocol: "HTTP/1.1",
+        sourceIp: "x",
+        userAgent: "x",
+      },
     },
     pathParameters: opts.pathParameters,
     isBase64Encoded: opts.isBase64Encoded ?? false,
@@ -190,7 +202,7 @@ test("POST /merch/checkout: 400 on bad drawing_id", async () => {
         cancel_url: "https://x.example/c",
       },
     }),
-    deps,
+    deps
   );
   assert.equal(statusOf(res), 400);
   assert.match(JSON.stringify(parseJson(res)), /drawing_id/);
@@ -209,7 +221,7 @@ test("POST /merch/checkout: 400 when product_id is unknown", async () => {
         cancel_url: "https://x.example/c",
       },
     }),
-    deps,
+    deps
   );
   assert.equal(statusOf(res), 400);
   assert.match(JSON.stringify(parseJson(res)), /unknown product_id/);
@@ -230,7 +242,7 @@ test("POST /merch/checkout: 400 when variant_id is not in the product's variants
         cancel_url: "https://x.example/c",
       },
     }),
-    deps,
+    deps
   );
   assert.equal(statusOf(res), 400);
   assert.match(JSON.stringify(parseJson(res)), /unknown variant_id/);
@@ -259,7 +271,7 @@ test("POST /merch/checkout: happy path persists, calls Stripe, transitions, retu
         customer_email: "buyer@example.com",
       },
     }),
-    deps,
+    deps
   );
 
   assert.equal(statusOf(res), 200);
@@ -314,7 +326,7 @@ test("POST /merch/checkout: 400 when both drawing_id and canvas_id are provided"
         cancel_url: "https://drawbang.example/m/cancel",
       },
     }),
-    deps,
+    deps
   );
   assert.equal(statusOf(res), 400);
   assert.match(JSON.stringify(parseJson(res)), /exactly one/);
@@ -341,7 +353,7 @@ test("POST /merch/checkout: canvas_id order mirrors into drawing_id + persists c
         cancel_url: "https://drawbang.example/m/cancel",
       },
     }),
-    deps,
+    deps
   );
   assert.equal(statusOf(res), 200);
   assert.equal(ordersCalls.createOrder.length, 1);
@@ -363,13 +375,13 @@ test("POST /merch/checkout: substitutes {ORDER_ID} in success_url", async () => 
         cancel_url: "https://drawbang.example/merch?d=" + "a".repeat(64),
       },
     }),
-    deps,
+    deps
   );
   assert.equal(statusOf(res), 200);
   assert.equal(stripeCalls.createCheckoutSession.length, 1);
   assert.equal(
     stripeCalls.createCheckoutSession[0].successUrl,
-    "https://drawbang.example/merch/order/ord_test_1",
+    "https://drawbang.example/merch/order/ord_test_1"
   );
 });
 
@@ -393,12 +405,11 @@ test("POST /merch/webhook/stripe: 400 when parseWebhook throws", async () => {
       body: { type: "evt" },
       headers: { "stripe-signature": "t=1,v1=garbage" },
     }),
-    deps,
+    deps
   );
   assert.equal(statusOf(res), 400);
   // bad-sig response is plain text including the underlying error message
-  const body =
-    res === undefined ? "" : typeof res === "string" ? res : (res.body ?? "");
+  const body = res === undefined ? "" : typeof res === "string" ? res : (res.body ?? "");
   assert.match(body, /bad signature.*bad sig/);
 });
 
@@ -409,12 +420,15 @@ test("POST /merch/webhook/stripe: 204 on a valid signature; signature passed unc
       body: { type: "checkout.session.completed" },
       headers: { "stripe-signature": "t=1,v1=ok" },
     }),
-    deps,
+    deps
   );
   assert.equal(statusOf(res), 204);
   assert.equal(stripeCalls.parseWebhook.length, 1);
   assert.equal(stripeCalls.parseWebhook[0].sig, "t=1,v1=ok");
-  assert.equal(stripeCalls.parseWebhook[0].body, JSON.stringify({ type: "checkout.session.completed" }));
+  assert.equal(
+    stripeCalls.parseWebhook[0].body,
+    JSON.stringify({ type: "checkout.session.completed" })
+  );
 });
 
 test("POST /merch/webhook/stripe: base64-encoded body is decoded before signature check", async () => {
@@ -427,7 +441,7 @@ test("POST /merch/webhook/stripe: base64-encoded body is decoded before signatur
       isBase64Encoded: true,
       headers: { "stripe-signature": "ok" },
     }),
-    deps,
+    deps
   );
   assert.equal(stripeCalls.parseWebhook[0].body, raw);
 });
@@ -436,7 +450,7 @@ test("GET /merch/order/{id}: 404 when not found", async () => {
   const { deps } = buildDeps({ ordersStub: { getOrder: async () => null } });
   const res = await handle(
     event("GET /merch/order/{id}", { pathParameters: { id: "missing" } }),
-    deps,
+    deps
   );
   assert.equal(statusOf(res), 404);
 });
@@ -445,7 +459,7 @@ test("GET /merch/order/{id}: 200 strips internal-only fields from the response",
   const { deps } = buildDeps({ ordersStub: { getOrder: async () => fixtureOrder() } });
   const res = await handle(
     event("GET /merch/order/{id}", { pathParameters: { id: "ord_existing" } }),
-    deps,
+    deps
   );
   assert.equal(statusOf(res), 200);
   const out = parseJson(res) as Record<string, unknown>;
@@ -496,7 +510,7 @@ test("POST /merch/checkout: placement is optional and absent means no placement 
         cancel_url: "https://drawbang.example/m/cancel",
       },
     }),
-    deps,
+    deps
   );
   const created = ordersCalls.createOrder[0];
   assert.equal(created.placement, undefined);
@@ -516,7 +530,7 @@ test("POST /merch/checkout: valid placement preset is persisted on the order", a
         cancel_url: "https://drawbang.example/m/cancel",
       },
     }),
-    deps,
+    deps
   );
   assert.equal(ordersCalls.createOrder[0].placement, "pattern-3x3");
 });
@@ -535,7 +549,7 @@ test("POST /merch/checkout: 400 on bogus placement value (no silent fallback to 
         cancel_url: "https://drawbang.example/m/cancel",
       },
     }),
-    deps,
+    deps
   );
   assert.equal(statusOf(res), 400);
   assert.match(JSON.stringify(parseJson(res)), /bad placement/);

@@ -2,10 +2,7 @@ import type {
   CloudWatchLogsClient,
   GetQueryResultsCommandOutput,
 } from "@aws-sdk/client-cloudwatch-logs";
-import {
-  GetQueryResultsCommand,
-  StartQueryCommand,
-} from "@aws-sdk/client-cloudwatch-logs";
+import { GetQueryResultsCommand, StartQueryCommand } from "@aws-sdk/client-cloudwatch-logs";
 
 // Thin wrapper around Insights so the admin handler doesn't have to
 // hand-roll the StartQuery → poll → reshape loop, and tests can stub a
@@ -37,9 +34,7 @@ export class InsightsTimeoutError extends Error {
   }
 }
 
-export async function runInsightsQuery(
-  args: RunInsightsQueryArgs,
-): Promise<InsightsRow[]> {
+export async function runInsightsQuery(args: RunInsightsQueryArgs): Promise<InsightsRow[]> {
   const timeoutMs = args.timeoutMs ?? 30_000;
   const pollIntervalMs = args.pollIntervalMs ?? 500;
 
@@ -50,15 +45,14 @@ export async function runInsightsQuery(
     queryString: args.query,
   });
   const started = await args.client.send(startCmd as never);
-  const queryId =
-    (started as unknown as { queryId?: string }).queryId ?? "";
+  const queryId = (started as unknown as { queryId?: string }).queryId ?? "";
   if (!queryId) throw new Error("insights StartQuery returned no queryId");
 
   const deadline = Date.now() + timeoutMs;
   // eslint-disable-next-line no-constant-condition
   while (true) {
     const out = (await args.client.send(
-      new GetQueryResultsCommand({ queryId }) as never,
+      new GetQueryResultsCommand({ queryId }) as never
     )) as unknown as GetQueryResultsCommandOutput;
     const status = out.status;
     if (status === "Complete") {

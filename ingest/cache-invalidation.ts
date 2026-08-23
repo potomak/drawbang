@@ -34,7 +34,7 @@ export class CloudFrontInvalidator implements CacheInvalidator {
             CallerReference: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
             Paths: { Quantity: paths.length, Items: paths },
           },
-        }),
+        })
       );
     } catch (e) {
       console.error("[cache] invalidation failed", { paths, err: e });
@@ -57,7 +57,7 @@ export function pathsToInvalidateOnPublish(
   // null for an anonymous publish: there is no /u/<username> page to flush,
   // so the profile path is dropped rather than pointed at the sentinel.
   username: string | null,
-  opts?: { promptTagged?: boolean },
+  opts?: { promptTagged?: boolean }
 ): string[] {
   const paths = [
     "/",
@@ -75,9 +75,7 @@ export function pathsToInvalidateOnPublish(
 // Invalidates the profile so an edit (profile picture, bio, link, …)
 // appears immediately. Drawing pages absorb profile-picture changes on
 // their own s-maxage TTL (we keep that short for the same reason).
-export function pathsToInvalidateOnProfileChange(
-  username: string,
-): string[] {
+export function pathsToInvalidateOnProfileChange(username: string): string[] {
   return [`/u/${username}*`];
 }
 
@@ -95,10 +93,7 @@ export function pathsToInvalidateOnSidecarBackfill(drawing_id: string): string[]
 // needs `/d/<id>` (the page can't be cached before the id exists), but a
 // delete very much does, or the removed drawing keeps serving from the
 // edge for up to its s-maxage.
-export function pathsToInvalidateOnDelete(
-  username: string | null,
-  drawing_id: string,
-): string[] {
+export function pathsToInvalidateOnDelete(username: string | null, drawing_id: string): string[] {
   return [...pathsToInvalidateOnPublish(username), `/d/${drawing_id}*`];
 }
 

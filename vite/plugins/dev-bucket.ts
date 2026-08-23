@@ -28,9 +28,7 @@ export interface DevBucketPluginOptions {
 }
 
 function matchesProxiedPath(uri: string, patterns: string[]): boolean {
-  return patterns.some((p) =>
-    p.startsWith("^") ? new RegExp(p).test(uri) : uri.startsWith(p),
-  );
+  return patterns.some((p) => (p.startsWith("^") ? new RegExp(p).test(uri) : uri.startsWith(p)));
 }
 
 const SIXTY_FOUR_HEX = /^[0-9a-f]{64}$/;
@@ -248,11 +246,7 @@ export function devBucketPlugin(opts: DevBucketPluginOptions = {}): Plugin {
         const method = (req.method ?? "GET").toUpperCase();
         const isPageRequest = method === "GET" || method === "HEAD";
         const isProxied = matchesProxiedPath(pathOnly, proxiedPaths);
-        if (
-          isPageRequest &&
-          !isProxied &&
-          (pathOnly === "/404" || looksLikeCleanUrl(pathOnly))
-        ) {
+        if (isPageRequest && !isProxied && (pathOnly === "/404" || looksLikeCleanUrl(pathOnly))) {
           return serveNotFound(publicRoot, res, next, pathOnly);
         }
 
@@ -266,7 +260,7 @@ async function serveNotFound(
   publicRoot: string,
   res: import("node:http").ServerResponse,
   next: (err?: unknown) => void,
-  requested: string,
+  requested: string
 ): Promise<void> {
   try {
     const body = await fs.readFile(path.join(publicRoot, "404.html"));
@@ -280,8 +274,7 @@ async function serveNotFound(
       res.statusCode = 404;
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
       res.end(
-        `Not found: ${requested}\n\n` +
-          `Run \`npm run builder\` to generate the 404 page.\n`,
+        `Not found: ${requested}\n\n` + `Run \`npm run builder\` to generate the 404 page.\n`
       );
       return;
     }

@@ -18,7 +18,7 @@ export interface UpscaleOptions {
 export function upscaleBitmapToSvg(
   bitmap: Bitmap,
   activePalette: Uint8Array,
-  opts: UpscaleOptions,
+  opts: UpscaleOptions
 ): Uint8Array {
   const { sizePx } = opts;
   const background = opts.background ?? null;
@@ -28,7 +28,7 @@ export function upscaleBitmapToSvg(
   }
   if (sizePx % bitmap.width !== 0 || sizePx % bitmap.height !== 0) {
     throw new Error(
-      `sizePx (${sizePx}) must be a multiple of bitmap dims (${bitmap.width}x${bitmap.height})`,
+      `sizePx (${sizePx}) must be a multiple of bitmap dims (${bitmap.width}x${bitmap.height})`
     );
   }
 
@@ -37,7 +37,7 @@ export function upscaleBitmapToSvg(
   const H = bitmap.height;
   const parts: string[] = [];
   parts.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${sizePx}" height="${sizePx}" viewBox="0 0 ${W} ${H}" shape-rendering="crispEdges">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${sizePx}" height="${sizePx}" viewBox="0 0 ${W} ${H}" shape-rendering="crispEdges">`
   );
   if (background !== null) {
     parts.push(`<rect width="${W}" height="${H}" fill="${rgbHex(background)}"/>`);

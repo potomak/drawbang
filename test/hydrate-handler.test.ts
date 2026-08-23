@@ -90,9 +90,7 @@ describe("handleHydrate — input validation", () => {
 
   test(">100 drawings → 400", async () => {
     const { cfg } = await makeConfig();
-    const csv = Array.from({ length: 101 }, (_, i) =>
-      i.toString(16).padStart(64, "0"),
-    ).join(",");
+    const csv = Array.from({ length: 101 }, (_, i) => i.toString(16).padStart(64, "0")).join(",");
     const res = await handleHydrate(csv, null, null, cfg);
     assert.equal(res.status, 400);
   });
@@ -188,12 +186,7 @@ describe("handleHydrate — auth mode", () => {
       created_at_ms: 1,
     });
 
-    const res = await handleHydrate(
-      `${D1},${D2},${D3}`,
-      null,
-      viewer,
-      cfg,
-    );
+    const res = await handleHydrate(`${D1},${D2},${D3}`, null, viewer, cfg);
     const body = res.body as HydrateBody;
     assert.equal(body.drawings[D1].viewer_liked, true);
     assert.equal(body.drawings[D1].viewer_bookmarked, false);

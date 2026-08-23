@@ -18,18 +18,9 @@ const baseView = {
 };
 
 test("formatCreatedAt: produces a UTC-anchored, locale-neutral string", () => {
-  assert.equal(
-    formatCreatedAt("2026-05-08T04:24:56.088Z"),
-    "May 8, 2026 · 04:24 UTC",
-  );
-  assert.equal(
-    formatCreatedAt("2026-12-31T23:59:00.000Z"),
-    "December 31, 2026 · 23:59 UTC",
-  );
-  assert.equal(
-    formatCreatedAt("2026-01-01T00:00:00.000Z"),
-    "January 1, 2026 · 00:00 UTC",
-  );
+  assert.equal(formatCreatedAt("2026-05-08T04:24:56.088Z"), "May 8, 2026 · 04:24 UTC");
+  assert.equal(formatCreatedAt("2026-12-31T23:59:00.000Z"), "December 31, 2026 · 23:59 UTC");
+  assert.equal(formatCreatedAt("2026-01-01T00:00:00.000Z"), "January 1, 2026 · 00:00 UTC");
 });
 
 test("formatCreatedAt: returns the input verbatim on unparseable strings", () => {
@@ -40,7 +31,7 @@ test("tile page: friendly date is up front", () => {
   const html = renderTilePage(baseView);
   assert.match(
     html,
-    /<dt>Created<\/dt>\s*<dd><time datetime="2026-05-08T04:24:56\.088Z">May 8, 2026 · 04:24 UTC<\/time><\/dd>/,
+    /<dt>Created<\/dt>\s*<dd><time datetime="2026-05-08T04:24:56\.088Z">May 8, 2026 · 04:24 UTC<\/time><\/dd>/
   );
 });
 
@@ -48,7 +39,7 @@ test("tile page: frame count appends to the Created line, pluralised", () => {
   const html = renderTilePage({ ...baseView, frames: 4 });
   assert.match(
     html,
-    /<dd><time datetime="2026-05-08T04:24:56\.088Z">May 8, 2026 · 04:24 UTC<\/time> · 4 frames<\/dd>/,
+    /<dd><time datetime="2026-05-08T04:24:56\.088Z">May 8, 2026 · 04:24 UTC<\/time> · 4 frames<\/dd>/
   );
 });
 
@@ -62,7 +53,7 @@ test("tile page: Created line unchanged when frames is absent (legacy rows)", ()
   const html = renderTilePage(baseView);
   assert.match(
     html,
-    /<dd><time datetime="2026-05-08T04:24:56\.088Z">May 8, 2026 · 04:24 UTC<\/time><\/dd>/,
+    /<dd><time datetime="2026-05-08T04:24:56\.088Z">May 8, 2026 · 04:24 UTC<\/time><\/dd>/
   );
   assert.doesNotMatch(html, /undefined frame/);
 });
@@ -83,10 +74,7 @@ test("tile page: no Advanced disclosure / no technical fields", () => {
 
 test("tile page: author label (signed)", () => {
   const html = renderTilePage(baseView);
-  assert.match(
-    html,
-    /<dt>Author<\/dt><dd><a class="dr-author" href="\/u\/alice">alice<\/a><\/dd>/,
-  );
+  assert.match(html, /<dt>Author<\/dt><dd><a class="dr-author" href="\/u\/alice">alice<\/a><\/dd>/);
 });
 
 test("tile page: profile picture renders before the username when set", () => {
@@ -142,7 +130,7 @@ test("tile page: Remix is the primary CTA and leads the action row", () => {
   const html = renderTilePage(baseView);
   assert.match(
     html,
-    new RegExp(`<a class="btn primary" id="dr-fork" href="/draw\\?fork=f{64}">Remix</a>`),
+    new RegExp(`<a class="btn primary" id="dr-fork" href="/draw\\?fork=f{64}">Remix</a>`)
   );
   assert.match(html, /<a class="btn" id="dr-make-merch"/);
   const remixIdx = html.indexOf('id="dr-fork"');
@@ -184,11 +172,15 @@ test("tile page: ancestors render a chain of linked thumbs ending in the non-lin
   });
   assert.match(html, /<section class="dr-chain">/);
   assert.match(html, /<p class="panel-h">Remix chain<\/p>/);
-  const links = [...html.matchAll(/class="dr-chain-link" href="\/d\/([0-9a-f]{64})"/g)].map((m) => m[1]);
+  const links = [...html.matchAll(/class="dr-chain-link" href="\/d\/([0-9a-f]{64})"/g)].map(
+    (m) => m[1]
+  );
   assert.deepEqual(links, [root, parent]);
   assert.match(
     html,
-    new RegExp(`<li class="dr-chain-item dr-chain-current" aria-current="page"><img class="dr-chain-thumb" src="/tiles/f{64}\\.gif"`),
+    new RegExp(
+      `<li class="dr-chain-item dr-chain-current" aria-current="page"><img class="dr-chain-thumb" src="/tiles/f{64}\\.gif"`
+    )
   );
 });
 
@@ -213,7 +205,10 @@ test("tile page: loads /flash.js + /tile-page.js so the lifted client behaviour 
 
 test("tile page: <main> ships the drawing/author data attributes the script reads", () => {
   const html = renderTilePage(baseView);
-  assert.match(html, /<main data-tile-page data-drawing-id="f{64}" data-id-short="ffffffff" data-author-username="alice" data-public-base-url="https:\/\/pixel\.drawbang\.com">/);
+  assert.match(
+    html,
+    /<main data-tile-page data-drawing-id="f{64}" data-id-short="ffffffff" data-author-username="alice" data-public-base-url="https:\/\/pixel\.drawbang\.com">/
+  );
 });
 
 test("tile page: <main> data-author-username is empty when the drawing is anonymous", () => {
@@ -226,28 +221,28 @@ test("tile page: emits the full OG suite with absolute URLs and the -large.gif i
   const id = "f".repeat(64);
   assert.match(
     html,
-    /<meta name="description" content="Pixel art from Draw! · Create your own at https:\/\/pixel\.drawbang\.com"/,
+    /<meta name="description" content="Pixel art from Draw! · Create your own at https:\/\/pixel\.drawbang\.com"/
   );
   assert.match(
     html,
-    new RegExp(`<link rel="canonical" href="https://pixel\\.drawbang\\.com/d/${id}"`),
+    new RegExp(`<link rel="canonical" href="https://pixel\\.drawbang\\.com/d/${id}"`)
   );
   assert.match(html, /<meta property="og:type" content="website"/);
   assert.match(html, /<meta property="og:site_name" content="Draw!"/);
   assert.match(html, /<meta property="og:title" content="Tile ID ffffffff"/);
   assert.match(
     html,
-    /<meta property="og:description" content="Pixel art from Draw! · Create your own pixel art at https:\/\/pixel\.drawbang\.com"/,
+    /<meta property="og:description" content="Pixel art from Draw! · Create your own pixel art at https:\/\/pixel\.drawbang\.com"/
   );
   assert.match(
     html,
-    new RegExp(`<meta property="og:url" content="https://pixel\\.drawbang\\.com/d/${id}"`),
+    new RegExp(`<meta property="og:url" content="https://pixel\\.drawbang\\.com/d/${id}"`)
   );
   assert.match(
     html,
     new RegExp(
-      `<meta property="og:image" content="https://pixel\\.drawbang\\.com/tiles/${id}-large\\.gif"`,
-    ),
+      `<meta property="og:image" content="https://pixel\\.drawbang\\.com/tiles/${id}-large\\.gif"`
+    )
   );
   assert.match(html, /<meta property="og:image:type" content="image\/gif"/);
   assert.match(html, /<meta property="og:image:width" content="960"/);
@@ -260,7 +255,7 @@ test("tile page: og:image is the -large.gif, not the raw 16×16 gif", () => {
   const id = "f".repeat(64);
   assert.doesNotMatch(
     html,
-    new RegExp(`og:image" content="https://pixel\\.drawbang\\.com/tiles/${id}\\.gif"`),
+    new RegExp(`og:image" content="https://pixel\\.drawbang\\.com/tiles/${id}\\.gif"`)
   );
 });
 
@@ -270,7 +265,7 @@ test("tile page: Reddit button links directly to reddit.com/submit, not the /sha
   const expectedUrl = encodeURIComponent(`https://pixel.drawbang.com/d/${id}`);
   const expectedTitle = encodeURIComponent("Pixel art from Draw! · Tile ID ffffffff");
   const reddit = new RegExp(
-    `<a class="btn" id="dr-share-reddit" href="https://www\\.reddit\\.com/submit\\?url=${expectedUrl}&amp;title=${expectedTitle}"[^>]*>Share to Reddit</a>`,
+    `<a class="btn" id="dr-share-reddit" href="https://www\\.reddit\\.com/submit\\?url=${expectedUrl}&amp;title=${expectedTitle}"[^>]*>Share to Reddit</a>`
   );
   assert.match(html, reddit);
   assert.doesNotMatch(html, /href="\/share\?d=/);
@@ -282,7 +277,7 @@ test("tile page: X share button opens twitter.com/intent/tweet with the tile URL
   const expectedUrl = encodeURIComponent(`https://pixel.drawbang.com/d/${id}`);
   const expectedText = encodeURIComponent("Pixel art from Draw! · Tile ID ffffffff");
   const x = new RegExp(
-    `<a class="btn" id="dr-share-x" href="https://twitter\\.com/intent/tweet\\?url=${expectedUrl}&amp;text=${expectedText}"[^>]*>Share to X</a>`,
+    `<a class="btn" id="dr-share-x" href="https://twitter\\.com/intent/tweet\\?url=${expectedUrl}&amp;text=${expectedText}"[^>]*>Share to X</a>`
   );
   assert.match(html, x);
 });
@@ -293,7 +288,7 @@ test("tile page: Threads share button opens threads.net/intent/post with caption
   const expectedText = encodeURIComponent("Pixel art from Draw! · Tile ID ffffffff");
   const expectedUrl = encodeURIComponent(`https://pixel.drawbang.com/d/${id}`);
   const threads = new RegExp(
-    `<a class="btn" id="dr-share-threads" href="https://www\\.threads\\.net/intent/post\\?text=${expectedText}&amp;url=${expectedUrl}"[^>]*>Share to Threads</a>`,
+    `<a class="btn" id="dr-share-threads" href="https://www\\.threads\\.net/intent/post\\?text=${expectedText}&amp;url=${expectedUrl}"[^>]*>Share to Threads</a>`
   );
   assert.match(html, threads);
 });
@@ -306,15 +301,15 @@ test("tile page: actions split into two .dr-action-row groups", () => {
 
 test("tile page: Copy embed code is an interactive button in the share row", () => {
   const html = renderTilePage(baseView);
-  assert.match(html, /<button class="btn" id="dr-copy-embed" type="button">Copy embed code<\/button>/);
+  assert.match(
+    html,
+    /<button class="btn" id="dr-copy-embed" type="button">Copy embed code<\/button>/
+  );
 });
 
 test("tile page: Web Share button is rendered hidden by default (progressive enhancement)", () => {
   const html = renderTilePage(baseView);
-  assert.match(
-    html,
-    /<button class="btn" id="dr-share" type="button" hidden>Share…<\/button>/,
-  );
+  assert.match(html, /<button class="btn" id="dr-share" type="button" hidden>Share…<\/button>/);
 });
 
 test("tile page: action buttons ship their GA-wired ids", () => {

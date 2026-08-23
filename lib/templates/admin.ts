@@ -352,8 +352,7 @@ function renderRangeLinks(range: AdminRange): string {
 }
 
 function renderKpisSection(k: AdminView["kpis"]): string {
-  const title =
-    k == null ? "Product KPIs" : `Product KPIs (last ${k.scanned} drawings)`;
+  const title = k == null ? "Product KPIs" : `Product KPIs (last ${k.scanned} drawings)`;
   return `<section aria-labelledby="adm-kpis-title">
         <h2 id="adm-kpis-title" class="adm-section-title">${esc(title)}</h2>
         <div class="adm-grid">
@@ -391,9 +390,21 @@ function renderUsersSection(u: AdminView["users"], range: AdminRange): string {
   return `<section aria-labelledby="adm-users-title">
         <h2 id="adm-users-title" class="adm-section-title">${esc(title)}</h2>
         <div class="adm-grid">
-          ${renderCard("Signups", usersNum(u, (x) => x.signupsInRange), `in last ${range}`)}
-          ${renderCard("Have published", usersNum(u, (x) => x.withDrawings), usersPublishedSub(u))}
-          ${renderCard("Never published", usersNum(u, (x) => x.shown - x.withDrawings), "no drawings yet")}
+          ${renderCard(
+            "Signups",
+            usersNum(u, (x) => x.signupsInRange),
+            `in last ${range}`
+          )}
+          ${renderCard(
+            "Have published",
+            usersNum(u, (x) => x.withDrawings),
+            usersPublishedSub(u)
+          )}
+          ${renderCard(
+            "Never published",
+            usersNum(u, (x) => x.shown - x.withDrawings),
+            "no drawings yet"
+          )}
         </div>
         ${renderUsersTable(u)}
       </section>`;
@@ -401,7 +412,7 @@ function renderUsersSection(u: AdminView["users"], range: AdminRange): string {
 
 function usersNum(
   u: AdminView["users"],
-  pick: (x: NonNullable<AdminView["users"]>) => number,
+  pick: (x: NonNullable<AdminView["users"]>) => number
 ): string {
   return u == null ? "—" : pick(u).toLocaleString("en-US");
 }
@@ -432,7 +443,7 @@ function renderUsersTable(u: AdminView["users"]): string {
             <td class="adm-msg">${esc(truncate(r.bio, 80))}</td>
             <td class="adm-msg">${esc(truncate(r.link, 40))}</td>
             <td><button type="button" class="btn danger adm-del" data-delete-user="${esc(r.username)}" data-drawings="${esc(r.drawings)}">Delete</button></td>
-          </tr>`,
+          </tr>`
     )
     .join("");
   const note = u.truncated
@@ -483,9 +494,7 @@ function renderCard(label: string, num: string, sub: string): string {
         </div>`;
 }
 
-function renderFailuresTable(
-  rows: AdminView["failures"],
-): string {
+function renderFailuresTable(rows: AdminView["failures"]): string {
   if (rows.length === 0) {
     return `<div class="adm-table-wrap"><div class="adm-empty">No failures in the selected range — site is healthy.</div></div>`;
   }
@@ -498,7 +507,7 @@ function renderFailuresTable(
             <td>${esc(r.error_code)}</td>
             <td class="adm-msg">${esc(r.error_message)}</td>
             <td>${esc(r.username)}</td>
-          </tr>`,
+          </tr>`
     )
     .join("");
   return `<div class="adm-table-wrap">
@@ -526,25 +535,19 @@ function outcomeSucc(o: AdminView["publish"] | AdminView["register"]): string {
   return o == null ? "—" : o.succ.toLocaleString("en-US");
 }
 
-function successRate(
-  o: AdminView["publish"] | AdminView["register"],
-): string {
+function successRate(o: AdminView["publish"] | AdminView["register"]): string {
   if (o == null) return "—";
   if (o.total === 0) return "—";
   const pct = (o.succ / o.total) * 100;
   return `${pct.toFixed(1)}%`;
 }
 
-function publishSub(
-  o: AdminView["publish"],
-): string {
+function publishSub(o: AdminView["publish"]): string {
   if (o == null || o.total === 0) return "no /ingest traffic";
   return `${o.succ.toLocaleString("en-US")} of ${o.total.toLocaleString("en-US")}`;
 }
 
-function registerSub(
-  o: AdminView["register"],
-): string {
+function registerSub(o: AdminView["register"]): string {
   if (o == null || o.total === 0) return "no /auth/register traffic";
   return `${o.succ.toLocaleString("en-US")} of ${o.total.toLocaleString("en-US")}`;
 }

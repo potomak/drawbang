@@ -1,9 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, test } from "node:test";
-import {
-  handleSubscribe,
-  type SubscribeHandlerConfig,
-} from "../ingest/subscribe-handler.js";
+import { handleSubscribe, type SubscribeHandlerConfig } from "../ingest/subscribe-handler.js";
 import { MemorySubscribersStore } from "../ingest/subscribers-store.js";
 
 const NOW = new Date("2026-06-12T10:00:00.000Z");
@@ -16,10 +13,7 @@ function setup(): { store: MemorySubscribersStore; cfg: SubscribeHandlerConfig }
 describe("handleSubscribe", () => {
   test("valid email subscribes and returns ok", async () => {
     const { store, cfg } = setup();
-    const result = await handleSubscribe(
-      JSON.stringify({ email: "Sam@Example.com " }),
-      cfg,
-    );
+    const result = await handleSubscribe(JSON.stringify({ email: "Sam@Example.com " }), cfg);
     assert.equal(result.status, 200);
     assert.deepEqual(result.body, { ok: true });
     assert.equal(store.emails.get("sam@example.com"), NOW.toISOString());
@@ -51,7 +45,7 @@ describe("handleSubscribe", () => {
     const { store, cfg } = setup();
     const result = await handleSubscribe(
       JSON.stringify({ email: "bot@example.com", website: "https://spam.example" }),
-      cfg,
+      cfg
     );
     assert.equal(result.status, 200);
     assert.deepEqual(result.body, { ok: true });
@@ -62,7 +56,7 @@ describe("handleSubscribe", () => {
     const { store, cfg } = setup();
     const result = await handleSubscribe(
       JSON.stringify({ email: "human@example.com", website: "" }),
-      cfg,
+      cfg
     );
     assert.equal(result.status, 200);
     assert.equal(store.emails.size, 1);

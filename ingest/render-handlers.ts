@@ -154,10 +154,7 @@ function notFound(cfg: RenderHandlersConfig): RenderResponse {
   };
 }
 
-function buildFragmentUrl(
-  basePath: string,
-  cursor: DrawingCursor | null,
-): string | null {
+function buildFragmentUrl(basePath: string, cursor: DrawingCursor | null): string | null {
   if (!cursor) return null;
   return `${basePath}?cursor=${encodeCursor(cursor)}`;
 }
@@ -173,10 +170,7 @@ function isProfileRoutable(username: string): boolean {
 
 // -- / (feed home) + /feed/items ---------------------------------------------
 
-async function loadFeedItems(
-  cfg: RenderHandlersConfig,
-  rows: DrawingRow[],
-): Promise<FeedItem[]> {
+async function loadFeedItems(cfg: RenderHandlersConfig, rows: DrawingRow[]): Promise<FeedItem[]> {
   // Batch the author profile-picture lookups: gather unique non-anonymous
   // usernames, GetItem each once, attach to the matching rows. Without a
   // userStore (dev/tests) the profile pictures are simply null.
@@ -190,7 +184,7 @@ async function loadFeedItems(
       [...usernames].map(async (un) => {
         const acct = await cfg.userStore!.getByUsername(un);
         pictures.set(un, acct?.profile_picture_drawing_id ?? null);
-      }),
+      })
     );
   }
   return rows.map((r) => ({
@@ -200,13 +194,12 @@ async function loadFeedItems(
     thumb: `/tiles/${r.drawing_id}.gif`,
     created_at: r.created_at,
     like_count: r.like_count ?? 0,
-    author:
-      isAnonymousUsername(r.username)
-        ? null
-        : {
-            username: r.username,
-            profile_picture_drawing_id: pictures.get(r.username) ?? null,
-          },
+    author: isAnonymousUsername(r.username)
+      ? null
+      : {
+          username: r.username,
+          profile_picture_drawing_id: pictures.get(r.username) ?? null,
+        },
   }));
 }
 
@@ -219,7 +212,7 @@ const TOP_TODAY_SCAN_LIMIT = 200;
 
 async function renderTopTodayPage(
   cfg: RenderHandlersConfig,
-  perPage: number,
+  perPage: number
 ): Promise<RenderResponse> {
   const [page, discover] = await Promise.all([
     cfg.drawingStore.queryGallery({ limit: TOP_TODAY_SCAN_LIMIT }),
@@ -252,7 +245,7 @@ async function renderTopTodayPage(
 export async function renderHomePageHandler(
   cfg: RenderHandlersConfig,
   rawCursor: string | null,
-  rawSort: string | null = null,
+  rawSort: string | null = null
 ): Promise<RenderResponse> {
   const perPage = cfg.perPage ?? PER_PAGE;
   if (rawSort === "top") return renderTopTodayPage(cfg, perPage);
@@ -290,7 +283,7 @@ export async function renderHomePageHandler(
 
 export async function renderFeedItemsHandler(
   cfg: RenderHandlersConfig,
-  rawCursor: string | null,
+  rawCursor: string | null
 ): Promise<RenderResponse> {
   const perPage = cfg.perPage ?? PER_PAGE;
   const cursor = decodeCursor(rawCursor) ?? undefined;
@@ -309,7 +302,7 @@ export async function renderFeedItemsHandler(
 
 export async function renderGalleryPageHandler(
   cfg: RenderHandlersConfig,
-  rawCursor: string | null,
+  rawCursor: string | null
 ): Promise<RenderResponse> {
   const perPage = cfg.perPage ?? PER_PAGE;
   const cursor = decodeCursor(rawCursor) ?? undefined;
@@ -330,7 +323,7 @@ export async function renderGalleryPageHandler(
 
 export async function renderGalleryItemsHandler(
   cfg: RenderHandlersConfig,
-  rawCursor: string | null,
+  rawCursor: string | null
 ): Promise<RenderResponse> {
   const perPage = cfg.perPage ?? PER_PAGE;
   const cursor = decodeCursor(rawCursor) ?? undefined;
@@ -356,7 +349,7 @@ const ANCESTOR_CHAIN_CAP = 8;
 // of the chain — lineage must never error the page.
 async function loadAncestorChain(
   store: DrawingStore,
-  row: DrawingRow,
+  row: DrawingRow
 ): Promise<{ id: string; id_short: string }[]> {
   const chain: { id: string; id_short: string }[] = [];
   const visited = new Set<string>([row.drawing_id]);
@@ -375,7 +368,7 @@ async function loadAncestorChain(
 
 export async function renderEmbedPageHandler(
   cfg: RenderHandlersConfig,
-  drawing_id: string,
+  drawing_id: string
 ): Promise<RenderResponse> {
   // 404s are plain text — the page lives inside a tiny iframe where the
   // chrome'd not-found shell makes no sense.
@@ -398,7 +391,7 @@ export async function renderEmbedPageHandler(
 
 export async function renderDrawingPageHandler(
   cfg: RenderHandlersConfig,
-  drawing_id: string,
+  drawing_id: string
 ): Promise<RenderResponse> {
   if (!DRAWING_ID_RE.test(drawing_id)) return notFound(cfg);
   const row = await cfg.drawingStore.get(drawing_id);
@@ -452,7 +445,7 @@ export async function renderDrawingPageHandler(
 
 export async function renderProfilePageHandler(
   cfg: RenderHandlersConfig,
-  username: string,
+  username: string
 ): Promise<RenderResponse> {
   if (!isProfileRoutable(username)) return notFound(cfg);
   const perPage = cfg.perPage ?? PER_PAGE;
@@ -475,9 +468,7 @@ export async function renderProfilePageHandler(
   const profilePictureDrawingId = account?.profile_picture_drawing_id ?? null;
   const next = buildFragmentUrl(`/u/${username}/items`, page.next_cursor);
   const items = page.items.map(itemFromRow);
-  const stats = cfg.userStatsStore
-    ? await ownerStatsView(cfg.userStatsStore, userId)
-    : undefined;
+  const stats = cfg.userStatsStore ? await ownerStatsView(cfg.userStatsStore, userId) : undefined;
   // Wrap renderOwner with a tiny shim: it doesn't know about
   // next_fragment_url today. For Phase 3a we render just the first page
   // — the infinite-scroll behaviour for profiles is plumbed via the
@@ -514,7 +505,7 @@ const STREAK_SCAN_PAGE_SIZE = 200;
 
 export async function renderStreakPageHandler(
   cfg: RenderHandlersConfig,
-  username: string,
+  username: string
 ): Promise<RenderResponse> {
   if (!isProfileRoutable(username)) return notFound(cfg);
   const account =
@@ -567,9 +558,7 @@ export async function renderStreakPageHandler(
   }
 
   const stats =
-    cfg.userStatsStore && userId
-      ? await ownerStatsView(cfg.userStatsStore, userId)
-      : undefined;
+    cfg.userStatsStore && userId ? await ownerStatsView(cfg.userStatsStore, userId) : undefined;
   const today = cfg.now ? cfg.now() : new Date();
   const todayKey = isoDayUtc(today);
   const firstKey = isoDayUtc(new Date(firstMs!));
@@ -592,8 +581,18 @@ export async function renderStreakPageHandler(
 }
 
 const MONTH_LABELS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 function isoDayUtc(d: Date): string {
@@ -603,7 +602,7 @@ function isoDayUtc(d: Date): string {
 function buildMonthBlocks(
   firstKey: string,
   todayKey: string,
-  byDay: Map<string, DrawingRow>,
+  byDay: Map<string, DrawingRow>
 ): MonthBlock[] {
   const [firstY, firstM] = parseYearMonth(firstKey);
   const [todayY, todayM] = parseYearMonth(todayKey);
@@ -623,11 +622,7 @@ function buildMonthBlocks(
   return months;
 }
 
-function buildMonthBlock(
-  year: number,
-  month: number,
-  byDay: Map<string, DrawingRow>,
-): MonthBlock {
+function buildMonthBlock(year: number, month: number, byDay: Map<string, DrawingRow>): MonthBlock {
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   // Date.UTC month is 0-based; for day 1 of `month` (1-based) that's month-1.
   const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
@@ -683,7 +678,7 @@ function parseYearMonth(isoDay: string): [number, number] {
 // URL still resolve from the address bar.
 export async function renderBookmarksPageHandler(
   cfg: RenderHandlersConfig,
-  username: string,
+  username: string
 ): Promise<RenderResponse> {
   if (!isProfileRoutable(username)) return notFound(cfg);
   return {
@@ -704,7 +699,7 @@ export async function renderBookmarksPageHandler(
 // route is responsible for verifying the JWT and passing `auth` here.
 export async function renderMyBookmarksFeedHandler(
   cfg: RenderHandlersConfig,
-  auth: { user_id: string; username: string },
+  auth: { user_id: string; username: string }
 ): Promise<RenderResponse> {
   if (!cfg.bookmarksStore) {
     return {
@@ -718,9 +713,7 @@ export async function renderMyBookmarksFeedHandler(
   const page = await cfg.bookmarksStore.listByUser(auth.user_id, {
     limit: perPage,
   });
-  const rows = await Promise.all(
-    page.items.map((b) => cfg.drawingStore.get(b.drawing_id)),
-  );
+  const rows = await Promise.all(page.items.map((b) => cfg.drawingStore.get(b.drawing_id)));
   const present = rows.filter((r): r is DrawingRow => r !== null);
   const items = await loadFeedItems(cfg, present);
   // Empty list → empty body. The inline script on the bookmarks page
@@ -736,7 +729,7 @@ export async function renderMyBookmarksFeedHandler(
 export async function renderProfileItemsHandler(
   cfg: RenderHandlersConfig,
   username: string,
-  rawCursor: string | null,
+  rawCursor: string | null
 ): Promise<RenderResponse> {
   if (!isProfileRoutable(username)) return notFound(cfg);
   const perPage = cfg.perPage ?? PER_PAGE;
@@ -761,7 +754,7 @@ async function renderFollowListPage(
   cfg: RenderHandlersConfig,
   ownerUsername: string,
   kind: FollowListKind,
-  rawCursor: string | null,
+  rawCursor: string | null
 ): Promise<RenderResponse> {
   if (!isProfileRoutable(ownerUsername)) return notFound(cfg);
   if (!cfg.followsStore || !cfg.userStore) return notFound(cfg);
@@ -773,7 +766,10 @@ async function renderFollowListPage(
     kind === "followers"
       ? await cfg.followsStore.listFollowers(owner.user_id, { limit: perPage, cursor })
       : await cfg.followsStore.listFollowing(owner.user_id, { limit: perPage, cursor });
-  const items = await hydrateFollowListProfilePictures(cfg, page.items.map((e) => followListItem(e, kind)));
+  const items = await hydrateFollowListProfilePictures(
+    cfg,
+    page.items.map((e) => followListItem(e, kind))
+  );
   const next = page.next_cursor
     ? `/u/${ownerUsername}/${kind}/items?cursor=${encodeFollowCursor(page.next_cursor)}`
     : null;
@@ -796,7 +792,7 @@ async function renderFollowListItems(
   cfg: RenderHandlersConfig,
   ownerUsername: string,
   kind: FollowListKind,
-  rawCursor: string | null,
+  rawCursor: string | null
 ): Promise<RenderResponse> {
   if (!isProfileRoutable(ownerUsername)) return notFound(cfg);
   if (!cfg.followsStore || !cfg.userStore) return notFound(cfg);
@@ -808,7 +804,10 @@ async function renderFollowListItems(
     kind === "followers"
       ? await cfg.followsStore.listFollowers(owner.user_id, { limit: perPage, cursor })
       : await cfg.followsStore.listFollowing(owner.user_id, { limit: perPage, cursor });
-  const items = await hydrateFollowListProfilePictures(cfg, page.items.map((e) => followListItem(e, kind)));
+  const items = await hydrateFollowListProfilePictures(
+    cfg,
+    page.items.map((e) => followListItem(e, kind))
+  );
   const next = page.next_cursor
     ? `/u/${ownerUsername}/${kind}/items?cursor=${encodeFollowCursor(page.next_cursor)}`
     : null;
@@ -825,7 +824,7 @@ async function renderFollowListItems(
 // Same shape as loadFeedItems' picture batching on the home feed.
 async function hydrateFollowListProfilePictures(
   cfg: RenderHandlersConfig,
-  items: FollowListItem[],
+  items: FollowListItem[]
 ): Promise<FollowListItem[]> {
   if (!cfg.userStore || items.length === 0) return items;
   const usernames = new Set<string>();
@@ -835,7 +834,7 @@ async function hydrateFollowListProfilePictures(
     [...usernames].map(async (un) => {
       const acct = await cfg.userStore!.getByUsername(un);
       pictures.set(un, acct?.profile_picture_drawing_id ?? null);
-    }),
+    })
   );
   return items.map((it) => ({
     ...it,
@@ -852,7 +851,7 @@ function followListItem(e: FollowEdge, kind: FollowListKind): FollowListItem {
 export function renderFollowersPageHandler(
   cfg: RenderHandlersConfig,
   ownerUsername: string,
-  rawCursor: string | null = null,
+  rawCursor: string | null = null
 ): Promise<RenderResponse> {
   return renderFollowListPage(cfg, ownerUsername, "followers", rawCursor);
 }
@@ -860,7 +859,7 @@ export function renderFollowersPageHandler(
 export function renderFollowingPageHandler(
   cfg: RenderHandlersConfig,
   ownerUsername: string,
-  rawCursor: string | null = null,
+  rawCursor: string | null = null
 ): Promise<RenderResponse> {
   return renderFollowListPage(cfg, ownerUsername, "following", rawCursor);
 }
@@ -868,7 +867,7 @@ export function renderFollowingPageHandler(
 export function renderFollowersItemsHandler(
   cfg: RenderHandlersConfig,
   ownerUsername: string,
-  rawCursor: string | null,
+  rawCursor: string | null
 ): Promise<RenderResponse> {
   return renderFollowListItems(cfg, ownerUsername, "followers", rawCursor);
 }
@@ -876,7 +875,7 @@ export function renderFollowersItemsHandler(
 export function renderFollowingItemsHandler(
   cfg: RenderHandlersConfig,
   ownerUsername: string,
-  rawCursor: string | null,
+  rawCursor: string | null
 ): Promise<RenderResponse> {
   return renderFollowListItems(cfg, ownerUsername, "following", rawCursor);
 }
@@ -890,7 +889,7 @@ export function renderFollowingItemsHandler(
 export async function renderFollowThumbsHandler(
   cfg: RenderHandlersConfig,
   ownerUsername: string,
-  rawLimit: string | null,
+  rawLimit: string | null
 ): Promise<RenderResponse> {
   if (!isProfileRoutable(ownerUsername)) return notFound(cfg);
   if (!cfg.followsStore || !cfg.userStore) return notFound(cfg);
@@ -913,10 +912,7 @@ export async function renderFollowThumbsHandler(
   };
 }
 
-async function ownerStatsView(
-  store: UserStatsStore,
-  user_id: string,
-): Promise<OwnerStats> {
+async function ownerStatsView(store: UserStatsStore, user_id: string): Promise<OwnerStats> {
   const row = await store.get(user_id);
   const totals = { daily_total: row?.daily_total ?? 0 };
   const badges = earnedBadges(totals);
@@ -934,21 +930,19 @@ async function ownerStatsView(
 // gives the shared /infinite-scroll.js script a list target to find.
 function injectProfileSentinel(html: string, nextUrl: string): string {
   const sentinel = renderGallerySentinel(nextUrl);
-  return html
-    .replace(`<ul class="img-grid">`, `<ul class="img-grid" data-gallery-items>`)
-    .replace(
-      `    </main>`,
-      `      ${sentinel}
+  return html.replace(`<ul class="img-grid">`, `<ul class="img-grid" data-gallery-items>`).replace(
+    `    </main>`,
+    `      ${sentinel}
     </main>
-    <script src="${assetUrl("/infinite-scroll.js")}"></script>`,
-    );
+    <script src="${assetUrl("/infinite-scroll.js")}"></script>`
+  );
 }
 
 // -- /products + /products/p/<N> --------------------------------------------
 
 export async function renderProductsPageHandler(
   cfg: RenderHandlersConfig,
-  rawPage: string | null,
+  rawPage: string | null
 ): Promise<RenderResponse> {
   if (!cfg.productCountersSource || !cfg.merchCatalog) return notFound(cfg);
   const perPage = cfg.perPage ?? PER_PAGE;
@@ -1009,7 +1003,7 @@ function buildPromptArchiveEntries(now: Date): PromptArchiveEntry[] {
 }
 
 export async function renderPromptsArchiveHandler(
-  cfg: RenderHandlersConfig,
+  cfg: RenderHandlersConfig
 ): Promise<RenderResponse> {
   const entries = buildPromptArchiveEntries(cfg.now ? cfg.now() : new Date());
   return {
@@ -1026,7 +1020,7 @@ export async function renderPromptsArchiveHandler(
 
 export async function renderPromptPageHandler(
   cfg: RenderHandlersConfig,
-  slug: string,
+  slug: string
 ): Promise<RenderResponse> {
   if (!PROMPT_SLUG_RE.test(slug)) return notFound(cfg);
   const prompt = promptBySlug(slug);
@@ -1054,7 +1048,7 @@ export async function renderPromptPageHandler(
 export async function renderPromptItemsHandler(
   cfg: RenderHandlersConfig,
   slug: string,
-  rawCursor: string | null,
+  rawCursor: string | null
 ): Promise<RenderResponse> {
   if (!PROMPT_SLUG_RE.test(slug) || !promptBySlug(slug)) return notFound(cfg);
   const perPage = cfg.perPage ?? PER_PAGE;
@@ -1071,9 +1065,7 @@ export async function renderPromptItemsHandler(
 
 // -- /design -----------------------------------------------------------------
 
-export async function renderDesignPageHandler(
-  cfg: RenderHandlersConfig,
-): Promise<RenderResponse> {
+export async function renderDesignPageHandler(cfg: RenderHandlersConfig): Promise<RenderResponse> {
   const body = renderDesign({ repo_url: cfg.repoUrl });
   return {
     status: 200,
@@ -1085,9 +1077,7 @@ export async function renderDesignPageHandler(
 
 // -- /feed.rss ---------------------------------------------------------------
 
-export async function renderFeedHandler(
-  cfg: RenderHandlersConfig,
-): Promise<RenderResponse> {
+export async function renderFeedHandler(cfg: RenderHandlersConfig): Promise<RenderResponse> {
   const page = await cfg.drawingStore.queryGallery({ limit: 100 });
   const body = renderFeed({
     base_url: cfg.publicBaseUrl,

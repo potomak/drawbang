@@ -80,10 +80,7 @@ export function planVideo(input: VideoPlanInput): VideoPlan {
   // editor's real limits (≤16 frames × ≤250ms = 4s), so maxRepeats only
   // floors at 1 for out-of-range inputs.
   const maxRepeats = Math.max(1, Math.floor(MAX_VIDEO_DURATION_MS / loopMs));
-  const repeats = Math.min(
-    Math.max(1, Math.ceil(MIN_VIDEO_DURATION_MS / loopMs)),
-    maxRepeats,
-  );
+  const repeats = Math.min(Math.max(1, Math.ceil(MIN_VIDEO_DURATION_MS / loopMs)), maxRepeats);
   const totalFrames = frameCount * repeats;
 
   return {
@@ -141,7 +138,7 @@ export function createVideoCompositor(input: VideoCompositorInput): VideoComposi
         plan.artX,
         plan.artY,
         plan.artW,
-        plan.artH,
+        plan.artH
       );
       if (logoCanvas) {
         ctx.drawImage(
@@ -149,7 +146,7 @@ export function createVideoCompositor(input: VideoCompositorInput): VideoComposi
           logoX,
           logoY,
           LOGO_W * VIDEO_LOGO_SCALE,
-          LOGO_H * VIDEO_LOGO_SCALE,
+          LOGO_H * VIDEO_LOGO_SCALE
         );
       }
     },
@@ -191,7 +188,7 @@ export function createSnapshotCompositor(input: SnapshotCompositorInput): VideoC
   // yields the used-slot list for the top-left palette swatch.
   const { bg, fg, usedSlots, paletteRgb } = analyzePalette(
     [snapshots[snapshots.length - 1]],
-    activePalette,
+    activePalette
   );
   const frameCanvases = snapshots.map((f) => rasterizeFrame(f, paletteRgb));
   const logoCanvas = footer ? buildLogoCanvas(fg) : null;
@@ -209,7 +206,13 @@ export function createSnapshotCompositor(input: SnapshotCompositorInput): VideoC
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(frameCanvases[idx], plan.artX, plan.artY, plan.artW, plan.artH);
       if (logoCanvas) {
-        ctx.drawImage(logoCanvas, logoX, logoY, LOGO_W * VIDEO_LOGO_SCALE, LOGO_H * VIDEO_LOGO_SCALE);
+        ctx.drawImage(
+          logoCanvas,
+          logoX,
+          logoY,
+          LOGO_W * VIDEO_LOGO_SCALE,
+          LOGO_H * VIDEO_LOGO_SCALE
+        );
       }
       if (swatchCanvas) {
         ctx.drawImage(swatchCanvas, VIDEO_SWATCH_INSET, VIDEO_SWATCH_INSET);
@@ -265,7 +268,11 @@ function buildLogoCanvas(fg: RGB): HTMLCanvasElement {
 // compositor can drawImage it once per frame. Returns null when nothing
 // was painted (drawing had no colored pixels) so the caller skips the
 // drawImage and the destination stays untouched.
-function buildSwatchCanvas(usedSlots: number[], paletteRgb: RGB[], fg: RGB): HTMLCanvasElement | null {
+function buildSwatchCanvas(
+  usedSlots: number[],
+  paletteRgb: RGB[],
+  fg: RGB
+): HTMLCanvasElement | null {
   if (usedSlots.length === 0) return null;
   const cols = Math.min(VIDEO_SWATCH_COLS, usedSlots.length);
   const rows = Math.ceil(usedSlots.length / VIDEO_SWATCH_COLS);
@@ -341,7 +348,7 @@ export function pickWebmMimeType(isSupported: (mime: string) => boolean): string
 export async function pickMp4Codec(
   width: number,
   height: number,
-  isConfigSupported: (config: VideoEncoderConfig) => Promise<VideoEncoderSupport>,
+  isConfigSupported: (config: VideoEncoderConfig) => Promise<VideoEncoderSupport>
 ): Promise<string | null> {
   for (const codec of MP4_CODEC_CANDIDATES) {
     try {
@@ -394,7 +401,7 @@ export interface EncodedVideo {
 }
 
 export async function encodeVideo(
-  options: EncodeVideoOptions & { drawingIdShort: string },
+  options: EncodeVideoOptions & { drawingIdShort: string }
 ): Promise<EncodedVideo> {
   const { compositor, format, support, drawingIdShort, onProgress } = options;
   const filename = outputFilename(drawingIdShort, format);
@@ -411,7 +418,7 @@ export async function encodeVideo(
 async function encodeMp4(
   compositor: VideoCompositor,
   codec: string,
-  onProgress?: (fraction: number) => void,
+  onProgress?: (fraction: number) => void
 ): Promise<Blob> {
   const { plan } = compositor;
   const target = new ArrayBufferTarget();
@@ -472,7 +479,7 @@ async function encodeMp4(
 async function encodeWebm(
   compositor: VideoCompositor,
   mimeType: string,
-  onProgress?: (fraction: number) => void,
+  onProgress?: (fraction: number) => void
 ): Promise<Blob> {
   const { plan } = compositor;
   const canvas = document.createElement("canvas");
@@ -490,7 +497,8 @@ async function encodeWebm(
   };
 
   return new Promise<Blob>((resolve, reject) => {
-    recorder.onerror = (ev) => reject((ev as { error?: Error }).error ?? new Error("MediaRecorder error"));
+    recorder.onerror = (ev) =>
+      reject((ev as { error?: Error }).error ?? new Error("MediaRecorder error"));
     recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType }));
     recorder.start();
     let frame = 1;

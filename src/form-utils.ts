@@ -4,9 +4,7 @@ import { showFlash } from "./layout/flash.js";
 // handler returns an outcome discriminated by `ok`; the success branch
 // carries handler-specific payload (e.g. { session }, { profile }), the
 // failure branch always has `error: string` (anything extra is fine).
-export type FormResult =
-  | { ok: true; [key: string]: unknown }
-  | { ok: false; error: string };
+export type FormResult = { ok: true; [key: string]: unknown } | { ok: false; error: string };
 
 // Wires a form's submit listener: prevents default, toggles the submit
 // button's disabled state, awaits the async handler, dispatches to

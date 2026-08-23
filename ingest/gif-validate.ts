@@ -114,7 +114,7 @@ export function validateGif(bytes: Uint8Array): GifValidation {
     for (const cs of gceDelaysCs) {
       if (cs < MIN_FRAME_DELAY_CS || cs > MAX_FRAME_DELAY_CS) {
         throw new Error(
-          `frame delay ${cs * 10} ms out of range (${MIN_FRAME_DELAY_CS * 10}–${MAX_FRAME_DELAY_CS * 10} ms)`,
+          `frame delay ${cs * 10} ms out of range (${MIN_FRAME_DELAY_CS * 10}–${MAX_FRAME_DELAY_CS * 10} ms)`
         );
       }
     }

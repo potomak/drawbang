@@ -113,7 +113,9 @@ async function main(): Promise<void> {
 
   console.log("listing R2 keys…");
   const allKeys = await r2List();
-  const indexJsonlKeys = allKeys.filter((k) => /^public\/days\/\d{4}-\d{2}-\d{2}\/index\.jsonl$/.test(k));
+  const indexJsonlKeys = allKeys.filter((k) =>
+    /^public\/days\/\d{4}-\d{2}-\d{2}\/index\.jsonl$/.test(k)
+  );
   console.log(`  ${indexJsonlKeys.length} day index files, ${allKeys.length} total keys`);
 
   // Pass 1: load every drawing via the per-day indexes.
@@ -176,7 +178,7 @@ async function main(): Promise<void> {
     if (prior && prior.oldId !== d.oldId) {
       if (d.out.created_at < prior.out.created_at) byNewId.set(d.newId, d);
       console.warn(
-        `  content-id collision: ${prior.oldId.slice(0, 8)} vs ${d.oldId.slice(0, 8)} → ${d.newId.slice(0, 8)}`,
+        `  content-id collision: ${prior.oldId.slice(0, 8)} vs ${d.oldId.slice(0, 8)} → ${d.newId.slice(0, 8)}`
       );
     } else {
       byNewId.set(d.newId, d);
@@ -206,11 +208,13 @@ async function main(): Promise<void> {
     await s3Storage.put(
       `public/days/${day}/manifest.json`,
       enc.encode(JSON.stringify({ count: drawings.length, pages })),
-      "application/json",
+      "application/json"
     );
   }
 
-  console.log(`done: migrated ${deduped.length} drawings across ${byDay.size} days${dryRun ? " (dry run)" : ""}`);
+  console.log(
+    `done: migrated ${deduped.length} drawings across ${byDay.size} days${dryRun ? " (dry run)" : ""}`
+  );
   if (!dryRun) {
     console.log(`next: run the builder with DRAWBANG_FORCE_RERENDER=1 to regenerate all HTML`);
   }

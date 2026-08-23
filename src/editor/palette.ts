@@ -43,10 +43,22 @@ export const BASE_PALETTE: readonly RGB[] = buildBasePalette();
 // base-palette index — giving us a default 16-slot active selection that
 // looks exactly like the old editor.
 const EGA_HEX = [
-  "#000000", "#555555", "#0000aa", "#5555ff",
-  "#00aa00", "#55ff55", "#00aaaa", "#55ffff",
-  "#aa0000", "#ff5555", "#aa00aa", "#ff55ff",
-  "#aa5500", "#ffff55", "#aaaaaa", "#ffffff",
+  "#000000",
+  "#555555",
+  "#0000aa",
+  "#5555ff",
+  "#00aa00",
+  "#55ff55",
+  "#00aaaa",
+  "#55ffff",
+  "#aa0000",
+  "#ff5555",
+  "#aa00aa",
+  "#ff55ff",
+  "#aa5500",
+  "#ffff55",
+  "#aaaaaa",
+  "#ffffff",
 ] as const;
 
 function nearestBaseIndex(rgb: RGB): number {
@@ -54,7 +66,9 @@ function nearestBaseIndex(rgb: RGB): number {
   let bestDist = Infinity;
   for (let i = 0; i < BASE_PALETTE.length; i++) {
     const [r, g, b] = BASE_PALETTE[i];
-    const dr = r - rgb[0], dg = g - rgb[1], db = b - rgb[2];
+    const dr = r - rgb[0],
+      dg = g - rgb[1],
+      db = b - rgb[2];
     const d = dr * dr + dg * dg + db * db;
     if (d < bestDist) {
       bestDist = d;

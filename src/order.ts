@@ -55,12 +55,18 @@ let lastTrackedStatus: string | null = null;
 // double-counts purchases otherwise.
 const PURCHASE_FIRED_KEY_PREFIX = "drawbang:purchase_fired:";
 function hasPurchaseFired(orderId: string): boolean {
-  try { return localStorage.getItem(PURCHASE_FIRED_KEY_PREFIX + orderId) === "1"; }
-  catch { return false; }
+  try {
+    return localStorage.getItem(PURCHASE_FIRED_KEY_PREFIX + orderId) === "1";
+  } catch {
+    return false;
+  }
 }
 function markPurchaseFired(orderId: string): void {
-  try { localStorage.setItem(PURCHASE_FIRED_KEY_PREFIX + orderId, "1"); }
-  catch { /* private mode etc. — accept the rare double-count */ }
+  try {
+    localStorage.setItem(PURCHASE_FIRED_KEY_PREFIX + orderId, "1");
+  } catch {
+    /* private mode etc. — accept the rare double-count */
+  }
 }
 
 function parseOrderId(): string | null {
@@ -73,8 +79,6 @@ function formatUsd(cents: number | undefined): string {
   if (typeof cents !== "number") return "";
   return `$${(cents / 100).toFixed(2)}`;
 }
-
-
 
 function renderRetry(msg: string, onRetry: () => void): void {
   cardEl.innerHTML = `
@@ -98,15 +102,18 @@ function renderOrder(order: OrderView): void {
     ? `<img class="order-thumb" src="${thumbSrc}" alt="${escapeHtml((order.canvas_id ?? order.drawing_id ?? "").slice(0, 8))}" width="128" height="128" />`
     : "";
   const lines: string[] = [];
-  if (order.order_id) lines.push(`<dt>order</dt><dd><code>${escapeHtml(order.order_id)}</code></dd>`);
+  if (order.order_id)
+    lines.push(`<dt>order</dt><dd><code>${escapeHtml(order.order_id)}</code></dd>`);
   if (order.product_id) {
-    const variant = order.variant_id !== undefined ? ` · variant ${escapeHtml(String(order.variant_id))}` : "";
+    const variant =
+      order.variant_id !== undefined ? ` · variant ${escapeHtml(String(order.variant_id))}` : "";
     lines.push(`<dt>product</dt><dd>${escapeHtml(order.product_id)}${variant}</dd>`);
   }
   if (order.retail_cents !== undefined) {
     lines.push(`<dt>amount</dt><dd>${escapeHtml(formatUsd(order.retail_cents))}</dd>`);
   }
-  if (order.frame !== undefined) lines.push(`<dt>frame</dt><dd>${escapeHtml(String(order.frame + 1))}</dd>`);
+  if (order.frame !== undefined)
+    lines.push(`<dt>frame</dt><dd>${escapeHtml(String(order.frame + 1))}</dd>`);
   if (order.created_at) lines.push(`<dt>placed</dt><dd>${escapeHtml(order.created_at)}</dd>`);
 
   cardEl.innerHTML = `
@@ -133,7 +140,7 @@ async function load(id: string): Promise<void> {
   } catch (err) {
     renderRetry(
       `failed to load order: ${err instanceof Error ? err.message : String(err)}`,
-      () => void load(id),
+      () => void load(id)
     );
     return;
   }
@@ -165,13 +172,15 @@ function trackStatusEvents(order: OrderView): void {
     tracker.purchase({
       transaction_id: order.order_id,
       value: order.retail_cents / 100,
-      items: [{
-        item_id: order.product_id,
-        item_name: order.product_id,
-        price: order.retail_cents / 100,
-        quantity: 1,
-        ...(order.variant_id !== undefined ? { item_variant: String(order.variant_id) } : {}),
-      }],
+      items: [
+        {
+          item_id: order.product_id,
+          item_name: order.product_id,
+          price: order.retail_cents / 100,
+          quantity: 1,
+          ...(order.variant_id !== undefined ? { item_variant: String(order.variant_id) } : {}),
+        },
+      ],
     });
     markPurchaseFired(order.order_id);
   }

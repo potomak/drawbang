@@ -63,7 +63,7 @@ describe("renderHomePageHandler", () => {
   test("multiple drawings render newest-first as feed cards", async () => {
     const { store, cfg } = makeConfig();
     await store.put(row({ drawing_id: "1".repeat(64), username: "alice", created_at_ms: 100 }));
-    await store.put(row({ drawing_id: "2".repeat(64), username: "bob",   created_at_ms: 200 }));
+    await store.put(row({ drawing_id: "2".repeat(64), username: "bob", created_at_ms: 200 }));
     const res = await renderHomePageHandler(cfg, null);
     assert.equal(res.status, 200);
     assert.match(res.body, /<article class="feed-card">/);
@@ -136,8 +136,17 @@ describe("renderHomePageHandler", () => {
   test("discover rail: Most Liked module appears on the first page", async () => {
     const { store, cfg } = makeConfig();
     const now = Date.now();
-    await store.put(row({ drawing_id: "a".repeat(64), username: "alice", like_count: 12, created_at_ms: now - 1000 }));
-    await store.put(row({ drawing_id: "b".repeat(64), username: "bob", like_count: 5, created_at_ms: now - 2000 }));
+    await store.put(
+      row({
+        drawing_id: "a".repeat(64),
+        username: "alice",
+        like_count: 12,
+        created_at_ms: now - 1000,
+      })
+    );
+    await store.put(
+      row({ drawing_id: "b".repeat(64), username: "bob", like_count: 5, created_at_ms: now - 2000 })
+    );
     const res = await renderHomePageHandler(cfg, null);
     assert.match(res.body, /<aside class="rail-right"/);
     assert.match(res.body, /Most Liked · 30D/);
@@ -151,7 +160,9 @@ describe("renderHomePageHandler", () => {
     const { store, cfg } = makeConfig();
     const now = Date.now();
     const old = now - 40 * 24 * 60 * 60 * 1000;
-    await store.put(row({ drawing_id: "a".repeat(64), username: "alice", like_count: 99, created_at_ms: old }));
+    await store.put(
+      row({ drawing_id: "a".repeat(64), username: "alice", like_count: 99, created_at_ms: old })
+    );
     const res = await renderHomePageHandler(cfg, null);
     // The drawing still appears in the feed (no window there) but the
     // rail's Most Liked module skips it since it's outside the 30d
@@ -163,7 +174,14 @@ describe("renderHomePageHandler", () => {
     const { store, cfg } = makeConfig(2);
     const now = Date.now();
     for (let i = 0; i < 4; i++) {
-      await store.put(row({ drawing_id: String(i).padStart(64, "f"), username: "u" + i, like_count: 1, created_at_ms: now - i * 1000 }));
+      await store.put(
+        row({
+          drawing_id: String(i).padStart(64, "f"),
+          username: "u" + i,
+          like_count: 1,
+          created_at_ms: now - i * 1000,
+        })
+      );
     }
     // Page 1 — discover should render
     const first = await renderHomePageHandler(cfg, null);
@@ -200,14 +218,23 @@ describe("renderHomePageHandler ?sort=top", () => {
     // Bound to <main> — the discover rail after it also lists liked drawings.
     const feed = res.body.slice(res.body.indexOf("<main>"), res.body.indexOf("</main>"));
     const order = ["2", "3", "1"].map((c) => feed.indexOf(c.repeat(64)));
-    assert.ok(order.every((i) => i > -1), "expected all three drawings in the feed");
-    assert.deepEqual([...order].sort((a, b) => a - b), order, "expected like-count order");
+    assert.ok(
+      order.every((i) => i > -1),
+      "expected all three drawings in the feed"
+    );
+    assert.deepEqual(
+      [...order].sort((a, b) => a - b),
+      order,
+      "expected like-count order"
+    );
   });
 
   test("drawings older than 24 hours are excluded", async () => {
     const { store, cfg } = makeConfig();
     const now = Date.now();
-    await store.put(row({ drawing_id: "1".repeat(64), like_count: 99, created_at_ms: now - 25 * 60 * 60 * 1000 }));
+    await store.put(
+      row({ drawing_id: "1".repeat(64), like_count: 99, created_at_ms: now - 25 * 60 * 60 * 1000 })
+    );
     await store.put(row({ drawing_id: "2".repeat(64), like_count: 1, created_at_ms: now - 1000 }));
     const res = await renderHomePageHandler(cfg, null, "top");
     // Bound to <main> — the stale drawing legitimately appears in the
@@ -221,7 +248,13 @@ describe("renderHomePageHandler ?sort=top", () => {
     const { store, cfg } = makeConfig(2);
     const now = Date.now();
     for (let i = 0; i < 4; i++) {
-      await store.put(row({ drawing_id: String(i).padStart(64, "f"), like_count: i, created_at_ms: now - i * 1000 }));
+      await store.put(
+        row({
+          drawing_id: String(i).padStart(64, "f"),
+          like_count: i,
+          created_at_ms: now - i * 1000,
+        })
+      );
     }
     const res = await renderHomePageHandler(cfg, null, "top");
     assert.doesNotMatch(res.body, /data-infinite-sentinel/);
@@ -243,7 +276,10 @@ describe("renderHomePageHandler ?sort=top", () => {
     cfg.now = () => new Date("2026-06-01T17:00:00.000Z");
     await store.put(row({ like_count: 3, created_at_ms: Date.parse("2026-06-01T16:00:00.000Z") }));
     const res = await renderHomePageHandler(cfg, null, "top");
-    assert.match(res.body, /<a class="feed-sort-link" href="\/\?sort=top" aria-current="page">Top today<\/a>/);
+    assert.match(
+      res.body,
+      /<a class="feed-sort-link" href="\/\?sort=top" aria-current="page">Top today<\/a>/
+    );
     assert.match(res.body, /class="prompt-banner"/);
     assert.match(res.body, /Most Liked · 30D/);
   });
@@ -354,8 +390,12 @@ describe("renderDrawingPageHandler", () => {
     const childId = "2".repeat(64);
     const grandchildId = "3".repeat(64);
     await store.put(row({ drawing_id: parentId, username: "alice", created_at_ms: 100 }));
-    await store.put(row({ drawing_id: childId, username: "bob", parent_id: parentId, created_at_ms: 200 }));
-    await store.put(row({ drawing_id: grandchildId, username: "carol", parent_id: childId, created_at_ms: 300 }));
+    await store.put(
+      row({ drawing_id: childId, username: "bob", parent_id: parentId, created_at_ms: 200 })
+    );
+    await store.put(
+      row({ drawing_id: grandchildId, username: "carol", parent_id: childId, created_at_ms: 300 })
+    );
 
     const res = await renderDrawingPageHandler(cfg, childId);
     assert.equal(res.status, 200);
@@ -376,7 +416,7 @@ describe("renderDrawingPageHandler", () => {
     const res = await renderDrawingPageHandler(cfg, id);
     assert.match(
       res.body,
-      new RegExp(`<a class="btn primary" id="dr-fork" href="/draw\\?fork=${id}">Remix</a>`),
+      new RegExp(`<a class="btn primary" id="dr-fork" href="/draw\\?fork=${id}">Remix</a>`)
     );
     assert.match(res.body, /<a class="btn" id="dr-make-merch"/);
     const remixIdx = res.body.indexOf('id="dr-fork"');
@@ -398,11 +438,13 @@ describe("renderDrawingPageHandler remix chain", () => {
     const ids: string[] = [];
     for (let i = 1; i <= depth; i++) {
       ids.push(chainId(i));
-      await store.put(row({
-        drawing_id: chainId(i),
-        parent_id: i === 1 ? null : chainId(i - 1),
-        created_at_ms: 1000 + i,
-      }));
+      await store.put(
+        row({
+          drawing_id: chainId(i),
+          parent_id: i === 1 ? null : chainId(i - 1),
+          created_at_ms: 1000 + i,
+        })
+      );
     }
     return ids;
   }
@@ -421,7 +463,9 @@ describe("renderDrawingPageHandler remix chain", () => {
     // Current drawing is the terminal item: a plain thumb, no link.
     assert.match(
       res.body,
-      new RegExp(`<li class="dr-chain-item dr-chain-current" aria-current="page"><img class="dr-chain-thumb" src="/tiles/${grandchildId}\\.gif"`),
+      new RegExp(
+        `<li class="dr-chain-item dr-chain-current" aria-current="page"><img class="dr-chain-thumb" src="/tiles/${grandchildId}\\.gif"`
+      )
     );
   });
 
@@ -486,11 +530,13 @@ describe("renderProfilePageHandler", () => {
   test("renders the profile + infinite-scroll sentinel when paginated", async () => {
     const { store, cfg } = makeConfig(2);
     for (let i = 0; i < 4; i++) {
-      await store.put(row({
-        drawing_id: String(i).padStart(64, "a"),
-        username: "alice",
-        created_at_ms: 1000 + i,
-      }));
+      await store.put(
+        row({
+          drawing_id: String(i).padStart(64, "a"),
+          username: "alice",
+          created_at_ms: 1000 + i,
+        })
+      );
     }
     const res = await renderProfilePageHandler(cfg, "alice");
     assert.equal(res.status, 200);
@@ -505,11 +551,13 @@ describe("renderProfileItemsHandler", () => {
   test("returns a fragment with the next cursor", async () => {
     const { store, cfg } = makeConfig(2);
     for (let i = 0; i < 5; i++) {
-      await store.put(row({
-        drawing_id: String(i).padStart(64, "a"),
-        username: "alice",
-        created_at_ms: 1000 + i,
-      }));
+      await store.put(
+        row({
+          drawing_id: String(i).padStart(64, "a"),
+          username: "alice",
+          created_at_ms: 1000 + i,
+        })
+      );
     }
     const res = await renderProfileItemsHandler(cfg, "alice", null);
     assert.doesNotMatch(res.body, /<html/);
@@ -574,8 +622,12 @@ describe("renderPromptPageHandler", () => {
   test("lists only rows tagged with this prompt, newest-first", async () => {
     const { store, cfg } = makeConfig();
     cfg.now = EPOCH_NOON;
-    await store.put(row({ drawing_id: "1".repeat(64), prompt_id: "slime-bounce", created_at_ms: 100 }));
-    await store.put(row({ drawing_id: "2".repeat(64), prompt_id: "slime-bounce", created_at_ms: 200 }));
+    await store.put(
+      row({ drawing_id: "1".repeat(64), prompt_id: "slime-bounce", created_at_ms: 100 })
+    );
+    await store.put(
+      row({ drawing_id: "2".repeat(64), prompt_id: "slime-bounce", created_at_ms: 200 })
+    );
     await store.put(row({ drawing_id: "3".repeat(64), prompt_id: "campfire", created_at_ms: 300 }));
     await store.put(row({ drawing_id: "4".repeat(64), created_at_ms: 400 }));
     const res = await renderPromptPageHandler(cfg, "slime-bounce");
@@ -602,12 +654,16 @@ describe("renderPromptPageHandler", () => {
     cfg.now = EPOCH_NOON;
     const empty = await renderPromptPageHandler(cfg, "slime-bounce");
     assert.match(empty.body, /og:image" content="https:\/\/draw\.example\/og-logo\.png"/);
-    await store.put(row({ drawing_id: "1".repeat(64), prompt_id: "slime-bounce", created_at_ms: 100 }));
-    await store.put(row({ drawing_id: "2".repeat(64), prompt_id: "slime-bounce", created_at_ms: 200 }));
+    await store.put(
+      row({ drawing_id: "1".repeat(64), prompt_id: "slime-bounce", created_at_ms: 100 })
+    );
+    await store.put(
+      row({ drawing_id: "2".repeat(64), prompt_id: "slime-bounce", created_at_ms: 200 })
+    );
     const filled = await renderPromptPageHandler(cfg, "slime-bounce");
     assert.match(
       filled.body,
-      new RegExp(`og:image" content="https://draw\\.example/tiles/${"2".repeat(64)}-large\\.gif"`),
+      new RegExp(`og:image" content="https://draw\\.example/tiles/${"2".repeat(64)}-large\\.gif"`)
     );
   });
 
@@ -615,11 +671,13 @@ describe("renderPromptPageHandler", () => {
     const { store, cfg } = makeConfig(2);
     cfg.now = EPOCH_NOON;
     for (let i = 0; i < 3; i++) {
-      await store.put(row({
-        drawing_id: String(i).padStart(64, "b"),
-        prompt_id: "slime-bounce",
-        created_at_ms: 1000 + i,
-      }));
+      await store.put(
+        row({
+          drawing_id: String(i).padStart(64, "b"),
+          prompt_id: "slime-bounce",
+          created_at_ms: 1000 + i,
+        })
+      );
     }
     const res = await renderPromptPageHandler(cfg, "slime-bounce");
     assert.match(res.body, /data-next="\/prompts\/slime-bounce\/items\?cursor=/);
@@ -636,11 +694,13 @@ describe("renderPromptItemsHandler", () => {
     const { store, cfg } = makeConfig(2);
     cfg.now = EPOCH_NOON;
     for (let i = 0; i < 3; i++) {
-      await store.put(row({
-        drawing_id: String(i).padStart(64, "b"),
-        prompt_id: "slime-bounce",
-        created_at_ms: 1000 + i,
-      }));
+      await store.put(
+        row({
+          drawing_id: String(i).padStart(64, "b"),
+          prompt_id: "slime-bounce",
+          created_at_ms: 1000 + i,
+        })
+      );
     }
     const first = await renderPromptItemsHandler(cfg, "slime-bounce", null);
     assert.doesNotMatch(first.body, /<html/);

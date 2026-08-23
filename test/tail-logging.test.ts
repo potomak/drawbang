@@ -24,7 +24,12 @@ function captureLogs(): { lines: unknown[]; restore: () => void } {
       lines.push(JSON.parse(args[0] as string));
     }
   };
-  return { lines, restore: () => { console.log = original; } };
+  return {
+    lines,
+    restore: () => {
+      console.log = original;
+    },
+  };
 }
 
 async function harness() {
@@ -32,7 +37,11 @@ async function harness() {
   const storage = new FsStorage(dir);
   const b = new Bitmap(16, 16);
   for (let i = 0; i < b.data.length; i++) b.data[i] = i % 16;
-  const gif = encodeGif({ frames: [b], activePalette: new Uint8Array(DEFAULT_ACTIVE_PALETTE), size: 16 });
+  const gif = encodeGif({
+    frames: [b],
+    activePalette: new Uint8Array(DEFAULT_ACTIVE_PALETTE),
+    size: 16,
+  });
   const id = await contentHashHex(gif);
   await storage.put(`public/tiles/${id}.gif`, gif, "image/gif");
   return { storage, id, cleanup: () => rm(dir, { recursive: true, force: true }) };
@@ -52,7 +61,7 @@ describe("post-publish tail telemetry", () => {
           cacheInvalidator: new NoopInvalidator(),
           encodeMp4: async () => new Uint8Array([1, 2, 3, 4]),
           log: { requestId: "req-1", invocation: "async" },
-        },
+        }
       );
     } finally {
       cap.restore();
@@ -83,9 +92,11 @@ describe("post-publish tail telemetry", () => {
         {
           storage: h.storage,
           cacheInvalidator: new NoopInvalidator(),
-          encodeMp4: async () => { throw new Error("ffmpeg exit 1: Invalid data found"); },
+          encodeMp4: async () => {
+            throw new Error("ffmpeg exit 1: Invalid data found");
+          },
           log: { requestId: "req-2", invocation: "inline", remainingMs: () => 4200 },
-        },
+        }
       );
     } finally {
       cap.restore();
@@ -112,7 +123,7 @@ describe("post-publish tail telemetry", () => {
           cacheInvalidator: new NoopInvalidator(),
           encodeMp4: async () => new Uint8Array([1]),
           log: { requestId: "req-3", invocation: "async" },
-        },
+        }
       );
     } finally {
       cap.restore();
@@ -131,7 +142,7 @@ describe("post-publish tail telemetry", () => {
     try {
       await runPostPublish(
         { drawing_id: h.id, username: "alice", prompt_tagged: false },
-        { storage: h.storage, encodeMp4: async () => new Uint8Array([1]) },
+        { storage: h.storage, encodeMp4: async () => new Uint8Array([1]) }
       );
     } finally {
       cap.restore();
@@ -148,9 +159,11 @@ describe("post-publish tail telemetry", () => {
         { drawing_id: h.id, username: "alice", prompt_tagged: false },
         {
           storage: h.storage,
-          encodeMp4: async () => { throw new Error("x".repeat(5000)); },
+          encodeMp4: async () => {
+            throw new Error("x".repeat(5000));
+          },
           log: { requestId: "req-4", invocation: "async" },
-        },
+        }
       );
     } finally {
       cap.restore();
