@@ -52,13 +52,35 @@ const STATUS_COPY: Record<string, string> = {
 };
 
 const THANK_YOU_COPY: Record<string, { title: string; subtitle: string }> = {
-  pending: { title: "Thank you for your order!", subtitle: "We’re confirming your payment — this usually takes under a minute." },
-  paid: { title: "Thank you for your order!", subtitle: "Payment received. We’re preparing your print." },
-  submitted: { title: "Thank you for your order!", subtitle: "Your Draw! is being printed with care." },
-  in_production: { title: "Thank you for your order!", subtitle: "Your Draw! is being printed with care." },
-  shipped: { title: "Thank you for your order!", subtitle: "Your order has shipped — tracking is on its way." },
-  delivered: { title: "Thank you for your order!", subtitle: "Your order has been delivered — enjoy!" },
-  failed: { title: "Order failed", subtitle: "We couldn’t complete your order. You have not been charged, or a refund is on the way." },
+  pending: {
+    title: "Thank you for your order!",
+    subtitle: "We’re confirming your payment — this usually takes under a minute.",
+  },
+  paid: {
+    title: "Thank you for your order!",
+    subtitle: "Payment received. We’re preparing your print.",
+  },
+  submitted: {
+    title: "Thank you for your order!",
+    subtitle: "Your Draw! is being printed with care.",
+  },
+  in_production: {
+    title: "Thank you for your order!",
+    subtitle: "Your Draw! is being printed with care.",
+  },
+  shipped: {
+    title: "Thank you for your order!",
+    subtitle: "Your order has shipped — tracking is on its way.",
+  },
+  delivered: {
+    title: "Thank you for your order!",
+    subtitle: "Your order has been delivered — enjoy!",
+  },
+  failed: {
+    title: "Order failed",
+    subtitle:
+      "We couldn’t complete your order. You have not been charged, or a refund is on the way.",
+  },
   refunded: { title: "Order refunded", subtitle: "Your order has been refunded." },
 };
 
@@ -159,14 +181,15 @@ function renderOrder(order: OrderView): void {
   const lines: string[] = [];
   if (order.order_id)
     lines.push(
-      `<dt>Order</dt><dd><code title="${escapeHtml(order.order_id)}">${escapeHtml(shortId)}…</code> <span class="order-id-full">${escapeHtml(order.order_id)}</span></dd>`,
+      `<dt>Order</dt><dd><code title="${escapeHtml(order.order_id)}">${escapeHtml(shortId)}…</code> <span class="order-id-full">${escapeHtml(order.order_id)}</span></dd>`
     );
   if (productLabel) lines.push(`<dt>Product</dt><dd>${escapeHtml(productLabel)}</dd>`);
   if (order.retail_cents !== undefined) {
     lines.push(`<dt>Amount</dt><dd>${escapeHtml(formatUsd(order.retail_cents))}</dd>`);
   }
   if (placed) lines.push(`<dt>Placed</dt><dd>${escapeHtml(placed)}</dd>`);
-  if (order.customer_email) lines.push(`<dt>Email</dt><dd>${escapeHtml(order.customer_email)}</dd>`);
+  if (order.customer_email)
+    lines.push(`<dt>Email</dt><dd>${escapeHtml(order.customer_email)}</dd>`);
 
   cardEl.innerHTML = `
     <div class="order-thanks">
