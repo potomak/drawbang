@@ -495,51 +495,15 @@ export function createRoutes(deps: RouteDeps): Route[] {
         return json(200, body, { "Cache-Control": "private, no-store" });
       },
     },
-    // Admin orders — operator view + status management. Same allowlist gate as
-    // /admin/data. GET /admin/orders is the shell, GET /admin/orders/data
-    // is the inner fragment, POST /admin/orders/{id}/status updates status/env.
+    // Admin orders — shell is public (like /admin). The inner data fetch at
+    // GET /admin/orders/data is the gated fragment (allowlist + JWT). Browser
+    // navs to /admin/orders never carry Authorization, so the shell must not
+    // 401; the boot script redirects to /login and fetches data with Bearer.
     {
       methods: ["GET"],
       pattern: /^\/admin\/orders$/,
-      auth: "required",
-      logName: "GET /admin/orders",
-      handler: async (req, _params, auth) => {
-        const route = "GET /admin/orders";
-        if (!deps.admin.isAllowed(auth!.username)) {
-          logOutcome({
-            requestId: req.requestId,
-            route,
-            status: 403,
-            duration_ms: Date.now() - req.t0,
-            user_id: auth!.user_id,
-            username: auth!.username,
-            error_code: "forbidden",
-          });
-          return json(403, { error: "not authorised" });
-        }
-        if (!deps.admin.ordersStore) {
-          logOutcome({
-            requestId: req.requestId,
-            route,
-            status: 500,
-            duration_ms: Date.now() - req.t0,
-            user_id: auth!.user_id,
-            username: auth!.username,
-            error_code: "orders_store_not_wired",
-          });
-          return json(500, { error: "orders store not configured" });
-        }
-        const rendered = await handleAdminOrdersPage();
-        logOutcome({
-          requestId: req.requestId,
-          route,
-          status: rendered.status,
-          duration_ms: Date.now() - req.t0,
-          user_id: auth!.user_id,
-          username: auth!.username,
-        });
-        return render(rendered);
-      },
+      auth: "none",
+      handler: async () => render(await handleAdminOrdersPage()),
     },
     {
       methods: ["GET"],
