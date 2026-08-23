@@ -1,6 +1,12 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { GetCommand, PutCommand, QueryCommand, ScanCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import {
+  GetCommand,
+  PutCommand,
+  QueryCommand,
+  ScanCommand,
+  UpdateCommand,
+} from "@aws-sdk/lib-dynamodb";
 import { MemoryOrdersStore, OrdersStore, STATUS_GSI_NAME, type Order } from "../merch/orders.js";
 
 interface RecordedSend {
@@ -236,8 +242,18 @@ test("adminSetEnv returns null when the order does not exist", async () => {
 
 test("MemoryOrdersStore round-trips env and status via adminSetStatus/adminSetEnv and scanRecent", async () => {
   const mem = new MemoryOrdersStore();
-  const a = fixtureOrder({ order_id: "a", env: "prod", status: "pending", created_at: "2026-04-27T10:00:00.000Z" });
-  const b = fixtureOrder({ order_id: "b", env: "sandbox", status: "paid", created_at: "2026-04-27T11:00:00.000Z" });
+  const a = fixtureOrder({
+    order_id: "a",
+    env: "prod",
+    status: "pending",
+    created_at: "2026-04-27T10:00:00.000Z",
+  });
+  const b = fixtureOrder({
+    order_id: "b",
+    env: "sandbox",
+    status: "paid",
+    created_at: "2026-04-27T11:00:00.000Z",
+  });
   await mem.createOrder(a);
   await mem.createOrder(b);
 

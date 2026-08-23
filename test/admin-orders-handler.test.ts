@@ -37,8 +37,18 @@ describe("handleAdminOrdersPage", () => {
 describe("handleAdminOrdersData", () => {
   test("returns the inner fragment with a row per order, newest first", async () => {
     const store = new MemoryOrdersStore();
-    await store.createOrder(order({ order_id: "00000000-0000-4000-a000-0000000000a1", created_at: "2026-04-27T12:00:00.000Z" }));
-    await store.createOrder(order({ order_id: "00000000-0000-4000-a000-0000000000b2", created_at: "2026-04-27T10:00:00.000Z" }));
+    await store.createOrder(
+      order({
+        order_id: "00000000-0000-4000-a000-0000000000a1",
+        created_at: "2026-04-27T12:00:00.000Z",
+      })
+    );
+    await store.createOrder(
+      order({
+        order_id: "00000000-0000-4000-a000-0000000000b2",
+        created_at: "2026-04-27T10:00:00.000Z",
+      })
+    );
 
     const res = await handleAdminOrdersData({ ordersStore: store });
     assert.equal(res.status, 200);
@@ -61,7 +71,11 @@ describe("handleAdminOrdersData", () => {
 describe("handleAdminOrderUpdate", () => {
   test("bad JSON body → 400", async () => {
     const store = new MemoryOrdersStore();
-    const res = await handleAdminOrderUpdate({ ordersStore: store }, "00000000-0000-4000-a000-000000000001", "{nope");
+    const res = await handleAdminOrderUpdate(
+      { ordersStore: store },
+      "00000000-0000-4000-a000-000000000001",
+      "{nope"
+    );
     assert.equal(res.status, 400);
     assert.deepEqual(res.body, { error: "bad json body" });
   });
@@ -69,7 +83,11 @@ describe("handleAdminOrderUpdate", () => {
   test("missing status and env → 400", async () => {
     const store = new MemoryOrdersStore();
     await store.createOrder(order());
-    const res = await handleAdminOrderUpdate({ ordersStore: store }, order().order_id, JSON.stringify({}));
+    const res = await handleAdminOrderUpdate(
+      { ordersStore: store },
+      order().order_id,
+      JSON.stringify({})
+    );
     assert.equal(res.status, 400);
     assert.deepEqual(res.body, { error: "provide status and/or env" });
   });
@@ -77,7 +95,11 @@ describe("handleAdminOrderUpdate", () => {
   test("bad status → 400 bad status", async () => {
     const store = new MemoryOrdersStore();
     await store.createOrder(order());
-    const res = await handleAdminOrderUpdate({ ordersStore: store }, order().order_id, JSON.stringify({ status: "not_a_status" }));
+    const res = await handleAdminOrderUpdate(
+      { ordersStore: store },
+      order().order_id,
+      JSON.stringify({ status: "not_a_status" })
+    );
     assert.equal(res.status, 400);
     assert.deepEqual(res.body, { error: "bad status" });
   });
@@ -85,7 +107,11 @@ describe("handleAdminOrderUpdate", () => {
   test("bad env → 400", async () => {
     const store = new MemoryOrdersStore();
     await store.createOrder(order());
-    const res = await handleAdminOrderUpdate({ ordersStore: store }, order().order_id, JSON.stringify({ env: "nope" }));
+    const res = await handleAdminOrderUpdate(
+      { ordersStore: store },
+      order().order_id,
+      JSON.stringify({ env: "nope" })
+    );
     assert.equal(res.status, 400);
     assert.deepEqual(res.body, { error: "bad env: expected prod or sandbox" });
   });
@@ -95,7 +121,7 @@ describe("handleAdminOrderUpdate", () => {
     const res = await handleAdminOrderUpdate(
       { ordersStore: store },
       "00000000-0000-4000-a000-000000000099",
-      JSON.stringify({ status: "shipped" }),
+      JSON.stringify({ status: "shipped" })
     );
     assert.equal(res.status, 404);
     assert.deepEqual(res.body, { error: "order not found" });
@@ -106,7 +132,7 @@ describe("handleAdminOrderUpdate", () => {
     const res = await handleAdminOrderUpdate(
       { ordersStore: store },
       "00000000-0000-4000-a000-000000000099",
-      JSON.stringify({ env: "sandbox" }),
+      JSON.stringify({ env: "sandbox" })
     );
     assert.equal(res.status, 404);
     assert.deepEqual(res.body, { error: "order not found" });
@@ -118,7 +144,11 @@ describe("handleAdminOrderUpdate", () => {
     await store.createOrder(order({ order_id: id, status: "pending" }));
     const before = (await store.getOrder(id)) as Order;
 
-    const res = await handleAdminOrderUpdate({ ordersStore: store }, id, JSON.stringify({ status: "shipped" }));
+    const res = await handleAdminOrderUpdate(
+      { ordersStore: store },
+      id,
+      JSON.stringify({ status: "shipped" })
+    );
     assert.equal(res.status, 200);
     const updated = res.body as Order;
     assert.equal(updated.order_id, id);
@@ -148,7 +178,11 @@ describe("handleAdminOrderUpdate", () => {
     ];
 
     for (const [raw, expected] of cases) {
-      const res = await handleAdminOrderUpdate({ ordersStore: store }, id, JSON.stringify({ env: raw }));
+      const res = await handleAdminOrderUpdate(
+        { ordersStore: store },
+        id,
+        JSON.stringify({ env: raw })
+      );
       assert.equal(res.status, 200, `env ${raw}`);
       assert.equal((res.body as Order).env, expected, `env ${raw} normalizes to ${expected}`);
     }
@@ -163,7 +197,11 @@ describe("handleAdminOrderUpdate", () => {
     assert.equal((await store.getOrder(id))?.env, "sandbox");
     assert.equal((await store.getOrder(id))?.status, "paid");
 
-    await handleAdminOrderUpdate({ ordersStore: store }, id, JSON.stringify({ status: "in_production" }));
+    await handleAdminOrderUpdate(
+      { ordersStore: store },
+      id,
+      JSON.stringify({ status: "in_production" })
+    );
     assert.equal((await store.getOrder(id))?.status, "in_production");
     assert.equal((await store.getOrder(id))?.env, "sandbox");
   });
@@ -173,7 +211,11 @@ describe("handleAdminOrderUpdate", () => {
     const id = "00000000-0000-4000-a000-000000000004";
     await store.createOrder(order({ order_id: id, status: "pending", env: "prod" }));
 
-    const res = await handleAdminOrderUpdate({ ordersStore: store }, id, JSON.stringify({ status: "shipped", env: "sandbox" }));
+    const res = await handleAdminOrderUpdate(
+      { ordersStore: store },
+      id,
+      JSON.stringify({ status: "shipped", env: "sandbox" })
+    );
     assert.equal(res.status, 200);
     // Returns the last mutation's result (the env update), which should reflect both changes.
     const body = res.body as Order;
@@ -185,12 +227,25 @@ describe("handleAdminOrderUpdate", () => {
   });
 
   test("accepts every valid OrderStatus", async () => {
-    const statuses = ["pending", "paid", "submitted", "in_production", "shipped", "delivered", "failed", "refunded"] as const;
+    const statuses = [
+      "pending",
+      "paid",
+      "submitted",
+      "in_production",
+      "shipped",
+      "delivered",
+      "failed",
+      "refunded",
+    ] as const;
     for (const s of statuses) {
       const store = new MemoryOrdersStore();
       const id = "00000000-0000-4000-a000-000000000010";
       await store.createOrder(order({ order_id: id, status: "pending" }));
-      const res = await handleAdminOrderUpdate({ ordersStore: store }, id, JSON.stringify({ status: s }));
+      const res = await handleAdminOrderUpdate(
+        { ordersStore: store },
+        id,
+        JSON.stringify({ status: s })
+      );
       assert.equal(res.status, 200, `status ${s}`);
       assert.equal((res.body as Order).status, s);
     }

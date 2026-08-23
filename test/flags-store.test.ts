@@ -50,10 +50,7 @@ describe("FlagsStore (docClient stub)", () => {
     const second = await store.getFlag("merch_env");
     assert.equal(second, null);
     assert.equal(getCalls, 1, "second read hits the 5s null cache");
-    assert.equal(
-      calls.filter((c) => c instanceof GetCommand).length,
-      1,
-    );
+    assert.equal(calls.filter((c) => c instanceof GetCommand).length, 1);
   });
 
   test("getFlag unmarshals env/value and is case-insensitive via normalizeEnv", async () => {
@@ -73,7 +70,14 @@ describe("FlagsStore (docClient stub)", () => {
           };
         }
         if (flag === "merch_dry_run") {
-          return { Item: { flag: "merch_dry_run", enabled: false, value: false, updated_at: "2026-04-27T10:00:00.000Z" } };
+          return {
+            Item: {
+              flag: "merch_dry_run",
+              enabled: false,
+              value: false,
+              updated_at: "2026-04-27T10:00:00.000Z",
+            },
+          };
         }
         return {};
       }
@@ -90,7 +94,8 @@ describe("FlagsStore (docClient stub)", () => {
     const { store: store2 } = makeFlagsStore(async (cmd) => {
       if (cmd instanceof GetCommand) {
         aliasCalls++;
-        if (aliasCalls === 1) return { Item: { flag: "probe", value: true, updated_at: "2026-04-27T10:00:00.000Z" } };
+        if (aliasCalls === 1)
+          return { Item: { flag: "probe", value: true, updated_at: "2026-04-27T10:00:00.000Z" } };
         return {};
       }
       throw new Error("unexpected");
@@ -116,7 +121,7 @@ describe("FlagsStore (docClient stub)", () => {
           },
         };
       },
-      { clock: () => clockMs },
+      { clock: () => clockMs }
     );
 
     await store.getFlag("merch_env");
@@ -132,7 +137,9 @@ describe("FlagsStore (docClient stub)", () => {
     let fetches = 0;
     const { store } = makeFlagsStore(async () => {
       fetches++;
-      return { Item: { flag: "x", enabled: true, value: true, updated_at: "2026-04-27T10:00:00.000Z" } };
+      return {
+        Item: { flag: "x", enabled: true, value: true, updated_at: "2026-04-27T10:00:00.000Z" },
+      };
     });
 
     await store.getFlag("x");
@@ -360,7 +367,12 @@ describe("MemoryFlagsStore", () => {
     assert.equal((await store.getFlag("x"))?.enabled, true);
 
     // Manual seed + cache eviction.
-    store.seed({ flag: "seeded", enabled: false, value: false, updated_at: "2026-04-27T10:00:00.000Z" });
+    store.seed({
+      flag: "seeded",
+      enabled: false,
+      value: false,
+      updated_at: "2026-04-27T10:00:00.000Z",
+    });
     assert.equal((await store.getFlag("seeded"))?.enabled, false);
     store.clearCache("seeded");
     assert.equal((await store.getFlag("seeded"))?.enabled, false);
@@ -379,7 +391,11 @@ describe("MemoryFlagsStore", () => {
     assert.equal((await store.getFlag("merch_dry_run"))?.enabled, true);
 
     // Seed a raw alias and ensure it normalizes.
-    store.seed({ flag: "merch_env", env: "LIVE" as unknown as "prod", updated_at: "2026-04-27T10:00:00.000Z" });
+    store.seed({
+      flag: "merch_env",
+      env: "LIVE" as unknown as "prod",
+      updated_at: "2026-04-27T10:00:00.000Z",
+    });
     store.clearCache("merch_env");
     assert.equal(await store.getMerchEnv(), "prod");
   });
