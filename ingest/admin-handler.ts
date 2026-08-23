@@ -279,17 +279,35 @@ function num(v: string | undefined): number {
 
 async function loadMerchFlags(flagsStore?: AnyFlagsStore): Promise<AdminView["merchFlags"]> {
   if (!flagsStore) return null;
-  const row = await flagsStore.getFlag("merch_dry_run");
-  if (!row) {
-    // No row yet — default to dry-run true (safe) with no timestamp.
-    return { merch_dry_run: true, updated_at: null, updated_by: null };
+  // Prefer the new merch_env flag; fall back to legacy merch_dry_run for
+  // backwards compat with rows that predate the env migration. Missing
+  // flag defaults to sandbox (safe).
+  let env: "prod" | "sandbox" = "sandbox";
+  let row: { updated_at?: string | null; updated_by?: string | null } | null = null;
+  try {
+    const maybeEnv = await (flagsStore as unknown as { getMerchEnv?: () => Promise<string> }).getMerchEnv?.();
+    if (maybeEnv === "prod" || maybeEnv === "sandbox") env = maybeEnv;
+    // Try to get the merch_env row for audit metadata, then fall back to dry_run.
+    const envRow = await flagsStore.getFlag("merch_env");
+    if (envRow) row = envRow;
+    else {
+      const dryRow = await flagsStore.getFlag("merch_dry_run");
+      if (dryRow) row = dryRow;
+    }
+  } catch {
+    // On read error default to sandbox and no metadata.
   }
-  const val =
-    (row as { enabled?: boolean; value?: boolean }).enabled ??
-    (row as { value?: boolean }).value ??
-    true;
+  if (!row) {
+    return {
+      merch_env: env,
+      merch_dry_run: env === "sandbox",
+      updated_at: null,
+      updated_by: null,
+    };
+  }
   return {
-    merch_dry_run: Boolean(val),
+    merch_env: env,
+    merch_dry_run: env === "sandbox",
     updated_at: row.updated_at ?? null,
     updated_by: row.updated_by ?? null,
   };
@@ -300,23 +318,38 @@ async function loadMerchFlags(flagsStore?: AnyFlagsStore): Promise<AdminView["me
 export async function handleGetMerchFlags(args: {
   flagsStore: AnyFlagsStore;
 }): Promise<{ status: number; body: unknown; headers?: Record<string, string> }> {
-  const row = await args.flagsStore.getFlag("merch_dry_run");
+  const store = args.flagsStore as unknown as {
+    getMerchEnv?: () => Promise<string>;
+    getFlag: (flag: string) => Promise<{ updated_at?: string | null; updated_by?: string | null } | null>;
+  };
+  let env: "prod" | "sandbox" = "sandbox";
+  try {
+    const maybeEnv = await store.getMerchEnv?.();
+    if (maybeEnv === "prod" || maybeEnv === "sandbox") env = maybeEnv;
+  } catch {
+    // ignore, default to sandbox
+  }
+  let row: { updated_at?: string | null; updated_by?: string | null } | null = null;
+  try {
+    const envRow = await store.getFlag("merch_env");
+    if (envRow) row = envRow;
+    else row = await store.getFlag("merch_dry_run");
+  } catch {
+    // ignore
+  }
   if (!row) {
     return {
       status: 200,
-      body: { merch_dry_run: true, updated_at: null, updated_by: null },
+      body: { merch_env: env, merch_dry_run: env === "sandbox", updated_at: null, updated_by: null },
       headers: { "Cache-Control": "private, no-store" },
     };
   }
-  const val =
-    (row as { enabled?: boolean; value?: boolean }).enabled ??
-    (row as { value?: boolean }).value ??
-    true;
   return {
     status: 200,
     body: {
-      merch_dry_run: Boolean(val),
-      updated_at: row.updated_at,
+      merch_env: env,
+      merch_dry_run: env === "sandbox",
+      updated_at: row.updated_at ?? null,
       updated_by: row.updated_by ?? null,
     },
     headers: { "Cache-Control": "private, no-store" },
@@ -335,20 +368,45 @@ export async function handleSetMerchFlags(args: {
     return { status: 400, body: { error: "bad json body" } };
   }
   const obj = parsed as Record<string, unknown>;
-  if (typeof obj.merch_dry_run !== "boolean") {
-    return { status: 400, body: { error: "bad merch_dry_run: expected boolean" } };
+  // Accept either merch_env (new) or merch_dry_run (legacy). merch_env wins.
+  let env: "prod" | "sandbox" | null = null;
+  if (typeof obj.merch_env === "string") {
+    const s = obj.merch_env.trim().toLowerCase();
+    if (s === "prod" || s === "production" || s === "live") env = "prod";
+    else if (s === "sandbox" || s === "test" || s === "dry-run" || s === "dry_run") env = "sandbox";
+    else return { status: 400, body: { error: "bad merch_env: expected prod or sandbox" } };
+  } else if (typeof obj.merch_dry_run === "boolean") {
+    env = obj.merch_dry_run ? "sandbox" : "prod";
+  } else {
+    return { status: 400, body: { error: "bad merch_env: expected prod or sandbox" } };
   }
-  const row = await args.flagsStore.setFlag("merch_dry_run", obj.merch_dry_run, args.username);
-  const val =
-    (row as { enabled?: boolean; value?: boolean }).enabled ??
-    (row as { value?: boolean }).value ??
-    obj.merch_dry_run;
+  // Prefer the new setMerchEnv path; fall back to setFlag for stores that
+  // haven't been migrated (e.g. tests with a minimal stub).
+  const store = args.flagsStore as unknown as {
+    setMerchEnv?: (env: string, updatedBy: string) => Promise<{ updated_at?: string; updated_by?: string }>;
+    setFlag: (flag: string, enabled: boolean, updatedBy: string) => Promise<{ updated_at?: string; updated_by?: string }>;
+    getMerchEnv?: () => Promise<string>;
+  };
+  let row: { updated_at?: string; updated_by?: string } | null = null;
+  if (store.setMerchEnv) {
+    row = await store.setMerchEnv(env, args.username);
+  } else {
+    row = await store.setFlag("merch_dry_run", env === "sandbox", args.username);
+  }
+  let outEnv: "prod" | "sandbox" = env;
+  try {
+    const maybe = await store.getMerchEnv?.();
+    if (maybe === "prod" || maybe === "sandbox") outEnv = maybe;
+  } catch {
+    // ignore
+  }
   return {
     status: 200,
     body: {
-      merch_dry_run: Boolean(val),
-      updated_at: row.updated_at,
-      updated_by: row.updated_by ?? null,
+      merch_env: outEnv,
+      merch_dry_run: outEnv === "sandbox",
+      updated_at: row?.updated_at ?? null,
+      updated_by: row?.updated_by ?? null,
     },
     headers: { "Cache-Control": "private, no-store" },
   };

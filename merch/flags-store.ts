@@ -3,17 +3,21 @@ import { DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dyn
 
 export interface Flag {
   flag: string;
-  enabled: boolean;
+  enabled?: boolean;
   // Alias for enabled, for backwards-compat with callers that use `value`.
   value?: boolean;
+  // Env name for merch_env — prod vs sandbox. Present only on the
+  // merch_env flag; merch_dry_run uses enabled/value.
+  env?: MerchEnv;
   updated_by?: string;
   updated_at?: string;
 }
 
 export interface FlagRow {
   flag: string;
-  value: boolean;
+  value?: boolean;
   enabled?: boolean;
+  env?: string;
   updated_by?: string;
   updated_at: string;
 }
@@ -35,8 +39,12 @@ export interface FlagsStoreConfig {
 
 const CACHE_TTL_MS = 5_000;
 
+export type MerchEnv = "prod" | "sandbox";
+
+export const MERCH_ENV_FLAG = "merch_env";
 export const MERCH_DRY_RUN_FLAG = "merch_dry_run";
 export const FLAG_MERCH_DRY_RUN = MERCH_DRY_RUN_FLAG;
+export const FLAG_MERCH_ENV = MERCH_ENV_FLAG;
 
 export class FlagsStore {
   private readonly doc: Pick<DynamoDBDocumentClient, "send">;
@@ -148,35 +156,131 @@ export class FlagsStore {
   }
 
   // Convenience: return boolean value for merch_dry_run, defaulting to true (dry-run safe) when missing.
+  // Deprecated — prefer getMerchEnv(). Kept for backwards compat with callers
+  // that still read merch_dry_run.
   async getMerchDryRunValue(): Promise<boolean> {
-    const flag = await this.getFlag(MERCH_DRY_RUN_FLAG);
-    if (!flag) return true;
-    return flag.enabled ?? flag.value ?? true;
+    const env = await this.getMerchEnv();
+    return env === "sandbox";
   }
+
+  async getMerchEnv(): Promise<MerchEnv> {
+    // New flag first — if merch_env exists its env string wins.
+    const envRow = await this.getFlag(MERCH_ENV_FLAG);
+    if (envRow?.env) {
+      const n = normalizeEnv(envRow.env);
+      if (n) return n;
+    }
+    // Fall back to legacy boolean flag: true → sandbox, false → prod.
+    const dryRow = await this.getFlag(MERCH_DRY_RUN_FLAG);
+    if (dryRow) {
+      const b = dryRow.enabled ?? dryRow.value;
+      if (typeof b === "boolean") return b ? "sandbox" : "prod";
+    }
+    // Missing flag → sandbox (safe, matches dry-run default true).
+    return "sandbox";
+  }
+
+  async setMerchEnv(
+    env: MerchEnv,
+    updatedBy?: string | { updated_by?: string; updatedBy?: string; now?: string },
+  ): Promise<Flag> {
+    const n = normalizeEnv(env) ?? "sandbox";
+    let updated_by: string | undefined;
+    let nowOverride: string | undefined;
+    if (typeof updatedBy === "string") {
+      updated_by = updatedBy;
+    } else if (updatedBy && typeof updatedBy === "object") {
+      const o = updatedBy as Record<string, unknown>;
+      updated_by = (o.updated_by as string) ?? (o.updatedBy as string);
+      nowOverride = o.now as string | undefined;
+    }
+    const now = nowOverride ?? this.nowIso();
+    const item: Flag = {
+      flag: MERCH_ENV_FLAG,
+      env: n,
+      enabled: n === "sandbox",
+      value: n === "sandbox",
+      updated_by,
+      updated_at: now,
+    };
+    await this.doc.send(
+      new PutCommand({
+        TableName: this.tableName,
+        Item: {
+          flag: MERCH_ENV_FLAG,
+          env: n,
+          enabled: n === "sandbox",
+          value: n === "sandbox",
+          updated_at: now,
+          ...(updated_by ? { updated_by } : {}),
+        },
+      }),
+    );
+    this.cache.set(MERCH_ENV_FLAG, { value: { ...item }, expiresAt: this.clock() + this.cacheTtlMs });
+    // Keep legacy merch_dry_run row in sync so old readers see the same env.
+    const dryEnabled = n === "sandbox";
+    const dryItem: Flag = {
+      flag: MERCH_DRY_RUN_FLAG,
+      enabled: dryEnabled,
+      value: dryEnabled,
+      updated_by,
+      updated_at: now,
+    };
+    await this.doc.send(
+      new PutCommand({
+        TableName: this.tableName,
+        Item: {
+          flag: MERCH_DRY_RUN_FLAG,
+          enabled: dryEnabled,
+          value: dryEnabled,
+          updated_at: now,
+          ...(updated_by ? { updated_by } : {}),
+        },
+      }),
+    );
+    this.cache.set(MERCH_DRY_RUN_FLAG, { value: { ...dryItem }, expiresAt: this.clock() + this.cacheTtlMs });
+    return { ...item };
+  }
+}
+
+function normalizeEnv(raw: unknown): MerchEnv | null {
+  if (typeof raw !== "string") return null;
+  const s = raw.trim().toLowerCase();
+  if (s === "prod" || s === "production" || s === "live") return "prod";
+  if (s === "sandbox" || s === "test" || s === "dry-run" || s === "dry_run") return "sandbox";
+  return null;
 }
 
 function normalizeRawFlag(raw: Record<string, unknown>): Flag {
   const flag = String(raw.flag);
+  const envRaw = raw.env as unknown;
   const enabledRaw = raw.enabled as unknown;
   const valueRaw = raw.value as unknown;
-  const enabled =
-    typeof enabledRaw === "boolean"
-      ? enabledRaw
-      : typeof valueRaw === "boolean"
-        ? valueRaw
-        : Boolean(enabledRaw ?? valueRaw);
+  const env = typeof envRaw === "string" ? (normalizeEnv(envRaw) ?? undefined) : undefined;
+  // For merch_env we store env string; for legacy merch_dry_run we store boolean.
+  // Keep env when present, and still populate enabled/value for compat.
+  let enabled: boolean | undefined;
+  if (typeof enabledRaw === "boolean") enabled = enabledRaw;
+  else if (typeof valueRaw === "boolean") enabled = valueRaw;
+  else if (env) enabled = env === "sandbox";
+  else if (enabledRaw !== undefined || valueRaw !== undefined) enabled = Boolean(enabledRaw ?? valueRaw);
   return {
     flag,
-    enabled,
-    value: enabled,
+    ...(env ? { env } : {}),
+    ...(enabled !== undefined ? { enabled, value: enabled } : {}),
     updated_at: typeof raw.updated_at === "string" ? raw.updated_at : undefined,
     updated_by: typeof raw.updated_by === "string" ? raw.updated_by : undefined,
   };
 }
 
 function normalizeFlag(f: Flag): Flag {
-  const enabled = f.enabled ?? f.value ?? false;
-  return { ...f, enabled, value: enabled };
+  const env = f.env ? (normalizeEnv(f.env) ?? undefined) : undefined;
+  const enabled = f.enabled ?? f.value ?? (env ? env === "sandbox" : undefined);
+  return {
+    ...f,
+    ...(env ? { env } : {}),
+    ...(enabled !== undefined ? { enabled, value: enabled } : {}),
+  };
 }
 
 // In-memory variant for dev-server and tests. Mirrors the same 5s cache
@@ -239,9 +343,60 @@ export class MemoryFlagsStore {
   }
 
   async getMerchDryRunValue(): Promise<boolean> {
-    const flag = await this.getFlag(MERCH_DRY_RUN_FLAG);
-    if (!flag) return true;
-    return flag.enabled ?? flag.value ?? true;
+    const env = await this.getMerchEnv();
+    return env === "sandbox";
+  }
+
+  async getMerchEnv(): Promise<MerchEnv> {
+    const envRow = await this.getFlag(MERCH_ENV_FLAG);
+    if (envRow?.env) {
+      const n = normalizeEnv(envRow.env);
+      if (n) return n;
+    }
+    const dryRow = await this.getFlag(MERCH_DRY_RUN_FLAG);
+    if (dryRow) {
+      const b = dryRow.enabled ?? dryRow.value;
+      if (typeof b === "boolean") return b ? "sandbox" : "prod";
+    }
+    return "sandbox";
+  }
+
+  async setMerchEnv(
+    env: MerchEnv,
+    updatedBy?: string | { updated_by?: string; updatedBy?: string; now?: string },
+  ): Promise<Flag> {
+    const n = normalizeEnv(env) ?? "sandbox";
+    let updated_by: string | undefined;
+    let nowOverride: string | undefined;
+    if (typeof updatedBy === "string") {
+      updated_by = updatedBy;
+    } else if (updatedBy && typeof updatedBy === "object") {
+      const o = updatedBy as Record<string, unknown>;
+      updated_by = (o.updated_by as string) ?? (o.updatedBy as string);
+      nowOverride = o.now as string | undefined;
+    }
+    const now = nowOverride ?? this.nowIso();
+    const item: Flag = {
+      flag: MERCH_ENV_FLAG,
+      env: n,
+      enabled: n === "sandbox",
+      value: n === "sandbox",
+      updated_by,
+      updated_at: now,
+    };
+    this.store.set(MERCH_ENV_FLAG, { ...item });
+    this.cache.set(MERCH_ENV_FLAG, { value: { ...item }, expiresAt: this.clock() + this.cacheTtlMs });
+    const dryEnabled = n === "sandbox";
+    const dryItem: Flag = {
+      flag: MERCH_DRY_RUN_FLAG,
+      enabled: dryEnabled,
+      value: dryEnabled,
+      updated_by,
+      updated_at: now,
+    };
+    this.store.set(MERCH_DRY_RUN_FLAG, { ...dryItem });
+    this.cache.set(MERCH_DRY_RUN_FLAG, { value: { ...dryItem }, expiresAt: this.clock() + this.cacheTtlMs });
+    return { ...item };
   }
 
   seed(flag: Flag): void {

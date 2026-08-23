@@ -249,17 +249,29 @@ async function buildDevAdminView(
     userStatsStore,
     startMs: rangeStartMs(range, now),
   });
-  const flagRow = await flagsStore.getFlag("merch_dry_run");
-  const flagVal =
-    (flagRow as { enabled?: boolean; value?: boolean } | null)?.enabled ??
-    (flagRow as { value?: boolean } | null)?.value;
+  let merchEnv: "prod" | "sandbox" = "sandbox";
+  try {
+    const maybe = await (flagsStore as unknown as { getMerchEnv?: () => Promise<string> }).getMerchEnv?.();
+    if (maybe === "prod" || maybe === "sandbox") merchEnv = maybe;
+  } catch {
+    // ignore, default sandbox
+  }
+  let flagRow: { updated_at?: string | null; updated_by?: string | null } | null = null;
+  try {
+    const envRow = await flagsStore.getFlag("merch_env");
+    if (envRow) flagRow = envRow;
+    else flagRow = await flagsStore.getFlag("merch_dry_run");
+  } catch {
+    // ignore
+  }
   const merchFlags = flagRow
     ? {
-        merch_dry_run: Boolean(flagVal),
+        merch_env: merchEnv,
+        merch_dry_run: merchEnv === "sandbox",
         updated_at: flagRow.updated_at ?? null,
         updated_by: flagRow.updated_by ?? null,
       }
-    : { merch_dry_run: true, updated_at: null, updated_by: null };
+    : { merch_env: merchEnv, merch_dry_run: merchEnv === "sandbox", updated_at: null, updated_by: null };
   return {
     adminUsername,
     range,
