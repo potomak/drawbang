@@ -43,6 +43,32 @@ Parameters:
     NoEcho: true
     Default: ""
     Description: Stripe webhook signing secret (whsec_…). Maps to STRIPE_WEBHOOK_SECRET.
+  # Dual Stripe key pairs for the merch dry-run toggle (#274 / #277).
+  # Live + Test variants let the merch Lambda pick the helper at request time
+  # based on the merch_dry_run flag in drawbang-flags. Kept alongside the
+  # legacy singular params so existing `sam deploy --parameter-overrides
+  # StripeSecretKey=…` deploys keep working — new code prefers _LIVE/_TEST
+  # and falls back to the singular value when _LIVE is empty.
+  StripeSecretKeyLive:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Stripe live secret key (sk_live_…). Maps to STRIPE_SECRET_KEY_LIVE. Falls back to STRIPE_SECRET_KEY when empty.
+  StripeSecretKeyTest:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Stripe test secret key (sk_test_…). Maps to STRIPE_SECRET_KEY_TEST.
+  StripeWebhookSecretLive:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Stripe live webhook signing secret (whsec_… live). Maps to STRIPE_WEBHOOK_SECRET_LIVE. Falls back to STRIPE_WEBHOOK_SECRET when empty.
+  StripeWebhookSecretTest:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Stripe test webhook signing secret (whsec_… test). Maps to STRIPE_WEBHOOK_SECRET_TEST.
   # HS256 signing secret for session + password-reset JWTs. No default — the
   # ingest function fails loud at cold start if unset, since every publish /
   # claim / auth route depends on it. Supply via parameter_overrides from a
@@ -793,6 +819,25 @@ Resources:
         AttributeName: expires_at
         Enabled: true
 
+  # -- Flags table for runtime admin toggles ----------------------------------
+  # drawbang-flags holds feature flags keyed by `flag` (PK). Project 2
+  # (#274 / #277) seeds the single item `merch_dry_run` — when true the
+  # merch dispatch path early-returns with `submitted dry-run` and skips
+  # Printify. Access via merch/flags-store.ts (getFlag/setFlag with 5 s
+  # in-memory cache and conditional writes). Admin toggle lives at
+  # GET /admin/merch/flags + POST /admin/merch/flags (allowlisted) in
+  # ingest/admin-handler.ts, ingest/routes.ts, lib/templates/admin.ts.
+  # On-demand billing, single-attribute key — no GSIs, no TTL.
+  FlagsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: drawbang-flags
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: flag, AttributeType: S }
+      KeySchema:
+        - { AttributeName: flag, KeyType: HASH }
+
   # -- Ingest Lambda + API Gateway --------------------------------------------
 
   IngestFunction:
@@ -826,6 +871,13 @@ Resources:
           DRAWBANG_FOLLOWS_TABLE: !Ref FollowsTable
           DRAWBANG_SUBSCRIBERS_TABLE: !Ref SubscribersTable
           DRAWBANG_CHALLENGES_TABLE: !Ref ChallengesTable
+          # Flags table for the admin merch dry-run toggle (#274 / #277).
+          # merch/flags-store.ts reads this via FLAGS_TABLE /
+          # DRAWBANG_FLAGS_TABLE; the ingest admin handler (GET+POST
+          # /admin/merch/flags) writes it. Both names point to the same
+          # table so either env-var convention works across Lambdas.
+          FLAGS_TABLE: !Ref FlagsTable
+          DRAWBANG_FLAGS_TABLE: !Ref FlagsTable
           CF_DISTRIBUTION_ID: !Ref CloudFrontDistributionIdOverride
           JWT_SECRET: !Ref JwtSecret
           SES_FROM_ADDRESS: !Ref SesFromAddress
@@ -854,6 +906,13 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref FollowsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref SubscribersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref ChallengesTable }
+        # Runtime flags for the merch dry-run toggle (#274 / #277). Ingest
+        # is the writer (POST /admin/merch/flags) and reader (GET
+        # /admin/merch/flags + lib/templates/admin.ts card); merch is the
+        # reader (merch/flags-store.ts getFlag with 5 s cache). Grant CRUD
+        # to ingest and at least CRUD to merch so conditional writes via
+        # getFlag/setFlag work from either Lambda without a second deploy.
+        - DynamoDBCrudPolicy: { TableName: !Ref FlagsTable }
         # The /products handler queries the merch popularity counters (the
         # MerchFunction is the writer; ingest only reads here).
         - DynamoDBReadPolicy: { TableName: !Ref ProductCountersTable }
@@ -1178,6 +1237,18 @@ Resources:
             ApiId: !Ref IngestApi
             Method: DELETE
             Path: /admin/users/{username}
+        AdminMerchFlagsGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /admin/merch/flags
+        AdminMerchFlagsPost:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: POST
+            Path: /admin/merch/flags
 
   # Lambda auto-creates /aws/lambda/drawbang-ingest with infinite retention
   # on first invocation. Apply a 90-day cap once via the AWS CLI so the
@@ -1250,10 +1321,24 @@ Resources:
         Variables:
           ORDERS_TABLE: !Ref OrdersTable
           PRODUCT_COUNTERS_TABLE: !Ref ProductCountersTable
+          # Runtime feature flags (drawbang-flags). merch/flags-store.ts
+          # reads FLAGS_TABLE / DRAWBANG_FLAGS_TABLE with a 5 s in-memory
+          # cache; ingest admin handler writes it via POST /admin/merch/flags.
+          FLAGS_TABLE: !Ref FlagsTable
+          DRAWBANG_FLAGS_TABLE: !Ref FlagsTable
           PRINTIFY_API_TOKEN: !Ref PrintifyApiToken
           PRINTIFY_SHOP_ID: !Ref PrintifyShopId
           STRIPE_SECRET_KEY: !Ref StripeSecretKey
           STRIPE_WEBHOOK_SECRET: !Ref StripeWebhookSecret
+          # Dual Stripe pairs for the live/test toggle (#274 / #277).
+          # When FLAGS_TABLE flag merch_dry_run is true the merch Lambda
+          # picks the TEST pair at request time; otherwise it picks LIVE.
+          # Defaults to "" so deploys stay green until the operator wires
+          # the secrets via parameter_overrides.
+          STRIPE_SECRET_KEY_LIVE: !Ref StripeSecretKeyLive
+          STRIPE_SECRET_KEY_TEST: !Ref StripeSecretKeyTest
+          STRIPE_WEBHOOK_SECRET_LIVE: !Ref StripeWebhookSecretLive
+          STRIPE_WEBHOOK_SECRET_TEST: !Ref StripeWebhookSecretTest
           PUBLIC_BASE_URL: !If
             - HasCustomDomain
             - !Sub "https://${DomainName}"
@@ -1267,6 +1352,7 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref OrdersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref ProductCountersTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref FlagsTable }
         - S3ReadPolicy: { BucketName: !Ref AssetsBucket }
         # Allow the function to invoke itself (async dispatch path). The
         # arn:* form scopes to this function only — referencing
@@ -1326,6 +1412,9 @@ Outputs:
   FollowsTableName:
     Description: DynamoDB table for follow edges between accounts (#202).
     Value: !Ref FollowsTable
+  FlagsTableName:
+    Description: DynamoDB table for runtime feature flags (PK flag, e.g. merch_dry_run). Used by merch/flags-store.ts and ingest/admin-handler.ts (#274 / #277).
+    Value: !Ref FlagsTable
   IngestEndpoint:
     Description: POST here with the IngestRequest body.
     Value: !Sub "https://${IngestApi}.execute-api.${AWS::Region}.amazonaws.com/ingest"

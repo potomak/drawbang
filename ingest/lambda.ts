@@ -44,6 +44,7 @@ import merchCatalogJson from "../config/merch.json" with { type: "json" };
 import { CloudWatchLogsClient } from "@aws-sdk/client-cloudwatch-logs";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { handleAdminRoute, type AdminHandlerConfig } from "./admin-handler.js";
+import { FlagsStore } from "../merch/flags-store.js";
 import { logBoot } from "./log-outcome.js";
 import { FFMPEG_PATH } from "./share-mp4.js";
 import { statSync, constants as fsConstants, accessSync } from "node:fs";
@@ -70,6 +71,7 @@ const jwtSecret = required("JWT_SECRET");
 // Optional: until SES is wired, password-reset emails fail at send time
 // (caught + logged in the handler) but the rest of ingest stays up.
 const sesFromAddress = process.env.SES_FROM_ADDRESS ?? "";
+const flagsTable = process.env.FLAGS_TABLE ?? process.env.DRAWBANG_FLAGS_TABLE ?? "drawbang-flags";
 // Comma-separated usernames allowed to view /admin. Empty (the default)
 // means nobody can — every /admin request returns 403. Update the value
 // via the SAM parameter `AdminUsernames` (GitHub repository variable
@@ -177,6 +179,7 @@ const deferPostPublish = async (job: PostPublishJob): Promise<void> => {
 
 const productCountersStore = new ProductCountersStore({ tableName: productCountersTable });
 const merchCatalog = merchCatalogJson as MerchCatalog;
+const flagsStore = new FlagsStore({ tableName: flagsTable });
 // Lazily created — both clients are only used by /admin, so cold-start
 // for every other route stays cheap. Lambda's container reuse keeps the
 // connection pool warm once the first /admin hits.
@@ -192,6 +195,7 @@ function adminCfg(): AdminHandlerConfig {
     usersTable,
     drawingsTable,
     logGroup: ingestLogGroup,
+    flagsStore,
   };
   return adminCfgCache;
 }
@@ -261,6 +265,7 @@ const routes = createRoutes({
     isAllowed: (username) => adminUsernames.has(username),
     renderData: ({ range, adminUsername }) =>
       handleAdminRoute({ cfg: adminCfg(), range, adminUsername }),
+    flagsStore,
   },
   repoUrl,
 });

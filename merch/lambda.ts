@@ -5,6 +5,7 @@ import catalog from "../config/merch.json";
 import { S3Storage } from "../ingest/s3-storage.js";
 import { createBrandLogoProvider } from "./brand-logo.js";
 import { placePrintifyOrder } from "./dispatch.js";
+import { FlagsStore, MERCH_DRY_RUN_FLAG } from "./flags-store.js";
 import { OrdersStore, type Order, type OrderStatus } from "./orders.js";
 import { isValidPlacement, type Placement } from "./placement.js";
 import { PrintifyClient, type ShippingAddress } from "./printify.js";
@@ -55,6 +56,14 @@ export interface MerchCatalog {
 export interface MerchHandlerDeps {
   orders: OrdersStore;
   stripe: StripeHelper;
+  // Runtime dry-run selection: live vs test Stripe helpers picked per-
+  // request based on the merch_dry_run flag. Both are optional so
+  // existing tests that inject a single `stripe` continue to pass
+  // without changes. When present, checkout/webhook resolve via
+  // resolveStripeHelper().
+  stripeLive?: StripeHelper;
+  stripeTest?: StripeHelper;
+  flags?: FlagsStore;
   catalog: MerchCatalog;
   shippingCountries: string[];
   uuid: () => string;
@@ -92,6 +101,30 @@ const SANITIZED_FIELDS: ReadonlySet<keyof Order> = new Set([
   "printify_product_id",
   "printify_order_id",
 ]);
+
+async function isDryRun(deps: MerchHandlerDeps): Promise<boolean> {
+  if (!deps.flags) return false;
+  try {
+    const flag = await deps.flags.getFlag(MERCH_DRY_RUN_FLAG);
+    if (!flag) return false;
+    // Flag may carry `enabled` (new) or `value` (compat) — treat either.
+    const v = (flag as { enabled?: boolean; value?: boolean }).enabled ?? (flag as { value?: boolean }).value;
+    return Boolean(v);
+  } catch {
+    return false;
+  }
+}
+
+async function resolveStripeHelper(deps: MerchHandlerDeps): Promise<StripeHelper> {
+  if (!deps.flags) return deps.stripe;
+  const dry = await isDryRun(deps);
+  if (dry) {
+    if (deps.stripeTest) return deps.stripeTest;
+    return deps.stripe;
+  }
+  if (deps.stripeLive) return deps.stripeLive;
+  return deps.stripe;
+}
 
 export async function handle(
   event: MerchEvent,
@@ -207,7 +240,8 @@ async function checkout(
   // The picker can't know the order id at request time, so it embeds the
   // literal "{ORDER_ID}" placeholder. Substitute here before Stripe sees it.
   const successUrl = body.success_url.replace("{ORDER_ID}", orderId);
-  const session = await deps.stripe.createCheckoutSession({
+  const stripeHelper = await resolveStripeHelper(deps);
+  const session = await stripeHelper.createCheckoutSession({
     orderId,
     productName: variantDisplayName(product, variant),
     amountCents: variant.retail_cents,
@@ -238,9 +272,10 @@ async function webhook(
     headers["Stripe-Signature"];
   if (!signature) return json(400, { error: "missing signature" });
   const raw = readRawBody(event);
+  const stripeHelper = await resolveStripeHelper(deps);
   let evt: Stripe.Event;
   try {
-    evt = deps.stripe.parseWebhook(raw, signature);
+    evt = stripeHelper.parseWebhook(raw, signature);
   } catch (err) {
     return text(400, `bad signature: ${(err as Error).message}`);
   }
@@ -383,6 +418,17 @@ function required(name: string): string {
   return v;
 }
 
+function env(name: string): string | undefined {
+  const v = process.env[name];
+  return v !== undefined && v !== "" ? v : undefined;
+}
+
+function requiredWithFallback(primary: string, fallback: string): string {
+  const v = env(primary) ?? env(fallback);
+  if (!v) throw new Error(`missing required env var: ${primary} (or ${fallback})`);
+  return v;
+}
+
 let booted: MerchHandlerDeps | null = null;
 function bootDeps(): MerchHandlerDeps {
   if (booted) return booted;
@@ -401,12 +447,36 @@ function bootDeps(): MerchHandlerDeps {
   const merchCatalog = catalog as MerchCatalog;
   const lambdaClient = new LambdaClient({});
 
+  // Flags store for runtime dry-run toggle (merch_dry_run). Backwards
+  // compat: FLAGS_TABLE may be unset in older deploys — default to the
+  // canonical table name so existing stacks keep working and tests that
+  // inject deps directly are unaffected (they bypass bootDeps anyway).
+  const flagsTable = env("FLAGS_TABLE") ?? env("DRAWBANG_FLAGS_TABLE") ?? "drawbang-flags";
+  const flags = new FlagsStore({ tableName: flagsTable });
+
+  // Stripe key pairs — live vs test. The runtime picks per-request based
+  // on the merch_dry_run flag. Backwards compat: when the new
+  // _LIVE/_TEST vars are unset, fall back to the legacy STRIPE_SECRET_KEY
+  // / STRIPE_WEBHOOK_SECRET so existing deploys keep working without a
+  // table or flag.
+  const liveSecret = requiredWithFallback("STRIPE_SECRET_KEY_LIVE", "STRIPE_SECRET_KEY");
+  const liveWebhook = requiredWithFallback("STRIPE_WEBHOOK_SECRET_LIVE", "STRIPE_WEBHOOK_SECRET");
+  const testSecret = env("STRIPE_SECRET_KEY_TEST") ?? env("STRIPE_SECRET_KEY") ?? liveSecret;
+  const testWebhook = env("STRIPE_WEBHOOK_SECRET_TEST") ?? env("STRIPE_WEBHOOK_SECRET") ?? liveWebhook;
+
+  const stripeLive = new StripeHelper({ secretKey: liveSecret, webhookSecret: liveWebhook });
+  const stripeTest = new StripeHelper({ secretKey: testSecret, webhookSecret: testWebhook });
+  // Legacy `stripe` kept as alias to live for backwards compat with
+  // callers that still read deps.stripe directly.
+  const stripe = stripeLive;
+
   // One BrandLogoProvider per cold start — caches the brand wordmark's
   // Printify image id internally so we upload it exactly once per
   // container, regardless of how many orders this container processes.
   const brandLogo = createBrandLogoProvider(printify);
 
-  const dispatchSync = (orderId: string) =>
+  // Real Printify path — used when dry_run is false.
+  const realDispatchSync = (orderId: string) =>
     placePrintifyOrder(orderId, {
       orders,
       printify,
@@ -418,6 +488,52 @@ function bootDeps(): MerchHandlerDeps {
       brandLogo,
       productCounters,
     });
+
+  // Dry-run-aware dispatchSync. At request time we check the flag;
+  // when true we transition paid -> submitted without touching Printify
+  // (and still bump the product counter so /products ranking stays
+  // consistent in dry-run).
+  const dispatchSync = async (orderId: string): Promise<void> => {
+    let dry = false;
+    try {
+      const flag = await flags.getFlag(MERCH_DRY_RUN_FLAG);
+      if (flag) {
+        const v = (flag as { enabled?: boolean; value?: boolean }).enabled ?? (flag as { value?: boolean }).value;
+        dry = Boolean(v);
+      }
+    } catch {
+      dry = false;
+    }
+    if (dry) {
+      const order = await orders.getOrder(orderId);
+      if (!order) {
+        console.error("dry-run dispatch: order not found", { orderId });
+        return;
+      }
+      if (order.status !== "paid") {
+        console.log("dry-run dispatch: order not in paid; skipping", {
+          orderId,
+          status: order.status,
+        });
+        return;
+      }
+      const submitted = await orders.transition(orderId, "paid", { status: "submitted" });
+      if (submitted && productCounters) {
+        try {
+          await productCounters.incrementOnSubmit({
+            drawing_id: order.drawing_id,
+            product_id: order.product_id,
+            now: new Date().toISOString(),
+          });
+        } catch (counterErr) {
+          console.error("dry-run dispatch: counter increment failed", { orderId, counterErr });
+        }
+      }
+      console.log("dry-run dispatch: order submitted without Printify", { orderId });
+      return;
+    }
+    await realDispatchSync(orderId);
+  };
 
   // Fire-and-forget self-invoke: returns once Lambda has accepted the
   // payload, leaving the async invocation to run with the full Lambda
@@ -436,10 +552,10 @@ function bootDeps(): MerchHandlerDeps {
 
   booted = {
     orders,
-    stripe: new StripeHelper({
-      secretKey: required("STRIPE_SECRET_KEY"),
-      webhookSecret: required("STRIPE_WEBHOOK_SECRET"),
-    }),
+    stripe,
+    stripeLive,
+    stripeTest,
+    flags,
     catalog: merchCatalog,
     shippingCountries: ["US", "CA", "GB"],
     uuid: () => crypto.randomUUID(),

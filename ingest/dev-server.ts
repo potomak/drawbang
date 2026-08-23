@@ -25,6 +25,7 @@ import {
 } from "./admin-handler.js";
 import type { AdminView } from "../lib/templates/admin.js";
 import { renderAdminInner } from "../lib/templates/admin.js";
+import { MemoryFlagsStore } from "../merch/flags-store.js";
 import type { AuthHandlerConfig } from "./auth-handler.js";
 import type { RenderHandlersConfig } from "./render-handlers.js";
 import {
@@ -50,6 +51,8 @@ const adminUsernames = new Set(
     .filter(Boolean),
 );
 const adminOpenInDev = adminUsernames.size === 0;
+
+const flagsStore = new MemoryFlagsStore();
 
 const storage = new FsStorage(ROOT);
 const drawingStore = new MemoryDrawingStore();
@@ -138,6 +141,7 @@ const routes = createRoutes({
       cacheControl: "private, no-store",
       body: renderAdminInner(await buildDevAdminView(adminUsername, range)),
     }),
+    flagsStore,
   },
   repoUrl: process.env.REPO_URL ?? "https://github.com/potomak/drawbang",
 });
@@ -245,6 +249,11 @@ async function buildDevAdminView(
     userStatsStore,
     startMs: rangeStartMs(range, now),
   });
+  const flagRow = await flagsStore.getFlag("merch_dry_run");
+  const flagVal = (flagRow as { enabled?: boolean; value?: boolean } | null)?.enabled ?? (flagRow as { value?: boolean } | null)?.value;
+  const merchFlags = flagRow
+    ? { merch_dry_run: Boolean(flagVal), updated_at: flagRow.updated_at ?? null, updated_by: flagRow.updated_by ?? null }
+    : { merch_dry_run: true, updated_at: null, updated_by: null };
   return {
     adminUsername,
     range,
@@ -256,6 +265,7 @@ async function buildDevAdminView(
     kpis: computeProductKpis(kpiPage),
     users,
     failures: [],
+    merchFlags,
   };
 }
 

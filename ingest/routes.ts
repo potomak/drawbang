@@ -150,6 +150,7 @@ export interface RouteDeps {
     // out, dev's empty list lets any signed-in user through.
     isAllowed(username: string): boolean;
     renderData(args: { range: AdminRange; adminUsername: string }): Promise<RenderResponse>;
+    flagsStore?: import("../merch/flags-store.js").AnyFlagsStore;
   };
   repoUrl: string;
 }
@@ -259,6 +260,124 @@ export function createRoutes(deps: RouteDeps): Route[] {
             : {}),
         });
         return json(result.status, result.body);
+      },
+    },
+    // Admin merch flags — runtime toggle for merch dry-run. Same allowlist
+    // gate as /admin/data so only ADMIN_USERNAMES can flip it. GET returns
+    // { merch_dry_run, updated_at, updated_by }, POST expects the same shape
+    // and persists via FlagsStore (5s cache, conditional write handled in the store).
+    {
+      methods: ["GET"],
+      pattern: /^\/admin\/merch\/flags$/,
+      auth: "required",
+      logName: "GET /admin/merch/flags",
+      handler: async (req, _params, auth) => {
+        const route = "GET /admin/merch/flags";
+        if (!deps.admin.isAllowed(auth!.username)) {
+          logOutcome({
+            requestId: req.requestId, route, status: 403,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id, username: auth!.username,
+            error_code: "forbidden",
+          });
+          return json(403, { error: "not authorised" });
+        }
+        if (!deps.admin.flagsStore) {
+          logOutcome({
+            requestId: req.requestId, route, status: 500,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id, username: auth!.username,
+            error_code: "flags_store_not_wired",
+          });
+          return json(500, { error: "flags store not configured" });
+        }
+        const store = deps.admin.flagsStore;
+        const row = await store.getFlag("merch_dry_run");
+        const val = (row as { enabled?: boolean; value?: boolean } | null)?.enabled ?? (row as { value?: boolean } | null)?.value;
+        const body = row
+          ? { merch_dry_run: Boolean(val), updated_at: row.updated_at ?? null, updated_by: row.updated_by ?? null }
+          : { merch_dry_run: true, updated_at: null, updated_by: null };
+        logOutcome({
+          requestId: req.requestId, route, status: 200,
+          duration_ms: Date.now() - req.t0,
+          user_id: auth!.user_id, username: auth!.username,
+        });
+        return json(200, body, { "Cache-Control": "private, no-store" });
+      },
+    },
+    {
+      methods: ["POST"],
+      pattern: /^\/admin\/merch\/flags$/,
+      auth: "required",
+      logName: "POST /admin/merch/flags",
+      handler: async (req, _params, auth) => {
+        const route = "POST /admin/merch/flags";
+        if (!deps.admin.isAllowed(auth!.username)) {
+          logOutcome({
+            requestId: req.requestId, route, status: 403,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id, username: auth!.username,
+            error_code: "forbidden",
+          });
+          return json(403, { error: "not authorised" });
+        }
+        if (!deps.admin.flagsStore) {
+          logOutcome({
+            requestId: req.requestId, route, status: 500,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id, username: auth!.username,
+            error_code: "flags_store_not_wired",
+          });
+          return json(500, { error: "flags store not configured" });
+        }
+        let raw: string;
+        try {
+          raw = await req.body();
+        } catch {
+          logOutcome({
+            requestId: req.requestId, route, status: 400,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id, username: auth!.username,
+            error_code: "bad_json",
+          });
+          return json(400, { error: "bad json body" });
+        }
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          logOutcome({
+            requestId: req.requestId, route, status: 400,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id, username: auth!.username,
+            error_code: "bad_json",
+          });
+          return json(400, { error: "bad json body" });
+        }
+        const obj = parsed as Record<string, unknown>;
+        if (typeof obj.merch_dry_run !== "boolean") {
+          logOutcome({
+            requestId: req.requestId, route, status: 400,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id, username: auth!.username,
+            error_code: "bad_merch_dry_run",
+          });
+          return json(400, { error: "bad merch_dry_run: expected boolean" });
+        }
+        const store = deps.admin.flagsStore;
+        const row = await store.setFlag("merch_dry_run", obj.merch_dry_run, auth!.username);
+        const outVal = (row as { enabled?: boolean; value?: boolean }).enabled ?? (row as { value?: boolean }).value ?? obj.merch_dry_run;
+        const body = {
+          merch_dry_run: Boolean(outVal),
+          updated_at: row.updated_at ?? null,
+          updated_by: row.updated_by ?? null,
+        };
+        logOutcome({
+          requestId: req.requestId, route, status: 200,
+          duration_ms: Date.now() - req.t0,
+          user_id: auth!.user_id, username: auth!.username,
+        });
+        return json(200, body, { "Cache-Control": "private, no-store" });
       },
     },
     // Dynamic HTML routes: feed home, drawing page, profile, RSS, products.

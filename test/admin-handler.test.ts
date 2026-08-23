@@ -504,6 +504,7 @@ describe("renderAdminShell", () => {
         ],
       },
       failures: [],
+      merchFlags: null,
     });
     assert.match(html, /data-delete-user="spammer"/);
     // The drawing count rides on the button so the confirm prompt can say
