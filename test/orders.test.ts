@@ -1,10 +1,10 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import { OrdersStore, STATUS_GSI_NAME, type Order } from "../merch/orders.js";
+import { GetCommand, PutCommand, QueryCommand, ScanCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { MemoryOrdersStore, OrdersStore, STATUS_GSI_NAME, type Order } from "../merch/orders.js";
 
 interface RecordedSend {
-  cmd: PutCommand | GetCommand | UpdateCommand | QueryCommand;
+  cmd: PutCommand | GetCommand | UpdateCommand | QueryCommand | ScanCommand;
 }
 
 type SendImpl = (cmd: RecordedSend["cmd"]) => Promise<unknown>;
@@ -153,4 +153,109 @@ test("listByStatus omits Limit when not provided and returns [] when no Items fi
   const out = await store.listByStatus("paid");
   assert.deepEqual(out, []);
   assert.equal((calls[0].cmd as QueryCommand).input.Limit, undefined);
+});
+
+test("createOrder persists the env field for prod/sandbox tracking", async () => {
+  const order = fixtureOrder({ env: "sandbox" });
+  const { store, calls } = makeStore(async () => ({}), []);
+
+  await store.createOrder(order);
+  assert.equal(calls.length, 1);
+  const cmd = calls[0].cmd;
+  assert.ok(cmd instanceof PutCommand);
+  assert.equal((cmd.input.Item as Order).env, "sandbox");
+});
+
+test("scanRecent sorts by created_at desc and respects the limit", async () => {
+  const items = [
+    fixtureOrder({ order_id: "old", created_at: "2026-04-27T10:00:00.000Z" }),
+    fixtureOrder({ order_id: "new", created_at: "2026-04-27T12:00:00.000Z" }),
+    fixtureOrder({ order_id: "mid", created_at: "2026-04-27T11:00:00.000Z" }),
+  ];
+  const { store, calls } = makeStore(async () => ({ Items: items }));
+
+  const out = await store.scanRecent(2);
+  // Store sorts in handler after fetch, but we assert the driver was called with Limit.
+  const cmd = calls[0].cmd;
+  assert.ok(cmd instanceof ScanCommand);
+  assert.equal((cmd as ScanCommand).input.Limit, 2);
+  // The sort happens client-side after fetch.
+  assert.equal(out.length, 2);
+  assert.equal(out[0].order_id, "new");
+  assert.equal(out[1].order_id, "mid");
+});
+
+test("adminSetStatus issues an UpdateCommand for status and returns the new row", async () => {
+  const updated = fixtureOrder({ status: "shipped", updated_at: "2026-04-27T12:00:00.000Z" });
+  const { store, calls } = makeStore(async () => ({ Attributes: updated }));
+
+  const out = await store.adminSetStatus("ord_1", "shipped");
+  assert.deepEqual(out, updated);
+
+  const cmd = calls[0].cmd;
+  assert.ok(cmd instanceof UpdateCommand);
+  assert.equal(cmd.input.TableName, "drawbang-orders");
+  assert.equal(cmd.input.ExpressionAttributeNames!["#s"], "status");
+  assert.equal(cmd.input.ExpressionAttributeValues![":status"], "shipped");
+  assert.equal(cmd.input.ReturnValues, "ALL_NEW");
+  assert.match(cmd.input.UpdateExpression!, /#s = :status/);
+});
+
+test("adminSetStatus returns null when the order does not exist (ConditionalCheckFailed)", async () => {
+  const { store } = makeStore(async () => {
+    const err = new Error("not found");
+    err.name = "ConditionalCheckFailedException";
+    throw err;
+  });
+  const out = await store.adminSetStatus("missing", "shipped");
+  assert.equal(out, null);
+});
+
+test("adminSetEnv issues an UpdateCommand for env and returns the new row", async () => {
+  const updated = fixtureOrder({ env: "sandbox", updated_at: "2026-04-27T12:00:00.000Z" });
+  const { store, calls } = makeStore(async () => ({ Attributes: updated }));
+
+  const out = await store.adminSetEnv("ord_1", "sandbox");
+  assert.deepEqual(out, updated);
+
+  const cmd = calls[0].cmd;
+  assert.ok(cmd instanceof UpdateCommand);
+  assert.equal(cmd.input.ExpressionAttributeNames!["#e"], "env");
+  assert.equal(cmd.input.ExpressionAttributeValues![":env"], "sandbox");
+});
+
+test("adminSetEnv returns null when the order does not exist", async () => {
+  const { store } = makeStore(async () => {
+    const err = new Error("not found");
+    err.name = "ConditionalCheckFailedException";
+    throw err;
+  });
+  const out = await store.adminSetEnv("missing", "prod");
+  assert.equal(out, null);
+});
+
+test("MemoryOrdersStore round-trips env and status via adminSetStatus/adminSetEnv and scanRecent", async () => {
+  const mem = new MemoryOrdersStore();
+  const a = fixtureOrder({ order_id: "a", env: "prod", status: "pending", created_at: "2026-04-27T10:00:00.000Z" });
+  const b = fixtureOrder({ order_id: "b", env: "sandbox", status: "paid", created_at: "2026-04-27T11:00:00.000Z" });
+  await mem.createOrder(a);
+  await mem.createOrder(b);
+
+  const fetched = await mem.getOrder("a");
+  assert.equal(fetched?.env, "prod");
+
+  await mem.adminSetEnv("a", "sandbox");
+  assert.equal((await mem.getOrder("a"))?.env, "sandbox");
+
+  await mem.adminSetStatus("a", "shipped");
+  assert.equal((await mem.getOrder("a"))?.status, "shipped");
+
+  // scanRecent sorts newest first
+  const recent = await mem.scanRecent(10);
+  assert.equal(recent[0].order_id, "b");
+  assert.equal(recent[1].order_id, "a");
+
+  // missing order → null
+  assert.equal(await mem.adminSetStatus("nope", "shipped"), null);
+  assert.equal(await mem.adminSetEnv("nope", "prod"), null);
 });
