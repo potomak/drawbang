@@ -188,21 +188,29 @@ export async function handleAdminRoute(
   // negligible. All paths swallow their own errors so a single failing
   // query (e.g. log group temporarily missing during a deploy) doesn't
   // 500 the whole page — the affected card just shows "—".
-  const [totalUsers, totalDrawings, publishStats, registerStats, failures, kpiPage, users, merchFlags] =
-    await Promise.all([
-      describeItemCount(cfg.ddbClient, cfg.usersTable).catch(() => null),
-      describeItemCount(cfg.ddbClient, cfg.drawingsTable).catch(() => null),
-      insights(PUBLISH_STATS_QUERY).catch(() => null),
-      insights(REGISTER_STATS_QUERY).catch(() => null),
-      insights(FAILURES_QUERY).catch(() => null),
-      cfg.drawingStore.queryGallery({ limit: KPI_SCAN_LIMIT }).catch(() => null),
-      loadAdminUsers({
-        userStore: cfg.userStore,
-        userStatsStore: cfg.userStatsStore,
-        startMs,
-      }).catch(() => null),
-      loadMerchFlags(cfg.flagsStore).catch(() => null),
-    ]);
+  const [
+    totalUsers,
+    totalDrawings,
+    publishStats,
+    registerStats,
+    failures,
+    kpiPage,
+    users,
+    merchFlags,
+  ] = await Promise.all([
+    describeItemCount(cfg.ddbClient, cfg.usersTable).catch(() => null),
+    describeItemCount(cfg.ddbClient, cfg.drawingsTable).catch(() => null),
+    insights(PUBLISH_STATS_QUERY).catch(() => null),
+    insights(REGISTER_STATS_QUERY).catch(() => null),
+    insights(FAILURES_QUERY).catch(() => null),
+    cfg.drawingStore.queryGallery({ limit: KPI_SCAN_LIMIT }).catch(() => null),
+    loadAdminUsers({
+      userStore: cfg.userStore,
+      userStatsStore: cfg.userStatsStore,
+      startMs,
+    }).catch(() => null),
+    loadMerchFlags(cfg.flagsStore).catch(() => null),
+  ]);
 
   const view: AdminView = {
     adminUsername,
