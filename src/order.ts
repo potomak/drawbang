@@ -53,35 +53,34 @@ const STATUS_COPY: Record<string, string> = {
 
 const THANK_YOU_COPY: Record<string, { title: string; subtitle: string }> = {
   pending: {
-    title: "Thank you for your order!",
-    subtitle: "We’re confirming your payment — this usually takes under a minute.",
+    title: "Thanks — order received",
+    subtitle: "Confirming your payment — usually under a minute.",
   },
   paid: {
-    title: "Thank you for your order!",
-    subtitle: "Payment received. We’re preparing your print.",
+    title: "Payment confirmed",
+    subtitle: "Thanks! We're getting your order ready for the printer.",
   },
   submitted: {
-    title: "Thank you for your order!",
-    subtitle: "Your Draw! is being printed with care.",
+    title: "In production",
+    subtitle: "Your tee is being printed — we'll email you when it ships.",
   },
   in_production: {
-    title: "Thank you for your order!",
-    subtitle: "Your Draw! is being printed with care.",
+    title: "In production",
+    subtitle: "Your tee is being printed — we'll email you when it ships.",
   },
   shipped: {
-    title: "Thank you for your order!",
-    subtitle: "Your order has shipped — tracking is on its way.",
+    title: "Shipped!",
+    subtitle: "Tracking is in your email.",
   },
   delivered: {
-    title: "Thank you for your order!",
-    subtitle: "Your order has been delivered — enjoy!",
+    title: "Delivered",
+    subtitle: "Enjoy your tee!",
   },
   failed: {
     title: "Order failed",
-    subtitle:
-      "We couldn’t complete your order. You have not been charged, or a refund is on the way.",
+    subtitle: "We couldn’t complete it — you haven’t been charged, or a refund is on the way.",
   },
-  refunded: { title: "Order refunded", subtitle: "Your order has been refunded." },
+  refunded: { title: "Refunded", subtitle: "Your order has been refunded." },
 };
 
 const CATALOG = merchCatalog as { products: MerchProduct[] };
