@@ -285,7 +285,9 @@ async function loadMerchFlags(flagsStore?: AnyFlagsStore): Promise<AdminView["me
   let env: "prod" | "sandbox" = "sandbox";
   let row: { updated_at?: string | null; updated_by?: string | null } | null = null;
   try {
-    const maybeEnv = await (flagsStore as unknown as { getMerchEnv?: () => Promise<string> }).getMerchEnv?.();
+    const maybeEnv = await (
+      flagsStore as unknown as { getMerchEnv?: () => Promise<string> }
+    ).getMerchEnv?.();
     if (maybeEnv === "prod" || maybeEnv === "sandbox") env = maybeEnv;
     // Try to get the merch_env row for audit metadata, then fall back to dry_run.
     const envRow = await flagsStore.getFlag("merch_env");
@@ -320,7 +322,9 @@ export async function handleGetMerchFlags(args: {
 }): Promise<{ status: number; body: unknown; headers?: Record<string, string> }> {
   const store = args.flagsStore as unknown as {
     getMerchEnv?: () => Promise<string>;
-    getFlag: (flag: string) => Promise<{ updated_at?: string | null; updated_by?: string | null } | null>;
+    getFlag: (
+      flag: string
+    ) => Promise<{ updated_at?: string | null; updated_by?: string | null } | null>;
   };
   let env: "prod" | "sandbox" = "sandbox";
   try {
@@ -340,7 +344,12 @@ export async function handleGetMerchFlags(args: {
   if (!row) {
     return {
       status: 200,
-      body: { merch_env: env, merch_dry_run: env === "sandbox", updated_at: null, updated_by: null },
+      body: {
+        merch_env: env,
+        merch_dry_run: env === "sandbox",
+        updated_at: null,
+        updated_by: null,
+      },
       headers: { "Cache-Control": "private, no-store" },
     };
   }
@@ -383,8 +392,15 @@ export async function handleSetMerchFlags(args: {
   // Prefer the new setMerchEnv path; fall back to setFlag for stores that
   // haven't been migrated (e.g. tests with a minimal stub).
   const store = args.flagsStore as unknown as {
-    setMerchEnv?: (env: string, updatedBy: string) => Promise<{ updated_at?: string; updated_by?: string }>;
-    setFlag: (flag: string, enabled: boolean, updatedBy: string) => Promise<{ updated_at?: string; updated_by?: string }>;
+    setMerchEnv?: (
+      env: string,
+      updatedBy: string
+    ) => Promise<{ updated_at?: string; updated_by?: string }>;
+    setFlag: (
+      flag: string,
+      enabled: boolean,
+      updatedBy: string
+    ) => Promise<{ updated_at?: string; updated_by?: string }>;
     getMerchEnv?: () => Promise<string>;
   };
   let row: { updated_at?: string; updated_by?: string } | null = null;

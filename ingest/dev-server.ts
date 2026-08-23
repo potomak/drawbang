@@ -251,7 +251,9 @@ async function buildDevAdminView(
   });
   let merchEnv: "prod" | "sandbox" = "sandbox";
   try {
-    const maybe = await (flagsStore as unknown as { getMerchEnv?: () => Promise<string> }).getMerchEnv?.();
+    const maybe = await (
+      flagsStore as unknown as { getMerchEnv?: () => Promise<string> }
+    ).getMerchEnv?.();
     if (maybe === "prod" || maybe === "sandbox") merchEnv = maybe;
   } catch {
     // ignore, default sandbox
@@ -271,7 +273,12 @@ async function buildDevAdminView(
         updated_at: flagRow.updated_at ?? null,
         updated_by: flagRow.updated_by ?? null,
       }
-    : { merch_env: merchEnv, merch_dry_run: merchEnv === "sandbox", updated_at: null, updated_by: null };
+    : {
+        merch_env: merchEnv,
+        merch_dry_run: merchEnv === "sandbox",
+        updated_at: null,
+        updated_by: null,
+      };
   return {
     adminUsername,
     range,

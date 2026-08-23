@@ -182,7 +182,7 @@ export class FlagsStore {
 
   async setMerchEnv(
     env: MerchEnv,
-    updatedBy?: string | { updated_by?: string; updatedBy?: string; now?: string },
+    updatedBy?: string | { updated_by?: string; updatedBy?: string; now?: string }
   ): Promise<Flag> {
     const n = normalizeEnv(env) ?? "sandbox";
     let updated_by: string | undefined;
@@ -214,9 +214,12 @@ export class FlagsStore {
           updated_at: now,
           ...(updated_by ? { updated_by } : {}),
         },
-      }),
+      })
     );
-    this.cache.set(MERCH_ENV_FLAG, { value: { ...item }, expiresAt: this.clock() + this.cacheTtlMs });
+    this.cache.set(MERCH_ENV_FLAG, {
+      value: { ...item },
+      expiresAt: this.clock() + this.cacheTtlMs,
+    });
     // Keep legacy merch_dry_run row in sync so old readers see the same env.
     const dryEnabled = n === "sandbox";
     const dryItem: Flag = {
@@ -236,9 +239,12 @@ export class FlagsStore {
           updated_at: now,
           ...(updated_by ? { updated_by } : {}),
         },
-      }),
+      })
     );
-    this.cache.set(MERCH_DRY_RUN_FLAG, { value: { ...dryItem }, expiresAt: this.clock() + this.cacheTtlMs });
+    this.cache.set(MERCH_DRY_RUN_FLAG, {
+      value: { ...dryItem },
+      expiresAt: this.clock() + this.cacheTtlMs,
+    });
     return { ...item };
   }
 }
@@ -263,7 +269,8 @@ function normalizeRawFlag(raw: Record<string, unknown>): Flag {
   if (typeof enabledRaw === "boolean") enabled = enabledRaw;
   else if (typeof valueRaw === "boolean") enabled = valueRaw;
   else if (env) enabled = env === "sandbox";
-  else if (enabledRaw !== undefined || valueRaw !== undefined) enabled = Boolean(enabledRaw ?? valueRaw);
+  else if (enabledRaw !== undefined || valueRaw !== undefined)
+    enabled = Boolean(enabledRaw ?? valueRaw);
   return {
     flag,
     ...(env ? { env } : {}),
@@ -363,7 +370,7 @@ export class MemoryFlagsStore {
 
   async setMerchEnv(
     env: MerchEnv,
-    updatedBy?: string | { updated_by?: string; updatedBy?: string; now?: string },
+    updatedBy?: string | { updated_by?: string; updatedBy?: string; now?: string }
   ): Promise<Flag> {
     const n = normalizeEnv(env) ?? "sandbox";
     let updated_by: string | undefined;
@@ -385,7 +392,10 @@ export class MemoryFlagsStore {
       updated_at: now,
     };
     this.store.set(MERCH_ENV_FLAG, { ...item });
-    this.cache.set(MERCH_ENV_FLAG, { value: { ...item }, expiresAt: this.clock() + this.cacheTtlMs });
+    this.cache.set(MERCH_ENV_FLAG, {
+      value: { ...item },
+      expiresAt: this.clock() + this.cacheTtlMs,
+    });
     const dryEnabled = n === "sandbox";
     const dryItem: Flag = {
       flag: MERCH_DRY_RUN_FLAG,
@@ -395,7 +405,10 @@ export class MemoryFlagsStore {
       updated_at: now,
     };
     this.store.set(MERCH_DRY_RUN_FLAG, { ...dryItem });
-    this.cache.set(MERCH_DRY_RUN_FLAG, { value: { ...dryItem }, expiresAt: this.clock() + this.cacheTtlMs });
+    this.cache.set(MERCH_DRY_RUN_FLAG, {
+      value: { ...dryItem },
+      expiresAt: this.clock() + this.cacheTtlMs,
+    });
     return { ...item };
   }
 
