@@ -88,6 +88,8 @@ jobs:
           PRINTIFY_SHOP_ID: ${{ secrets.PRINTIFY_SHOP_ID }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STRIPE_SECRET_KEY_TEST: ${{ secrets.STRIPE_SECRET_KEY_TEST }}
+          STRIPE_WEBHOOK_SECRET_TEST: ${{ secrets.STRIPE_WEBHOOK_SECRET_TEST }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           # Not sensitive (a public From address) — a prod environment variable,
           # not a secret. secrets.* would resolve empty and skip the param.
@@ -117,6 +119,8 @@ jobs:
             "PrintifyShopId=${PRINTIFY_SHOP_ID}" \
             "StripeSecretKey=${STRIPE_SECRET_KEY}" \
             "StripeWebhookSecret=${STRIPE_WEBHOOK_SECRET}" \
+            "StripeSecretKeyTest=${STRIPE_SECRET_KEY_TEST}" \
+            "StripeWebhookSecretTest=${STRIPE_WEBHOOK_SECRET_TEST}" \
             "JwtSecret=${JWT_SECRET}" \
             "SesFromAddress=${SES_FROM_ADDRESS}" \
             "AdminUsernames=${ADMIN_USERNAMES}" \
