@@ -1,9 +1,11 @@
-import type { OrdersStore, OrderStatus, OrderEnv } from "../merch/orders.js";
+import type { OrdersStore, MemoryOrdersStore, OrderStatus, OrderEnv } from "../merch/orders.js";
 import type { RenderResponse } from "./render-handlers.js";
 import { renderAdminOrdersShell, renderAdminOrdersInner } from "../lib/templates/admin-orders.js";
 
+export type AnyOrdersStore = OrdersStore | MemoryOrdersStore;
+
 export interface AdminOrdersConfig {
-  ordersStore: OrdersStore;
+  ordersStore: AnyOrdersStore;
 }
 
 const VALID_STATUSES: ReadonlySet<string> = new Set([

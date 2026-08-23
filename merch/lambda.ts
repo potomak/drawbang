@@ -109,11 +109,6 @@ async function getMerchEnv(flags: MerchHandlerDeps["flags"]): Promise<MerchEnv> 
   }
 }
 
-async function isDryRunFlag(flags: MerchHandlerDeps["flags"]): Promise<boolean> {
-  const env = await getMerchEnv(flags);
-  return env === "sandbox";
-}
-
 function toOrderEnv(env: MerchEnv): OrderEnv {
   return env === "prod" ? "prod" : "sandbox";
 }
