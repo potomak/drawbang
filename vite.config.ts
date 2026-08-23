@@ -40,6 +40,10 @@ const DEV_PROXY_PATHS = [
   "/me/likes",
   "/likes/counts",
   "/subscribe",
+  // Merch product pages — SSR via ingest dev-server (renderProductPageHandler)
+  "/products",
+  "^/merch/.*",
+  "/hydrate",
 ];
 
 export default defineConfig({

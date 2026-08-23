@@ -29,6 +29,8 @@ import { MemoryFlagsStore } from "../merch/flags-store.js";
 import { MemoryOrdersStore } from "../merch/orders.js";
 import type { AuthHandlerConfig } from "./auth-handler.js";
 import type { RenderHandlersConfig } from "./render-handlers.js";
+import merchCatalog from "../config/merch.json" with { type: "json" };
+import type { MerchCatalog } from "../merch/lambda.js";
 import {
   authFromBearer,
   createRoutes,
@@ -82,6 +84,7 @@ const renderConfig: RenderHandlersConfig = {
   userStore,
   bookmarksStore,
   followsStore,
+  merchCatalog: merchCatalog as unknown as MerchCatalog,
 };
 const authConfig: AuthHandlerConfig = {
   userStore,
