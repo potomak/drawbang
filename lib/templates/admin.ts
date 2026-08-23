@@ -9,9 +9,9 @@ import { renderHtmlShell } from "./_html-shell.js";
 // from /admin/data with Authorization: Bearer <jwt>. Same pattern as
 // /u/<un>/bookmarks → /me/bookmarks/feed.
 //
-// Cards on top, a recent-failures table below. Inline styles only —
-// this is the one page that uses them, no need to leak `.adm-*` rules
-// into chrome.css.
+// Cards on top, a recent-failures table below. Styles for .adm-* live
+// in static/gallery-v2.css per the three-CSS-file rule (chrome.css =
+// chrome, src/style.css = Vite pages, gallery-v2.css = Lambda pages).
 
 export type AdminRange = "24h" | "7d" | "30d";
 
@@ -85,39 +85,12 @@ export interface AdminShellOptions {
 
 const RANGES: ReadonlyArray<AdminRange> = ["24h", "7d", "30d"];
 
-// TODO (#admin-inline-styles): move .adm-* to static/gallery-v2.css per the
-// three-CSS-file rule — see docs/architecture-review-2026-06.md.
-const ADMIN_STYLES = `<style>
-      .adm-main { display: grid; gap: 24px; padding: 24px var(--pad); max-width: 1100px; margin: 0 auto; }
-      .adm-bar { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-      .adm-range { display: flex; gap: 8px; }
-      .adm-range a { padding: 6px 12px; border: var(--border) solid var(--line); text-decoration: none; color: var(--ink); font-size: var(--t-sm); }
-      .adm-range a[aria-current="page"] { background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
-      .adm-meta { color: var(--fg-muted); font-size: var(--t-xs); }
-      .adm-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-      .adm-card { border: var(--border) solid var(--line); padding: 16px; display: grid; gap: 6px; background: var(--paper-2); }
-      .adm-card-label { font-size: var(--t-xs); color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.04em; }
-      .adm-num { font-size: var(--t-2xl); font-family: var(--font-mono); }
-      .adm-sub { font-size: var(--t-xs); color: var(--fg-muted); }
-      .adm-section-title { font-size: var(--t-lg); margin: 0; }
-      .adm-table-wrap { overflow-x: auto; border: var(--border) solid var(--line); }
-      .adm-table { width: 100%; border-collapse: collapse; font-size: var(--t-xs); font-family: var(--font-mono); }
-      .adm-table th, .adm-table td { padding: 6px 10px; text-align: left; border-bottom: var(--border) solid var(--line); white-space: nowrap; }
-      .adm-table tr:last-child td { border-bottom: 0; }
-      .adm-table th { background: var(--paper-2); font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); }
-      .adm-table td.adm-msg { white-space: normal; max-width: 360px; }
-      .adm-status-4xx { color: var(--ink); }
-      .adm-status-5xx { color: #b00020; font-weight: bold; }
-      .adm-empty { padding: 24px; text-align: center; color: var(--fg-muted); }
-      .adm-inner { display: grid; gap: 24px; }
-      .adm-del { padding: 2px 8px; font-size: var(--t-xs); line-height: 1.6; }
-      .adm-row-gone td { opacity: 0.4; text-decoration: line-through; }
-    </style>`;
+
 
 export function renderAdminShell(opts: AdminShellOptions): string {
   return renderHtmlShell({
     title: "Admin — Draw!",
-    extraHead: `<meta name="robots" content="noindex,nofollow">\n    ${ADMIN_STYLES}`,
+    extraHead: `<meta name="robots" content="noindex,nofollow">`,
     bodyAttrs: "data-admin-page",
     body: `    ${renderHeader()}
     <main class="adm-main">
