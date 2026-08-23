@@ -26,6 +26,7 @@ import {
 import type { AdminView } from "../lib/templates/admin.js";
 import { renderAdminInner } from "../lib/templates/admin.js";
 import { MemoryFlagsStore } from "../merch/flags-store.js";
+import { MemoryOrdersStore } from "../merch/orders.js";
 import type { AuthHandlerConfig } from "./auth-handler.js";
 import type { RenderHandlersConfig } from "./render-handlers.js";
 import {
@@ -53,6 +54,7 @@ const adminUsernames = new Set(
 const adminOpenInDev = adminUsernames.size === 0;
 
 const flagsStore = new MemoryFlagsStore();
+const ordersStore = new MemoryOrdersStore();
 
 const storage = new FsStorage(ROOT);
 const drawingStore = new MemoryDrawingStore();
@@ -142,6 +144,7 @@ const routes = createRoutes({
       body: renderAdminInner(await buildDevAdminView(adminUsername, range)),
     }),
     flagsStore,
+    ordersStore,
   },
   repoUrl: process.env.REPO_URL ?? "https://github.com/potomak/drawbang",
 });

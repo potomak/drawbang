@@ -528,6 +528,14 @@ Resources:
             Compress: true
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          - PathPattern: /admin/orders*
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
           - PathPattern: /admin*
             TargetOriginId: api
             ViewerProtocolPolicy: redirect-to-https
@@ -871,6 +879,7 @@ Resources:
           DRAWBANG_FOLLOWS_TABLE: !Ref FollowsTable
           DRAWBANG_SUBSCRIBERS_TABLE: !Ref SubscribersTable
           DRAWBANG_CHALLENGES_TABLE: !Ref ChallengesTable
+          ORDERS_TABLE: !Ref OrdersTable
           # Flags table for the admin merch dry-run toggle (#274 / #277).
           # merch/flags-store.ts reads this via FLAGS_TABLE /
           # DRAWBANG_FLAGS_TABLE; the ingest admin handler (GET+POST
@@ -906,6 +915,7 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref FollowsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref SubscribersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref ChallengesTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref OrdersTable }
         # Runtime flags for the merch dry-run toggle (#274 / #277). Ingest
         # is the writer (POST /admin/merch/flags) and reader (GET
         # /admin/merch/flags + lib/templates/admin.ts card); merch is the
@@ -1249,6 +1259,24 @@ Resources:
             ApiId: !Ref IngestApi
             Method: POST
             Path: /admin/merch/flags
+        AdminOrders:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /admin/orders
+        AdminOrdersData:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: GET
+            Path: /admin/orders/data
+        AdminOrderUpdate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: POST
+            Path: /admin/orders/{orderId}/status
 
   # Lambda auto-creates /aws/lambda/drawbang-ingest with infinite retention
   # on first invocation. Apply a 90-day cap once via the AWS CLI so the

@@ -39,6 +39,11 @@ import {
 import { handleHydrate, type HydrateHandlerConfig } from "./hydrate-handler.js";
 import { handleSubscribe, type SubscribeHandlerConfig } from "./subscribe-handler.js";
 import { parseRange } from "./admin-handler.js";
+import {
+  handleAdminOrderUpdate,
+  handleAdminOrdersData,
+  handleAdminOrdersPage,
+} from "./admin-orders-handler.js";
 import { mintChallenge } from "./challenge.js";
 import { renderAdminShell, type AdminRange } from "../lib/templates/admin.js";
 import {
@@ -146,6 +151,8 @@ export interface RouteDeps {
     isAllowed(username: string): boolean;
     renderData(args: { range: AdminRange; adminUsername: string }): Promise<RenderResponse>;
     flagsStore?: import("../merch/flags-store.js").AnyFlagsStore;
+    ordersStore?:
+      import("../merch/orders.js").OrdersStore | import("../merch/orders.js").MemoryOrdersStore;
   };
   repoUrl: string;
 }
@@ -307,9 +314,7 @@ export function createRoutes(deps: RouteDeps): Route[] {
         }
         const store = deps.admin.flagsStore as unknown as {
           getMerchEnv?: () => Promise<string>;
-          getFlag: (
-            flag: string
-          ) => Promise<{
+          getFlag: (flag: string) => Promise<{
             updated_at?: string | null;
             updated_by?: string | null;
             env?: string;
@@ -488,6 +493,161 @@ export function createRoutes(deps: RouteDeps): Route[] {
           username: auth!.username,
         });
         return json(200, body, { "Cache-Control": "private, no-store" });
+      },
+    },
+    // Admin orders — operator view + status management. Same allowlist gate as
+    // /admin/data. GET /admin/orders is the shell, GET /admin/orders/data
+    // is the inner fragment, POST /admin/orders/{id}/status updates status/env.
+    {
+      methods: ["GET"],
+      pattern: /^\/admin\/orders$/,
+      auth: "required",
+      logName: "GET /admin/orders",
+      handler: async (req, _params, auth) => {
+        const route = "GET /admin/orders";
+        if (!deps.admin.isAllowed(auth!.username)) {
+          logOutcome({
+            requestId: req.requestId,
+            route,
+            status: 403,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id,
+            username: auth!.username,
+            error_code: "forbidden",
+          });
+          return json(403, { error: "not authorised" });
+        }
+        if (!deps.admin.ordersStore) {
+          logOutcome({
+            requestId: req.requestId,
+            route,
+            status: 500,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id,
+            username: auth!.username,
+            error_code: "orders_store_not_wired",
+          });
+          return json(500, { error: "orders store not configured" });
+        }
+        const rendered = await handleAdminOrdersPage();
+        logOutcome({
+          requestId: req.requestId,
+          route,
+          status: rendered.status,
+          duration_ms: Date.now() - req.t0,
+          user_id: auth!.user_id,
+          username: auth!.username,
+        });
+        return render(rendered);
+      },
+    },
+    {
+      methods: ["GET"],
+      pattern: /^\/admin\/orders\/data$/,
+      auth: "required",
+      logName: "GET /admin/orders/data",
+      handler: async (req, _params, auth) => {
+        const route = "GET /admin/orders/data";
+        if (!deps.admin.isAllowed(auth!.username)) {
+          logOutcome({
+            requestId: req.requestId,
+            route,
+            status: 403,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id,
+            username: auth!.username,
+            error_code: "forbidden",
+          });
+          return json(403, { error: "not authorised" });
+        }
+        if (!deps.admin.ordersStore) {
+          logOutcome({
+            requestId: req.requestId,
+            route,
+            status: 500,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id,
+            username: auth!.username,
+            error_code: "orders_store_not_wired",
+          });
+          return json(500, { error: "orders store not configured" });
+        }
+        const rendered = await handleAdminOrdersData({ ordersStore: deps.admin.ordersStore });
+        logOutcome({
+          requestId: req.requestId,
+          route,
+          status: rendered.status,
+          duration_ms: Date.now() - req.t0,
+          user_id: auth!.user_id,
+          username: auth!.username,
+        });
+        return render(rendered);
+      },
+    },
+    {
+      methods: ["POST"],
+      pattern: /^\/admin\/orders\/([0-9a-f-]{36})\/status$/,
+      auth: "required",
+      logName: "POST /admin/orders/{orderId}/status",
+      handler: async (req, params, auth) => {
+        const route = "POST /admin/orders/{orderId}/status";
+        if (!deps.admin.isAllowed(auth!.username)) {
+          logOutcome({
+            requestId: req.requestId,
+            route,
+            status: 403,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id,
+            username: auth!.username,
+            error_code: "forbidden",
+          });
+          return json(403, { error: "not authorised" });
+        }
+        if (!deps.admin.ordersStore) {
+          logOutcome({
+            requestId: req.requestId,
+            route,
+            status: 500,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id,
+            username: auth!.username,
+            error_code: "orders_store_not_wired",
+          });
+          return json(500, { error: "orders store not configured" });
+        }
+        const orderId = params[0];
+        let raw: string;
+        try {
+          raw = await req.body();
+        } catch {
+          logOutcome({
+            requestId: req.requestId,
+            route,
+            status: 400,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id,
+            username: auth!.username,
+            error_code: "bad_json",
+          });
+          return json(400, { error: "bad json body" });
+        }
+        const res = await handleAdminOrderUpdate(
+          { ordersStore: deps.admin.ordersStore },
+          orderId,
+          raw
+        );
+        logOutcome({
+          requestId: req.requestId,
+          route,
+          status: res.status,
+          duration_ms: Date.now() - req.t0,
+          user_id: auth!.user_id,
+          username: auth!.username,
+          ...(res.status >= 400
+            ? { error_code: String((res.body as { error?: string }).error ?? "") }
+            : {}),
+        });
+        return json(res.status, res.body);
       },
     },
     // Dynamic HTML routes: feed home, drawing page, profile, RSS, products.

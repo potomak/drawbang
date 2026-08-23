@@ -5,6 +5,7 @@ import {
   GetCommand,
   UpdateCommand,
   QueryCommand,
+  ScanCommand,
 } from "@aws-sdk/lib-dynamodb";
 import type { Placement } from "./placement.js";
 import type { ShippingAddress } from "./printify.js";
@@ -162,5 +163,109 @@ export class OrdersStore {
       })
     );
     return (out.Items as Order[] | undefined) ?? [];
+  }
+
+  async scanRecent(limit = 100): Promise<Order[]> {
+    const out = await this.doc.send(
+      new ScanCommand({
+        TableName: this.tableName,
+        Limit: limit,
+      })
+    );
+    const items = (out.Items as Order[] | undefined) ?? [];
+    // Sort newest first by created_at; fall back to updated_at.
+    items.sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+    return items.slice(0, limit);
+  }
+
+  async adminSetStatus(id: string, status: OrderStatus): Promise<Order | null> {
+    try {
+      const out = await this.doc.send(
+        new UpdateCommand({
+          TableName: this.tableName,
+          Key: { order_id: id },
+          UpdateExpression: "SET #s = :status, #u = :now",
+          ExpressionAttributeNames: { "#s": "status", "#u": "updated_at" },
+          ExpressionAttributeValues: { ":status": status, ":now": new Date().toISOString() },
+          ReturnValues: "ALL_NEW",
+        })
+      );
+      return (out.Attributes as Order | undefined) ?? null;
+    } catch (err) {
+      if (err instanceof Error && err.name === "ConditionalCheckFailedException") return null;
+      throw err;
+    }
+  }
+
+  async adminSetEnv(id: string, env: OrderEnv): Promise<Order | null> {
+    try {
+      const out = await this.doc.send(
+        new UpdateCommand({
+          TableName: this.tableName,
+          Key: { order_id: id },
+          UpdateExpression: "SET #e = :env, #u = :now",
+          ExpressionAttributeNames: { "#e": "env", "#u": "updated_at" },
+          ExpressionAttributeValues: { ":env": env, ":now": new Date().toISOString() },
+          ReturnValues: "ALL_NEW",
+        })
+      );
+      return (out.Attributes as Order | undefined) ?? null;
+    } catch (err) {
+      if (err instanceof Error && err.name === "ConditionalCheckFailedException") return null;
+      throw err;
+    }
+  }
+}
+
+export class MemoryOrdersStore {
+  private readonly store = new Map<string, Order>();
+
+  async createOrder(o: Order): Promise<void> {
+    if (this.store.has(o.order_id)) throw new Error("ConditionalCheckFailedException");
+    this.store.set(o.order_id, { ...o });
+  }
+
+  async getOrder(id: string): Promise<Order | null> {
+    const v = this.store.get(id);
+    return v ? { ...v } : null;
+  }
+
+  async transition(
+    id: string,
+    expectedStatus: OrderStatus,
+    patch: Partial<Order>
+  ): Promise<Order | null> {
+    const cur = this.store.get(id);
+    if (!cur || cur.status !== expectedStatus) return null;
+    const next = { ...cur, ...patch, updated_at: new Date().toISOString() };
+    this.store.set(id, next);
+    return { ...next };
+  }
+
+  async listByStatus(status: OrderStatus, limit?: number): Promise<Order[]> {
+    const out = [...this.store.values()].filter((o) => o.status === status);
+    return limit !== undefined ? out.slice(0, limit) : out;
+  }
+
+  async scanRecent(limit = 100): Promise<Order[]> {
+    const out = [...this.store.values()];
+    out.sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+    return out.slice(0, limit);
+  }
+
+  async adminSetStatus(id: string, status: OrderStatus): Promise<Order | null> {
+    const cur = this.store.get(id);
+    if (!cur) return null;
+    const next = { ...cur, status, updated_at: new Date().toISOString() };
+    this.store.set(id, next);
+    return { ...next };
+  }
+
+  async adminSetEnv(id: string, env: OrderEnv): Promise<Order | null> {
+    const cur = this.store.get(id);
+    if (!cur) return null;
+    const next = { ...cur, env, updated_at: new Date().toISOString() };
+    this.store.set(id, next);
+    return { ...next };
   }
 }
