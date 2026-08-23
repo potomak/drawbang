@@ -101,17 +101,21 @@ const SANITIZED_FIELDS: ReadonlySet<keyof Order> = new Set([
 ]);
 
 async function isDryRunFlag(flags: MerchHandlerDeps["flags"]): Promise<boolean> {
-  if (!flags) return false;
+  if (!flags) return true;
   try {
     const flag = await flags.getFlag(MERCH_DRY_RUN_FLAG);
-    if (!flag) return false;
+    if (!flag) return true;
     // Flag may carry `enabled` (new) or `value` (compat) — treat either.
+    // Missing flag defaults to dry-run true (safe) — matches
+    // FlagsStore.getMerchDryRunValue and ingest/admin-handler loadMerchFlags.
     const v =
       (flag as { enabled?: boolean; value?: boolean }).enabled ??
       (flag as { value?: boolean }).value;
-    return Boolean(v);
+    // If the row exists but carries no boolean, stay safe.
+    if (typeof v !== "boolean") return true;
+    return v;
   } catch {
-    return false;
+    return true;
   }
 }
 
