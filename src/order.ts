@@ -83,6 +83,35 @@ const THANK_YOU_COPY: Record<string, { title: string; subtitle: string }> = {
   refunded: { title: "Refunded", subtitle: "Your order has been refunded." },
 };
 
+type ProgressStep = { label: string; key: string };
+const PROGRESS_STEPS: ReadonlyArray<ProgressStep> = [
+  { label: "Received", key: "pending" },
+  { label: "Paid", key: "paid" },
+  { label: "In production", key: "submitted" },
+  { label: "Shipped", key: "shipped" },
+];
+
+function stepIndex(status: string): number {
+  switch (status) {
+    case "pending":
+      return 0;
+    case "paid":
+      return 1;
+    case "submitted":
+    case "in_production":
+      return 2;
+    case "shipped":
+    case "delivered":
+      return 3;
+    default:
+      return -1;
+  }
+}
+
+function isFailedStatus(status: string): boolean {
+  return status === "failed" || status === "refunded";
+}
+
 const CATALOG = merchCatalog as { products: MerchProduct[] };
 const MOCKUPS = mockupsConfig as { products: Record<string, MockupEntry> };
 
@@ -146,6 +175,22 @@ function mockupUrl(productId: string | undefined): string | null {
   return MOCKUPS.products["tee"]?.mockup_url ?? null;
 }
 
+function renderProgress(status: string): string {
+  const failed = isFailedStatus(status);
+  const idx = stepIndex(status);
+  const steps = PROGRESS_STEPS.map((step, i) => {
+    let state: "completed" | "current" | "pending" | "failed" = "pending";
+    if (failed) state = idx >= 0 && i <= idx ? "completed" : "pending";
+    else if (i < idx) state = "completed";
+    else if (i === idx) state = "current";
+    const ariaCurrent = state === "current" ? ' aria-current="step"' : "";
+    const marker = state === "completed" ? "✓" : state === "failed" ? "✕" : String(i + 1);
+    return `<li class="order-progress-step order-progress-step--${state}"${ariaCurrent}><span class="order-progress-marker">${escapeHtml(marker)}</span><span class="order-progress-label">${escapeHtml(step.label)}</span></li>`;
+  }).join("");
+  const failedClass = failed ? " order-progress--failed" : "";
+  return `<ol class="order-progress${failedClass}" aria-label="Order progress">${steps}</ol>`;
+}
+
 function renderRetry(msg: string, onRetry: () => void): void {
   cardEl.innerHTML = `
     <p class="merch-status">${escapeHtml(msg)}</p>
@@ -195,6 +240,7 @@ function renderOrder(order: OrderView): void {
       <h2 class="order-thanks-title">${escapeHtml(thankYou.title)}</h2>
       <p class="order-thanks-sub">${escapeHtml(thankYou.subtitle)}</p>
     </div>
+    ${renderProgress(status)}
     <div class="order-visuals">
       <div class="order-visual order-visual--drawing">
         <span class="order-visual-label">Your Draw!</span>
