@@ -1153,9 +1153,27 @@ img.profile-picture {
 /* =====================================================================
    DRAWING PAGE PRODUCTS — replaces the old #dr-make-merch button.
    Reuses the .pr-grid / .pr-card / .pr-art system from the /products
-   list so no duplicate rules. Responsive breakpoints come from that
-   system (6→4→3→2 cols). This wrapper only adds vertical rhythm.
+   list so no duplicate rules. This wrapper adds vertical rhythm and
+   fixes the 4-product grid (was auto-fill clipped to 3+1 on desktop).
    ===================================================================== */
 .dr-products {
   margin: 0 0 24px;
+  padding-bottom: 8px;
+}
+.dr-products .pr-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+@media (max-width: 1024px) {
+  .dr-products .pr-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .dr-products .pr-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.dr-products .pr-art.pr-art-mug {
+  background: #e8e0d0;
+  border-color: var(--line);
 }

@@ -100,8 +100,11 @@ ${colors
       <a class="pp-back" href="/d/${esc(v.drawing_id)}">← Back to drawing</a>
       <div class="pp-grid">
         <div class="pp-media">
-          <canvas id="pp-preview" aria-label="drawing preview" width="320" height="320"></canvas>
-          <div id="pp-mockup" class="pp-mockup-wrap">
+          <div class="pp-preview-wrap">
+            <img id="pp-preview-img" src="/tiles/${esc(v.drawing_id)}.gif" alt="drawing preview" class="pp-drawing-img" width="320" height="320" loading="eager" />
+            <canvas id="pp-preview" aria-label="drawing preview" width="320" height="320" hidden></canvas>
+          </div>
+          <div id="pp-mockup" class="pp-mockup-wrap" hidden>
             <canvas id="pp-mockup-canvas" aria-label="${esc(v.product_name)} mockup"></canvas>
           </div>
         </div>

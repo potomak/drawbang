@@ -43,6 +43,7 @@ function qs<T extends Element>(sel: string): T | null {
 
 function getRoot(): HTMLElement | null {
   return (
+    qs<HTMLElement>("#product-page") ??
     qs<HTMLElement>("[data-product-page]") ??
     qs<HTMLElement>("#product-root") ??
     qs<HTMLElement>("[data-product-root]") ??
@@ -59,24 +60,50 @@ function getProductJsonFromDom(): MerchProduct | null {
       if (parsed && typeof parsed.id === "string" && Array.isArray(parsed.variants)) {
         return parsed as MerchProduct;
       }
-      // Wrapped as { product: … }
       if (parsed?.product) return parsed.product as MerchProduct;
     } catch {
       // fall through
     }
   }
-  // 2) data-product attribute on root (JSON-encoded merch product)
+  // 2) SSR main attrs: data-variants + data-product-id (+ shipping) on #product-page
   const root = getRoot();
-  const attr = root?.getAttribute("data-product") ?? root?.getAttribute("data-product-json");
-  if (attr) {
-    try {
-      const parsed = JSON.parse(attr);
-      if (parsed && typeof parsed.id === "string") return parsed as MerchProduct;
-    } catch {
-      // ignore
+  if (root) {
+    const variantsAttr = root.getAttribute("data-variants");
+    const productId = root.getAttribute("data-product-id");
+    const shippingAttr = root.getAttribute("data-shipping-cents");
+    if (variantsAttr && productId) {
+      try {
+        const variants = JSON.parse(variantsAttr) as MerchVariant[];
+        if (Array.isArray(variants) && variants.length > 0) {
+          const shipping_cents = shippingAttr ? Number.parseInt(shippingAttr, 10) : 0;
+          // Name is available in DOM as .pp-title; fallback to id
+          const nameEl = document.querySelector<HTMLElement>(".pp-title");
+          const name = nameEl?.textContent?.trim() || productId;
+          return {
+            id: productId,
+            name,
+            shipping_cents: Number.isFinite(shipping_cents) ? shipping_cents : 0,
+            variants,
+          } as MerchProduct;
+        }
+      } catch {
+        // ignore, try next fallback
+      }
     }
   }
-  // 3) window global injected by SSR
+  // 3) data-product attribute on root (JSON-encoded merch product)
+  if (root) {
+    const attr = root.getAttribute("data-product") ?? root.getAttribute("data-product-json");
+    if (attr) {
+      try {
+        const parsed = JSON.parse(attr);
+        if (parsed && typeof parsed.id === "string") return parsed as MerchProduct;
+      } catch {
+        // ignore
+      }
+    }
+  }
+  // 4) window global injected by SSR
   const w = window as unknown as Record<string, unknown>;
   if (w.__PRODUCT__ && typeof (w.__PRODUCT__ as MerchProduct).id === "string") {
     return w.__PRODUCT__ as MerchProduct;
@@ -200,8 +227,16 @@ function resolveElements(): void {
     null;
 
   // Split-axis pickers (tee size/color) — reused from merch.ts pattern
-  sizePickerEl = qs<HTMLElement>("#sizePicker") ?? qs<HTMLElement>("[data-size-picker]") ?? null;
-  colorPickerEl = qs<HTMLElement>("#colorPicker") ?? qs<HTMLElement>("[data-color-picker]") ?? null;
+  sizePickerEl =
+    qs<HTMLElement>("#pp-size-picker") ??
+    qs<HTMLElement>("#sizePicker") ??
+    qs<HTMLElement>("[data-size-picker]") ??
+    null;
+  colorPickerEl =
+    qs<HTMLElement>("#pp-color-picker") ??
+    qs<HTMLElement>("#colorPicker") ??
+    qs<HTMLElement>("[data-color-picker]") ??
+    null;
 
   priceEl =
     qs<HTMLElement>("#price") ??
@@ -248,6 +283,17 @@ function setStatus(msg: string): void {
 
 function renderVariantSelect(): void {
   if (!product) return;
+
+  // Product has split axes (size + color) and SSR already rendered the two pickers?
+  // In that case just sync aria-pressed, don't create the full-variant grid fallback.
+  const splitSizes = uniqueAxis(product, "size");
+  const splitColors = uniqueAxis(product, "color");
+  const hasSplit = splitSizes.length > 1 && splitColors.length > 1;
+  if (hasSplit && sizePickerEl && colorPickerEl) {
+    // SSR rendered #pp-size-picker / #pp-color-picker with data-axis pills; hydrate.
+    syncPillSelection();
+    return;
+  }
 
   // If SSR already rendered pills with data-variant-id, hydrate selection instead of re-rendering.
   const existingPills = variantPillsEl?.querySelectorAll<HTMLElement>("[data-variant-id]") ?? [];
