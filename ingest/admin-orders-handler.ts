@@ -54,7 +54,7 @@ export async function handleAdminOrdersData(cfg: AdminOrdersConfig): Promise<Ren
 export async function handleAdminOrderUpdate(
   cfg: AdminOrdersConfig,
   orderId: string,
-  body: string,
+  body: string
 ): Promise<{ status: number; body: unknown }> {
   let parsed: unknown;
   try {

@@ -4,9 +4,9 @@ How to exercise the full `POST /merch/checkout` → Stripe Checkout → `POST /m
 
 ## Preconditions
 
-* Feature is behind the runtime flag `merch_dry_run` in `drawbang-flags` (DynamoDB `FLAGS_TABLE`). When `true` the merch Lambda uses the **test** Stripe keys and the dispatch path short-circuits before any Printify API call.
-* Infra: `drawbang-flags` table, dual Stripe env vars `STRIPE_SECRET_KEY_LIVE`/`STRIPE_SECRET_KEY_TEST` + `STRIPE_WEBHOOK_SECRET_LIVE`/`STRIPE_WEBHOOK_SECRET_TEST` (see `infra/aws/template.yaml`), `merch/flags-store.ts` (5 s cache), admin `GET`/`POST /admin/merch/flags`.
-* Secrets: GitHub `STRIPE_SECRET_KEY_TEST` / `STRIPE_WEBHOOK_SECRET_TEST` are wired to the SAM params `StripeSecretKeyTest` / `StripeWebhookSecretTest` by `deploy.yml`. Live keys stay in `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` (or the `…_LIVE` variants).
+- Feature is behind the runtime flag `merch_dry_run` in `drawbang-flags` (DynamoDB `FLAGS_TABLE`). When `true` the merch Lambda uses the **test** Stripe keys and the dispatch path short-circuits before any Printify API call.
+- Infra: `drawbang-flags` table, dual Stripe env vars `STRIPE_SECRET_KEY_LIVE`/`STRIPE_SECRET_KEY_TEST` + `STRIPE_WEBHOOK_SECRET_LIVE`/`STRIPE_WEBHOOK_SECRET_TEST` (see `infra/aws/template.yaml`), `merch/flags-store.ts` (5 s cache), admin `GET`/`POST /admin/merch/flags`.
+- Secrets: GitHub `STRIPE_SECRET_KEY_TEST` / `STRIPE_WEBHOOK_SECRET_TEST` are wired to the SAM params `StripeSecretKeyTest` / `StripeWebhookSecretTest` by `deploy.yml`. Live keys stay in `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` (or the `…_LIVE` variants).
 
 ## 1. Toggle dry-run
 
@@ -64,9 +64,9 @@ Local `MemoryFlagsStore` defaults `merch_dry_run=true` when no row is seeded, so
    ```
    When dry-run is on the session is created with `sk_test_…` and `checkout_url` contains `/c/test_`.
 4. Pay with a Stripe test card on the returned `checkout_url`:
-   * Success: `4242 4242 4242 4242` exp `12/34` cvc `123` zip `12345`
-   * Decline: `4000 0000 0000 9995`
-   * Auth required: `4000 0025 0000 3155`
+   - Success: `4242 4242 4242 4242` exp `12/34` cvc `123` zip `12345`
+   - Decline: `4000 0000 0000 9995`
+   - Auth required: `4000 0025 0000 3155`
 5. Stripe sends `checkout.session.completed` to `POST /merch/webhook/stripe` (API Gateway → merch Lambda). The Lambda validates with `whsec_test_…`, does `pending → paid` + `shipping_address`, then `dispatchSync` sees `dryRun=true` and does `paid → submitted` **without** calling `uploadImage`/`createProduct`/`createOrder`/`sendToProduction`. Check CloudWatch `/aws/lambda/drawbang-merch` for `placePrintifyOrder dry-run: order submitted without Printify` and `dry_run:true`.
 6. Poll the order:
    ```sh
@@ -83,16 +83,16 @@ Flip `merch_dry_run=false` via `/admin` (or deploy override). The next checkout 
 
 ## Troubleshooting
 
-* `400 bad signature` on webhook → Stripe secret mismatch. Confirm `StripeSecretKeyTest`/`StripeWebhookSecretTest` match Dashboard → Developers → API keys / Webhooks, and that `merch_dry_run` is `true` (otherwise live secret is used to verify).
-* Order stuck `pending` → webhook never arrived. For local, check `stripe listen` is still running. For prod, check Stripe Dashboard → Webhooks → Recent deliveries.
-* Order `paid` but never `submitted` → dispatch self-invoke failed. CloudWatch `placePrintifyOrder failed` will have the error; the order was still flipped to `failed` only if the failure happened while still `paid`.
-* 5 s flag staleness → toggle appears to not take effect. Wait 5 s or force cold start.
+- `400 bad signature` on webhook → Stripe secret mismatch. Confirm `StripeSecretKeyTest`/`StripeWebhookSecretTest` match Dashboard → Developers → API keys / Webhooks, and that `merch_dry_run` is `true` (otherwise live secret is used to verify).
+- Order stuck `pending` → webhook never arrived. For local, check `stripe listen` is still running. For prod, check Stripe Dashboard → Webhooks → Recent deliveries.
+- Order `paid` but never `submitted` → dispatch self-invoke failed. CloudWatch `placePrintifyOrder failed` will have the error; the order was still flipped to `failed` only if the failure happened while still `paid`.
+- 5 s flag staleness → toggle appears to not take effect. Wait 5 s or force cold start.
 
 ## Related
 
-* `merch/flags-store.ts` — flag store + `MERCH_DRY_RUN_FLAG`
-* `merch/dispatch.ts:placePrintifyOrder` — `dryRun` early-return (+ counter increment)
-* `merch/lambda.ts:bootDeps` / `isDryRunFlag` / `resolveStripeHelper` — per-request live vs test selection
-* `infra/aws/template.yaml:FlagsTable` / `StripeSecretKeyLive|Test`
-* `ingest/admin-handler.ts:handleGetMerchFlags` / `handleSetMerchFlags`
-* Issues #274 (master), #275/#276 (investigations, now closed), #278 (this runbook)
+- `merch/flags-store.ts` — flag store + `MERCH_DRY_RUN_FLAG`
+- `merch/dispatch.ts:placePrintifyOrder` — `dryRun` early-return (+ counter increment)
+- `merch/lambda.ts:bootDeps` / `isDryRunFlag` / `resolveStripeHelper` — per-request live vs test selection
+- `infra/aws/template.yaml:FlagsTable` / `StripeSecretKeyLive|Test`
+- `ingest/admin-handler.ts:handleGetMerchFlags` / `handleSetMerchFlags`
+- Issues #274 (master), #275/#276 (investigations, now closed), #278 (this runbook)

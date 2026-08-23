@@ -151,7 +151,8 @@ export interface RouteDeps {
     isAllowed(username: string): boolean;
     renderData(args: { range: AdminRange; adminUsername: string }): Promise<RenderResponse>;
     flagsStore?: import("../merch/flags-store.js").AnyFlagsStore;
-    ordersStore?: import("../merch/orders.js").OrdersStore | import("../merch/orders.js").MemoryOrdersStore;
+    ordersStore?:
+      import("../merch/orders.js").OrdersStore | import("../merch/orders.js").MemoryOrdersStore;
   };
   repoUrl: string;
 }
@@ -313,9 +314,7 @@ export function createRoutes(deps: RouteDeps): Route[] {
         }
         const store = deps.admin.flagsStore as unknown as {
           getMerchEnv?: () => Promise<string>;
-          getFlag: (
-            flag: string
-          ) => Promise<{
+          getFlag: (flag: string) => Promise<{
             updated_at?: string | null;
             updated_by?: string | null;
             env?: string;
@@ -632,7 +631,11 @@ export function createRoutes(deps: RouteDeps): Route[] {
           });
           return json(400, { error: "bad json body" });
         }
-        const res = await handleAdminOrderUpdate({ ordersStore: deps.admin.ordersStore }, orderId, raw);
+        const res = await handleAdminOrderUpdate(
+          { ordersStore: deps.admin.ordersStore },
+          orderId,
+          raw
+        );
         logOutcome({
           requestId: req.requestId,
           route,
@@ -640,7 +643,9 @@ export function createRoutes(deps: RouteDeps): Route[] {
           duration_ms: Date.now() - req.t0,
           user_id: auth!.user_id,
           username: auth!.username,
-          ...(res.status >= 400 ? { error_code: String((res.body as { error?: string }).error ?? "") } : {}),
+          ...(res.status >= 400
+            ? { error_code: String((res.body as { error?: string }).error ?? "") }
+            : {}),
         });
         return json(res.status, res.body);
       },

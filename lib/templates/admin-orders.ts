@@ -83,14 +83,19 @@ export function renderAdminOrdersInner(orders: ReadonlyArray<Order>): string {
     .map((o) => {
       const shortId = esc(o.order_id.slice(0, 8));
       const env = esc(o.env ?? "—");
-      const envCls = o.env === "prod" ? "adm-env-prod" : o.env === "sandbox" ? "adm-env-sandbox" : "";
+      const envCls =
+        o.env === "prod" ? "adm-env-prod" : o.env === "sandbox" ? "adm-env-sandbox" : "";
       const created = esc(formatDate(o.created_at));
-      const amount = esc(o.retail_cents !== undefined ? "$" + (o.retail_cents / 100).toFixed(2) : "—");
+      const amount = esc(
+        o.retail_cents !== undefined ? "$" + (o.retail_cents / 100).toFixed(2) : "—"
+      );
       const product = esc(o.product_id);
       const variant = esc(String(o.variant_id));
       const email = esc(o.customer_email ?? "—");
       const statusOpts = allStatuses()
-        .map((s) => `<option value="${esc(s)}"${s === o.status ? " selected" : ""}>${esc(s)}</option>`)
+        .map(
+          (s) => `<option value="${esc(s)}"${s === o.status ? " selected" : ""}>${esc(s)}</option>`
+        )
         .join("");
       const envOpts = (["prod", "sandbox"] as const)
         .map((e) => `<option value="${esc(e)}"${e === o.env ? " selected" : ""}>${esc(e)}</option>`)
@@ -120,7 +125,16 @@ export function renderAdminOrdersInner(orders: ReadonlyArray<Order>): string {
 }
 
 function allStatuses(): string[] {
-  return ["pending", "paid", "submitted", "in_production", "shipped", "delivered", "failed", "refunded"];
+  return [
+    "pending",
+    "paid",
+    "submitted",
+    "in_production",
+    "shipped",
+    "delivered",
+    "failed",
+    "refunded",
+  ];
 }
 
 function formatDate(iso: string): string {

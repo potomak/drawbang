@@ -230,7 +230,11 @@ export class MemoryOrdersStore {
     return v ? { ...v } : null;
   }
 
-  async transition(id: string, expectedStatus: OrderStatus, patch: Partial<Order>): Promise<Order | null> {
+  async transition(
+    id: string,
+    expectedStatus: OrderStatus,
+    patch: Partial<Order>
+  ): Promise<Order | null> {
     const cur = this.store.get(id);
     if (!cur || cur.status !== expectedStatus) return null;
     const next = { ...cur, ...patch, updated_at: new Date().toISOString() };
