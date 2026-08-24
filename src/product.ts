@@ -1,16 +1,8 @@
 import { tracker } from "./analytics/analytics.js";
-import {
-  DEFAULT_PLACEMENT,
-  isValidPlacement,
-  type Placement,
-} from "../merch/placement.js";
+import { DEFAULT_PLACEMENT, isValidPlacement, type Placement } from "../merch/placement.js";
 import { decodeGif } from "./editor/gif.js";
 import { activePaletteToRgb } from "./editor/palette.js";
-import {
-  loadMockupImage,
-  paintMockupPreview,
-  type MockupConfig,
-} from "./merch-preview.js";
+import { loadMockupImage, paintMockupPreview, type MockupConfig } from "./merch-preview.js";
 import mockupsConfigImport from "../config/mockups.json";
 const mockupsConfig = ((mockupsConfigImport as unknown as { default?: unknown }).default ??
   mockupsConfigImport) as unknown as { products: Record<string, MockupConfig> };
@@ -46,7 +38,8 @@ const INGEST_URL =
   (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_INGEST_URL ?? "/ingest";
 const API_BASE = INGEST_URL.replace(/\/ingest\/?$/, "");
 const DRAWING_BASE_URL =
-  (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_DRAWING_BASE_URL ?? "/tiles";
+  (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_DRAWING_BASE_URL ??
+  "/tiles";
 
 // ---------------------------------------------------------------------------
 // DOM discovery — tolerant of both SSR and SPA shapes. The SSR template
@@ -183,7 +176,8 @@ function getFrameFromDom(): number {
 
 function getPlacementFromDom(): Placement {
   const root = getRoot();
-  const raw = root?.getAttribute("data-placement") ?? new URL(location.href).searchParams.get("placement");
+  const raw =
+    root?.getAttribute("data-placement") ?? new URL(location.href).searchParams.get("placement");
   if (raw && isValidPlacement(raw)) return raw;
   return DEFAULT_PLACEMENT;
 }
@@ -330,9 +324,7 @@ function resolveElements(): void {
     null;
 
   mockupCanvasEl =
-    qs<HTMLCanvasElement>("#pp-mockup-canvas") ??
-    qs<HTMLCanvasElement>("#mockupCanvas") ??
-    null;
+    qs<HTMLCanvasElement>("#pp-mockup-canvas") ?? qs<HTMLCanvasElement>("#mockupCanvas") ?? null;
   mockupImgEl = qs<HTMLImageElement>("#pp-mockup-img") ?? null;
   previewImgEl = qs<HTMLImageElement>("#pp-preview-img") ?? null;
 }
@@ -365,7 +357,9 @@ async function loadDrawingBitmap(): Promise<void> {
     if (!decoded.frames[frame]) throw new Error(`frame out of range: ${frame}`);
     drawingBitmap = decoded.frames[frame];
     if (decoded.activePalette) {
-      drawingPalette = activePaletteToRgb(decoded.activePalette) as unknown as import("./editor/palette.js").RGB[];
+      drawingPalette = activePaletteToRgb(
+        decoded.activePalette
+      ) as unknown as import("./editor/palette.js").RGB[];
     } else {
       drawingPalette = null;
     }
@@ -392,7 +386,8 @@ async function initMockup(): Promise<void> {
   try {
     // Load mockup and drawing in parallel — either may finish first.
     const mockupPromise = loadMockupImage(mockupConfig.mockup_url);
-    const drawingPromise = drawingBitmap && drawingPalette ? Promise.resolve() : loadDrawingBitmap();
+    const drawingPromise =
+      drawingBitmap && drawingPalette ? Promise.resolve() : loadDrawingBitmap();
     const [mockup] = await Promise.all([mockupPromise, drawingPromise]);
     mockupImage = mockup;
     if (drawingBitmap && drawingPalette && mockupImage && mockupConfig) {
@@ -413,7 +408,8 @@ async function initMockup(): Promise<void> {
 
 function repaintMockup(): void {
   if (!mockupCanvasEl || !mockupImage || !mockupConfig || !drawingBitmap || !drawingPalette) return;
-  const placement = product && supportsPlacement(product.id) ? selectedPlacement : DEFAULT_PLACEMENT;
+  const placement =
+    product && supportsPlacement(product.id) ? selectedPlacement : DEFAULT_PLACEMENT;
   try {
     paintMockupPreview({
       canvas: mockupCanvasEl,
@@ -633,7 +629,10 @@ function syncPillSelection(): void {
       );
     }
     for (const el of sizePickerEl.querySelectorAll<HTMLElement>("[data-value]")) {
-      el.setAttribute("aria-pressed", el.dataset.value === selectedVariant?.size ? "true" : "false");
+      el.setAttribute(
+        "aria-pressed",
+        el.dataset.value === selectedVariant?.size ? "true" : "false"
+      );
     }
   }
   if (colorPickerEl) {
@@ -644,7 +643,10 @@ function syncPillSelection(): void {
       );
     }
     for (const el of colorPickerEl.querySelectorAll<HTMLElement>("[data-value]")) {
-      el.setAttribute("aria-pressed", el.dataset.value === selectedVariant?.color ? "true" : "false");
+      el.setAttribute(
+        "aria-pressed",
+        el.dataset.value === selectedVariant?.color ? "true" : "false"
+      );
     }
   }
   // Also sync SSR data-value pills (pp-size-picker uses data-value)
@@ -872,7 +874,9 @@ export async function boot(): Promise<void> {
   }
   // Size/color SSR pills — ensure clicks work when SSR rendered them
   if (sizePickerEl) {
-    for (const el of sizePickerEl.querySelectorAll<HTMLElement>("[data-axis], [data-value], [data-axis-value]")) {
+    for (const el of sizePickerEl.querySelectorAll<HTMLElement>(
+      "[data-axis], [data-value], [data-axis-value]"
+    )) {
       if ((el as unknown as { __bound?: boolean }).__bound) continue;
       (el as unknown as { __bound: boolean }).__bound = true;
       el.addEventListener("click", () => {
@@ -898,7 +902,9 @@ export async function boot(): Promise<void> {
     }
   }
   if (colorPickerEl) {
-    for (const el of colorPickerEl.querySelectorAll<HTMLElement>("[data-axis], [data-value], [data-axis-value]")) {
+    for (const el of colorPickerEl.querySelectorAll<HTMLElement>(
+      "[data-axis], [data-value], [data-axis-value]"
+    )) {
       // Already handled above when sizePickerEl contains it? This duplicates for color
       // but the loop above already covers both pickers if they share selector. Keep for safety
       if ((el as unknown as { __bound?: boolean }).__bound) continue;

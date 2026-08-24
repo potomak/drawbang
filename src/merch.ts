@@ -13,7 +13,9 @@ import {
 } from "../merch/placement.js";
 import mockupsConfigImport from "../config/mockups.json";
 const mockupsConfig = ((mockupsConfigImport as unknown as { default?: unknown }).default ??
-  mockupsConfigImport) as unknown as { products: Record<string, import("./merch-preview.js").MockupConfig> };
+  mockupsConfigImport) as unknown as {
+  products: Record<string, import("./merch-preview.js").MockupConfig>;
+};
 
 interface MerchVariant {
   id: number;

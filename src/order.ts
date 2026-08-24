@@ -3,7 +3,13 @@ import { esc as escapeHtml } from "../lib/templates/_escape.js";
 import merchCatalogImport from "../config/merch.json";
 import mockupsConfigImport from "../config/mockups.json";
 const merchCatalog = ((merchCatalogImport as unknown as { default?: unknown }).default ??
-  merchCatalogImport) as unknown as { products: { id: string; name: string; variants: { id: number; size?: string; color?: string }[] }[] };
+  merchCatalogImport) as unknown as {
+  products: {
+    id: string;
+    name: string;
+    variants: { id: number; size?: string; color?: string }[];
+  }[];
+};
 const mockupsConfig = ((mockupsConfigImport as unknown as { default?: unknown }).default ??
   mockupsConfigImport) as unknown as { products: Record<string, { mockup_url: string }> };
 

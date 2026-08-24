@@ -361,7 +361,7 @@
   border: var(--border) solid var(--accent);
   padding: 7px 14px;
   margin: 0;
-  font: 600 var(--t-sm)/1 var(--font-sans);
+  font: 600 var(--t-sm) / 1 var(--font-sans);
   letter-spacing: 0.02em;
   cursor: pointer;
   transition:
@@ -587,7 +587,7 @@
   border-bottom: var(--border) solid var(--line);
 }
 .pm-date {
-  font: 500 var(--t-xs)/1.9 var(--font-mono);
+  font: 500 var(--t-xs) / 1.9 var(--font-mono);
   color: var(--fg-muted);
   white-space: nowrap;
 }
@@ -821,7 +821,7 @@ img.profile-picture {
 }
 .dr-chain-item + .dr-chain-item::before {
   content: "\2192";
-  font: 500 var(--t-sm)/1 var(--font-mono);
+  font: 500 var(--t-sm) / 1 var(--font-mono);
   color: var(--fg-dim);
 }
 .dr-chain-link {
@@ -877,7 +877,7 @@ img.profile-picture {
   border: var(--border) solid var(--line-strong);
   background: var(--paper-2);
   color: var(--ink);
-  font: 500 var(--t-xs)/1.4 var(--font-mono);
+  font: 500 var(--t-xs) / 1.4 var(--font-mono);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -1022,7 +1022,7 @@ img.profile-picture {
   display: block;
 }
 .st-month-label {
-  font: 600 var(--t-md)/1.2 inherit;
+  font: 600 var(--t-md) / 1.2 inherit;
   color: var(--fg);
   margin: 0 0 8px;
 }
@@ -1097,7 +1097,7 @@ img.profile-picture {
   margin-top: 24px;
 }
 .rr-h {
-  font: 600 var(--t-xs)/1 var(--font-mono);
+  font: 600 var(--t-xs) / 1 var(--font-mono);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--fg-muted);
@@ -1127,7 +1127,7 @@ img.profile-picture {
   background: var(--paper-2);
 }
 .rr-rank {
-  font: 500 var(--t-xs)/1 var(--font-mono);
+  font: 500 var(--t-xs) / 1 var(--font-mono);
   color: var(--fg-dim);
   text-align: right;
 }
@@ -1150,7 +1150,7 @@ img.profile-picture {
 }
 .rr-like-count,
 .rr-meta {
-  font: 500 var(--t-xs)/1 var(--font-mono);
+  font: 500 var(--t-xs) / 1 var(--font-mono);
   color: var(--fg-muted);
   white-space: nowrap;
   letter-spacing: 0.02em;
@@ -1335,8 +1335,7 @@ select[data-variant-select] {
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--fg-muted) 50%),
+  background-image: linear-gradient(45deg, transparent 50%, var(--fg-muted) 50%),
     linear-gradient(135deg, var(--fg-muted) 50%, transparent 50%);
   background-position:
     calc(100% - 14px) 18px,

@@ -59,7 +59,8 @@ export default function renderProductPage(v: ProductPageView): string {
   const showColor = colors.length > 1;
   // Placement is only meaningful for apparel where the design goes on a
   // chest area (tee, tote). Mug/sticker are single-position full-bleed.
-  const supportsPlacement = v.product_id === "tee" || v.product_id === "tee-softstyle" || v.product_id === "tote";
+  const supportsPlacement =
+    v.product_id === "tee" || v.product_id === "tee-softstyle" || v.product_id === "tote";
   const sizeSection = showSize
     ? `      <section class="pp-step" id="pp-step-size">
         <h2 class="pp-step-h">Size</h2>
