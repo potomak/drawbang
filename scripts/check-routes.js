@@ -27,7 +27,6 @@ function loadRoutes() {
     // This is intentionally approximate — the check is a safety net, not a
     // formal proof. Keep the normalisation readable rather than perfect.
     p = p
-      .replace(/\//g, "/")
       .replace(/\(\?:[^)]+\)/g, "{param}")
       .replace(/\([^)]+\)/g, "{param}")
       .replace(/\[\\^[^\\]]+\\]/g, "{param}")
