@@ -573,6 +573,27 @@ body > main {
   display: none;
 }
 
+/* ===== Pill group (variant/placement picker) =====
+   Single source for product configurator pills. Both the Vite /merch
+   picker and the future /products/:drawingId/:productId page render
+   `.pill-group` and rely on the same [aria-pressed] state. Do NOT
+   fork into .pp-pills / .mc-pills — extend this one selector.
+   See issue #296 §1 and §A. */
+.pill-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pill-group .btn[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-on);
+  border-color: var(--accent);
+}
+.pill-group .btn[aria-pressed="true"]:hover {
+  filter: brightness(0.95);
+  color: var(--accent-on);
+}
+
 /* ===== Badge =====
    Small inline label for accomplishments, statuses, counts. Hairline
    border + mono micro-label, paper-2 fill so it sits visibly on the

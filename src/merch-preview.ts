@@ -116,12 +116,20 @@ function drawBitmapInto(
 // Cache so we only fetch each base mockup once per page load.
 const mockupCache = new Map<string, Promise<HTMLImageElement>>();
 
+function isCrossOrigin(url: string): boolean {
+  try {
+    return new URL(url, location.origin).origin !== location.origin;
+  } catch {
+    return false;
+  }
+}
+
 export function loadMockupImage(url: string): Promise<HTMLImageElement> {
   let cached = mockupCache.get(url);
   if (cached) return cached;
   cached = new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = "anonymous";
+    if (isCrossOrigin(url)) img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error(`failed to load mockup ${url}`));
     img.src = url;
