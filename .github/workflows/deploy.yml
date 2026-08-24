@@ -143,12 +143,14 @@ jobs:
 
   build-and-publish:
     # On push waits for deploy-lambda so we read freshly-deployed outputs.
-    # On schedule deploy-lambda is skipped — we still run.
+    # On schedule deploy-lambda is skipped — we still run. Never on pull_request
+    # — PRs must not publish to S3/CloudFront before review (see #297).
     needs: [test, deploy-lambda]
     if: |
       always() &&
       needs.test.result == 'success' &&
-      (needs.deploy-lambda.result == 'success' || needs.deploy-lambda.result == 'skipped')
+      (needs.deploy-lambda.result == 'success' || needs.deploy-lambda.result == 'skipped') &&
+      github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment: prod
     steps:
