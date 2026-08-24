@@ -60,7 +60,6 @@ import {
   renderFollowThumbsHandler,
   renderHomePageHandler,
   renderMyBookmarksFeedHandler,
-  renderProductPageHandler,
   renderProductsPageHandler,
   renderProfileItemsHandler,
   renderProfilePageHandler,
@@ -496,15 +495,51 @@ export function createRoutes(deps: RouteDeps): Route[] {
         return json(200, body, { "Cache-Control": "private, no-store" });
       },
     },
-    // Admin orders — shell is public (like /admin). The inner data fetch at
-    // GET /admin/orders/data is the gated fragment (allowlist + JWT). Browser
-    // navs to /admin/orders never carry Authorization, so the shell must not
-    // 401; the boot script redirects to /login and fetches data with Bearer.
+    // Admin orders — operator view + status management. Same allowlist gate as
+    // /admin/data. GET /admin/orders is the shell, GET /admin/orders/data
+    // is the inner fragment, POST /admin/orders/{id}/status updates status/env.
     {
       methods: ["GET"],
       pattern: /^\/admin\/orders$/,
-      auth: "none",
-      handler: async () => render(await handleAdminOrdersPage()),
+      auth: "required",
+      logName: "GET /admin/orders",
+      handler: async (req, _params, auth) => {
+        const route = "GET /admin/orders";
+        if (!deps.admin.isAllowed(auth!.username)) {
+          logOutcome({
+            requestId: req.requestId,
+            route,
+            status: 403,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id,
+            username: auth!.username,
+            error_code: "forbidden",
+          });
+          return json(403, { error: "not authorised" });
+        }
+        if (!deps.admin.ordersStore) {
+          logOutcome({
+            requestId: req.requestId,
+            route,
+            status: 500,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id,
+            username: auth!.username,
+            error_code: "orders_store_not_wired",
+          });
+          return json(500, { error: "orders store not configured" });
+        }
+        const rendered = await handleAdminOrdersPage();
+        logOutcome({
+          requestId: req.requestId,
+          route,
+          status: rendered.status,
+          duration_ms: Date.now() - req.t0,
+          user_id: auth!.user_id,
+          username: auth!.username,
+        });
+        return render(rendered);
+      },
     },
     {
       methods: ["GET"],
@@ -669,48 +704,6 @@ export function createRoutes(deps: RouteDeps): Route[] {
       auth: "none",
       handler: async (_req, [page]) =>
         render(await renderProductsPageHandler(deps.renderConfig, page)),
-    },
-    // Product detail — canonical /products/:drawingId/:productId (SSR with
-    // default variant pre-selected). Frame is optional ?frame=N.
-    {
-      methods: ["GET"],
-      pattern: new RegExp(`^\\/products\\/(${HEX64})\\/([^/]+)$`),
-      auth: "none",
-      handler: async (req, [drawingId, productId]) =>
-        render(
-          await renderProductPageHandler(
-            deps.renderConfig,
-            drawingId,
-            productId,
-            req.query("frame")
-          )
-        ),
-    },
-    // Alias: /merch/:product/:drawingId → 301 to canonical /products/:drawingId/:productId
-    {
-      methods: ["GET"],
-      pattern: new RegExp(`^\\/merch\\/([^/]+)\\/(${HEX64})$`),
-      auth: "none",
-      handler: async (req, [productId, drawingId]) => {
-        const frame = req.query("frame");
-        const suffix = frame ? `?frame=${encodeURIComponent(frame)}` : "";
-        return { kind: "redirect301", location: `/products/${drawingId}/${productId}${suffix}` };
-      },
-    },
-    // Single-param merch alias: /merch/:id (where :id is 64hex drawing) —
-    // redirect to canonical with default product (tee) so legacy links don't 404.
-    // Also covers /merch/:product (non-hex) → 404 via product handler.
-    {
-      methods: ["GET"],
-      pattern: new RegExp(`^\\/merch\\/(${HEX64})$`),
-      auth: "none",
-      handler: async (req, [drawingId]) => {
-        const frame = req.query("frame");
-        const suffix = frame ? `?frame=${encodeURIComponent(frame)}` : "";
-        // Preserve existing SPA entrypoint behavior for bare /merch?d=...
-        // but offer a clean URL: /merch/<drawingId> → /products/<drawingId>/tee
-        return { kind: "redirect301", location: `/products/${drawingId}/tee${suffix}` };
-      },
     },
     // /prompts — daily-prompt archive; /prompts/<slug> — submission grid;
     // /prompts/<slug>/items?cursor=… — infinite-scroll fragment. Slug

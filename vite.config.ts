@@ -40,15 +40,6 @@ const DEV_PROXY_PATHS = [
   "/me/likes",
   "/likes/counts",
   "/subscribe",
-  // Merch product pages — SSR via ingest dev-server (renderProductPageHandler)
-  "/products",
-  // NOTE: keep merch proxy narrow — "^/merch/.*" would also catch Vite
-  // module requests like /merch/placement.ts (imported by src/product.ts),
-  // proxying them to the ingest dev-server which 404s and breaks the
-  // product page compositing. Restrict to page/API paths without a dot so
-  // source imports fall through to Vite.
-  "^/merch($|/[^.]*$)",
-  "/hydrate",
 ];
 
 export default defineConfig({
@@ -71,7 +62,6 @@ export default defineConfig({
       input: {
         draw: resolve(__dirname, "draw.html"),
         merch: resolve(__dirname, "merch.html"),
-        product: resolve(__dirname, "product.html"),
         order: resolve(__dirname, "order.html"),
         login: resolve(__dirname, "login.html"),
         signup: resolve(__dirname, "signup.html"),

@@ -188,30 +188,6 @@
       "variants": [{ "id": 33765, "base_cost_cents": 1450, "retail_cents": 3489 }]
     },
     {
-      "id": "tote",
-      "name": "Canvas Tote Bag (Liberty Bags OAD113)",
-      "blueprint_id": 1313,
-      "print_provider_id": 99,
-      "print_area_px": { "width": 3000, "height": 3600 },
-      "shipping_cents": 499,
-      "variants": [
-        {
-          "id": 101409,
-          "size": "15\" × 16\"",
-          "color": "Natural",
-          "base_cost_cents": 948,
-          "retail_cents": 1999
-        },
-        {
-          "id": 103598,
-          "size": "15\" × 16\"",
-          "color": "Black",
-          "base_cost_cents": 948,
-          "retail_cents": 1999
-        }
-      ]
-    },
-    {
       "id": "sticker-sheet",
       "name": "Sticker Sheet (4-up)",
       "blueprint_id": 661,

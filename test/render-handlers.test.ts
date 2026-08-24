@@ -409,7 +409,7 @@ describe("renderDrawingPageHandler", () => {
     assert.match(res.body, new RegExp(`/d/${grandchildId}`));
   });
 
-  test("Remix is the first action and carries .primary; products section replaces merch", async () => {
+  test("Remix is the first action and carries .primary; merch loses it", async () => {
     const { store, cfg } = makeConfig();
     const id = "a".repeat(64);
     await store.put(row({ drawing_id: id }));
@@ -418,13 +418,12 @@ describe("renderDrawingPageHandler", () => {
       res.body,
       new RegExp(`<a class="btn primary" id="dr-fork" href="/draw\\?fork=${id}">Remix</a>`)
     );
-    assert.doesNotMatch(res.body, /id="dr-make-merch"/);
-    assert.match(res.body, /id="dr-products"/);
+    assert.match(res.body, /<a class="btn" id="dr-make-merch"/);
     const remixIdx = res.body.indexOf('id="dr-fork"');
     const likeIdx = res.body.indexOf("data-like-target");
-    const productsIdx = res.body.indexOf('id="dr-products"');
-    assert.ok(remixIdx > -1 && likeIdx > -1 && productsIdx > -1);
-    assert.ok(remixIdx < likeIdx && remixIdx < productsIdx, "expected Remix first before products");
+    const merchIdx = res.body.indexOf('id="dr-make-merch"');
+    assert.ok(remixIdx > -1 && likeIdx > -1 && merchIdx > -1);
+    assert.ok(remixIdx < likeIdx && remixIdx < merchIdx, "expected Remix first in the action row");
     assert.doesNotMatch(res.body, /Fork &amp; edit/);
   });
 });

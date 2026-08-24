@@ -412,18 +412,6 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: !Ref DynamicCachePolicy
-          # /merch/* — product-page alias /merch/:product/:drawingId and
-          # /merch/:drawingId (ingest Lambda). Must sit above the generic
-          # merch API routes so CloudFront forwards it to the api origin
-          # instead of falling through to S3. Also covers future /merch/*
-          # alias expansions.
-          - PathPattern: /merch/*
-            TargetOriginId: api
-            ViewerProtocolPolicy: redirect-to-https
-            AllowedMethods: [GET, HEAD]
-            CachedMethods: [GET, HEAD]
-            Compress: true
-            CachePolicyId: !Ref DynamicCachePolicy
           # /prompts archive + /prompts/<slug> submission pages +
           # /prompts/<slug>/items fragments. Public dynamic HTML, same
           # policy as /u/* — DynamicCachePolicy keys on the cursor query
@@ -1109,24 +1097,6 @@ Resources:
             ApiId: !Ref IngestApi
             Method: ANY
             Path: /products/p/{page}
-        ProductDetail:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref IngestApi
-            Method: ANY
-            Path: /products/{drawingId}/{productId}
-        MerchAliasProduct:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref IngestApi
-            Method: ANY
-            Path: /merch/{productId}/{drawingId}
-        MerchAliasDrawing:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref IngestApi
-            Method: ANY
-            Path: /merch/{drawingId}
         # DELETE /drawings/{id} — author-or-operator drawing removal.
         # Deliberately has NO CloudFront cache behaviour: a `/drawings/*`
         # pattern would also capture the legacy `/drawings/<id>.gif` asset

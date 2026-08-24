@@ -187,7 +187,7 @@ Env: `VITE_INGEST_URL`, `VITE_DRAWING_BASE_URL` (editor build); Lambda runtime `
 - No WHAT comments — WHY only when non-obvious.
 - Tests: `node:test` + `tsx`, no new framework.
 - Storage via `Storage` interface (`FsStorage` ↔ `S3Storage` interchangeable).
-- Merge to `master` when green (typecheck + tests + `npm run format:check`); no review gate. Deploy runs on every push. End-of-task flow: `typecheck` → `test` (iterate to green) → `npm run format` (`prettier --write .`, printWidth 100) → commit → push → smoke-check `pixel.drawbang.com` after deploy. Unformatted pushes fail the `test` job and block `deploy-lambda`. Ask only for destructive actions (force-push, data removal).
+- Merge to `master` when green (typecheck + tests); no review gate. Deploy runs on every push. End-of-task flow: `typecheck` → `test` (iterate to green) → commit → push → smoke-check `pixel.drawbang.com` after deploy. Ask only for destructive actions (force-push, data removal).
 - Naming: kebab-case files, PascalCase types (`UserRecord`), camelCase fns/vars (`activePalette`, `is/has/can/should` for booleans), `UPPER_SNAKE_CASE` constants (`MAX_FRAMES`), namespaced CSS (`.dr-`, `.ow-`, `.pr-`, `.ed-`, `.mc-`), `*.worker.ts`/`*.test.ts` when relevant. On rename, update imports + docs + run `typecheck` in same commit.
 - UI consistency: search the repo before adding any visible affordance; reuse `src/layout/flash.ts` / `static/flash.js`, `src/layout/chrome.ts` markers, `.btn`/`.ghost`/`.primary` in `chrome.css`, `src/layout/tracking.ts`. If a Lambda page needs a Vite helper, lift to `static/*.js` + `chrome.css` + `window.drawbang*` rather than duplicating.
 

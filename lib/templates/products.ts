@@ -59,17 +59,13 @@ const MOCKUP_BY_PRODUCT: Record<string, { src: string; cls: string }> = {
   "tee-softstyle": { src: "/mockups/tee.jpg", cls: "pr-art-tee" },
   mug: { src: "/mockups/mug.jpg", cls: "pr-art-mug" },
   "sticker-sheet": { src: "/mockups/sticker-sheet.jpg", cls: "pr-art-sticker" },
-  tote: { src: "/mockups/tote.jpg", cls: "pr-art-tote" },
 };
 
 function renderCard(c: ProductCard): string {
   const mock = MOCKUP_BY_PRODUCT[c.product_id] ?? MOCKUP_BY_PRODUCT.tee;
   const recency = c.recency_label ? ` · ${esc(c.recency_label)}` : "";
-  // Canonical per-drawing product page: /products/:drawingId/:productId
-  // Keeps /merch?d=... as fallback via ingest/routes 301.
-  const canonicalHref = `/products/${esc(c.drawing_id)}/${esc(c.product_id)}`;
   return `        <li data-drawing-id="${esc(c.drawing_id)}" data-product-id="${esc(c.product_id)}">
-          <a class="pr-card" href="${canonicalHref}">
+          <a class="pr-card" href="/merch?d=${esc(c.drawing_id)}&amp;product=${esc(c.product_id)}">
             <div class="pr-art ${esc(mock.cls)}">
               <img class="pr-mockup" src="${esc(mock.src)}" alt="" loading="lazy" />
               <img class="pr-drawing" src="/tiles/${esc(c.drawing_id)}.gif" alt="${esc(c.product_name)} featuring drawing ${esc(c.drawing_id_short)}" loading="lazy" />

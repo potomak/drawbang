@@ -52,19 +52,6 @@
           "height": 320
         }
       ]
-    },
-    "tote": {
-      "mockup_url": "/mockups/tote.jpg",
-      "mockup_width": 1200,
-      "mockup_height": 1200,
-      "placeholders": [
-        {
-          "x": 400,
-          "y": 380,
-          "width": 400,
-          "height": 480
-        }
-      ]
     }
   }
 }

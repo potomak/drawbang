@@ -361,7 +361,7 @@
   border: var(--border) solid var(--accent);
   padding: 7px 14px;
   margin: 0;
-  font: 600 var(--t-sm) / 1 var(--font-sans);
+  font: 600 var(--t-sm)/1 var(--font-sans);
   letter-spacing: 0.02em;
   cursor: pointer;
   transition:
@@ -587,7 +587,7 @@
   border-bottom: var(--border) solid var(--line);
 }
 .pm-date {
-  font: 500 var(--t-xs) / 1.9 var(--font-mono);
+  font: 500 var(--t-xs)/1.9 var(--font-mono);
   color: var(--fg-muted);
   white-space: nowrap;
 }
@@ -821,7 +821,7 @@ img.profile-picture {
 }
 .dr-chain-item + .dr-chain-item::before {
   content: "\2192";
-  font: 500 var(--t-sm) / 1 var(--font-mono);
+  font: 500 var(--t-sm)/1 var(--font-mono);
   color: var(--fg-dim);
 }
 .dr-chain-link {
@@ -877,7 +877,7 @@ img.profile-picture {
   border: var(--border) solid var(--line-strong);
   background: var(--paper-2);
   color: var(--ink);
-  font: 500 var(--t-xs) / 1.4 var(--font-mono);
+  font: 500 var(--t-xs)/1.4 var(--font-mono);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -953,12 +953,6 @@ img.profile-picture {
   left: 12%;
   width: 27%;
 }
-.pr-art.pr-art-tote img.pr-drawing {
-  /* tote front, placeholders 400,380 / 400×480 — centered square */
-  top: 35%;
-  left: 33.3%;
-  width: 33.3%;
-}
 .pr-info {
   display: flex;
   flex-direction: column;
@@ -1022,7 +1016,7 @@ img.profile-picture {
   display: block;
 }
 .st-month-label {
-  font: 600 var(--t-md) / 1.2 inherit;
+  font: 600 var(--t-md)/1.2 inherit;
   color: var(--fg);
   margin: 0 0 8px;
 }
@@ -1097,7 +1091,7 @@ img.profile-picture {
   margin-top: 24px;
 }
 .rr-h {
-  font: 600 var(--t-xs) / 1 var(--font-mono);
+  font: 600 var(--t-xs)/1 var(--font-mono);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--fg-muted);
@@ -1127,7 +1121,7 @@ img.profile-picture {
   background: var(--paper-2);
 }
 .rr-rank {
-  font: 500 var(--t-xs) / 1 var(--font-mono);
+  font: 500 var(--t-xs)/1 var(--font-mono);
   color: var(--fg-dim);
   text-align: right;
 }
@@ -1150,295 +1144,8 @@ img.profile-picture {
 }
 .rr-like-count,
 .rr-meta {
-  font: 500 var(--t-xs) / 1 var(--font-mono);
+  font: 500 var(--t-xs)/1 var(--font-mono);
   color: var(--fg-muted);
   white-space: nowrap;
   letter-spacing: 0.02em;
-}
-
-/* =====================================================================
-   DRAWING PAGE PRODUCTS — replaces the old #dr-make-merch button.
-   Reuses the .pr-grid / .pr-card / .pr-art system from the /products
-   list so no duplicate rules. This wrapper adds vertical rhythm and
-   fixes the 4-product grid (was auto-fill clipped to 3+1 on desktop).
-   ===================================================================== */
-.dr-products {
-  margin: 0 0 24px;
-  padding-bottom: 8px;
-}
-.dr-products .pr-grid {
-  grid-template-columns: repeat(4, 1fr);
-}
-@media (max-width: 1024px) {
-  .dr-products .pr-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-@media (max-width: 480px) {
-  .dr-products .pr-grid {
-    grid-template-columns: 1fr;
-  }
-}
-.dr-products .pr-art.pr-art-mug {
-  background: #e8e0d0;
-  border-color: var(--line);
-}
-
-/* =====================================================================
-   PRODUCT PAGE (/products/:drawingId/:productId — SSR)
-   Mirrors src/style.css .pp-* rules so the Lambda-rendered page ships
-   the same layout without requiring a Vite build. Keep the two files
-   in sync when editing product styles.
-   ===================================================================== */
-.pp-back {
-  display: inline-block;
-  font-size: var(--t-sm);
-  color: var(--fg-muted);
-  text-decoration: none;
-  margin-bottom: 12px;
-}
-.pp-back:hover {
-  color: var(--fg);
-  text-decoration: underline;
-}
-.pp-grid {
-  display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: 32px;
-  align-items: start;
-}
-@media (max-width: 900px) {
-  .pp-grid {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-}
-.pp-media {
-  position: sticky;
-  top: 80px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-@media (max-width: 900px) {
-  .pp-media {
-    position: static;
-  }
-}
-.pp-preview-wrap {
-  border: var(--border) solid var(--border-c);
-  background: var(--canvas-bg);
-  aspect-ratio: 1;
-  max-width: 360px;
-  width: 100%;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.pp-preview-wrap[hidden] {
-  display: none !important;
-}
-.pp-mockup-wrap {
-  border: var(--border) solid var(--border-c);
-  background: #f4f0e6;
-  aspect-ratio: 1;
-  max-width: 360px;
-  width: 100%;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.pp-mockup-wrap[hidden] {
-  display: none !important;
-}
-.pp-mockup-wrap canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  image-rendering: auto;
-  background: #f4f0e6;
-}
-.pp-mockup-wrap img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  image-rendering: auto;
-  background: #f4f0e6;
-}
-.pp-mockup-wrap canvas[hidden],
-.pp-mockup-wrap img[hidden] {
-  display: none !important;
-}
-.pp-drawing-img,
-canvas#pp-preview,
-#pp-preview {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  image-rendering: pixelated;
-  background: var(--canvas-bg);
-}
-.pp-frame-strip {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.pp-details {
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-}
-.pp-title {
-  font-size: var(--t-xl);
-  font-weight: 700;
-  margin: 0;
-  letter-spacing: 0;
-  color: var(--ink);
-}
-.pp-subtitle {
-  font-size: var(--t-sm);
-  color: var(--fg-muted);
-  margin: -20px 0 0;
-}
-.pp-step {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.pp-step-h {
-  font-size: var(--t-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--fg-muted);
-  margin: 0;
-}
-.pp-step-h .pp-step-num {
-  color: var(--accent);
-  margin-right: 8px;
-}
-#variantSelect,
-#variant-select,
-select[data-variant-select] {
-  width: 100%;
-  max-width: 360px;
-  height: var(--tap);
-  padding: 0 32px 0 12px;
-  font: 500 var(--t-sm) var(--font);
-  color: var(--ink);
-  background: var(--bg-elev);
-  border: var(--border) solid var(--border-c);
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--fg-muted) 50%),
-    linear-gradient(135deg, var(--fg-muted) 50%, transparent 50%);
-  background-position:
-    calc(100% - 14px) 18px,
-    calc(100% - 9px) 18px;
-  background-size:
-    5px 5px,
-    5px 5px;
-  background-repeat: no-repeat;
-}
-#variantSelect:focus,
-#variant-select:focus,
-select[data-variant-select]:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-#variantSelect:hover,
-#variant-select:hover,
-select[data-variant-select]:hover {
-  border-color: var(--border-strong);
-}
-.pp-pills,
-.mc-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.pp-pills:empty,
-.mc-pills:empty {
-  display: none;
-}
-.pp-pills[hidden],
-.mc-pills[hidden] {
-  display: none !important;
-}
-.pp-pills .btn[aria-pressed="true"],
-.mc-pills .btn[aria-pressed="true"] {
-  background: var(--accent);
-  color: var(--accent-on);
-  border-color: var(--accent);
-}
-.pp-pills .btn.selected,
-.mc-pills .btn.selected {
-  border-color: var(--accent);
-  background: color-mix(in oklch, var(--accent) 6%, var(--bg-elev));
-}
-.pp-price {
-  font-size: var(--t-lg);
-  font-weight: 700;
-  color: var(--ink);
-  min-height: 1.4em;
-}
-.pp-price:empty {
-  display: none;
-}
-.pp-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 16px;
-  background: var(--bg-elev);
-  border: var(--border) solid var(--border-c);
-}
-.pp-summary-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: var(--t-sm);
-}
-.pp-summary-row.total {
-  font-weight: 700;
-  font-size: var(--t-md);
-  padding-top: 8px;
-  border-top: var(--border) solid var(--border-c);
-}
-.pp-summary .btn {
-  margin-top: 8px;
-  height: 52px;
-}
-.pp-summary .btn[disabled] {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-.pp-disclaim {
-  font-size: var(--t-xs);
-  text-align: center;
-  color: var(--fg-muted);
-  margin: 0;
-}
-.pp-status {
-  font-size: var(--t-xs);
-  color: var(--fg-muted);
-  min-height: 1.2em;
-  word-break: break-word;
-  margin: 0;
-}
-.pp-config {
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-}
-#pp-price,
-#sumSubtotal,
-#sumShipping,
-#sumTotal {
-  font-variant-numeric: tabular-nums;
 }

@@ -121,16 +121,7 @@ export function loadMockupImage(url: string): Promise<HTMLImageElement> {
   if (cached) return cached;
   cached = new Promise((resolve, reject) => {
     const img = new Image();
-    // Same-origin mockups (/mockups/*.jpg) do not need CORS. Setting
-    // crossOrigin="anonymous" requires the server to send ACAO, which Vite's
-    // dev server and prod CloudFront+S3 do not, so the load would fail with
-    // a CORS error. Only set crossOrigin for cross-origin URLs.
-    try {
-      const u = new URL(url, location.origin);
-      if (u.origin !== location.origin) img.crossOrigin = "anonymous";
-    } catch {
-      // If URL parsing fails, leave crossOrigin unset (same-origin fallback).
-    }
+    img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error(`failed to load mockup ${url}`));
     img.src = url;
