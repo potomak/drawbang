@@ -1006,6 +1006,43 @@ canvas#preview {
   align-items: center;
   justify-content: center;
 }
+.pp-preview-wrap[hidden] {
+  display: none !important;
+}
+.pp-mockup-wrap {
+  border: var(--border) solid var(--border-c);
+  background: #f4f0e6;
+  aspect-ratio: 1;
+  max-width: 360px;
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pp-mockup-wrap[hidden] {
+  display: none !important;
+}
+.pp-mockup-wrap canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: auto;
+  background: #f4f0e6;
+}
+.pp-mockup-wrap img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: auto;
+  background: #f4f0e6;
+}
+.pp-mockup-wrap canvas[hidden],
+.pp-mockup-wrap img[hidden] {
+  display: none !important;
+}
 .pp-drawing-img,
 canvas#pp-preview,
 #pp-preview {

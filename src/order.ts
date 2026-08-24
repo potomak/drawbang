@@ -1,7 +1,11 @@
 import { tracker } from "./analytics/analytics.js";
 import { esc as escapeHtml } from "../lib/templates/_escape.js";
-import merchCatalog from "../config/merch.json" with { type: "json" };
-import mockupsConfig from "../config/mockups.json" with { type: "json" };
+import merchCatalogImport from "../config/merch.json";
+import mockupsConfigImport from "../config/mockups.json";
+const merchCatalog = ((merchCatalogImport as unknown as { default?: unknown }).default ??
+  merchCatalogImport) as unknown as { products: { id: string; name: string; variants: { id: number; size?: string; color?: string }[] }[] };
+const mockupsConfig = ((mockupsConfigImport as unknown as { default?: unknown }).default ??
+  mockupsConfigImport) as unknown as { products: Record<string, { mockup_url: string }> };
 
 interface OrderView {
   order_id?: string;
@@ -112,8 +116,8 @@ function isFailedStatus(status: string): boolean {
   return status === "failed" || status === "refunded";
 }
 
-const CATALOG = merchCatalog as { products: MerchProduct[] };
-const MOCKUPS = mockupsConfig as { products: Record<string, MockupEntry> };
+const CATALOG = merchCatalog as unknown as { products: MerchProduct[] };
+const MOCKUPS = mockupsConfig as unknown as { products: Record<string, MockupEntry> };
 
 const cardEl = document.getElementById("orderCard") as HTMLDivElement;
 let pollTimer: ReturnType<typeof setTimeout> | null = null;

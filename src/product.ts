@@ -1,4 +1,19 @@
 import { tracker } from "./analytics/analytics.js";
+import {
+  DEFAULT_PLACEMENT,
+  isValidPlacement,
+  type Placement,
+} from "../merch/placement.js";
+import { decodeGif } from "./editor/gif.js";
+import { activePaletteToRgb } from "./editor/palette.js";
+import {
+  loadMockupImage,
+  paintMockupPreview,
+  type MockupConfig,
+} from "./merch-preview.js";
+import mockupsConfigImport from "../config/mockups.json";
+const mockupsConfig = ((mockupsConfigImport as unknown as { default?: unknown }).default ??
+  mockupsConfigImport) as unknown as { products: Record<string, MockupConfig> };
 
 interface MerchVariant {
   id: number;
@@ -30,6 +45,8 @@ interface CheckoutResponse {
 const INGEST_URL =
   (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_INGEST_URL ?? "/ingest";
 const API_BASE = INGEST_URL.replace(/\/ingest\/?$/, "");
+const DRAWING_BASE_URL =
+  (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_DRAWING_BASE_URL ?? "/tiles";
 
 // ---------------------------------------------------------------------------
 // DOM discovery — tolerant of both SSR and SPA shapes. The SSR template
@@ -164,6 +181,13 @@ function getFrameFromDom(): number {
   return Number.isInteger(n) && n >= 0 ? n : 0;
 }
 
+function getPlacementFromDom(): Placement {
+  const root = getRoot();
+  const raw = root?.getAttribute("data-placement") ?? new URL(location.href).searchParams.get("placement");
+  if (raw && isValidPlacement(raw)) return raw;
+  return DEFAULT_PLACEMENT;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -194,14 +218,28 @@ let product: MerchProduct | null = null;
 let drawingId: string | null = null;
 let frame = 0;
 let selectedVariant: MerchVariant | null = null;
+let selectedPlacement: Placement = DEFAULT_PLACEMENT;
 let checkoutInFlight = false;
+
+// Mockup + drawing bitmap state for product preview
+let mockupConfig: MockupConfig | null = null;
+let mockupImage: HTMLImageElement | null = null;
+let drawingBitmap: import("./editor/bitmap.js").Bitmap | null = null;
+let drawingPalette: import("./editor/palette.js").RGB[] | null = null;
 
 function initStateFromDom(): void {
   if (typeof document === "undefined") return;
   if (!product) product = getProductJsonFromDom();
   if (!drawingId) drawingId = getDrawingIdFromDom(product);
   frame = getFrameFromDom();
+  selectedPlacement = getPlacementFromDom();
   if (!selectedVariant && product) selectedVariant = pickDefaultVariant(product);
+  // Also sync placement from DOM attribute
+  const root = getRoot();
+  if (root) {
+    const p = root.getAttribute("data-placement");
+    if (p && isValidPlacement(p)) selectedPlacement = p;
+  }
 }
 
 // DOM refs discovered at boot — not at module top-level so JSDOM tests can
@@ -210,12 +248,16 @@ let variantSelectEl: HTMLSelectElement | null = null;
 let variantPillsEl: HTMLElement | null = null;
 let sizePickerEl: HTMLElement | null = null;
 let colorPickerEl: HTMLElement | null = null;
+let placementPickerEl: HTMLElement | null = null;
 let priceEl: HTMLElement | null = null;
 let subtotalEl: HTMLElement | null = null;
 let shippingEl: HTMLElement | null = null;
 let totalEl: HTMLElement | null = null;
 let checkoutBtn: HTMLButtonElement | null = null;
 let statusEl: HTMLElement | null = null;
+let mockupCanvasEl: HTMLCanvasElement | null = null;
+let mockupImgEl: HTMLImageElement | null = null;
+let previewImgEl: HTMLImageElement | null = null;
 
 function resolveElements(): void {
   // Variant selector — support <select> or pill container
@@ -246,6 +288,12 @@ function resolveElements(): void {
     qs<HTMLElement>("[data-color-picker]") ??
     null;
 
+  placementPickerEl =
+    qs<HTMLElement>("#pp-placement-picker") ??
+    qs<HTMLElement>("[data-placement-picker]") ??
+    qs<HTMLElement>("#placementPicker") ??
+    null;
+
   priceEl =
     qs<HTMLElement>("#price") ??
     qs<HTMLElement>("#pp-price") ??
@@ -269,8 +317,9 @@ function resolveElements(): void {
     qs<HTMLElement>("[data-total]") ??
     null;
   checkoutBtn =
-    qs<HTMLButtonElement>("#checkoutBtn") ??
     qs<HTMLButtonElement>("#pp-checkout") ??
+    qs<HTMLButtonElement>("#pp-add") ??
+    qs<HTMLButtonElement>("#checkoutBtn") ??
     qs<HTMLButtonElement>("[data-checkout]") ??
     qs<HTMLButtonElement>("#checkout-btn") ??
     null;
@@ -279,10 +328,117 @@ function resolveElements(): void {
     qs<HTMLElement>("#pp-status") ??
     qs<HTMLElement>("[data-status]") ??
     null;
+
+  mockupCanvasEl =
+    qs<HTMLCanvasElement>("#pp-mockup-canvas") ??
+    qs<HTMLCanvasElement>("#mockupCanvas") ??
+    null;
+  mockupImgEl = qs<HTMLImageElement>("#pp-mockup-img") ?? null;
+  previewImgEl = qs<HTMLImageElement>("#pp-preview-img") ?? null;
 }
 
 function setStatus(msg: string): void {
   if (statusEl) statusEl.textContent = msg;
+}
+
+// ---------------------------------------------------------------------------
+// Mockup preview — product image with drawing composited
+// ---------------------------------------------------------------------------
+
+function supportsPlacement(productId: string): boolean {
+  return productId === "tee" || productId === "tee-softstyle" || productId === "tote";
+}
+
+function getMockupConfig(productId: string): MockupConfig | null {
+  const all = (mockupsConfig as { products: Record<string, MockupConfig> }).products;
+  return all?.[productId] ?? null;
+}
+
+async function loadDrawingBitmap(): Promise<void> {
+  if (!drawingId) return;
+  try {
+    const url = `${DRAWING_BASE_URL}/${drawingId}.gif`;
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error(`fetch drawing failed: ${res.status}`);
+    const buf = new Uint8Array(await res.arrayBuffer());
+    const decoded = decodeGif(buf);
+    if (!decoded.frames[frame]) throw new Error(`frame out of range: ${frame}`);
+    drawingBitmap = decoded.frames[frame];
+    if (decoded.activePalette) {
+      drawingPalette = activePaletteToRgb(decoded.activePalette) as unknown as import("./editor/palette.js").RGB[];
+    } else {
+      drawingPalette = null;
+    }
+    if (previewImgEl) {
+      previewImgEl.src = url;
+      previewImgEl.hidden = false;
+    }
+  } catch (err) {
+    console.warn("loadDrawingBitmap failed", err);
+  }
+}
+
+async function initMockup(): Promise<void> {
+  if (!product) return;
+  mockupConfig = getMockupConfig(product.id);
+  if (!mockupConfig || !mockupCanvasEl) return;
+  // Update the static img fallback to the correct product's mockup (SPA case)
+  if (mockupImgEl && mockupConfig.mockup_url) {
+    if (!mockupImgEl.src.includes(mockupConfig.mockup_url)) {
+      mockupImgEl.src = mockupConfig.mockup_url;
+    }
+    mockupImgEl.alt = `${product.name} mockup`;
+  }
+  try {
+    // Load mockup and drawing in parallel — either may finish first.
+    const mockupPromise = loadMockupImage(mockupConfig.mockup_url);
+    const drawingPromise = drawingBitmap && drawingPalette ? Promise.resolve() : loadDrawingBitmap();
+    const [mockup] = await Promise.all([mockupPromise, drawingPromise]);
+    mockupImage = mockup;
+    if (drawingBitmap && drawingPalette && mockupImage && mockupConfig) {
+      repaintMockup();
+    } else {
+      console.warn("initMockup: missing bitmap/palette after load", {
+        hasBitmap: !!drawingBitmap,
+        hasPalette: !!drawingPalette,
+        hasMockup: !!mockupImage,
+      });
+      setStatus("preview unavailable — drawing failed to load");
+    }
+  } catch (err) {
+    console.warn("initMockup failed", err);
+    setStatus(`preview failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+function repaintMockup(): void {
+  if (!mockupCanvasEl || !mockupImage || !mockupConfig || !drawingBitmap || !drawingPalette) return;
+  const placement = product && supportsPlacement(product.id) ? selectedPlacement : DEFAULT_PLACEMENT;
+  try {
+    paintMockupPreview({
+      canvas: mockupCanvasEl,
+      mockup: mockupImage,
+      config: mockupConfig,
+      frame: drawingBitmap,
+      palette: drawingPalette,
+      placement,
+    });
+    if (mockupImgEl) mockupImgEl.hidden = true;
+    mockupCanvasEl.hidden = false;
+  } catch (err) {
+    console.warn("paintMockupPreview failed", err);
+  }
+}
+
+function syncPlacementSelection(): void {
+  if (!placementPickerEl) return;
+  for (const el of placementPickerEl.querySelectorAll<HTMLElement>("[data-placement]")) {
+    const val = el.getAttribute("data-placement");
+    el.setAttribute("aria-pressed", val === selectedPlacement ? "true" : "false");
+  }
+  // Reflect in root data attribute for persistence
+  const root = getRoot();
+  if (root) root.setAttribute("data-placement", selectedPlacement);
 }
 
 // ---------------------------------------------------------------------------
@@ -300,6 +456,7 @@ function renderVariantSelect(): void {
   if (hasSplit && sizePickerEl && colorPickerEl) {
     // SSR rendered #pp-size-picker / #pp-color-picker with data-axis pills; hydrate.
     syncPillSelection();
+    syncPlacementSelection();
     return;
   }
 
@@ -307,6 +464,7 @@ function renderVariantSelect(): void {
   const existingPills = variantPillsEl?.querySelectorAll<HTMLElement>("[data-variant-id]") ?? [];
   if (existingPills.length > 0) {
     syncPillSelection();
+    syncPlacementSelection();
     return;
   }
 
@@ -455,21 +613,27 @@ function renderSplitPickers(): void {
 }
 
 function syncPillSelection(): void {
-  if (!variantPillsEl || !selectedVariant) return;
-  for (const el of variantPillsEl.querySelectorAll<HTMLElement>("[data-variant-id]")) {
-    el.setAttribute(
-      "aria-pressed",
-      el.dataset.variantId === String(selectedVariant.id) ? "true" : "false"
-    );
-    el.classList.toggle("selected", el.dataset.variantId === String(selectedVariant.id));
+  if (!selectedVariant) return;
+  // Sync variant pills if container exists
+  if (variantPillsEl) {
+    for (const el of variantPillsEl.querySelectorAll<HTMLElement>("[data-variant-id]")) {
+      el.setAttribute(
+        "aria-pressed",
+        el.dataset.variantId === String(selectedVariant.id) ? "true" : "false"
+      );
+      el.classList.toggle("selected", el.dataset.variantId === String(selectedVariant.id));
+    }
   }
-  // also sync split pickers aria
+  // Sync split pickers aria — always, even if variantPillsEl is absent
   if (sizePickerEl) {
     for (const el of sizePickerEl.querySelectorAll<HTMLElement>("[data-axis-value]")) {
       el.setAttribute(
         "aria-pressed",
         el.dataset.axisValue === selectedVariant?.size ? "true" : "false"
       );
+    }
+    for (const el of sizePickerEl.querySelectorAll<HTMLElement>("[data-value]")) {
+      el.setAttribute("aria-pressed", el.dataset.value === selectedVariant?.size ? "true" : "false");
     }
   }
   if (colorPickerEl) {
@@ -479,7 +643,12 @@ function syncPillSelection(): void {
         el.dataset.axisValue === selectedVariant?.color ? "true" : "false"
       );
     }
+    for (const el of colorPickerEl.querySelectorAll<HTMLElement>("[data-value]")) {
+      el.setAttribute("aria-pressed", el.dataset.value === selectedVariant?.color ? "true" : "false");
+    }
   }
+  // Also sync SSR data-value pills (pp-size-picker uses data-value)
+  syncPlacementSelection();
   if (variantSelectEl) {
     variantSelectEl.value = String(selectedVariant.id);
   }
@@ -496,6 +665,8 @@ function selectVariantById(id: number): void {
   syncPillSelection();
   updatePrice();
   updateCheckoutButton();
+  // Variant change doesn't affect mockup placement, but keep mockup in sync
+  repaintMockup();
 }
 
 export function updatePrice(): void {
@@ -543,6 +714,19 @@ function updateCheckoutButton(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Placement
+// ---------------------------------------------------------------------------
+
+function handlePlacementSelect(placement: Placement): void {
+  if (!product || !supportsPlacement(product.id)) return;
+  if (!isValidPlacement(placement)) return;
+  selectedPlacement = placement;
+  if (product) tracker.merchPlacementClick({ product_id: product.id, placement });
+  syncPlacementSelection();
+  repaintMockup();
+}
+
+// ---------------------------------------------------------------------------
 // Checkout
 // ---------------------------------------------------------------------------
 
@@ -585,6 +769,9 @@ async function handleCheckout(): Promise<void> {
         frame,
         product_id: product.id,
         variant_id: selectedVariant.id,
+        ...(selectedPlacement !== DEFAULT_PLACEMENT && supportsPlacement(product.id)
+          ? { placement: selectedPlacement }
+          : {}),
         success_url: successUrl,
         cancel_url: cancelUrl,
       }),
@@ -645,9 +832,17 @@ export async function boot(): Promise<void> {
 
   // Default selected — already set to first variant; reflect in UI
   renderVariantSelect();
+  // Placement picker — hydrate if SSR rendered it
+  if (placementPickerEl && supportsPlacement(product.id)) {
+    // Ensure default placement is reflected
+    syncPlacementSelection();
+  }
   updatePrice();
   updateCheckoutButton();
   setStatus("");
+
+  // Load drawing + mockup preview — product image with drawing composited
+  void initMockup();
 
   // View item analytics (SSR price reports cheapest; hydrate confirms actual default)
   const viewPrice = (selectedVariant?.retail_cents ?? lowestPrice(product)) / 100;
@@ -675,8 +870,51 @@ export async function boot(): Promise<void> {
       });
     }
   }
-  if (sizePickerEl && colorPickerEl) {
-    // split pickers already wired in renderSplitPickers; ensure SSR nodes get handlers too
+  // Size/color SSR pills — ensure clicks work when SSR rendered them
+  if (sizePickerEl) {
+    for (const el of sizePickerEl.querySelectorAll<HTMLElement>("[data-axis], [data-value], [data-axis-value]")) {
+      if ((el as unknown as { __bound?: boolean }).__bound) continue;
+      (el as unknown as { __bound: boolean }).__bound = true;
+      el.addEventListener("click", () => {
+        const v = (el as HTMLElement).dataset.value ?? (el as HTMLElement).dataset.axisValue ?? "";
+        // Determine which picker this is
+        const isSizePicker = sizePickerEl!.contains(el);
+        if (isSizePicker) {
+          const desiredColor = selectedVariant?.color ?? null;
+          const candidate =
+            product!.variants.find((x) => x.size === v && x.color === desiredColor) ??
+            product!.variants.find((x) => x.size === v) ??
+            null;
+          if (candidate) selectVariantById(candidate.id);
+        } else {
+          const desiredSize = selectedVariant?.size ?? null;
+          const candidate =
+            product!.variants.find((x) => x.color === v && x.size === desiredSize) ??
+            product!.variants.find((x) => x.color === v) ??
+            null;
+          if (candidate) selectVariantById(candidate.id);
+        }
+      });
+    }
+  }
+  if (colorPickerEl) {
+    for (const el of colorPickerEl.querySelectorAll<HTMLElement>("[data-axis], [data-value], [data-axis-value]")) {
+      // Already handled above when sizePickerEl contains it? This duplicates for color
+      // but the loop above already covers both pickers if they share selector. Keep for safety
+      if ((el as unknown as { __bound?: boolean }).__bound) continue;
+      // Handled in previous block
+    }
+  }
+  // Placement picker
+  if (placementPickerEl) {
+    for (const el of placementPickerEl.querySelectorAll<HTMLElement>("[data-placement]")) {
+      if ((el as unknown as { __bound?: boolean }).__bound) continue;
+      (el as unknown as { __bound: boolean }).__bound = true;
+      el.addEventListener("click", () => {
+        const p = el.dataset.placement ?? "";
+        if (isValidPlacement(p)) handlePlacementSelect(p as Placement);
+      });
+    }
   }
 
   if (checkoutBtn) {
@@ -725,6 +963,7 @@ export function __resetForTest(opts: {
     selectedVariant = null;
   }
   checkoutInFlight = false;
+  selectedPlacement = DEFAULT_PLACEMENT;
   resolveElements();
   renderVariantSelect();
   updatePrice();
@@ -733,4 +972,8 @@ export function __resetForTest(opts: {
 
 export function __getSelectedVariant(): MerchVariant | null {
   return selectedVariant;
+}
+
+export function __getSelectedPlacement(): Placement {
+  return selectedPlacement;
 }

@@ -16,7 +16,11 @@
 
       <div class="pp-grid">
         <div class="pp-media">
-          <div class="pp-preview-wrap">
+          <div class="pp-mockup-wrap" id="pp-mockup-wrap">
+            <img id="pp-mockup-img" src="/mockups/tee.jpg" alt="product mockup" width="600" height="600" />
+            <canvas id="pp-mockup-canvas" aria-label="product mockup" width="600" height="600" hidden></canvas>
+          </div>
+          <div class="pp-preview-wrap" hidden>
             <img
               id="pp-drawing"
               class="pp-drawing-img"
@@ -33,14 +37,30 @@
           <h1 id="pp-title" class="pp-title">Product</h1>
           <p id="pp-product-name" class="pp-subtitle"></p>
 
-          <!-- Variant selector: hydrated by src/product.ts. SSR (lib/templates/product-page.ts)
-               pre-renders the same structure server-side; this HTML is the SPA fallback. -->
+          <!-- Placement + Variant selector: hydrated by src/product.ts. SSR
+               (lib/templates/product-page.ts) pre-renders the same structure
+               server-side; this HTML is the SPA fallback. -->
+          <section class="pp-step" id="pp-step-placement">
+            <h2 class="pp-step-h"><span class="pp-step-num">02</span> Placement</h2>
+            <div id="pp-placement-picker" class="mc-pills" data-testid="placement-picker">
+              <button type="button" class="btn sm" data-placement="full-chest" aria-pressed="true">Full chest</button>
+              <button type="button" class="btn sm" data-placement="left-chest" aria-pressed="false">Left chest</button>
+              <button type="button" class="btn sm" data-placement="right-chest" aria-pressed="false">Right chest</button>
+              <button type="button" class="btn sm" data-placement="pattern-2x2" aria-pressed="false">Pattern 2×2</button>
+              <button type="button" class="btn sm" data-placement="pattern-3x3" aria-pressed="false">Pattern 3×3</button>
+              <button type="button" class="btn sm" data-placement="pattern-4x4" aria-pressed="false">Pattern 4×4</button>
+            </div>
+          </section>
+
           <section class="pp-step" id="step-variant">
             <h2 class="pp-step-h"><span class="pp-step-num">01</span> Variant</h2>
             <select id="variantSelect" data-variant-select aria-label="Choose variant"></select>
             <div id="variantPicker" data-variant-picker class="pp-pills" hidden></div>
             <div id="sizePicker" data-size-picker class="pp-pills" hidden></div>
             <div id="colorPicker" data-color-picker class="pp-pills" hidden></div>
+            <div id="pp-size-picker" class="mc-pills" data-testid="size-picker" hidden></div>
+            <div id="pp-color-picker" class="mc-pills" data-testid="color-picker" hidden></div>
+            <div id="pp-placement-picker" class="mc-pills" hidden></div>
           </section>
 
           <section class="pp-summary" id="pp-summary">

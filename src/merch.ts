@@ -11,7 +11,9 @@ import {
   PATTERN_PRESETS,
   type Placement,
 } from "../merch/placement.js";
-import mockupsConfig from "../config/mockups.json" with { type: "json" };
+import mockupsConfigImport from "../config/mockups.json";
+const mockupsConfig = ((mockupsConfigImport as unknown as { default?: unknown }).default ??
+  mockupsConfigImport) as unknown as { products: Record<string, import("./merch-preview.js").MockupConfig> };
 
 interface MerchVariant {
   id: number;
@@ -66,7 +68,7 @@ const sumTotalEl = document.getElementById("sumTotal") as HTMLElement | null;
 interface MockupsFile {
   products: Record<string, MockupConfig>;
 }
-const MOCKUPS: MockupsFile = mockupsConfig as MockupsFile;
+const MOCKUPS: MockupsFile = mockupsConfig as unknown as MockupsFile;
 
 // Per-product card preview state — repainted whenever the user changes
 // frames or placement so each card shows the currently-selected frame
