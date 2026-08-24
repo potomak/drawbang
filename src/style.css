@@ -916,6 +916,21 @@ canvas#preview {
   flex-wrap: wrap;
   gap: 6px;
 }
+.mc-pills:empty {
+  display: none;
+}
+.mc-pills[hidden] {
+  display: none !important;
+}
+.mc-pills .btn[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-on);
+  border-color: var(--accent);
+}
+.mc-pills .btn.selected {
+  border-color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 6%, var(--bg-elev));
+}
 
 .mc-summary {
   display: flex;

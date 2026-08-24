@@ -1357,23 +1357,28 @@ select[data-variant-select]:focus {
 select[data-variant-select]:hover {
   border-color: var(--border-strong);
 }
-.pp-pills {
+.pp-pills,
+.mc-pills {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
-.pp-pills:empty {
+.pp-pills:empty,
+.mc-pills:empty {
   display: none;
 }
-.pp-pills[hidden] {
+.pp-pills[hidden],
+.mc-pills[hidden] {
   display: none !important;
 }
-.pp-pills .btn[aria-pressed="true"] {
+.pp-pills .btn[aria-pressed="true"],
+.mc-pills .btn[aria-pressed="true"] {
   background: var(--accent);
   color: var(--accent-on);
   border-color: var(--accent);
 }
-.pp-pills .btn.selected {
+.pp-pills .btn.selected,
+.mc-pills .btn.selected {
   border-color: var(--accent);
   background: color-mix(in oklch, var(--accent) 6%, var(--bg-elev));
 }

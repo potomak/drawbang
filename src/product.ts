@@ -197,6 +197,8 @@ export function variantLabel(v: MerchVariant): string {
 
 export function pickDefaultVariant(product: MerchProduct): MerchVariant | null {
   if (!product.variants.length) return null;
+  const preferredMBlack = product.variants.find((v) => v.size === "M" && v.color === "Black");
+  if (preferredMBlack) return preferredMBlack;
   return product.variants[0];
 }
 
