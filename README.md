@@ -247,8 +247,11 @@ legacy/             Archived Ruby+Sinatra prototype, never imported
 - **Storage operations go through the `Storage` interface** so
   `FsStorage` (dev/tests) and `S3Storage` (Lambda/builder) stay
   interchangeable.
-- **Merge directly to `master`** when typecheck + tests pass. The deploy
-  workflow runs on every push to `master`. No long-lived feature
+- **Format before pushing** — CI runs `prettier --check` (printWidth 100,
+  `npm run format:check`). Run `npm run format` (`prettier --write .`) locally;
+  unformatted pushes fail the `test` job and block `deploy-lambda`.
+- **Merge directly to `master`** when typecheck + tests + format pass. The
+  deploy workflow runs on every push to `master`. No long-lived feature
   branches.
 
 ## Troubleshooting
