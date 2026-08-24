@@ -677,7 +677,14 @@ export function createRoutes(deps: RouteDeps): Route[] {
       pattern: new RegExp(`^\\/products\\/(${HEX64})\\/([^/]+)$`),
       auth: "none",
       handler: async (req, [drawingId, productId]) =>
-        render(await renderProductPageHandler(deps.renderConfig, drawingId, productId, req.query("frame"))),
+        render(
+          await renderProductPageHandler(
+            deps.renderConfig,
+            drawingId,
+            productId,
+            req.query("frame")
+          )
+        ),
     },
     // Alias: /merch/:product/:drawingId → 301 to canonical /products/:drawingId/:productId
     {

@@ -17,7 +17,13 @@
       <div class="pp-grid">
         <div class="pp-media">
           <div class="pp-preview-wrap">
-            <img id="pp-drawing" class="pp-drawing-img" alt="drawing preview" width="360" height="360" />
+            <img
+              id="pp-drawing"
+              class="pp-drawing-img"
+              alt="drawing preview"
+              width="360"
+              height="360"
+            />
             <canvas id="pp-preview" hidden></canvas>
           </div>
           <div id="frameStrip" class="pp-frame-strip" hidden></div>
@@ -38,9 +44,15 @@
           </section>
 
           <section class="pp-summary" id="pp-summary">
-            <div class="pp-summary-row"><span>Subtotal</span><span id="sumSubtotal" data-subtotal>—</span></div>
-            <div class="pp-summary-row"><span>Shipping</span><span id="sumShipping" data-shipping>—</span></div>
-            <div class="pp-summary-row total"><span>Total</span><span id="sumTotal" data-total>—</span></div>
+            <div class="pp-summary-row">
+              <span>Subtotal</span><span id="sumSubtotal" data-subtotal>—</span>
+            </div>
+            <div class="pp-summary-row">
+              <span>Shipping</span><span id="sumShipping" data-shipping>—</span>
+            </div>
+            <div class="pp-summary-row total">
+              <span>Total</span><span id="sumTotal" data-total>—</span>
+            </div>
             <div class="pp-price" id="price" data-price aria-live="polite"></div>
             <button id="pp-checkout" data-checkout class="btn primary full" type="button" disabled>
               Continue to checkout

@@ -42,7 +42,9 @@ export function pickProductFromQuery<T extends ProductLike>(
  * src/merch.ts) call it so the pre-selected variant is identical before
  * and after hydration.
  */
-export function defaultVariant<T extends VariantLike>(product: ProductWithVariants & { variants: readonly T[] }): T | null {
+export function defaultVariant<T extends VariantLike>(
+  product: ProductWithVariants & { variants: readonly T[] }
+): T | null {
   const variants = product.variants;
   if (variants.length === 0) return null;
   if (variants.length === 1) return variants[0];
@@ -74,5 +76,7 @@ export function findVariantBySizeColor<T extends VariantLike>(
   size: string | null,
   color: string | null
 ): T | null {
-  return (variants.find((v) => (v.size ?? null) === size && (v.color ?? null) === color) as T) ?? null;
+  return (
+    (variants.find((v) => (v.size ?? null) === size && (v.color ?? null) === color) as T) ?? null
+  );
 }

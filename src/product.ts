@@ -27,7 +27,8 @@ interface CheckoutResponse {
   checkout_url: string;
 }
 
-const INGEST_URL = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_INGEST_URL ?? "/ingest";
+const INGEST_URL =
+  (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_INGEST_URL ?? "/ingest";
 const API_BASE = INGEST_URL.replace(/\/ingest\/?$/, "");
 
 // ---------------------------------------------------------------------------
@@ -115,7 +116,9 @@ function getDrawingIdFromDom(_fallbackProduct: MerchProduct | null): string | nu
   const root = getRoot();
   const fromData = root?.getAttribute("data-drawing-id") ?? root?.dataset.drawingId ?? null;
   if (fromData && /^[0-9a-f]{64}$/.test(fromData)) return fromData;
-  const urlId = new URL(location.href).searchParams.get("d") ?? new URL(location.href).searchParams.get("drawing_id");
+  const urlId =
+    new URL(location.href).searchParams.get("d") ??
+    new URL(location.href).searchParams.get("drawing_id");
   if (urlId && /^[0-9a-f]{64}$/.test(urlId)) return urlId;
   // Canonical /products/:drawingId/:productId — path segments
   const parts = location.pathname.split("/").filter(Boolean);
@@ -135,7 +138,9 @@ function getProductIdFromDom(): string | null {
     null;
   // data-product-id is the product id string; data-product is JSON — distinguish
   if (fromData && !fromData.trim().startsWith("{")) return fromData;
-  const urlProd = new URL(location.href).searchParams.get("product") ?? new URL(location.href).searchParams.get("product_id");
+  const urlProd =
+    new URL(location.href).searchParams.get("product") ??
+    new URL(location.href).searchParams.get("product_id");
   if (urlProd) return urlProd;
   const parts = location.pathname.split("/").filter(Boolean);
   // /products/:drawingId/:productId → last segment is productId
@@ -151,7 +156,10 @@ function getProductIdFromDom(): string | null {
 
 function getFrameFromDom(): number {
   const root = getRoot();
-  const raw = root?.getAttribute("data-frame") ?? root?.dataset.frame ?? new URL(location.href).searchParams.get("frame");
+  const raw =
+    root?.getAttribute("data-frame") ??
+    root?.dataset.frame ??
+    new URL(location.href).searchParams.get("frame");
   const n = raw !== null ? Number.parseInt(String(raw), 10) : 0;
   return Number.isInteger(n) && n >= 0 ? n : 0;
 }
@@ -343,7 +351,10 @@ function renderVariantSelect(): void {
       btn.className = "btn sm";
       btn.dataset.variantId = String(v.id);
       btn.textContent = `${variantLabel(v)} — ${formatUsd(v.retail_cents)}`;
-      btn.setAttribute("aria-pressed", selectedVariant && v.id === selectedVariant.id ? "true" : "false");
+      btn.setAttribute(
+        "aria-pressed",
+        selectedVariant && v.id === selectedVariant.id ? "true" : "false"
+      );
       btn.addEventListener("click", () => selectVariantById(v.id));
       variantPillsEl.appendChild(btn);
     }
@@ -359,7 +370,8 @@ function renderVariantSelect(): void {
       container.setAttribute("data-auto-variant-picker", "");
       container.className = "pp-pills";
       // Insert before checkout button if present, else append
-      if (checkoutBtn?.parentElement) checkoutBtn.parentElement.insertBefore(container, checkoutBtn);
+      if (checkoutBtn?.parentElement)
+        checkoutBtn.parentElement.insertBefore(container, checkoutBtn);
       else root.appendChild(container);
       variantPillsEl = container;
     }
@@ -370,7 +382,10 @@ function renderVariantSelect(): void {
       btn.className = "btn sm";
       btn.dataset.variantId = String(v.id);
       btn.textContent = `${variantLabel(v)} — ${formatUsd(v.retail_cents)}`;
-      btn.setAttribute("aria-pressed", selectedVariant && v.id === selectedVariant.id ? "true" : "false");
+      btn.setAttribute(
+        "aria-pressed",
+        selectedVariant && v.id === selectedVariant.id ? "true" : "false"
+      );
       btn.addEventListener("click", () => selectVariantById(v.id));
       variantPillsEl!.appendChild(btn);
     }
@@ -442,18 +457,27 @@ function renderSplitPickers(): void {
 function syncPillSelection(): void {
   if (!variantPillsEl || !selectedVariant) return;
   for (const el of variantPillsEl.querySelectorAll<HTMLElement>("[data-variant-id]")) {
-    el.setAttribute("aria-pressed", el.dataset.variantId === String(selectedVariant.id) ? "true" : "false");
+    el.setAttribute(
+      "aria-pressed",
+      el.dataset.variantId === String(selectedVariant.id) ? "true" : "false"
+    );
     el.classList.toggle("selected", el.dataset.variantId === String(selectedVariant.id));
   }
   // also sync split pickers aria
   if (sizePickerEl) {
     for (const el of sizePickerEl.querySelectorAll<HTMLElement>("[data-axis-value]")) {
-      el.setAttribute("aria-pressed", el.dataset.axisValue === selectedVariant?.size ? "true" : "false");
+      el.setAttribute(
+        "aria-pressed",
+        el.dataset.axisValue === selectedVariant?.size ? "true" : "false"
+      );
     }
   }
   if (colorPickerEl) {
     for (const el of colorPickerEl.querySelectorAll<HTMLElement>("[data-axis-value]")) {
-      el.setAttribute("aria-pressed", el.dataset.axisValue === selectedVariant?.color ? "true" : "false");
+      el.setAttribute(
+        "aria-pressed",
+        el.dataset.axisValue === selectedVariant?.color ? "true" : "false"
+      );
     }
   }
   if (variantSelectEl) {
@@ -505,7 +529,9 @@ function updateCheckoutButton(): void {
     if (selectedVariant && product) {
       const total = selectedVariant.retail_cents + product.shipping_cents;
       // Keep button text stable for a11y; price lives in separate priceEl.
-      checkoutBtn.textContent = checkoutBtn.dataset.keepText ? checkoutBtn.textContent : `${base} — ${formatUsd(total)}`;
+      checkoutBtn.textContent = checkoutBtn.dataset.keepText
+        ? checkoutBtn.textContent
+        : `${base} — ${formatUsd(total)}`;
       // If no custom label, use Stripe CTA
       if (!checkoutBtn.dataset.label) checkoutBtn.textContent = "Continue to checkout";
     } else {
@@ -690,7 +716,9 @@ export function __resetForTest(opts: {
   drawingId = opts.drawingId ?? null;
   if (typeof opts.frame === "number") frame = opts.frame;
   if (opts.product && typeof opts.selectedVariantId === "number") {
-    selectedVariant = opts.product.variants.find((v) => v.id === opts.selectedVariantId!) ?? pickDefaultVariant(opts.product);
+    selectedVariant =
+      opts.product.variants.find((v) => v.id === opts.selectedVariantId!) ??
+      pickDefaultVariant(opts.product);
   } else if (opts.product) {
     selectedVariant = pickDefaultVariant(opts.product);
   } else {

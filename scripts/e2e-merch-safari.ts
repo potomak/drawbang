@@ -5,7 +5,8 @@ import path from "node:path";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:5173";
 const API = process.env.E2E_API_URL ?? "http://localhost:8787";
-const DRAWING_ID = process.env.E2E_DRAWING_ID ?? "e0646bc9fd09c774d51868484b4b189afdf5dff73cd37429b2631143b548c9a9";
+const DRAWING_ID =
+  process.env.E2E_DRAWING_ID ?? "e0646bc9fd09c774d51868484b4b189afdf5dff73cd37429b2631143b548c9a9";
 const OUT_DIR = path.resolve(".screenshots/merch-e2e");
 
 async function main() {
@@ -30,13 +31,17 @@ async function main() {
     if (products.length < 4) throw new Error(`expected >=4 products, got ${products.length}`);
     // Check first card href is canonical
     const href = await products[0].getAttribute("href");
-    if (!href.includes(`/products/${DRAWING_ID}/`)) throw new Error(`first card href not canonical: ${href}`);
+    if (!href.includes(`/products/${DRAWING_ID}/`))
+      throw new Error(`first card href not canonical: ${href}`);
     console.log(`First product href: ${href}`);
 
     // Screenshot 1: drawing page with products section (desktop)
     {
       const b64 = await driver.takeScreenshot();
-      fs.writeFileSync(path.join(OUT_DIR, "01-drawing-products-desktop.png"), Buffer.from(b64, "base64"));
+      fs.writeFileSync(
+        path.join(OUT_DIR, "01-drawing-products-desktop.png"),
+        Buffer.from(b64, "base64")
+      );
       console.log("Saved 01-drawing-products-desktop.png");
     }
 
@@ -49,12 +54,16 @@ async function main() {
     await driver.wait(until.elementLocated(By.css("[data-product-page], #product-page")), 10000);
     // Verify default variant pre-selected
     const main = await driver.findElement(By.css("[data-product-page], #product-page"));
-    const variantId = (await main.getAttribute("data-variant-id")) || (await main.getAttribute("data-variant_id"));
+    const variantId =
+      (await main.getAttribute("data-variant-id")) || (await main.getAttribute("data-variant_id"));
     console.log(`Default variant-id: ${variantId}`);
     if (!variantId) throw new Error("default variant-id missing");
 
     // Price should be visible
-    const priceEl = await driver.wait(until.elementLocated(By.css("#pp-price-value, #pp-price, [data-testid='price'], .pp-price")), 5000);
+    const priceEl = await driver.wait(
+      until.elementLocated(By.css("#pp-price-value, #pp-price, [data-testid='price'], .pp-price")),
+      5000
+    );
     const priceText = await priceEl.getText();
     console.log(`Price text: ${priceText}`);
     if (!/\$/.test(priceText)) throw new Error(`price not rendered: ${priceText}`);
@@ -62,7 +71,10 @@ async function main() {
     // Screenshot 2: product page desktop
     {
       const b64 = await driver.takeScreenshot();
-      fs.writeFileSync(path.join(OUT_DIR, "02-product-page-desktop.png"), Buffer.from(b64, "base64"));
+      fs.writeFileSync(
+        path.join(OUT_DIR, "02-product-page-desktop.png"),
+        Buffer.from(b64, "base64")
+      );
       console.log("Saved 02-product-page-desktop.png");
     }
 
@@ -79,7 +91,9 @@ async function main() {
     if (pills.length > 1) {
       const beforePrice = await priceEl.getText();
       const beforePressed = await pills[1].getAttribute("aria-pressed");
-      console.log(`Clicking variant pill 2 (before pressed=${beforePressed}, price=${beforePrice})`);
+      console.log(
+        `Clicking variant pill 2 (before pressed=${beforePressed}, price=${beforePrice})`
+      );
       await pills[1].click();
       // Wait a bit for JS to update
       await driver.sleep(800);
@@ -88,23 +102,33 @@ async function main() {
       console.log(`After click pressed=${afterPressed}, price=${afterPrice}`);
       // Screenshot 3: after variant switch
       const b64 = await driver.takeScreenshot();
-      fs.writeFileSync(path.join(OUT_DIR, "03-product-variant-switched.png"), Buffer.from(b64, "base64"));
+      fs.writeFileSync(
+        path.join(OUT_DIR, "03-product-variant-switched.png"),
+        Buffer.from(b64, "base64")
+      );
       console.log("Saved 03-product-variant-switched.png");
     } else {
-      console.log(`Only ${pills.length} pills found — skipping variant switch screenshot (single-variant product like mug)`);
+      console.log(
+        `Only ${pills.length} pills found — skipping variant switch screenshot (single-variant product like mug)`
+      );
       // Try tee-softstyle or mug to find multi-variant — navigate to tee-softstyle which has colors
       const altProduct = href.includes("tee-softstyle") ? "tee" : "tee-softstyle";
       const altUrl = `${BASE}/products/${DRAWING_ID}/${altProduct}`;
       console.log(`Trying alt product ${altUrl} for variant coverage`);
       await driver.get(altUrl);
       await driver.wait(until.elementLocated(By.css("[data-product-page]")), 5000);
-      const altPills = await driver.findElements(By.css("#pp-size-picker .btn, #pp-color-picker .btn"));
+      const altPills = await driver.findElements(
+        By.css("#pp-size-picker .btn, #pp-color-picker .btn")
+      );
       console.log(`Alt product pills: ${altPills.length}`);
       if (altPills.length > 1) {
         await altPills[1].click();
         await driver.sleep(800);
         const b64 = await driver.takeScreenshot();
-        fs.writeFileSync(path.join(OUT_DIR, "03-product-variant-switched.png"), Buffer.from(b64, "base64"));
+        fs.writeFileSync(
+          path.join(OUT_DIR, "03-product-variant-switched.png"),
+          Buffer.from(b64, "base64")
+        );
         console.log("Saved 03-product-variant-switched.png (alt)");
       }
     }
@@ -114,14 +138,20 @@ async function main() {
       await driver.manage().window().setRect({ width: 390, height: 844, x: 0, y: 0 });
       await driver.sleep(500);
       const b64 = await driver.takeScreenshot();
-      fs.writeFileSync(path.join(OUT_DIR, "04-product-page-mobile.png"), Buffer.from(b64, "base64"));
+      fs.writeFileSync(
+        path.join(OUT_DIR, "04-product-page-mobile.png"),
+        Buffer.from(b64, "base64")
+      );
       console.log("Saved 04-product-page-mobile.png (390x844)");
       // Also mobile drawing page
       await driver.get(`${BASE}/d/${DRAWING_ID}`);
       await driver.wait(until.elementLocated(By.css("#dr-products")), 5000);
       await driver.sleep(500);
       const b64m = await driver.takeScreenshot();
-      fs.writeFileSync(path.join(OUT_DIR, "05-drawing-products-mobile.png"), Buffer.from(b64m, "base64"));
+      fs.writeFileSync(
+        path.join(OUT_DIR, "05-drawing-products-mobile.png"),
+        Buffer.from(b64m, "base64")
+      );
       console.log("Saved 05-drawing-products-mobile.png");
     } catch (e) {
       console.log("Mobile viewport failed", e);
