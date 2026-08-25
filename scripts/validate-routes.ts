@@ -18,78 +18,10 @@ import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRoutes, type Route } from "../ingest/routes.js";
-import type { RouteDeps } from "../ingest/routes.js";
+import { mockRouteDeps } from "../ingest/mock-route-deps.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..");
-
-// ---------------------------------------------------------------------------
-// 1. Build a mock RouteDeps that yields the maximal route table
-// ---------------------------------------------------------------------------
-
-function mockDeps(): RouteDeps {
-  const dummyStore = {} as unknown as never;
-  const dummyFn = () => {};
-  return {
-    renderConfig: {
-      drawingStore: dummyStore,
-      publicBaseUrl: "https://example.com",
-      repoUrl: "https://github.com/potomak/drawbang",
-      // Provide optional stores so their routes are included
-      userStatsStore: dummyStore,
-      userStore: dummyStore,
-      bookmarksStore: dummyStore,
-      followsStore: dummyStore,
-      productCountersSource: dummyStore,
-      merchCatalog: { products: [] } as unknown as never,
-    },
-    likesConfig: dummyStore,
-    bookmarksConfig: dummyStore,
-    followsConfig: dummyStore,
-    hydrateConfig: dummyStore,
-    subscribeConfig: dummyStore,
-    deleteConfig: {
-      drawingStore: dummyStore,
-      storage: dummyStore,
-      cacheInvalidator: undefined as never,
-    },
-    backfillConfig: {
-      drawingStore: dummyStore,
-      storage: dummyStore,
-      enqueue: dummyFn as never,
-      runNow: dummyFn as never,
-    },
-    authConfig: {
-      userStore: dummyStore,
-      email: dummyStore,
-      jwtSecret: "test-secret",
-      publicBaseUrl: "https://example.com",
-      drawingStore: dummyStore,
-      storage: dummyStore,
-      cacheInvalidator: undefined,
-      challenge: { secret: "test", challengeStore: dummyStore },
-    },
-    ingestConfig: {
-      storage: dummyStore,
-      publicBaseUrl: "https://example.com",
-      repoUrl: "https://example.com",
-      drawingStore: dummyStore,
-      cacheInvalidator: undefined,
-      deferPostPublish: dummyFn as never,
-    },
-    userStatsStore: dummyStore,
-    admin: {
-      isAllowed: () => true,
-      renderData: async () => ({
-        status: 200,
-        contentType: "text/html",
-        cacheControl: "no-store",
-        body: "",
-      }),
-    },
-    repoUrl: "https://github.com/potomak/drawbang",
-  };
-}
 
 // ---------------------------------------------------------------------------
 // 2. Convert RegExp → API Gateway Path
@@ -187,7 +119,7 @@ function loadTemplatePaths(): { method: string; path: string }[] {
 
 function main(): void {
   const verbose = process.argv.includes("--verbose") || process.argv.includes("-v");
-  const routes = createRoutes(mockDeps());
+  const routes = createRoutes(mockRouteDeps());
   const expectedEvents = expectedApiEvents(routes);
   const actualEvents = loadTemplatePaths();
 
