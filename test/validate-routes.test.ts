@@ -3,12 +3,12 @@ import { describe, test } from "node:test";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
-// Regression test for scripts/gen-routes.ts (PR #300 / #298 proposal 3).
-// The codegen makes ingest/routes.ts the single source of truth for
-// vite.config.ts DEV_PROXY_PATHS and infra/aws/template.yaml Events.
-// This test pins the generated output so a future route addition that
-// forgets to run the codegen (or a broken pattern→proxy mapping) fails
-// fast in CI, not as a 404 in dev/prod.
+// Regression test for routes validation (PR #300 / #298 proposal 3).
+// ingest/routes.ts is the single source of truth — vite.config.ts
+// DEV_PROXY_PATHS is manual (see routes.ts comment) and
+// infra/aws/template.yaml Events is validated via createRoutes() with
+// mock deps (scripts/validate-routes.ts). This test pins the vite list
+// and ensures the validator stays green.
 
 function loadViteProxies(): string[] {
   const src = readFileSync("vite.config.ts", "utf8");
@@ -22,11 +22,11 @@ function loadViteProxies(): string[] {
   return [...stripped.matchAll(/"([^"]+)"|'([^']+)'/g)].map((x) => x[1] ?? x[2]);
 }
 
-describe("gen-routes codegen", () => {
-  test("vite DEV_PROXY_PATHS is exactly the generated 19-entry list", () => {
+describe("validate-routes", () => {
+  test("vite DEV_PROXY_PATHS is exactly the 19-entry manual list", () => {
     const proxies = loadViteProxies();
-    // Snapshot of the generated list — update via `npx tsx scripts/gen-routes.ts --write`
-    // and commit both vite.config.ts and this snapshot together.
+    // Snapshot of the manual list — update vite.config.ts and this snapshot
+    // together when adding a route (see ingest/routes.ts comment).
     const expected = [
       "^/$",
       "/admin",
@@ -81,17 +81,20 @@ describe("gen-routes codegen", () => {
     }
   });
 
-  test("gen-routes --check passes (vite + template in sync with routes.ts)", () => {
-    const res = spawnSync(process.execPath, ["./node_modules/.bin/tsx", "scripts/gen-routes.ts"], {
-      encoding: "utf8",
-    });
+  test("validate-routes passes (template in sync via createRoutes)", () => {
+    const res = spawnSync(
+      process.execPath,
+      ["./node_modules/.bin/tsx", "scripts/validate-routes.ts"],
+      {
+        encoding: "utf8",
+      }
+    );
     assert.equal(
       res.status,
       0,
-      `gen-routes --check should pass, got ${res.status}\nstdout: ${res.stdout}\nstderr: ${res.stderr}`
+      `validate-routes should pass, got ${res.status}\nstdout: ${res.stdout}\nstderr: ${res.stderr}`
     );
-    assert.match(res.stdout, /vite proxies OK/);
-    assert.match(res.stdout, /template Events OK/);
+    assert.match(res.stdout, /OK/);
   });
 
   test("vite proxies include families needed for dev parity", () => {
