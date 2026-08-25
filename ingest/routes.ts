@@ -90,6 +90,16 @@ import {
 //     404 page for proxied API GETs — see vite.config.ts comment)
 // If you don't, the route will 404 in prod (missing Events) or in dev
 // (vite 404 page shadowing the proxy). Keep it simple — no codegen.
+//
+// CONVENTION — templates and handlers are extracted, this file stays thin:
+//   - Templates: lib/templates/* (pure HTML, no store access)
+//   - Render handlers: ingest/render/* (fetch from stores + call templates)
+//   - Business handlers: ingest/*-handler.ts (one file per domain)
+//   - This file (routes.ts): ONLY the route table. Each entry wires
+//     pattern/methods/auth + allowlist/ownership check + logOutcome +
+//     req.body() parse guard, then delegates to a handler/render-handler.
+//     No business logic, no direct store/template access beyond the
+//     delegate. If you add logic here, extract it to a handler instead.
 
 // The transport-agnostic request each adapter constructs. `auth()` runs
 // (and should memoize) the Bearer-JWT verification; `body()` yields the
