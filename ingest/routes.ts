@@ -46,7 +46,7 @@ import {
 } from "./admin-orders-handler.js";
 import { mintChallenge } from "./challenge.js";
 import { renderAdminShell, type AdminRange } from "../lib/templates/admin.js";
-import { handleGetAdminMerchFlags, handleSetAdminMerchFlags } from "./admin-flags-handler.js";
+import { handleGetAdminMerchFlags, handleSetAdminMerchFlags } from "./admin-handler.js";
 import {
   renderBookmarksPageHandler,
   renderDesignPageHandler,

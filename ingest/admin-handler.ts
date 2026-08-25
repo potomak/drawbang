@@ -315,23 +315,40 @@ async function loadMerchFlags(flagsStore?: AnyFlagsStore): Promise<AdminView["me
   };
 }
 
-// Standalone JSON handlers for GET /admin/merch/flags and POST /admin/merch/flags
-// (allowlisted in routes.ts via deps.admin.isAllowed, same gate as /admin/data).
-export async function handleGetMerchFlags(args: {
-  flagsStore: AnyFlagsStore;
-}): Promise<{ status: number; body: unknown; headers?: Record<string, string> }> {
-  const store = args.flagsStore as unknown as {
+export interface AdminFlagsConfig {
+  flagsStore?: AnyFlagsStore;
+}
+
+export interface AdminFlagsResult {
+  status: number;
+  body: unknown;
+  headers?: Record<string, string>;
+  error_code?: string;
+}
+
+// GET /admin/merch/flags — returns { merch_env, merch_dry_run, updated_at, updated_by }
+export async function handleGetAdminMerchFlags(cfg: AdminFlagsConfig): Promise<AdminFlagsResult> {
+  if (!cfg.flagsStore) {
+    return {
+      status: 500,
+      body: { error: "flags store not configured" },
+      error_code: "flags_store_not_wired",
+    };
+  }
+  const store = cfg.flagsStore as unknown as {
     getMerchEnv?: () => Promise<string>;
-    getFlag: (
-      flag: string
-    ) => Promise<{ updated_at?: string | null; updated_by?: string | null } | null>;
+    getFlag: (flag: string) => Promise<{
+      updated_at?: string | null;
+      updated_by?: string | null;
+      env?: string;
+    } | null>;
   };
   let env: "prod" | "sandbox" = "sandbox";
   try {
-    const maybeEnv = await store.getMerchEnv?.();
-    if (maybeEnv === "prod" || maybeEnv === "sandbox") env = maybeEnv;
+    const maybe = await store.getMerchEnv?.();
+    if (maybe === "prod" || maybe === "sandbox") env = maybe;
   } catch {
-    // ignore, default to sandbox
+    // ignore
   }
   let row: { updated_at?: string | null; updated_by?: string | null } | null = null;
   try {
@@ -341,57 +358,64 @@ export async function handleGetMerchFlags(args: {
   } catch {
     // ignore
   }
-  if (!row) {
-    return {
-      status: 200,
-      body: {
+  const body = row
+    ? {
+        merch_env: env,
+        merch_dry_run: env === "sandbox",
+        updated_at: row.updated_at ?? null,
+        updated_by: row.updated_by ?? null,
+      }
+    : {
         merch_env: env,
         merch_dry_run: env === "sandbox",
         updated_at: null,
         updated_by: null,
-      },
-      headers: { "Cache-Control": "private, no-store" },
-    };
-  }
-  return {
-    status: 200,
-    body: {
-      merch_env: env,
-      merch_dry_run: env === "sandbox",
-      updated_at: row.updated_at ?? null,
-      updated_by: row.updated_by ?? null,
-    },
-    headers: { "Cache-Control": "private, no-store" },
-  };
+      };
+  return { status: 200, body, headers: { "Cache-Control": "private, no-store" } };
 }
 
-export async function handleSetMerchFlags(args: {
-  flagsStore: AnyFlagsStore;
-  body: string;
-  username: string;
-}): Promise<{ status: number; body: unknown; headers?: Record<string, string> }> {
+// POST /admin/merch/flags — expects { merch_env: "prod"|"sandbox" } or { merch_dry_run: boolean }
+export async function handleSetAdminMerchFlags(
+  rawBody: string,
+  cfg: AdminFlagsConfig,
+  authUsername: string
+): Promise<AdminFlagsResult> {
+  if (!cfg.flagsStore) {
+    return {
+      status: 500,
+      body: { error: "flags store not configured" },
+      error_code: "flags_store_not_wired",
+    };
+  }
   let parsed: unknown;
   try {
-    parsed = JSON.parse(args.body);
+    parsed = JSON.parse(rawBody);
   } catch {
-    return { status: 400, body: { error: "bad json body" } };
+    return { status: 400, body: { error: "bad json body" }, error_code: "bad_json" };
   }
   const obj = parsed as Record<string, unknown>;
-  // Accept either merch_env (new) or merch_dry_run (legacy). merch_env wins.
   let env: "prod" | "sandbox" | null = null;
   if (typeof obj.merch_env === "string") {
     const s = obj.merch_env.trim().toLowerCase();
     if (s === "prod" || s === "production" || s === "live") env = "prod";
     else if (s === "sandbox" || s === "test" || s === "dry-run" || s === "dry_run") env = "sandbox";
-    else return { status: 400, body: { error: "bad merch_env: expected prod or sandbox" } };
+    else {
+      return {
+        status: 400,
+        body: { error: "bad merch_env: expected prod or sandbox" },
+        error_code: "bad_merch_env",
+      };
+    }
   } else if (typeof obj.merch_dry_run === "boolean") {
     env = obj.merch_dry_run ? "sandbox" : "prod";
   } else {
-    return { status: 400, body: { error: "bad merch_env: expected prod or sandbox" } };
+    return {
+      status: 400,
+      body: { error: "bad merch_env: expected prod or sandbox" },
+      error_code: "bad_merch_env",
+    };
   }
-  // Prefer the new setMerchEnv path; fall back to setFlag for stores that
-  // haven't been migrated (e.g. tests with a minimal stub).
-  const store = args.flagsStore as unknown as {
+  const store = cfg.flagsStore as unknown as {
     setMerchEnv?: (
       env: string,
       updatedBy: string
@@ -405,9 +429,9 @@ export async function handleSetMerchFlags(args: {
   };
   let row: { updated_at?: string; updated_by?: string } | null = null;
   if (store.setMerchEnv) {
-    row = await store.setMerchEnv(env, args.username);
+    row = await store.setMerchEnv(env, authUsername);
   } else {
-    row = await store.setFlag("merch_dry_run", env === "sandbox", args.username);
+    row = await store.setFlag("merch_dry_run", env === "sandbox", authUsername);
   }
   let outEnv: "prod" | "sandbox" = env;
   try {
@@ -416,16 +440,13 @@ export async function handleSetMerchFlags(args: {
   } catch {
     // ignore
   }
-  return {
-    status: 200,
-    body: {
-      merch_env: outEnv,
-      merch_dry_run: outEnv === "sandbox",
-      updated_at: row?.updated_at ?? null,
-      updated_by: row?.updated_by ?? null,
-    },
-    headers: { "Cache-Control": "private, no-store" },
+  const body = {
+    merch_env: outEnv,
+    merch_dry_run: outEnv === "sandbox",
+    updated_at: row?.updated_at ?? null,
+    updated_by: row?.updated_by ?? null,
   };
+  return { status: 200, body, headers: { "Cache-Control": "private, no-store" } };
 }
 
 // `stats by … as succ, fail, total` is the canonical Insights pattern
