@@ -17,29 +17,31 @@ const enableHttps = process.env.VITE_HTTPS === "1";
 //
 // Keys starting with ^ are regexes; the rest are prefix matches (vite's
 // own proxy semantics).
+//
+// Generated from ingest/routes.ts — single source of truth (#298 / #3).
+// Run `npx tsx scripts/gen-routes.ts --write` to update after adding a route.
+// CI runs `gen-routes` in check mode; drift fails the build.
 const DEV_PROXY_TARGET = "http://localhost:8787";
 const DEV_PROXY_PATHS = [
-  "/ingest",
-  "/auth",
-  // Covers the /admin shell, /admin/data, and DELETE /admin/users/*.
-  "/admin",
-  // Dynamic-site routes that match what the prod Lambda serves: the
-  // ingest dev-server renders them off MemoryDrawingStore so the
-  // editor's "publish → see on the feed" loop works locally.
-  // ^/$ matches just `/` (the feed home) — vite proxy keys starting
-  // with ^ are regex, prefix keys would also match other paths.
   "^/$",
+  "/admin",
+  "/auth",
+  "/backfill",
+  "/design",
+  "/drawings",
   "/feed.rss",
   "/feed/items",
-  "^/gallery(/items)?$",
+  "/hydrate",
+  "/ingest",
+  "/me",
+  "/subscribe",
+  "/users",
   "^/d/.*",
   "^/embed/.*",
-  "^/u/.*",
+  "^/gallery(/items)?$",
+  "^/products.*",
   "^/prompts.*",
-  "^/drawings/.*/like$",
-  "/me/likes",
-  "/likes/counts",
-  "/subscribe",
+  "^/u/.*",
 ];
 
 export default defineConfig({

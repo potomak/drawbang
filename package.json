@@ -20,7 +20,9 @@
     "og:backfill-mp4": "tsx scripts/backfill-share-mp4.ts",
     "cost:report": "tsx scripts/cost-report.ts",
     "dev:all": "concurrently -n vite,ingest -c blue,green \"vite --force\" \"tsx ingest/dev-server.ts\"",
-    "lint": "node scripts/check-proxy.js && node scripts/check-routes.js",
+    "gen-routes": "tsx scripts/gen-routes.ts --write",
+    "gen-routes:check": "tsx scripts/gen-routes.ts",
+    "lint": "node scripts/check-proxy.js && node scripts/check-routes.js && npm run gen-routes:check",
     "lambda:build": "node infra/aws/build-lambda.mjs",
     "lambda:deploy": "npm run lambda:build && (cd infra/aws && sam deploy)"
   },
