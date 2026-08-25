@@ -46,7 +46,7 @@ import {
 } from "./admin-orders-handler.js";
 import { mintChallenge } from "./challenge.js";
 import { renderAdminShell, type AdminRange } from "../lib/templates/admin.js";
-import { adminFlagsRoutes } from "./routes/admin-flags.js";
+import { handleGetAdminMerchFlags, handleSetAdminMerchFlags } from "./admin-flags-handler.js";
 import {
   renderBookmarksPageHandler,
   renderDesignPageHandler,
@@ -289,7 +289,91 @@ export function createRoutes(deps: RouteDeps): Route[] {
         return json(result.status, result.body);
       },
     },
-    ...adminFlagsRoutes(deps),
+    {
+      methods: ["GET"],
+      pattern: /^\/admin\/merch\/flags$/,
+      auth: "required",
+      logName: "GET /admin/merch/flags",
+      handler: async (req: RouteRequest, _params: string[], auth) => {
+        const route = "GET /admin/merch/flags";
+        if (!deps.admin.isAllowed(auth!.username)) {
+          logOutcome({
+            requestId: req.requestId,
+            route,
+            status: 403,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id,
+            username: auth!.username,
+            error_code: "forbidden",
+          });
+          return json(403, { error: "not authorised" });
+        }
+        const result = await handleGetAdminMerchFlags({
+          flagsStore: deps.admin.flagsStore,
+        });
+        logOutcome({
+          requestId: req.requestId,
+          route,
+          status: result.status,
+          duration_ms: Date.now() - req.t0,
+          user_id: auth!.user_id,
+          username: auth!.username,
+          error_code: result.error_code,
+        });
+        return json(result.status, result.body, result.headers);
+      },
+    },
+    {
+      methods: ["POST"],
+      pattern: /^\/admin\/merch\/flags$/,
+      auth: "required",
+      logName: "POST /admin/merch/flags",
+      handler: async (req: RouteRequest, _params: string[], auth) => {
+        const route = "POST /admin/merch/flags";
+        if (!deps.admin.isAllowed(auth!.username)) {
+          logOutcome({
+            requestId: req.requestId,
+            route,
+            status: 403,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id,
+            username: auth!.username,
+            error_code: "forbidden",
+          });
+          return json(403, { error: "not authorised" });
+        }
+        let raw: string;
+        try {
+          raw = await req.body();
+        } catch {
+          logOutcome({
+            requestId: req.requestId,
+            route,
+            status: 400,
+            duration_ms: Date.now() - req.t0,
+            user_id: auth!.user_id,
+            username: auth!.username,
+            error_code: "bad_json",
+          });
+          return json(400, { error: "bad json body" });
+        }
+        const result = await handleSetAdminMerchFlags(
+          raw,
+          { flagsStore: deps.admin.flagsStore },
+          auth!.username
+        );
+        logOutcome({
+          requestId: req.requestId,
+          route,
+          status: result.status,
+          duration_ms: Date.now() - req.t0,
+          user_id: auth!.user_id,
+          username: auth!.username,
+          error_code: result.error_code,
+        });
+        return json(result.status, result.body, result.headers);
+      },
+    },
     // Admin orders — operator view + status management. Same allowlist gate as
     // /admin/data. GET /admin/orders is the shell, GET /admin/orders/data
     // is the inner fragment, POST /admin/orders/{id}/status updates status/env.
