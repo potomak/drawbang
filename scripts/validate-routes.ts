@@ -59,7 +59,6 @@ function patternToApiPath(pattern: RegExp): string {
   }
   // Clean up
   src = src.replace(/\{id\}\/\{id\}/g, "{id}");
-  src = src.replace(/\/\{id\}\/items/g, "/{id}/items");
   if (src === "/gallery(/items)?") src = "/gallery";
   if (src === "/auth/.+") src = "/auth/{proxy+}";
   if (src === "/prompts.*") src = "/prompts";
