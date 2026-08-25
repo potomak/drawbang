@@ -17,10 +17,6 @@ const enableHttps = process.env.VITE_HTTPS === "1";
 //
 // Keys starting with ^ are regexes; the rest are prefix matches (vite's
 // own proxy semantics).
-//
-// Generated from ingest/routes.ts — single source of truth (#298 / #3).
-// Run `npx tsx scripts/gen-routes.ts --write` to update after adding a route.
-// CI runs `gen-routes` in check mode; drift fails the build.
 const DEV_PROXY_TARGET = "http://localhost:8787";
 const DEV_PROXY_PATHS = [
   "^/$",

@@ -78,6 +78,14 @@ import {
 // same table via createRoutes() and keep only their event-adaptation
 // layers: lambda converts APIGatewayProxyEventV2 ↔ RouteRequest/RouteResult,
 // dev-server converts node:http req/res.
+//
+// When you add a route here, also update:
+//   - infra/aws/template.yaml  IngestFunction.Events  (Path + Method, and
+//     CacheBehaviors if CloudFront should cache it — longer pattern above parent)
+//   - vite.config.ts  DEV_PROXY_PATHS  (so `npm run dev:all` proxies it to :8787;
+//     devBucketPlugin uses the same list to avoid serving its 404 page for
+//     proxied API GETs — see vite.config.ts comment)
+// CI will fail via `npm run lint` (`check-routes` + `gen-routes:check`) if they drift.
 
 // The transport-agnostic request each adapter constructs. `auth()` runs
 // (and should memoize) the Bearer-JWT verification; `body()` yields the
