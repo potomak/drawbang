@@ -85,7 +85,9 @@ import {
 //   - vite.config.ts  DEV_PROXY_PATHS  (so `npm run dev:all` proxies it to :8787;
 //     devBucketPlugin uses the same list to avoid serving its 404 page for
 //     proxied API GETs — see vite.config.ts comment)
-// CI will fail via `npm run lint` (`check-routes` + `gen-routes:check`) if they drift.
+// CI will fail via `npm run lint` (`validate-routes`) if template.yaml drifts
+// — it calls createRoutes() with mock deps and compares the live table to
+// the Events in template.yaml.
 
 // The transport-agnostic request each adapter constructs. `auth()` runs
 // (and should memoize) the Bearer-JWT verification; `body()` yields the
