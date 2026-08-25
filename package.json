@@ -20,7 +20,6 @@
     "og:backfill-mp4": "tsx scripts/backfill-share-mp4.ts",
     "cost:report": "tsx scripts/cost-report.ts",
     "dev:all": "concurrently -n vite,ingest -c blue,green \"vite --force\" \"tsx ingest/dev-server.ts\"",
-    "lint": "echo \"lint: no checks configured (see ingest/routes.ts WARNING)\"",
     "lambda:build": "node infra/aws/build-lambda.mjs",
     "lambda:deploy": "npm run lambda:build && (cd infra/aws && sam deploy)"
   },
