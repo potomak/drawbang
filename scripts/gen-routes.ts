@@ -171,7 +171,6 @@ function patternToApiPath(patternSrc: string): string {
   }
 
   // Specific patterns
-  p = p.replace(/\{id\}\/items/g, "{id}/items");
   // Handle /gallery(/items)? -> /gallery and /gallery/items handled separately
   if (p.includes("gallery")) {
     // Keep both forms as /gallery (the redirect handles items)
