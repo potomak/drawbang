@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { assetUrl } from "../../src/layout/asset-version.js";
 import { LOGO_SVG } from "../../src/layout/logo.js";
 import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
+import { FlashDemo } from "../../src/components/FlashDemo.js";
 
 // Brutalist v2 design system — mobile-first, mono everywhere, 1px round borders, accent #00ffcc
 // Playground for #1 + Tailwind. Additive: /design stays on chrome.css, /v2/design is the new standard.
@@ -66,7 +67,7 @@ function BrutalShell({
         <script
           dangerouslySetInnerHTML={{ __html: renderMetaPixel().replace(/<\/?script[^>]*>/g, "") }}
         />
-        <script src={assetUrl("/brutal-flash.js")} />
+        <script type="module" src={assetUrl("/src/hydrate-v2-design.tsx")} />
       </head>
       <body className="bg-white text-black font-mono antialiased">
         <BrutalHeader />
@@ -209,32 +210,10 @@ function ColorSwatch({ hex, name, role }: { hex: string; name: string; role: str
   );
 }
 
-function FlashDemo() {
+function FlashDemoSSR() {
   return (
-    <div className="flex flex-col gap-3">
-      <div
-        className="flex flex-wrap gap-3"
-        dangerouslySetInnerHTML={{
-          __html: `<button class="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-pixel hover:bg-zinc-50" onclick="window.showBrutalFlash && window.showBrutalFlash({kind:'success',message:'Saved.',autoDismissMs:3000})">Trigger success</button><button class="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-pixel hover:bg-zinc-50" onclick="window.showBrutalFlash && window.showBrutalFlash({kind:'error',message:'Something went wrong.',autoDismissMs:3000})">Trigger error</button><button class="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-pixel hover:bg-zinc-50" onclick="window.showBrutalFlash && window.showBrutalFlash({kind:'success',message:'Via window.showBrutalFlash',autoDismissMs:3000})">Trigger via window</button>`,
-        }}
-      />
-      <p className="font-mono text-pixel text-zinc-600">
-        Imperative:{" "}
-        <code className="rounded-[4px] border border-black bg-zinc-50 px-1">
-          showBrutalFlash({`{kind, message}`})
-        </code>{" "}
-        /{" "}
-        <code className="rounded-[4px] border border-black bg-zinc-50 px-1">hideBrutalFlash()</code>{" "}
-        — see{" "}
-        <code className="rounded-[4px] border border-black bg-zinc-50 px-1">
-          src/components/BrutalFlash.tsx
-        </code>{" "}
-        (React) and{" "}
-        <code className="rounded-[4px] border border-black bg-zinc-50 px-1">
-          static/brutal-flash.js
-        </code>{" "}
-        (vanilla for SSR).
-      </p>
+    <div id="flash-demo-root">
+      <FlashDemo />
     </div>
   );
 }
@@ -424,9 +403,9 @@ export default function renderDesignV2(v: DesignV2View): string {
 
       <Section
         title="Flash — brutalist"
-        lede="showBrutalFlash({kind, message}) — React, 1px round, mono 11px."
+        lede="showBrutalFlash({kind, message}) — React hydrated, 1px round, mono 11px."
       >
-        <FlashDemo />
+        <FlashDemoSSR />
       </Section>
 
       <div className="rounded-[4px] border border-black bg-[#00ffcc]/20 p-3 font-mono text-pixel sm:text-pixel">
