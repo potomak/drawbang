@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import { resolve } from "node:path";
 import basicSsl from "@vitejs/plugin-basic-ssl";
+import tailwindcss from "@tailwindcss/vite";
 import { chromePlugin } from "./vite/plugins/chrome.js";
 import { devBucketPlugin } from "./vite/plugins/dev-bucket.js";
 
@@ -49,6 +50,7 @@ export default defineConfig({
   // served by the ingest dev-server).
   appType: "mpa",
   plugins: [
+    tailwindcss(),
     chromePlugin({ repoUrl: process.env.VITE_REPO_URL }),
     devBucketPlugin({ proxiedPaths: DEV_PROXY_PATHS }),
     ...(enableHttps ? [basicSsl()] : []),
