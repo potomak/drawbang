@@ -92,6 +92,8 @@ export function encodeGif({
 }
 
 export function decodeGif(bytes: Uint8Array): DecodeResult {
+  // omggif has no types — keep any but silence eslint (the cast is intentional)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const reader = new GifReader(bytes) as any;
   const count: number = reader.numFrames();
   if (count === 0) throw new Error("decodeGif: no frames");
