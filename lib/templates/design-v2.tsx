@@ -73,7 +73,7 @@ function BrutalShell({
           <div className="flex flex-col gap-6 sm:gap-8">
             {/* Page intro — mobile-first: stacked, then row on sm */}
             <header className="flex flex-col gap-3 border border-black rounded-[4px] bg-white p-4 sm:p-6">
-              <h1 className="text-pixel-2x sm:text-pixel-2x font-bold tracking-tight">
+              <h1 className="text-pixel-2x sm:text-pixel-2x font-normal">
                 Design system — brutalist
               </h1>
               <p className="text-pixel text-zinc-600 font-mono">
@@ -187,7 +187,7 @@ function Section({
   return (
     <section className="flex flex-col gap-3 rounded-[4px] border border-black bg-white p-4 sm:p-5">
       <div className="flex flex-col gap-1 border-b border-black pb-3 sm:flex-row sm:items-baseline sm:justify-between">
-        <h2 className="text-pixel font-bold tracking-tight">{title}</h2>
+        <h2 className="text-pixel font-normal">{title}</h2>
         <p className="text-pixel text-zinc-600 font-mono">{lede}</p>
       </div>
       {children}
@@ -382,7 +382,7 @@ export default function renderDesignV2(v: DesignV2View): string {
       >
         <div className="flex flex-col gap-3">
           <div className="rounded-[4px] border border-black bg-white p-3">
-            <h3 className="font-mono text-pixel font-bold">Panel header</h3>
+            <h3 className="font-mono text-pixel font-normal">Panel header</h3>
             <p className="font-mono text-pixel text-zinc-600">
               Muted body — mono, 1px round, mobile padded.
             </p>
