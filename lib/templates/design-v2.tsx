@@ -66,6 +66,7 @@ function BrutalShell({
         <script
           dangerouslySetInnerHTML={{ __html: renderMetaPixel().replace(/<\/?script[^>]*>/g, "") }}
         />
+        <script src={assetUrl("/brutal-flash.js")} />
       </head>
       <body className="bg-white text-black font-mono antialiased">
         <BrutalHeader />
@@ -209,60 +210,16 @@ function ColorSwatch({ hex, name, role }: { hex: string; name: string; role: str
 }
 
 function FlashDemo() {
-  const [flash, setFlash] = React.useState<null | { kind: "success" | "error"; message: string }>(
-    null
-  );
-  React.useEffect(() => {
-    if (!flash) return;
-    const t = window.setTimeout(() => setFlash(null), 3000);
-    return () => window.clearTimeout(t);
-  }, [flash]);
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap gap-3">
-        <button
-          className="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-pixel hover:bg-zinc-50"
-          onClick={() => setFlash({ kind: "success", message: "Saved." })}
-        >
-          Trigger success
-        </button>
-        <button
-          className="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-pixel hover:bg-zinc-50"
-          onClick={() => setFlash({ kind: "error", message: "Something went wrong." })}
-        >
-          Trigger error
-        </button>
-        <button
-          className="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-pixel hover:bg-zinc-50"
-          onClick={() =>
-            (window as unknown as { showBrutalFlash?: (o: unknown) => void }).showBrutalFlash?.({
-              kind: "success",
-              message: "Via window.showBrutalFlash",
-            })
-          }
-        >
-          Trigger via window
-        </button>
-      </div>
-      {flash && (
-        <div
-          role={flash.kind === "error" ? "alert" : "status"}
-          aria-live="polite"
-          className="flex items-center gap-3 rounded-[4px] border border-black bg-white px-4 py-3 font-mono text-pixel shadow-[4px_4px_0_#0a0a0a]"
-          style={{ borderLeft: `4px solid ${flash.kind === "success" ? "#00ffcc" : "#ff6060"}` }}
-        >
-          <span className="flex-1 break-words">{flash.message}</span>
-          <button
-            aria-label="Dismiss"
-            onClick={() => setFlash(null)}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[4px] border border-black bg-white text-pixel hover:bg-zinc-50"
-          >
-            ×
-          </button>
-        </div>
-      )}
+      <div
+        className="flex flex-wrap gap-3"
+        dangerouslySetInnerHTML={{
+          __html: `<button class="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-pixel hover:bg-zinc-50" onclick="window.showBrutalFlash && window.showBrutalFlash({kind:'success',message:'Saved.',autoDismissMs:3000})">Trigger success</button><button class="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-pixel hover:bg-zinc-50" onclick="window.showBrutalFlash && window.showBrutalFlash({kind:'error',message:'Something went wrong.',autoDismissMs:3000})">Trigger error</button><button class="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-pixel hover:bg-zinc-50" onclick="window.showBrutalFlash && window.showBrutalFlash({kind:'success',message:'Via window.showBrutalFlash',autoDismissMs:3000})">Trigger via window</button>`,
+        }}
+      />
       <p className="font-mono text-pixel text-zinc-600">
-        Also available imperatively:{" "}
+        Imperative:{" "}
         <code className="rounded-[4px] border border-black bg-zinc-50 px-1">
           showBrutalFlash({`{kind, message}`})
         </code>{" "}
@@ -271,8 +228,12 @@ function FlashDemo() {
         — see{" "}
         <code className="rounded-[4px] border border-black bg-zinc-50 px-1">
           src/components/BrutalFlash.tsx
-        </code>
-        .
+        </code>{" "}
+        (React) and{" "}
+        <code className="rounded-[4px] border border-black bg-zinc-50 px-1">
+          static/brutal-flash.js
+        </code>{" "}
+        (vanilla for SSR).
       </p>
     </div>
   );
