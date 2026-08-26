@@ -22,6 +22,26 @@ export const GA_MEASUREMENT_ID = "G-5F5HPX6QYC";
 // (no cookies, no network requests).
 export const ANALYTICS_OPT_OUT_KEY = "drawbang:analytics_opt_out";
 
+function analyticsGateJs(): string {
+  return `(function () {
+  var dnt = (navigator.doNotTrack === '1') || (window.doNotTrack === '1');
+  var optOut = false;
+  try { optOut = localStorage.getItem(${JSON.stringify(ANALYTICS_OPT_OUT_KEY)}) === '1'; } catch (e) {}
+  if (dnt || optOut) {
+    window[${JSON.stringify("ga-disable-" + GA_MEASUREMENT_ID)}] = true;
+    window.fbq = function () {};
+  }
+})();`;
+}
+
+function analyticsGtagJs(): string {
+  return `  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', '${GA_MEASUREMENT_ID}');`;
+}
+
 export function renderAnalytics(): string {
   // The pre-snippet gate must run BEFORE gtag.js and pixel.js load. Both
   // libraries respect their own kill-switches when set at module init,
@@ -40,45 +60,23 @@ export function renderAnalytics(): string {
   // private mode.
   return `<!-- Draw! analytics opt-out gate -->
 <script>
-(function () {
-  var dnt = (navigator.doNotTrack === '1') || (window.doNotTrack === '1');
-  var optOut = false;
-  try { optOut = localStorage.getItem(${JSON.stringify(ANALYTICS_OPT_OUT_KEY)}) === '1'; } catch (e) {}
-  if (dnt || optOut) {
-    window[${JSON.stringify("ga-disable-" + GA_MEASUREMENT_ID)}] = true;
-    window.fbq = function () {};
-  }
-})();
+${analyticsGateJs()}
 </script>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}"></script>
 <script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', '${GA_MEASUREMENT_ID}');
+${analyticsGtagJs()}
 </script>`;
 }
 
 // Trusted inner script content for React's dangerouslySetInnerHTML inside a
 // <script> tag — avoids the regex strip that triggers CodeQL
 // js/incomplete-multi-character-sanitization on the full HTML string.
+// Reuses the same gate + gtag fragments as renderAnalytics() so the
+// snippets stay in sync.
 export function renderAnalyticsInner(): string {
-  return `(function () {
-  var dnt = (navigator.doNotTrack === '1') || (window.doNotTrack === '1');
-  var optOut = false;
-  try { optOut = localStorage.getItem(${JSON.stringify(ANALYTICS_OPT_OUT_KEY)}) === '1'; } catch (e) {}
-  if (dnt || optOut) {
-    window[${JSON.stringify("ga-disable-" + GA_MEASUREMENT_ID)}] = true;
-    window.fbq = function () {};
-  }
-})();
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', '${GA_MEASUREMENT_ID}');`;
+  return `${analyticsGateJs()}
+${analyticsGtagJs()}`;
 }
 
 // Meta (Facebook) Pixel ID. The base snippet Meta documents also includes
@@ -88,24 +86,7 @@ export function renderAnalyticsInner(): string {
 // audience to track.
 export const META_PIXEL_ID = "2264137094389658";
 
-export function renderMetaPixel(): string {
-  return `<!-- Meta Pixel Code -->
-<script>
-!function(f,b,e,v,n,t,s)
-{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-n.queue=[];t=b.createElement(e);t.async=!0;
-t.src=v;s=b.getElementsByTagName(e)[0];
-s.parentNode.insertBefore(t,s)}(window, document,'script',
-'https://connect.facebook.net/en_US/fbevents.js');
-fbq('init', '${META_PIXEL_ID}');
-fbq('track', 'PageView');
-</script>
-<!-- End Meta Pixel Code -->`;
-}
-
-export function renderMetaPixelInner(): string {
+function metaPixelJs(): string {
   return `!function(f,b,e,v,n,t,s)
 {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
 n.callMethod.apply(n,arguments):n.queue.push(arguments)};
@@ -116,4 +97,16 @@ s.parentNode.insertBefore(t,s)}(window, document,'script',
 'https://connect.facebook.net/en_US/fbevents.js');
 fbq('init', '${META_PIXEL_ID}');
 fbq('track', 'PageView');`;
+}
+
+export function renderMetaPixel(): string {
+  return `<!-- Meta Pixel Code -->
+<script>
+${metaPixelJs()}
+</script>
+<!-- End Meta Pixel Code -->`;
+}
+
+export function renderMetaPixelInner(): string {
+  return metaPixelJs();
 }
