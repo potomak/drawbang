@@ -57,7 +57,7 @@ function BrutalShell({
         />
         <style
           dangerouslySetInnerHTML={{
-            __html: `@font-face{font-family:"Departure Mono";src:url("/fonts/DepartureMono-Regular.woff2") format("woff2"),url("/fonts/DepartureMono-Regular.woff") format("woff"),url("/fonts/DepartureMono-Regular.otf") format("opentype");font-display:swap;font-feature-settings:"locl"} *{font-family:"Departure Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace} html{font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;image-rendering:pixelated} *{font-variant-ligatures:none;font-feature-settings:"locl"}`,
+            __html: `@font-face{font-family:"Departure Mono";src:url("/fonts/DepartureMono-Regular.woff2") format("woff2"),url("/fonts/DepartureMono-Regular.woff") format("woff"),url("/fonts/DepartureMono-Regular.otf") format("opentype");font-display:swap;font-feature-settings:"locl"} *{font-family:"Departure Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace} html{font-synthesis:none;text-rendering:geometricPrecision;-webkit-font-smoothing:none;-moz-osx-font-smoothing:unset;font-smooth:never;image-rendering:pixelated} *{font-variant-ligatures:none;font-feature-settings:"locl"} .text-pixel-2x{font-size:11px!important;line-height:14px!important;display:inline-block;transform:scale(2);transform-origin:left center;image-rendering:pixelated} h1.text-pixel-2x,h2.text-pixel-2x{display:block;transform-origin:left top;margin-bottom:11px}`,
           }}
         />
         <script

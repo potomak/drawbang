@@ -54,10 +54,11 @@
   html {
     font-family: var(--font-mono);
     font-synthesis: none;
-    text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    /* Pixel crisp — Departure Mono is 1px grid */
+    text-rendering: geometricPrecision;
+    -webkit-font-smoothing: none;
+    -moz-osx-font-smoothing: unset;
+    font-smooth: never;
+    /* Pixel crisp — Departure Mono is 1px grid at 11px; 22 must be doubled, not rasterized */
     image-rendering: pixelated;
   }
   body {
@@ -87,5 +88,24 @@
   }
   .brutal-badge {
     @apply inline-flex items-center border border-ink rounded-[4px] bg-paper-2 px-2 py-1 font-mono text-pixel;
+  }
+}
+
+@layer utilities {
+  /* 22px must be pixel-doubled 11px, not rasterized at 22px — otherwise vector smoothing blurs */
+  .text-pixel-2x {
+    font-size: 11px;
+    line-height: 14px;
+    display: inline-block;
+    transform: scale(2);
+    transform-origin: left center;
+    image-rendering: pixelated;
+  }
+  /* Keep block headings from collapsing — wrap scaled inline-block */
+  h1.text-pixel-2x,
+  h2.text-pixel-2x {
+    display: block;
+    transform-origin: left top;
+    margin-bottom: 11px;
   }
 }
