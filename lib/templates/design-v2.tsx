@@ -115,7 +115,7 @@ function BrutalHeader() {
         <a
           href="/"
           aria-label="Draw! home"
-          className="inline-flex items-center hover:opacity-80 [&>svg]:h-8 [&>svg]:w-[84px] [&>svg]:[image-rendering:pixelated]"
+          className="inline-flex items-center hover:opacity-80"
           dangerouslySetInnerHTML={{ __html: LOGO_SVG }}
         />
         <nav className="hidden sm:flex items-center gap-2 text-pixel">
