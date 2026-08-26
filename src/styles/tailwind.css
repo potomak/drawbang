@@ -29,6 +29,24 @@
   /* 4px round borders — subtle, mono everywhere */
   --radius-brutal: 4px;
   --border-brutal: 1px;
+
+  /* Pixel-perfect only — Departure Mono is 1px grid at 11px, so only 11 and 22 are crisp */
+  --text-pixel: 11px;
+  --text-pixel--line-height: 14px;
+  --text-pixel-2x: 22px;
+  --text-pixel-2x--line-height: 22px;
+  --text-xs: 11px;
+  --text-xs--line-height: 14px;
+  --text-sm: 11px;
+  --text-sm--line-height: 14px;
+  --text-base: 11px;
+  --text-base--line-height: 14px;
+  --text-lg: 22px;
+  --text-lg--line-height: 22px;
+  --text-xl: 22px;
+  --text-xl--line-height: 22px;
+  --text-2xl: 22px;
+  --text-2xl--line-height: 22px;
 }
 
 /* Base — mono everywhere, brutalist reset — pixel perfect */
@@ -53,13 +71,13 @@
   }
 }
 
-/* Brutalist components — used by /v2/* React templates */
+/* Brutalist components — used by /v2/* React templates — pixel perfect 11/22 only */
 @layer components {
   .brutal-card {
     @apply bg-white border border-ink rounded-[4px] p-4;
   }
   .brutal-btn {
-    @apply inline-flex items-center justify-center gap-2 border border-ink rounded-[4px] px-4 py-2 font-mono text-sm font-medium bg-white text-ink hover:bg-paper-2 active:translate-y-[1px] active:shadow-none transition-none;
+    @apply inline-flex items-center justify-center gap-2 border border-ink rounded-[4px] px-4 py-2 font-mono text-pixel font-medium bg-white text-ink hover:bg-paper-2 active:translate-y-[1px] active:shadow-none transition-none;
   }
   .brutal-btn-primary {
     @apply bg-accent text-ink border-ink hover:bg-accent/90;
@@ -68,6 +86,6 @@
     @apply bg-transparent border-ink hover:bg-paper-2;
   }
   .brutal-badge {
-    @apply inline-flex items-center border border-ink rounded-[4px] bg-paper-2 px-2 py-1 font-mono text-xs;
+    @apply inline-flex items-center border border-ink rounded-[4px] bg-paper-2 px-2 py-1 font-mono text-pixel;
   }
 }

@@ -23,12 +23,8 @@ const COLOR_TOKENS: ReadonlyArray<{ name: string; hex: string; role: string }> =
 ];
 
 const TYPE_SCALE: ReadonlyArray<{ label: string; cls: string; sample: string }> = [
-  { label: "text-xs", cls: "text-xs", sample: "11 — micro / badge / label" },
-  { label: "text-sm", cls: "text-sm", sample: "13 — button / secondary" },
-  { label: "text-base", cls: "text-base", sample: "14 — body (mono everywhere)" },
-  { label: "text-lg", cls: "text-lg", sample: "16 — page title" },
-  { label: "text-xl", cls: "text-xl", sample: "20 — section" },
-  { label: "text-2xl", cls: "text-2xl", sample: "28 — hero" },
+  { label: "text-pixel", cls: "text-pixel", sample: "11 — body / badge / button (1×)" },
+  { label: "text-pixel-2x", cls: "text-pixel-2x", sample: "22 — title / hero (2×)" },
 ];
 
 function BrutalShell({
@@ -43,7 +39,7 @@ function BrutalShell({
   // Tailwind CDN for pilot — mobile-first, no build step for Lambda.
   // In prod the same CDN + purged static/tailwind.css will be cached; Vite's @tailwindcss/vite
   // handles the SPA side via src/styles/tailwind.css. Keeping both for overlap during migration.
-  const tailwindConfig = `tailwind.config={theme:{extend:{colors:{paper:'#ffffff','paper-2':'#f7f7f5',ink:'#0a0a0a',line:'#0a0a0a',accent:'${BRUTAL_ACCENT}','accent-on':'#0a0a0a'},fontFamily:{mono:['Departure Mono','ui-monospace','SFMono-Regular','Menlo','Consolas','monospace'],sans:['Departure Mono','ui-monospace','SFMono-Regular','Menlo','Consolas','monospace']},borderRadius:{brutal:'4px'}}}}`;
+  const tailwindConfig = `tailwind.config={theme:{extend:{colors:{paper:'#ffffff','paper-2':'#f7f7f5',ink:'#0a0a0a',line:'#0a0a0a',accent:'${BRUTAL_ACCENT}','accent-on':'#0a0a0a'},fontFamily:{mono:['Departure Mono','ui-monospace','SFMono-Regular','Menlo','Consolas','monospace'],sans:['Departure Mono','ui-monospace','SFMono-Regular','Menlo','Consolas','monospace']},borderRadius:{brutal:'4px'},fontSize:{pixel:['11px','14px'],'pixel-2x':['22px','22px']}}}}`;
   return (
     <html lang="en">
       <head>
@@ -77,10 +73,10 @@ function BrutalShell({
           <div className="flex flex-col gap-6 sm:gap-8">
             {/* Page intro — mobile-first: stacked, then row on sm */}
             <header className="flex flex-col gap-3 border border-black rounded-[4px] bg-white p-4 sm:p-6">
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+              <h1 className="text-pixel-2x sm:text-pixel-2x font-bold tracking-tight">
                 Design system — brutalist
               </h1>
-              <p className="text-sm text-zinc-600 font-mono">
+              <p className="text-pixel text-zinc-600 font-mono">
                 Mobile-first, mono everywhere, 1px round borders, accent{" "}
                 <span className="inline-flex items-center gap-2">
                   <span className="inline-block h-3 w-3 rounded-[4px] border border-black bg-[#00ffcc]" />
@@ -94,7 +90,7 @@ function BrutalShell({
                 </code>
                 .
               </p>
-              <p className="text-xs text-zinc-500">
+              <p className="text-pixel text-zinc-500">
                 Playground for #1 — prove one component model before touching <code>/</code>,{" "}
                 <code>/d/*</code>, <code>/u/*</code>.
               </p>
@@ -122,7 +118,7 @@ function BrutalHeader() {
           className="inline-flex items-center hover:opacity-80 [&>svg]:h-8 [&>svg]:w-[84px] [&>svg]:[image-rendering:pixelated]"
           dangerouslySetInnerHTML={{ __html: LOGO_SVG }}
         />
-        <nav className="hidden sm:flex items-center gap-2 text-sm">
+        <nav className="hidden sm:flex items-center gap-2 text-pixel">
           <a
             href="/products"
             className="rounded-[4px] border border-black bg-white px-3 py-1.5 hover:bg-zinc-50"
@@ -144,7 +140,7 @@ function BrutalHeader() {
         </nav>
         <a
           href="/draw"
-          className="sm:hidden inline-flex items-center rounded-[4px] border border-black bg-[#00ffcc] px-3 py-2 text-sm font-medium"
+          className="sm:hidden inline-flex items-center rounded-[4px] border border-black bg-[#00ffcc] px-3 py-2 text-pixel font-medium"
         >
           Draw
         </a>
@@ -155,7 +151,7 @@ function BrutalHeader() {
 
 function BrutalFooter({ repoUrl }: { repoUrl: string }) {
   return (
-    <footer className="border border-black rounded-[4px] bg-white p-4 text-xs text-zinc-600 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+    <footer className="border border-black rounded-[4px] bg-white p-4 text-pixel text-zinc-600 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
       <span className="font-mono">
         Draw! — brutalist, mono, 1px round •{" "}
         <a href="/privacy" className="underline decoration-black underline-offset-2">
@@ -171,7 +167,7 @@ function BrutalFooter({ repoUrl }: { repoUrl: string }) {
       </span>
       <a
         href={repoUrl}
-        className="rounded-[4px] border border-black bg-zinc-50 px-2 py-1 font-mono text-xs hover:bg-white"
+        className="rounded-[4px] border border-black bg-zinc-50 px-2 py-1 font-mono text-pixel hover:bg-white"
       >
         {repoUrl.replace("https://", "")}
       </a>
@@ -191,8 +187,8 @@ function Section({
   return (
     <section className="flex flex-col gap-3 rounded-[4px] border border-black bg-white p-4 sm:p-5">
       <div className="flex flex-col gap-1 border-b border-black pb-3 sm:flex-row sm:items-baseline sm:justify-between">
-        <h2 className="text-base font-bold tracking-tight">{title}</h2>
-        <p className="text-xs text-zinc-600 font-mono">{lede}</p>
+        <h2 className="text-pixel font-bold tracking-tight">{title}</h2>
+        <p className="text-pixel text-zinc-600 font-mono">{lede}</p>
       </div>
       {children}
     </section>
@@ -204,9 +200,9 @@ function ColorSwatch({ hex, name, role }: { hex: string; name: string; role: str
     <div className="flex flex-col gap-2 rounded-[4px] border border-black bg-white p-3">
       <div className="h-10 rounded-[4px] border border-black" style={{ background: hex }} />
       <div className="flex flex-col gap-0.5">
-        <span className="font-mono text-xs font-medium">{name}</span>
-        <span className="font-mono text-xs text-zinc-600">{hex}</span>
-        <span className="font-mono text-xs text-zinc-500">{role}</span>
+        <span className="font-mono text-pixel font-medium">{name}</span>
+        <span className="font-mono text-pixel text-zinc-600">{hex}</span>
+        <span className="font-mono text-pixel text-zinc-500">{role}</span>
       </div>
     </div>
   );
@@ -224,7 +220,7 @@ function BrutalButton({
   href?: string;
 }) {
   const base =
-    "inline-flex min-h-[44px] items-center justify-center rounded-[4px] border border-black px-4 py-2 font-mono text-sm font-medium transition-none active:translate-y-px disabled:opacity-50 disabled:pointer-events-none";
+    "inline-flex min-h-[44px] items-center justify-center rounded-[4px] border border-black px-4 py-2 font-mono text-pixel font-medium transition-none active:translate-y-px disabled:opacity-50 disabled:pointer-events-none";
   const variants: Record<string, string> = {
     default: "bg-white hover:bg-zinc-50",
     primary: "bg-[#00ffcc] hover:bg-[#00ffcc]/90",
@@ -271,7 +267,7 @@ export default function renderDesignV2(v: DesignV2View): string {
               key={t.label}
               className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4 px-3 py-2 sm:py-3 bg-white"
             >
-              <span className="font-mono text-xs text-zinc-600 min-w-[90px]">{t.label}</span>
+              <span className="font-mono text-pixel text-zinc-600 min-w-[90px]">{t.label}</span>
               <span className={`${t.cls} font-mono`}>{t.sample}</span>
             </div>
           ))}
@@ -283,21 +279,21 @@ export default function renderDesignV2(v: DesignV2View): string {
         lede="border + rounded-[4px] (4px), never 0 radius. Touch target ≥44px."
       >
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="rounded-[4px] border border-black bg-white p-4 text-sm font-mono">
+          <div className="rounded-[4px] border border-black bg-white p-4 text-pixel font-mono">
             border + rounded-[4px]
           </div>
-          <div className="rounded-[4px] border border-black bg-[#00ffcc] p-4 text-sm font-mono">
+          <div className="rounded-[4px] border border-black bg-[#00ffcc] p-4 text-pixel font-mono">
             accent block
           </div>
-          <div className="rounded-[4px] border border-black bg-zinc-50 p-4 text-sm font-mono">
+          <div className="rounded-[4px] border border-black bg-zinc-50 p-4 text-pixel font-mono">
             recessed
           </div>
         </div>
         <div className="flex flex-wrap gap-3">
-          <span className="inline-flex h-10 w-20 items-center justify-center rounded-[4px] border border-black bg-white text-xs font-mono">
+          <span className="inline-flex h-10 w-20 items-center justify-center rounded-[4px] border border-black bg-white text-pixel font-mono">
             40px tap
           </span>
-          <span className="inline-flex h-10 w-10 items-center justify-center rounded-[4px] border border-black bg-white text-xs font-mono">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-[4px] border border-black bg-white text-pixel font-mono">
             1px
           </span>
         </div>
@@ -314,13 +310,13 @@ export default function renderDesignV2(v: DesignV2View): string {
         </div>
         <div className="flex flex-wrap gap-3">
           <button
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-sm hover:bg-zinc-50"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-pixel hover:bg-zinc-50"
             aria-pressed="false"
           >
             Follow
           </button>
           <button
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-[4px] border border-black bg-[#00ffcc] px-4 py-2 font-mono text-sm"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-[4px] border border-black bg-[#00ffcc] px-4 py-2 font-mono text-pixel"
             aria-pressed="true"
           >
             Following
@@ -330,13 +326,13 @@ export default function renderDesignV2(v: DesignV2View): string {
 
       <Section title="Badge" lede="Mono micro, 1px round, paper-2.">
         <div className="flex flex-wrap gap-3">
-          <span className="inline-flex rounded-[4px] border border-black bg-white px-2 py-1 font-mono text-xs">
+          <span className="inline-flex rounded-[4px] border border-black bg-white px-2 py-1 font-mono text-pixel">
             Beta
           </span>
-          <span className="inline-flex rounded-[4px] border border-black bg-white px-2 py-1 font-mono text-xs">
+          <span className="inline-flex rounded-[4px] border border-black bg-white px-2 py-1 font-mono text-pixel">
             Daily streak
           </span>
-          <span className="inline-flex rounded-[4px] border border-black bg-[#00ffcc] px-2 py-1 font-mono text-xs">
+          <span className="inline-flex rounded-[4px] border border-black bg-[#00ffcc] px-2 py-1 font-mono text-pixel">
             New
           </span>
         </div>
@@ -347,32 +343,32 @@ export default function renderDesignV2(v: DesignV2View): string {
         lede="Single canonical card, mobile stacked, desktop row."
       >
         <article className="flex flex-col gap-4 rounded-[4px] border border-black bg-white p-4 sm:max-w-[480px]">
-          <header className="flex items-center gap-2 font-mono text-xs">
+          <header className="flex items-center gap-2 font-mono text-pixel">
             <a href="#" className="font-medium underline decoration-black underline-offset-2">
               @artist
             </a>
             <span aria-hidden>·</span>
             <time className="text-zinc-600">Jun 6, 2026</time>
           </header>
-          <div className="aspect-square flex items-center justify-center rounded-[4px] border border-black bg-zinc-50 font-mono text-xs text-zinc-500">
+          <div className="aspect-square flex items-center justify-center rounded-[4px] border border-black bg-zinc-50 font-mono text-pixel text-zinc-500">
             16×16 GIF
           </div>
           <div className="flex flex-wrap gap-2">
             <button
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-[4px] border border-black bg-white px-3 py-2 font-mono text-sm"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-[4px] border border-black bg-white px-3 py-2 font-mono text-pixel"
               aria-pressed="false"
             >
-              ♥ <span className="text-xs">42</span>
+              ♥ <span className="text-pixel">42</span>
             </button>
             <button
-              className="inline-flex min-h-[44px] items-center justify-center rounded-[4px] border border-black bg-white px-3 py-2 font-mono text-sm"
+              className="inline-flex min-h-[44px] items-center justify-center rounded-[4px] border border-black bg-white px-3 py-2 font-mono text-pixel"
               aria-pressed="false"
             >
               🔖
             </button>
             <a
               href="#"
-              className="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-3 py-2 font-mono text-sm"
+              className="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-3 py-2 font-mono text-pixel"
             >
               Remix
             </a>
@@ -386,8 +382,8 @@ export default function renderDesignV2(v: DesignV2View): string {
       >
         <div className="flex flex-col gap-3">
           <div className="rounded-[4px] border border-black bg-white p-3">
-            <h3 className="font-mono text-base font-bold">Panel header</h3>
-            <p className="font-mono text-sm text-zinc-600">
+            <h3 className="font-mono text-pixel font-bold">Panel header</h3>
+            <p className="font-mono text-pixel text-zinc-600">
               Muted body — mono, 1px round, mobile padded.
             </p>
           </div>
@@ -399,12 +395,12 @@ export default function renderDesignV2(v: DesignV2View): string {
         <div
           className="flex flex-wrap gap-3"
           dangerouslySetInnerHTML={{
-            __html: `<button class="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-sm" onclick="window.drawbangShowFlash && window.drawbangShowFlash('Saved.', { kind: 'success' })">Trigger success</button><button class="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-sm" onclick="window.drawbangShowFlash && window.drawbangShowFlash('Something went wrong.', { kind: 'error' })">Trigger error</button>`,
+            __html: `<button class="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-pixel" onclick="window.drawbangShowFlash && window.drawbangShowFlash('Saved.', { kind: 'success' })">Trigger success</button><button class="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-pixel" onclick="window.drawbangShowFlash && window.drawbangShowFlash('Something went wrong.', { kind: 'error' })">Trigger error</button>`,
           }}
         />
       </Section>
 
-      <div className="rounded-[4px] border border-black bg-[#00ffcc]/20 p-3 font-mono text-xs sm:text-sm">
+      <div className="rounded-[4px] border border-black bg-[#00ffcc]/20 p-3 font-mono text-pixel sm:text-pixel">
         <span className="font-bold">Mobile-first check:</span> resize to 390px — grid collapses to 1
         col, buttons stay ≥44px, header shows “Draw” CTA, no horizontal scroll.
       </div>
