@@ -600,6 +600,7 @@ export function createRoutes(deps: RouteDeps): Route[] {
         render(
           await renderViewportDebugPageHandler(deps.renderConfig, {
             fix: req.query("fix"),
+            variant: req.query("variant"),
           })
         ),
     },

@@ -13,8 +13,22 @@ const DEBUG_STYLE_ORIGINAL = `@font-face{font-family:"Departure Mono";src:url("/
 
 const DEBUG_STYLE_FIXED = `${DEBUG_STYLE_ORIGINAL} .text-pixel-2x{max-width:50%} h1.text-pixel-2x,h2.text-pixel-2x{width:50%;max-width:50%;overflow-wrap:anywhere;word-break:break-word} html,body{overflow-x:hidden;max-width:100vw}`;
 
-function ViewportDebugShell({ useFix, children }: { useFix: boolean; children: React.ReactNode }) {
-  const style = useFix ? DEBUG_STYLE_FIXED : DEBUG_STYLE_ORIGINAL;
+// Test without scale — font-size 22 directly, no synthetic bold (Departure Mono has no bold cut)
+const DEBUG_STYLE_NOSCALE = `@font-face{font-family:"Departure Mono";src:url("/fonts/DepartureMono-Regular.woff2") format("woff2"),url("/fonts/DepartureMono-Regular.woff") format("woff"),url("/fonts/DepartureMono-Regular.otf") format("opentype");font-display:swap;font-feature-settings:"locl"} *{font-family:"Departure Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace} html{font-synthesis:none;text-rendering:geometricPrecision;-webkit-font-smoothing:none;-moz-osx-font-smoothing:unset;font-smooth:never;image-rendering:pixelated} *{font-variant-ligatures:none;font-feature-settings:"locl"} .text-pixel-2x{font-size:22px!important;line-height:22px!important;display:block;transform:none;image-rendering:pixelated;font-weight:400!important} h1.text-pixel-2x,h2.text-pixel-2x{display:block;transform:none;margin-bottom:0;font-weight:400!important}`;
+
+function ViewportDebugShell({
+  variant,
+  children,
+}: {
+  variant: "original" | "fixed" | "noscale";
+  children: React.ReactNode;
+}) {
+  const style =
+    variant === "noscale"
+      ? DEBUG_STYLE_NOSCALE
+      : variant === "fixed"
+        ? DEBUG_STYLE_FIXED
+        : DEBUG_STYLE_ORIGINAL;
   const tailwindConfig = `tailwind.config={theme:{extend:{colors:{paper:'#ffffff','paper-2':'#f7f7f5',ink:'#0a0a0a',line:'#0a0a0a',accent:'#00ffcc','accent-on':'#0a0a0a'},fontFamily:{mono:['Departure Mono','ui-monospace','SFMono-Regular','Menlo','Consolas','monospace'],sans:['Departure Mono','ui-monospace','SFMono-Regular','Menlo','Consolas','monospace']},borderRadius:{brutal:'4px'},fontSize:{pixel:['11px','14px'],'pixel-2x':['22px','22px']}}}}`;
   return (
     <html lang="en">
@@ -67,17 +81,49 @@ function ViewportDebugShell({ useFix, children }: { useFix: boolean; children: R
             <div className="font-bold">Viewport debug playground — /v2/design/viewport_debug</div>
             <div className="text-zinc-600">
               Toggle sections one by one on a small viewport (≤390px) to see which causes horizontal
-              scroll. Red outline = element wider than viewport. Fix ={" "}
+              scroll. Red outline = element wider than viewport.
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2 text-pixel">
+              <span className="rounded-[4px] border border-black bg-white px-2 py-1">
+                Variant: <strong>{variant}</strong>
+              </span>
+              <a
+                href="?variant=original"
+                className={`rounded-[4px] border border-black px-2 py-1 ${variant === "original" ? "bg-[#00ffcc]" : "bg-white"}`}
+              >
+                original (scale 2x)
+              </a>
+              <a
+                href="?variant=fixed"
+                className={`rounded-[4px] border border-black px-2 py-1 ${variant === "fixed" ? "bg-[#00ffcc]" : "bg-white"}`}
+              >
+                fixed (scale 2x + width:50%)
+              </a>
+              <a
+                href="?variant=noscale"
+                className={`rounded-[4px] border border-black px-2 py-1 ${variant === "noscale" ? "bg-[#00ffcc]" : "bg-white"}`}
+              >
+                noscale (22px, no bold)
+              </a>
+            </div>
+            <div className="mt-2 text-pixel text-zinc-600">
+              <code className="bg-white border border-black rounded-[4px] px-1">fixed</code>:{" "}
               <code className="bg-white border border-black rounded-[4px] px-1">
                 h1.text-pixel-2x width:50%
               </code>{" "}
-              so visual 22px wraps at 50% layout.
+              so visual 22px wraps at 50% layout.{" "}
+              <code className="bg-white border border-black rounded-[4px] px-1">noscale</code>:{" "}
+              <code className="bg-white border border-black rounded-[4px] px-1">
+                .text-pixel-2x font-size:22px; transform:none; font-weight:400
+              </code>{" "}
+              — no synthetic bold.
             </div>
-            <label className="mt-2 inline-flex items-center gap-2 rounded-[4px] border border-black bg-white px-3 py-2 text-pixel">
-              <input type="checkbox" id="debug-fix-toggle" defaultChecked={useFix} /> Use fix (
-              {useFix ? "on" : "off"}) — reload with{" "}
-              <code className="bg-zinc-100 border border-black rounded-[4px] px-1">?fix=1</code> /{" "}
-              <code className="bg-zinc-100 border border-black rounded-[4px] px-1">?fix=0</code>
+            <label className="mt-2 hidden">
+              <input
+                type="checkbox"
+                id="debug-fix-toggle"
+                defaultChecked={variant !== "original"}
+              />
             </label>
           </div>
           {children}
@@ -90,20 +136,13 @@ function ViewportDebugShell({ useFix, children }: { useFix: boolean; children: R
             __html: `
 (function(){
   var badge=document.getElementById('debug-badge');
-  var toggle=document.getElementById('debug-fix-toggle');
-  if(toggle){
-    toggle.addEventListener('change',function(){
-      var u=new URL(location.href);
-      u.searchParams.set('fix', toggle.checked?'1':'0');
-      location.href=u.toString();
-    });
-  }
   // Highlight any element wider than viewport
   function check(){
     var vw=window.innerWidth;
     var sw=document.documentElement.scrollWidth;
     var overflow=sw>vw;
-    var msg='vw:'+vw+' scrollWidth:'+sw+' '+(overflow?'OVERFLOW ':'ok ')+'| fix:'+(new URLSearchParams(location.search).get('fix')||'0');
+    var variant=new URLSearchParams(location.search).get('variant')|| (new URLSearchParams(location.search).get('fix')==='0'?'original':'fixed');
+    var msg='vw:'+vw+' scrollWidth:'+sw+' '+(overflow?'OVERFLOW ':'ok ')+'| variant:'+variant;
     // find widest element
     var widest=null, maxW=0;
     document.querySelectorAll('[data-debug]').forEach(function(el){
@@ -171,10 +210,15 @@ function DebugSection({
   );
 }
 
-export default function renderViewportDebug(v: ViewportDebugView & { useFix: boolean }): string {
-  const useFix = v.useFix;
+export default function renderViewportDebug(
+  v: ViewportDebugView & { useFix?: boolean; variant?: string }
+): string {
+  // Back-compat: ?fix=0/1 maps to original/fixed, ?variant takes precedence
+  const variant =
+    (v.variant as "original" | "fixed" | "noscale") ??
+    (v.useFix === false ? "original" : v.useFix === true ? "fixed" : "fixed");
   const html = renderToStaticMarkup(
-    <ViewportDebugShell useFix={useFix}>
+    <ViewportDebugShell variant={variant}>
       <div className="flex flex-col gap-6">
         <DebugSection id="intro" title="Intro — h1.text-pixel-2x (suspect)">
           <div className="rounded-[4px] border border-dashed border-zinc-400 p-2 text-pixel text-zinc-600">
