@@ -48,6 +48,7 @@ import { mintChallenge } from "./challenge.js";
 import { renderAdminShell, type AdminRange } from "../lib/templates/admin.js";
 import { handleGetAdminMerchFlags, handleSetAdminMerchFlags } from "./admin-handler.js";
 import { renderDesignV2PageHandler } from "./render/design-v2.js";
+import { renderViewportDebugPageHandler } from "./render/design-v2-viewport-debug.js";
 import {
   renderBookmarksPageHandler,
   renderDesignPageHandler,
@@ -590,6 +591,17 @@ export function createRoutes(deps: RouteDeps): Route[] {
       pattern: /^\/v2\/design$/,
       auth: "none",
       handler: async () => render(await renderDesignV2PageHandler(deps.renderConfig)),
+    },
+    {
+      methods: ["GET"],
+      pattern: /^\/v2\/design\/viewport_debug$/,
+      auth: "none",
+      handler: async (req) =>
+        render(
+          await renderViewportDebugPageHandler(deps.renderConfig, {
+            fix: req.query("fix"),
+          })
+        ),
     },
     {
       methods: ["GET"],

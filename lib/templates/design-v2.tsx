@@ -58,7 +58,7 @@ function BrutalShell({
         />
         <style
           dangerouslySetInnerHTML={{
-            __html: `@font-face{font-family:"Departure Mono";src:url("/fonts/DepartureMono-Regular.woff2") format("woff2"),url("/fonts/DepartureMono-Regular.woff") format("woff"),url("/fonts/DepartureMono-Regular.otf") format("opentype");font-display:swap;font-feature-settings:"locl"} *{font-family:"Departure Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace} html{font-synthesis:none;text-rendering:geometricPrecision;-webkit-font-smoothing:none;-moz-osx-font-smoothing:unset;font-smooth:never;image-rendering:pixelated;overflow-x:hidden;max-width:100vw} body{overflow-x:hidden;max-width:100vw} *{font-variant-ligatures:none;font-feature-settings:"locl"} .text-pixel-2x{font-size:11px!important;line-height:14px!important;display:inline-block;transform:scale(2);transform-origin:left center;image-rendering:pixelated;max-width:50%} h1.text-pixel-2x,h2.text-pixel-2x{display:block;transform-origin:left top;margin-bottom:11px;width:50%;max-width:50%;overflow-wrap:anywhere;word-break:break-word}`,
+            __html: `@font-face{font-family:"Departure Mono";src:url("/fonts/DepartureMono-Regular.woff2") format("woff2"),url("/fonts/DepartureMono-Regular.woff") format("woff"),url("/fonts/DepartureMono-Regular.otf") format("opentype");font-display:swap;font-feature-settings:"locl"} *{font-family:"Departure Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace} html{font-synthesis:none;text-rendering:geometricPrecision;-webkit-font-smoothing:none;-moz-osx-font-smoothing:unset;font-smooth:never;image-rendering:pixelated} *{font-variant-ligatures:none;font-feature-settings:"locl"} .text-pixel-2x{font-size:11px!important;line-height:14px!important;display:inline-block;transform:scale(2);transform-origin:left center;image-rendering:pixelated} h1.text-pixel-2x,h2.text-pixel-2x{display:block;transform-origin:left top;margin-bottom:11px;width:50%;max-width:50%;overflow-wrap:anywhere;word-break:break-word} .hdr-logo svg{height:22px;width:auto;display:block}`,
           }}
         />
         <script
@@ -74,10 +74,10 @@ function BrutalShell({
           return <script type="module" src={hydrateSrc} />;
         })()}
       </head>
-      <body className="bg-white text-black font-mono antialiased overflow-x-hidden">
+      <body className="bg-white text-black font-mono antialiased">
         <BrutalHeader />
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-6 sm:py-8 overflow-x-hidden">
-          <div className="flex flex-col gap-6 sm:gap-8 min-w-0">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+          <div className="flex flex-col gap-6 sm:gap-8">
             {/* Page intro — mobile-first: stacked, then row on sm */}
             <header className="flex flex-col gap-3 border border-black rounded-[4px] bg-white p-4 sm:p-6">
               <h1 className="text-pixel-2x sm:text-pixel-2x font-normal">
@@ -102,7 +102,7 @@ function BrutalShell({
                 <code>/d/*</code>, <code>/u/*</code>.
               </p>
             </header>
-            <main className="flex flex-col gap-8 sm:gap-10 min-w-0">{children}</main>
+            <main className="flex flex-col gap-8 sm:gap-10">{children}</main>
             <BrutalFooter repoUrl={repoUrl} />
           </div>
         </div>
@@ -117,12 +117,12 @@ function BrutalShell({
 
 function BrutalHeader() {
   return (
-    <header className="sticky top-0 z-10 border-b border-black bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 overflow-x-hidden">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8 min-w-0">
+    <header className="sticky top-0 z-10 border-b border-black bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
         <a
           href="/"
           aria-label="Draw! home"
-          className="inline-flex items-center hover:opacity-80"
+          className="hdr-logo inline-flex items-center hover:opacity-80"
           dangerouslySetInnerHTML={{ __html: LOGO_SVG }}
         />
         <nav className="hidden sm:flex items-center gap-2 text-pixel">
@@ -158,7 +158,7 @@ function BrutalHeader() {
 
 function BrutalFooter({ repoUrl }: { repoUrl: string }) {
   return (
-    <footer className="border border-black rounded-[4px] bg-white p-4 text-pixel text-zinc-600 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between min-w-0">
+    <footer className="border border-black rounded-[4px] bg-white p-4 text-pixel text-zinc-600 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
       <span className="font-mono">
         Draw! — brutalist, mono, 1px round •{" "}
         <a href="/privacy" className="underline decoration-black underline-offset-2">
@@ -192,8 +192,8 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-3 rounded-[4px] border border-black bg-white p-4 sm:p-5 min-w-0">
-      <div className="flex flex-col gap-1 border-b border-black pb-3 sm:flex-row sm:items-baseline sm:justify-between min-w-0">
+    <section className="flex flex-col gap-3 rounded-[4px] border border-black bg-white p-4 sm:p-5">
+      <div className="flex flex-col gap-1 border-b border-black pb-3 sm:flex-row sm:items-baseline sm:justify-between">
         <h2 className="text-pixel font-normal">{title}</h2>
         <p className="text-pixel text-zinc-600 font-mono">{lede}</p>
       </div>

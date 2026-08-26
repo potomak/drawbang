@@ -26,6 +26,7 @@ const DEV_PROXY_PATHS = [
   "/backfill",
   "/design",
   "/v2/design",
+  "/v2/design/viewport_debug",
   "/drawings",
   "/feed.rss",
   "/feed/items",
