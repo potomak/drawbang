@@ -3,38 +3,10 @@ import { assetUrl } from "../../src/layout/asset-version.js";
 import { LOGO_SVG } from "../../src/layout/logo.js";
 import { renderAnalyticsInner, renderMetaPixelInner } from "../../src/layout/tracking.js";
 
-export type BrutalVariant = "original" | "fixed" | "noscale";
-
 const BRUTAL_ACCENT = "#00ffcc";
 
-const BASE_FONT_FACE = `@font-face{font-family:"Departure Mono";src:url("/fonts/DepartureMono-Regular.woff2") format("woff2"),url("/fonts/DepartureMono-Regular.woff") format("woff"),url("/fonts/DepartureMono-Regular.otf") format("opentype");font-display:swap;font-feature-settings:"locl"}`;
-
-const BASE_RESET = `*{font-family:"Departure Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace} html{font-synthesis:none;text-rendering:geometricPrecision;-webkit-font-smoothing:none;-moz-osx-font-smoothing:unset;font-smooth:never;image-rendering:pixelated} *{font-variant-ligatures:none;font-feature-settings:"locl"}`;
-
-const TEXT_PIXEL_ORIGINAL = `.text-pixel-2x{font-size:11px!important;line-height:14px!important;display:inline-block;transform:scale(2);transform-origin:left center;image-rendering:pixelated} h1.text-pixel-2x,h2.text-pixel-2x{display:block;transform-origin:left top;margin-bottom:11px}`;
-
-const TEXT_PIXEL_FIXED = `${TEXT_PIXEL_ORIGINAL} .text-pixel-2x{max-width:50%} h1.text-pixel-2x,h2.text-pixel-2x{width:50%;max-width:50%;overflow-wrap:anywhere;word-break:break-word} html,body{overflow-x:hidden;max-width:100vw}`;
-
-const TEXT_PIXEL_NOSCALE = `${BASE_FONT_FACE} ${BASE_RESET} .text-pixel-2x{font-size:22px!important;line-height:22px!important;display:block;transform:none;image-rendering:pixelated;font-weight:400!important} h1.text-pixel-2x,h2.text-pixel-2x{display:block;transform:none;margin-bottom:0;font-weight:400!important}`;
-
-export function brutalStyleForVariant(variant: BrutalVariant = "original"): string {
-  if (variant === "noscale") return TEXT_PIXEL_NOSCALE;
-  if (variant === "fixed") return `${BASE_FONT_FACE} ${BASE_RESET} ${TEXT_PIXEL_FIXED}`;
-  return `${BASE_FONT_FACE} ${BASE_RESET} ${TEXT_PIXEL_ORIGINAL} .hdr-logo svg{height:22px;width:auto;display:block}`;
-}
-
-const SHARED_HDR_LOGO_STYLE = `.hdr-logo svg{height:22px;width:auto;display:block}`;
-
-export function getBrutalStyle(variant: BrutalVariant = "original"): string {
-  const base = brutalStyleForVariant(variant);
-  if (variant === "original" && !base.includes("hdr-logo")) {
-    return `${base} ${SHARED_HDR_LOGO_STYLE}`;
-  }
-  if (variant === "fixed" && !base.includes("hdr-logo")) {
-    return `${base} ${SHARED_HDR_LOGO_STYLE}`;
-  }
-  return base;
-}
+// Single style — 22px directly, no scale, no synthetic bold (Departure Mono has no bold cut)
+const BRUTAL_STYLE = `@font-face{font-family:"Departure Mono";src:url("/fonts/DepartureMono-Regular.woff2") format("woff2"),url("/fonts/DepartureMono-Regular.woff") format("woff"),url("/fonts/DepartureMono-Regular.otf") format("opentype");font-display:swap;font-feature-settings:"locl"} *{font-family:"Departure Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace} html{font-synthesis:none;text-rendering:geometricPrecision;-webkit-font-smoothing:none;-moz-osx-font-smoothing:unset;font-smooth:never;image-rendering:pixelated} *{font-variant-ligatures:none;font-feature-settings:"locl"} .text-pixel-2x{font-size:22px!important;line-height:22px!important;display:block;transform:none;image-rendering:pixelated;font-weight:400!important} h1.text-pixel-2x,h2.text-pixel-2x{display:block;transform:none;margin-bottom:0;font-weight:400!important} .hdr-logo svg{height:22px;width:auto;display:block}`;
 
 export function BrutalHeader() {
   return (
@@ -106,7 +78,6 @@ export function BrutalFooter({ repoUrl }: { repoUrl: string }) {
 export interface BrutalShellProps {
   title: string;
   repoUrl: string;
-  variant?: BrutalVariant;
   children: React.ReactNode;
   includeHydrate?: boolean;
   extraHead?: React.ReactNode;
@@ -118,7 +89,6 @@ export interface BrutalShellProps {
 export function BrutalShell({
   title,
   repoUrl,
-  variant = "original",
   children,
   includeHydrate = false,
   extraHead,
@@ -127,7 +97,7 @@ export function BrutalShell({
   footer,
 }: BrutalShellProps) {
   const tailwindConfig = `tailwind.config={theme:{extend:{colors:{paper:'#ffffff','paper-2':'#f7f7f5',ink:'#0a0a0a',line:'#0a0a0a',accent:'${BRUTAL_ACCENT}','accent-on':'#0a0a0a'},fontFamily:{mono:['Departure Mono','ui-monospace','SFMono-Regular','Menlo','Consolas','monospace'],sans:['Departure Mono','ui-monospace','SFMono-Regular','Menlo','Consolas','monospace']},borderRadius:{brutal:'4px'},fontSize:{pixel:['11px','14px'],'pixel-2x':['22px','22px']}}}}`;
-  const brutalStyle = getBrutalStyle(variant);
+  const brutalStyle = BRUTAL_STYLE;
   return (
     <html lang="en">
       <head>

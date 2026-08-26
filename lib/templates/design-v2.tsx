@@ -101,7 +101,6 @@ export default function renderDesignV2(v: DesignV2View): string {
     <BrutalShell
       title="Draw! · Design system — v2 (React + Tailwind brutalist)"
       repoUrl={v.repo_url}
-      variant="original"
       includeHydrate
     >
       {/* Page intro — now part of children since BrutalShell is shared chrome */}
@@ -114,12 +113,12 @@ export default function renderDesignV2(v: DesignV2View): string {
             #00ffcc
           </span>{" "}
           — tokens → Tailwind → kitchen sink. Old{" "}
-          <code className="bg-zinc-100 border border-black rounded-[4px] px-1">/design</code> stays on{" "}
-          <code className="bg-zinc-100 border border-black rounded-[4px] px-1">chrome.css</code>.
+          <code className="bg-zinc-100 border border-black rounded-[4px] px-1">/design</code> stays
+          on <code className="bg-zinc-100 border border-black rounded-[4px] px-1">chrome.css</code>.
         </p>
         <p className="text-pixel text-zinc-500">
-          Playground for #1 — prove one component model before touching <code>/</code>, <code>/d/*</code>,{" "}
-          <code>/u/*</code>.
+          Playground for #1 — prove one component model before touching <code>/</code>,{" "}
+          <code>/d/*</code>, <code>/u/*</code>.
         </p>
       </header>
 
@@ -273,8 +272,8 @@ export default function renderDesignV2(v: DesignV2View): string {
       </Section>
 
       <div className="rounded-[4px] border border-black bg-[#00ffcc]/20 p-3 font-mono text-pixel sm:text-pixel">
-        <span className="font-bold">Mobile-first check:</span> resize to 390px — grid collapses to 1 col,
-        buttons stay ≥44px, header shows “Draw” CTA, no horizontal scroll.
+        <span className="font-bold">Mobile-first check:</span> resize to 390px — grid collapses to 1
+        col, buttons stay ≥44px, header shows “Draw” CTA, no horizontal scroll.
       </div>
     </BrutalShell>
   );

@@ -98,20 +98,20 @@
 }
 
 @layer utilities {
-  /* 22px must be pixel-doubled 11px, not rasterized at 22px — otherwise vector smoothing blurs */
+  /* 22px directly — no scale, no synthetic bold (Departure Mono has no bold cut) */
   .text-pixel-2x {
-    font-size: 11px;
-    line-height: 14px;
-    display: inline-block;
-    transform: scale(2);
-    transform-origin: left center;
+    font-size: 22px;
+    line-height: 22px;
+    display: block;
+    transform: none;
     image-rendering: pixelated;
+    font-weight: 400;
   }
-  /* Keep block headings from collapsing — wrap scaled inline-block */
   h1.text-pixel-2x,
   h2.text-pixel-2x {
     display: block;
-    transform-origin: left top;
-    margin-bottom: 11px;
+    transform: none;
+    margin-bottom: 0;
+    font-weight: 400;
   }
 }
