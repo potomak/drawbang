@@ -47,6 +47,7 @@ import {
 import { mintChallenge } from "./challenge.js";
 import { renderAdminShell, type AdminRange } from "../lib/templates/admin.js";
 import { handleGetAdminMerchFlags, handleSetAdminMerchFlags } from "./admin-handler.js";
+import { renderDesignV2PageHandler } from "./render/design-v2.js";
 import {
   renderBookmarksPageHandler,
   renderDesignPageHandler,
@@ -580,6 +581,15 @@ export function createRoutes(deps: RouteDeps): Route[] {
       pattern: /^\/design$/,
       auth: "none",
       handler: async () => render(await renderDesignPageHandler(deps.renderConfig)),
+    },
+    // Additive React pilot for #1 — /v2/design mirrors /design but
+    // rendered with React (lib/templates/design-v2.tsx + react-dom/server).
+    // Existing /design stays on string templates. No infra migration yet.
+    {
+      methods: ["GET"],
+      pattern: /^\/v2\/design$/,
+      auth: "none",
+      handler: async () => render(await renderDesignV2PageHandler(deps.renderConfig)),
     },
     {
       methods: ["GET"],

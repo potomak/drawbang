@@ -396,6 +396,14 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: !Ref DynamicCachePolicy
+          # /v2/design — React pilot for #1, same cache as /design.
+          - PathPattern: /v2/design
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref DynamicCachePolicy
           # /products (exact) + /products/p/<N>. Split for the same reason
           # /gallery is — keep wildcards off the asset-prefix space.
           - PathPattern: /products
@@ -1061,6 +1069,12 @@ Resources:
             ApiId: !Ref IngestApi
             Method: ANY
             Path: /design
+        DesignPageV2:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: ANY
+            Path: /v2/design
         DrawingPage:
           Type: HttpApi
           Properties:
