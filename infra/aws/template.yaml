@@ -404,6 +404,14 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: !Ref DynamicCachePolicy
+          # /v2/design/viewport_debug — debug playground for horizontal scroll isolation.
+          - PathPattern: /v2/design/viewport_debug
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref DynamicCachePolicy
           # /products (exact) + /products/p/<N>. Split for the same reason
           # /gallery is — keep wildcards off the asset-prefix space.
           - PathPattern: /products
@@ -1075,6 +1083,12 @@ Resources:
             ApiId: !Ref IngestApi
             Method: ANY
             Path: /v2/design
+        DesignPageV2ViewportDebug:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: ANY
+            Path: /v2/design/viewport_debug
         DrawingPage:
           Type: HttpApi
           Properties:

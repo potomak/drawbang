@@ -65,6 +65,12 @@
     background: var(--color-paper);
     color: var(--color-ink);
   }
+  /* v2 header logo — match v1 chrome.css 22px height */
+  .hdr-logo svg {
+    height: 22px;
+    width: auto;
+    display: block;
+  }
   /* Ensure Departure Mono stays pixel-sharp */
   * {
     font-variant-ligatures: none;

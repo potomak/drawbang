@@ -26,6 +26,7 @@ const DEV_PROXY_PATHS = [
   "/backfill",
   "/design",
   "/v2/design",
+  "/v2/design/viewport_debug",
   "/drawings",
   "/feed.rss",
   "/feed/items",
@@ -70,6 +71,15 @@ export default defineConfig({
         "password-reset": resolve(__dirname, "password-reset.html"),
         account: resolve(__dirname, "account.html"),
         privacy: resolve(__dirname, "privacy.html"),
+        "hydrate-v2-design": resolve(__dirname, "src/hydrate-v2-design.tsx"),
+      },
+      output: {
+        entryFileNames: (chunk) => {
+          if (chunk.name === "hydrate-v2-design") return "assets/hydrate-v2-design.js";
+          return "assets/[name]-[hash].js";
+        },
+        chunkFileNames: "assets/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash][extname]",
       },
     },
   },
