@@ -101,7 +101,6 @@ export default function renderDesignV2(v: DesignV2View): string {
     <BrutalShell
       title="Draw! · Design system — v2 (React + Tailwind brutalist)"
       repoUrl={v.repo_url}
-      variant="original"
       includeHydrate
     >
       {/* Page intro — now part of children since BrutalShell is shared chrome */}
