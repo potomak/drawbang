@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+/* Brutalist design system — mobile-first, mono everywhere, 1px round borders, accent #00ffcc */
+@font-face {
+  font-family: "Departure Mono";
+  src:
+    url("/fonts/DepartureMono-Regular.woff2") format("woff2"),
+    url("/fonts/DepartureMono-Regular.woff") format("woff"),
+    url("/fonts/DepartureMono-Regular.otf") format("opentype");
+  font-display: swap;
+  font-feature-settings: "locl";
+}
+
+@theme {
+  --color-paper: #ffffff;
+  --color-paper-2: #f7f7f5;
+  --color-ink: #0a0a0a;
+  --color-line: #0a0a0a;
+  --color-line-strong: #0a0a0a;
+  --color-accent: #00ffcc;
+  --color-accent-on: #0a0a0a;
+  --color-accent-dim: #ccfff5;
+  --color-fg-muted: #52525b;
+  --color-fg-dim: #71717a;
+
+  --font-mono: "Departure Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans: "Departure Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* 4px round borders — subtle, mono everywhere */
+  --radius-brutal: 4px;
+  --border-brutal: 1px;
+
+  /* Pixel-perfect only — Departure Mono is 1px grid at 11px, so only 11 and 22 are crisp */
+  --text-pixel: 11px;
+  --text-pixel--line-height: 14px;
+  --text-pixel-2x: 22px;
+  --text-pixel-2x--line-height: 22px;
+  --text-xs: 11px;
+  --text-xs--line-height: 14px;
+  --text-sm: 11px;
+  --text-sm--line-height: 14px;
+  --text-base: 11px;
+  --text-base--line-height: 14px;
+  --text-lg: 22px;
+  --text-lg--line-height: 22px;
+  --text-xl: 22px;
+  --text-xl--line-height: 22px;
+  --text-2xl: 22px;
+  --text-2xl--line-height: 22px;
+}
+
+/* Base — mono everywhere, brutalist reset — pixel perfect */
+@layer base {
+  html {
+    font-family: var(--font-mono);
+    font-synthesis: none;
+    text-rendering: geometricPrecision;
+    -webkit-font-smoothing: none;
+    -moz-osx-font-smoothing: unset;
+    font-smooth: never;
+    /* Pixel crisp — Departure Mono is 1px grid at 11px; 22 must be doubled, not rasterized */
+    image-rendering: pixelated;
+  }
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+  }
+  /* Ensure Departure Mono stays pixel-sharp */
+  * {
+    font-variant-ligatures: none;
+    font-feature-settings: "locl";
+  }
+}
+
+/* Brutalist components — used by /v2/* React templates — pixel perfect 11/22 only */
+@layer components {
+  .brutal-card {
+    @apply bg-white border border-ink rounded-[4px] p-4;
+  }
+  .brutal-btn {
+    @apply inline-flex items-center justify-center gap-2 border border-ink rounded-[4px] px-4 py-2 font-mono text-pixel font-medium bg-white text-ink hover:bg-paper-2 active:translate-y-[1px] active:shadow-none transition-none;
+  }
+  .brutal-btn-primary {
+    @apply bg-accent text-ink border-ink hover:bg-accent/90;
+  }
+  .brutal-btn-ghost {
+    @apply bg-transparent border-ink hover:bg-paper-2;
+  }
+  .brutal-badge {
+    @apply inline-flex items-center border border-ink rounded-[4px] bg-paper-2 px-2 py-1 font-mono text-pixel;
+  }
+}
+
+@layer utilities {
+  /* 22px must be pixel-doubled 11px, not rasterized at 22px — otherwise vector smoothing blurs */
+  .text-pixel-2x {
+    font-size: 11px;
+    line-height: 14px;
+    display: inline-block;
+    transform: scale(2);
+    transform-origin: left center;
+    image-rendering: pixelated;
+  }
+  /* Keep block headings from collapsing — wrap scaled inline-block */
+  h1.text-pixel-2x,
+  h2.text-pixel-2x {
+    display: block;
+    transform-origin: left top;
+    margin-bottom: 11px;
+  }
+}
