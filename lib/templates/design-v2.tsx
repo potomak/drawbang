@@ -62,10 +62,10 @@ function BrutalShell({
           }}
         />
         <script
-          dangerouslySetInnerHTML={{ __html: renderAnalytics().replace(/<\/?script[^>]*>/g, "") }}
+          dangerouslySetInnerHTML={{ __html: renderAnalytics().replace(/<\/?script[^>]*>/gi, "") }}
         />
         <script
-          dangerouslySetInnerHTML={{ __html: renderMetaPixel().replace(/<\/?script[^>]*>/g, "") }}
+          dangerouslySetInnerHTML={{ __html: renderMetaPixel().replace(/<\/?script[^>]*>/gi, "") }}
         />
         <script type="module" src={assetUrl("/src/hydrate-v2-design.tsx")} />
       </head>

@@ -20,7 +20,8 @@
     el.className =
       "fixed left-0 right-0 top-0 z-40 flex items-center gap-3 border-b border-black bg-white px-4 py-3 font-mono text-[11px] shadow-[4px_4px_0_#0a0a0a] sm:px-6";
     el.style.borderLeft = "4px solid #0a0a0a";
-    el.style.fontFamily = '"Departure Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+    el.style.fontFamily =
+      '"Departure Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
     el.style.imageRendering = "pixelated";
 
     var msg = document.createElement("span");
@@ -35,7 +36,8 @@
     close.textContent = "×";
     close.className =
       "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[4px] border border-black bg-white font-mono text-[11px] hover:bg-zinc-50";
-    close.style.fontFamily = '"Departure Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+    close.style.fontFamily =
+      '"Departure Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
     close.addEventListener("click", hide);
 
     el.appendChild(msg);
@@ -61,7 +63,11 @@
     el.setAttribute("data-kind", kind);
     el.setAttribute("role", kind === "error" ? "alert" : "status");
     el.style.borderLeft =
-      kind === "success" ? "4px solid #00ffcc" : kind === "error" ? "4px solid #ff6060" : "4px solid #0a0a0a";
+      kind === "success"
+        ? "4px solid #00ffcc"
+        : kind === "error"
+          ? "4px solid #ff6060"
+          : "4px solid #0a0a0a";
     msg.textContent = message;
     el.hidden = false;
     // simple slide-in
