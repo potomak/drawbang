@@ -46,7 +46,6 @@ function BrutalShell({
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1" />
         <title>{title}</title>
-        <link rel="stylesheet" href={assetUrl("/chrome.css")} />
         <script src="https://cdn.tailwindcss.com" />
         <script dangerouslySetInnerHTML={{ __html: tailwindConfig }} />
         <link
@@ -205,6 +204,76 @@ function ColorSwatch({ hex, name, role }: { hex: string; name: string; role: str
         <span className="font-mono text-pixel text-zinc-600">{hex}</span>
         <span className="font-mono text-pixel text-zinc-500">{role}</span>
       </div>
+    </div>
+  );
+}
+
+function FlashDemo() {
+  const [flash, setFlash] = React.useState<null | { kind: "success" | "error"; message: string }>(
+    null
+  );
+  React.useEffect(() => {
+    if (!flash) return;
+    const t = window.setTimeout(() => setFlash(null), 3000);
+    return () => window.clearTimeout(t);
+  }, [flash]);
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap gap-3">
+        <button
+          className="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-pixel hover:bg-zinc-50"
+          onClick={() => setFlash({ kind: "success", message: "Saved." })}
+        >
+          Trigger success
+        </button>
+        <button
+          className="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-pixel hover:bg-zinc-50"
+          onClick={() => setFlash({ kind: "error", message: "Something went wrong." })}
+        >
+          Trigger error
+        </button>
+        <button
+          className="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-pixel hover:bg-zinc-50"
+          onClick={() =>
+            (window as unknown as { showBrutalFlash?: (o: unknown) => void }).showBrutalFlash?.({
+              kind: "success",
+              message: "Via window.showBrutalFlash",
+            })
+          }
+        >
+          Trigger via window
+        </button>
+      </div>
+      {flash && (
+        <div
+          role={flash.kind === "error" ? "alert" : "status"}
+          aria-live="polite"
+          className="flex items-center gap-3 rounded-[4px] border border-black bg-white px-4 py-3 font-mono text-pixel shadow-[4px_4px_0_#0a0a0a]"
+          style={{ borderLeft: `4px solid ${flash.kind === "success" ? "#00ffcc" : "#ff6060"}` }}
+        >
+          <span className="flex-1 break-words">{flash.message}</span>
+          <button
+            aria-label="Dismiss"
+            onClick={() => setFlash(null)}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[4px] border border-black bg-white text-pixel hover:bg-zinc-50"
+          >
+            ×
+          </button>
+        </div>
+      )}
+      <p className="font-mono text-pixel text-zinc-600">
+        Also available imperatively:{" "}
+        <code className="rounded-[4px] border border-black bg-zinc-50 px-1">
+          showBrutalFlash({`{kind, message}`})
+        </code>{" "}
+        /{" "}
+        <code className="rounded-[4px] border border-black bg-zinc-50 px-1">hideBrutalFlash()</code>{" "}
+        — see{" "}
+        <code className="rounded-[4px] border border-black bg-zinc-50 px-1">
+          src/components/BrutalFlash.tsx
+        </code>
+        .
+      </p>
     </div>
   );
 }
@@ -392,13 +461,11 @@ export default function renderDesignV2(v: DesignV2View): string {
         </div>
       </Section>
 
-      <Section title="Flash — brutalist" lede="window.drawbangShowFlash, 1px round.">
-        <div
-          className="flex flex-wrap gap-3"
-          dangerouslySetInnerHTML={{
-            __html: `<button class="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-pixel" onclick="window.drawbangShowFlash && window.drawbangShowFlash('Saved.', { kind: 'success' })">Trigger success</button><button class="inline-flex min-h-[44px] items-center rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-pixel" onclick="window.drawbangShowFlash && window.drawbangShowFlash('Something went wrong.', { kind: 'error' })">Trigger error</button>`,
-          }}
-        />
+      <Section
+        title="Flash — brutalist"
+        lede="showBrutalFlash({kind, message}) — React, 1px round, mono 11px."
+      >
+        <FlashDemo />
       </Section>
 
       <div className="rounded-[4px] border border-black bg-[#00ffcc]/20 p-3 font-mono text-pixel sm:text-pixel">
