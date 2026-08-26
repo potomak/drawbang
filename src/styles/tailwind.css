@@ -1,6 +1,16 @@
 @import "tailwindcss";
 
 /* Brutalist design system — mobile-first, mono everywhere, 1px round borders, accent #00ffcc */
+@font-face {
+  font-family: "Departure Mono";
+  src:
+    url("/fonts/DepartureMono-Regular.woff2") format("woff2"),
+    url("/fonts/DepartureMono-Regular.woff") format("woff"),
+    url("/fonts/DepartureMono-Regular.otf") format("opentype");
+  font-display: swap;
+  font-feature-settings: "locl";
+}
+
 @theme {
   --color-paper: #ffffff;
   --color-paper-2: #f7f7f5;
@@ -13,22 +23,33 @@
   --color-fg-muted: #52525b;
   --color-fg-dim: #71717a;
 
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --font-sans: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-mono: "Departure Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans: "Departure Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /* 4px round borders — subtle, mono everywhere */
   --radius-brutal: 4px;
   --border-brutal: 1px;
 }
 
-/* Base — mono everywhere, brutalist reset */
+/* Base — mono everywhere, brutalist reset — pixel perfect */
 @layer base {
   html {
     font-family: var(--font-mono);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Pixel crisp — Departure Mono is 1px grid */
+    image-rendering: pixelated;
   }
   body {
     background: var(--color-paper);
     color: var(--color-ink);
+  }
+  /* Ensure Departure Mono stays pixel-sharp */
+  * {
+    font-variant-ligatures: none;
+    font-feature-settings: "locl";
   }
 }
 

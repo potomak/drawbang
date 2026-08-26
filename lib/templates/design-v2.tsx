@@ -43,7 +43,7 @@ function BrutalShell({
   // Tailwind CDN for pilot — mobile-first, no build step for Lambda.
   // In prod the same CDN + purged static/tailwind.css will be cached; Vite's @tailwindcss/vite
   // handles the SPA side via src/styles/tailwind.css. Keeping both for overlap during migration.
-  const tailwindConfig = `tailwind.config={theme:{extend:{colors:{paper:'#ffffff','paper-2':'#f7f7f5',ink:'#0a0a0a',line:'#0a0a0a',accent:'${BRUTAL_ACCENT}','accent-on':'#0a0a0a'},fontFamily:{mono:['ui-monospace','SFMono-Regular','Menlo','Consolas','monospace'],sans:['ui-monospace','SFMono-Regular','Menlo','Consolas','monospace']},borderRadius:{brutal:'4px'}}}}`;
+  const tailwindConfig = `tailwind.config={theme:{extend:{colors:{paper:'#ffffff','paper-2':'#f7f7f5',ink:'#0a0a0a',line:'#0a0a0a',accent:'${BRUTAL_ACCENT}','accent-on':'#0a0a0a'},fontFamily:{mono:['Departure Mono','ui-monospace','SFMono-Regular','Menlo','Consolas','monospace'],sans:['Departure Mono','ui-monospace','SFMono-Regular','Menlo','Consolas','monospace']},borderRadius:{brutal:'4px'}}}}`;
   return (
     <html lang="en">
       <head>
@@ -52,9 +52,16 @@ function BrutalShell({
         <title>{title}</title>
         <script src="https://cdn.tailwindcss.com" />
         <script dangerouslySetInnerHTML={{ __html: tailwindConfig }} />
+        <link
+          rel="preload"
+          href="/fonts/DepartureMono-Regular.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
         <style
           dangerouslySetInnerHTML={{
-            __html: `*{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace} html{ -webkit-font-smoothing:antialiased }`,
+            __html: `@font-face{font-family:"Departure Mono";src:url("/fonts/DepartureMono-Regular.woff2") format("woff2"),url("/fonts/DepartureMono-Regular.woff") format("woff"),url("/fonts/DepartureMono-Regular.otf") format("opentype");font-display:swap;font-feature-settings:"locl"} *{font-family:"Departure Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace} html{font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;image-rendering:pixelated} *{font-variant-ligatures:none;font-feature-settings:"locl"}`,
           }}
         />
         <script
@@ -112,7 +119,7 @@ function BrutalHeader() {
         <a
           href="/"
           aria-label="Draw! home"
-          className="inline-flex items-center hover:opacity-80"
+          className="inline-flex items-center hover:opacity-80 [&>svg]:h-8 [&>svg]:w-[84px] [&>svg]:[image-rendering:pixelated]"
           dangerouslySetInnerHTML={{ __html: LOGO_SVG }}
         />
         <nav className="hidden sm:flex items-center gap-2 text-sm">
