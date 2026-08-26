@@ -16,8 +16,8 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --font-sans: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* 1px round borders — subtle 1px radius, mono everywhere */
-  --radius-brutal: 1px;
+  /* 4px round borders — subtle, mono everywhere */
+  --radius-brutal: 4px;
   --border-brutal: 1px;
 }
 
@@ -35,10 +35,10 @@
 /* Brutalist components — used by /v2/* React templates */
 @layer components {
   .brutal-card {
-    @apply bg-white border border-ink rounded-[1px] p-4;
+    @apply bg-white border border-ink rounded-[4px] p-4;
   }
   .brutal-btn {
-    @apply inline-flex items-center justify-center gap-2 border border-ink rounded-[1px] px-4 py-2 font-mono text-sm font-medium bg-white text-ink hover:bg-paper-2 active:translate-y-[1px] active:shadow-none transition-none;
+    @apply inline-flex items-center justify-center gap-2 border border-ink rounded-[4px] px-4 py-2 font-mono text-sm font-medium bg-white text-ink hover:bg-paper-2 active:translate-y-[1px] active:shadow-none transition-none;
   }
   .brutal-btn-primary {
     @apply bg-accent text-ink border-ink hover:bg-accent/90;
@@ -47,6 +47,6 @@
     @apply bg-transparent border-ink hover:bg-paper-2;
   }
   .brutal-badge {
-    @apply inline-flex items-center border border-ink rounded-[1px] bg-paper-2 px-2 py-1 font-mono text-xs;
+    @apply inline-flex items-center border border-ink rounded-[4px] bg-paper-2 px-2 py-1 font-mono text-xs;
   }
 }
