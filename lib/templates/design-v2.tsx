@@ -112,7 +112,7 @@ function BrutalHeader() {
         <a
           href="/"
           aria-label="Draw! home"
-          className="inline-flex items-center gap-2 rounded-[4px] border border-black bg-white px-2 py-1.5 hover:bg-zinc-50 active:translate-y-px"
+          className="inline-flex items-center hover:opacity-80"
           dangerouslySetInnerHTML={{ __html: LOGO_SVG }}
         />
         <nav className="hidden sm:flex items-center gap-2 text-sm">
