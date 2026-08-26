@@ -2,7 +2,7 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { assetUrl } from "../../src/layout/asset-version.js";
 import { LOGO_SVG } from "../../src/layout/logo.js";
-import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
+import { renderAnalyticsInner, renderMetaPixelInner } from "../../src/layout/tracking.js";
 import { FlashDemo } from "../../src/components/FlashDemo.js";
 
 // Brutalist v2 design system — mobile-first, mono everywhere, 1px round borders, accent #00ffcc
@@ -58,15 +58,11 @@ function BrutalShell({
         />
         <style
           dangerouslySetInnerHTML={{
-            __html: `@font-face{font-family:"Departure Mono";src:url("/fonts/DepartureMono-Regular.woff2") format("woff2"),url("/fonts/DepartureMono-Regular.woff") format("woff"),url("/fonts/DepartureMono-Regular.otf") format("opentype");font-display:swap;font-feature-settings:"locl"} *{font-family:"Departure Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace} html{font-synthesis:none;text-rendering:geometricPrecision;-webkit-font-smoothing:none;-moz-osx-font-smoothing:unset;font-smooth:never;image-rendering:pixelated} *{font-variant-ligatures:none;font-feature-settings:"locl"} .text-pixel-2x{font-size:11px!important;line-height:14px!important;display:inline-block;transform:scale(2);transform-origin:left center;image-rendering:pixelated} h1.text-pixel-2x,h2.text-pixel-2x{display:block;transform-origin:left top;margin-bottom:11px;width:50%;max-width:50%;overflow-wrap:anywhere;word-break:break-word} .hdr-logo svg{height:22px;width:auto;display:block}`,
+            __html: `@font-face{font-family:"Departure Mono";src:url("/fonts/DepartureMono-Regular.woff2") format("woff2"),url("/fonts/DepartureMono-Regular.woff") format("woff"),url("/fonts/DepartureMono-Regular.otf") format("opentype");font-display:swap;font-feature-settings:"locl"} *{font-family:"Departure Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace} html{font-synthesis:none;text-rendering:geometricPrecision;-webkit-font-smoothing:none;-moz-osx-font-smoothing:unset;font-smooth:never;image-rendering:pixelated} *{font-variant-ligatures:none;font-feature-settings:"locl"} .text-pixel-2x{font-size:11px!important;line-height:14px!important;display:inline-block;transform:scale(2);transform-origin:left center;image-rendering:pixelated} h1.text-pixel-2x,h2.text-pixel-2x{display:block;transform-origin:left top;margin-bottom:11px} .hdr-logo svg{height:22px;width:auto;display:block}`,
           }}
         />
-        <script
-          dangerouslySetInnerHTML={{ __html: renderAnalytics().replace(/<\/?script[^>]*>/gi, "") }}
-        />
-        <script
-          dangerouslySetInnerHTML={{ __html: renderMetaPixel().replace(/<\/?script[^>]*>/gi, "") }}
-        />
+        <script dangerouslySetInnerHTML={{ __html: renderAnalyticsInner() }} />
+        <script dangerouslySetInnerHTML={{ __html: renderMetaPixelInner() }} />
         {(() => {
           const hydrateSrc = process.env.DRAWBANG_ASSET_VERSION
             ? assetUrl("/assets/hydrate-v2-design.js")

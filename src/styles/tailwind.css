@@ -106,7 +106,6 @@
     transform: scale(2);
     transform-origin: left center;
     image-rendering: pixelated;
-    max-width: 50%;
   }
   /* Keep block headings from collapsing — wrap scaled inline-block */
   h1.text-pixel-2x,
@@ -114,9 +113,5 @@
     display: block;
     transform-origin: left top;
     margin-bottom: 11px;
-    width: 50%;
-    max-width: 50%;
-    overflow-wrap: anywhere;
-    word-break: break-word;
   }
 }

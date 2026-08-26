@@ -2,7 +2,7 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { assetUrl } from "../../src/layout/asset-version.js";
 import { LOGO_SVG } from "../../src/layout/logo.js";
-import { renderAnalytics, renderMetaPixel } from "../../src/layout/tracking.js";
+import { renderAnalyticsInner, renderMetaPixelInner } from "../../src/layout/tracking.js";
 
 export interface ViewportDebugView {
   repo_url: string;
@@ -37,12 +37,8 @@ function ViewportDebugShell({ useFix, children }: { useFix: boolean; children: R
             __html: `.debug-on{outline:2px solid #ff3b30}.debug-badge{position:fixed;bottom:12px;left:12px;right:12px;z-index:50;background:#0a0a0a;color:#fff;border:1px solid #fff;border-radius:4px;padding:8px 12px;font-family:"Departure Mono",monospace;font-size:11px;line-height:14px} .debug-badge.ok{background:#00a86b} .debug-badge.warn{background:#b00020} .hdr-logo svg{height:22px;width:auto;display:block} .hdr-logo-16 svg{height:16px;width:auto;display:block}`,
           }}
         />
-        <script
-          dangerouslySetInnerHTML={{ __html: renderAnalytics().replace(/<\/?script[^>]*>/gi, "") }}
-        />
-        <script
-          dangerouslySetInnerHTML={{ __html: renderMetaPixel().replace(/<\/?script[^>]*>/gi, "") }}
-        />
+        <script dangerouslySetInnerHTML={{ __html: renderAnalyticsInner() }} />
+        <script dangerouslySetInnerHTML={{ __html: renderMetaPixelInner() }} />
       </head>
       <body className="bg-white text-black font-mono antialiased">
         <header className="sticky top-0 z-10 border-b border-black bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">

@@ -61,6 +61,26 @@ export function renderAnalytics(): string {
 </script>`;
 }
 
+// Trusted inner script content for React's dangerouslySetInnerHTML inside a
+// <script> tag — avoids the regex strip that triggers CodeQL
+// js/incomplete-multi-character-sanitization on the full HTML string.
+export function renderAnalyticsInner(): string {
+  return `(function () {
+  var dnt = (navigator.doNotTrack === '1') || (window.doNotTrack === '1');
+  var optOut = false;
+  try { optOut = localStorage.getItem(${JSON.stringify(ANALYTICS_OPT_OUT_KEY)}) === '1'; } catch (e) {}
+  if (dnt || optOut) {
+    window[${JSON.stringify("ga-disable-" + GA_MEASUREMENT_ID)}] = true;
+    window.fbq = function () {};
+  }
+})();
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', '${GA_MEASUREMENT_ID}');`;
+}
+
 // Meta (Facebook) Pixel ID. The base snippet Meta documents also includes
 // a <noscript><img> fallback for JS-disabled visitors. We drop it: Vite's
 // parse5 step rejects <noscript><img> inside <head> per the HTML5 spec,
@@ -83,4 +103,17 @@ fbq('init', '${META_PIXEL_ID}');
 fbq('track', 'PageView');
 </script>
 <!-- End Meta Pixel Code -->`;
+}
+
+export function renderMetaPixelInner(): string {
+  return `!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '${META_PIXEL_ID}');
+fbq('track', 'PageView');`;
 }
