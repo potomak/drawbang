@@ -31,6 +31,7 @@ const shared = {
     "process.env.DRAWBANG_ASSET_VERSION": JSON.stringify(ASSET_VERSION),
   },
   logLevel: "info",
+  jsx: "automatic",
 };
 
 await build({
