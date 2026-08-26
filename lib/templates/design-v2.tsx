@@ -50,8 +50,6 @@ function BrutalShell({
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1" />
         <title>{title}</title>
-        <link rel="stylesheet" href={assetUrl("/gallery-v2.css")} />
-        {/* Tailwind CDN — brutalist pilot, 1px round borders + mono */}
         <script src="https://cdn.tailwindcss.com" />
         <script dangerouslySetInnerHTML={{ __html: tailwindConfig }} />
         <style
