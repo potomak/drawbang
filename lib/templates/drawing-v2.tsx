@@ -11,7 +11,7 @@ import type { GalleryItem } from "./gallery.js";
 // hydration channel to avoid diverging per-page state.
 
 interface DrawingV2View {
-  drawing_id: string;
+  id: string;
   id_short: string;
   created_at: string;
   frames?: number;
@@ -89,8 +89,8 @@ function ProfilePictureV2({
 }
 
 function DrawingV2Page(v: DrawingV2View) {
-  const gif = `/tiles/${v.drawing_id}.gif`;
-  const shareMp4 = `/tiles/${v.drawing_id}-large.mp4`;
+  const gif = `/tiles/${v.id}.gif`;
+  const shareMp4 = `/tiles/${v.id}-large.mp4`;
   const created = formatCreatedAtV2(v.created_at);
   const framesSuffix =
     typeof v.frames === "number" && v.frames > 0
@@ -105,7 +105,7 @@ function DrawingV2Page(v: DrawingV2View) {
         name="description"
         content="Pixel art from Draw! · Create your own at https://pixel.drawbang.com"
       />
-      <link rel="canonical" href={`${v.public_base_url}/d/${v.drawing_id}`} />
+      <link rel="canonical" href={`${v.public_base_url}/d/${v.id}`} />
       <meta property="og:type" content="website" />
       <meta property="og:site_name" content="Draw!" />
       <meta property="og:title" content={`Drawing ${v.id_short}`} />
@@ -113,15 +113,15 @@ function DrawingV2Page(v: DrawingV2View) {
         property="og:description"
         content="Pixel art from Draw! · Create your own pixel art at https://pixel.drawbang.com"
       />
-      <meta property="og:url" content={`${v.public_base_url}/d/${v.drawing_id}`} />
-      <meta property="og:image" content={`${v.public_base_url}/tiles/${v.drawing_id}-large.gif`} />
+      <meta property="og:url" content={`${v.public_base_url}/d/${v.id}`} />
+      <meta property="og:image" content={`${v.public_base_url}/tiles/${v.id}-large.gif`} />
       <meta property="og:image:type" content="image/gif" />
       <meta property="og:image:width" content="960" />
       <meta property="og:image:height" content="960" />
-      <meta property="og:video" content={`${v.public_base_url}/tiles/${v.drawing_id}-large.mp4`} />
+      <meta property="og:video" content={`${v.public_base_url}/tiles/${v.id}-large.mp4`} />
       <meta
         property="og:video:secure_url"
-        content={`${v.public_base_url}/tiles/${v.drawing_id}-large.mp4`}
+        content={`${v.public_base_url}/tiles/${v.id}-large.mp4`}
       />
       <meta property="og:video:type" content="video/mp4" />
       <meta property="og:video:width" content="1080" />
@@ -134,7 +134,7 @@ function DrawingV2Page(v: DrawingV2View) {
     <BrutalShell title={`Draw! · ${v.id_short}`} repoUrl={v.repo_url} extraHead={ogMeta}>
       <main
         data-tile-page
-        data-drawing-id={v.drawing_id}
+        data-drawing-id={v.id}
         data-id-short={v.id_short}
         data-author-username={v.author?.username ?? ""}
         data-public-base-url={v.public_base_url}
@@ -214,7 +214,7 @@ function DrawingV2Page(v: DrawingV2View) {
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap gap-2">
                 <a
-                  href={`/draw?fork=${v.drawing_id}`}
+                  href={`/draw?fork=${v.id}`}
                   id="dr-fork"
                   className="inline-flex min-h-[44px] items-center justify-center rounded-[4px] border border-black bg-[#00ffcc] px-4 py-2 font-mono text-pixel font-medium hover:bg-[#00ffcc]/90 active:translate-y-px"
                 >
@@ -225,7 +225,7 @@ function DrawingV2Page(v: DrawingV2View) {
                 <button
                   className="inline-flex min-h-[44px] items-center gap-1.5 rounded-[4px] border border-black bg-white px-3 py-2 font-mono text-pixel font-medium hover:bg-zinc-50 active:translate-y-px"
                   type="button"
-                  data-like-target={v.drawing_id}
+                  data-like-target={v.id}
                   aria-pressed="false"
                   aria-label="Like this drawing"
                 >
@@ -248,7 +248,7 @@ function DrawingV2Page(v: DrawingV2View) {
                 <button
                   className="inline-flex min-h-[44px] items-center justify-center rounded-[4px] border border-black bg-white px-3 py-2 font-mono text-pixel hover:bg-zinc-50 active:translate-y-px"
                   type="button"
-                  data-bookmark-target={v.drawing_id}
+                  data-bookmark-target={v.id}
                   aria-pressed="false"
                   aria-label="Bookmark this drawing"
                 >
@@ -266,7 +266,7 @@ function DrawingV2Page(v: DrawingV2View) {
                   </svg>
                 </button>
                 <a
-                  href={`/merch?d=${v.drawing_id}&frame=0`}
+                  href={`/merch?d=${v.id}&frame=0`}
                   id="dr-make-merch"
                   rel="nofollow noreferrer"
                   className="inline-flex min-h-[44px] items-center justify-center rounded-[4px] border border-black bg-white px-4 py-2 font-mono text-pixel font-medium hover:bg-zinc-50 active:translate-y-px"
@@ -308,7 +308,7 @@ function DrawingV2Page(v: DrawingV2View) {
               </div>
               <div className="flex flex-wrap gap-2">
                 <a
-                  href={`https://www.threads.net/intent/post?text=${encodeURIComponent(`Pixel art from Draw! · Drawing ${v.id_short}`)}&url=${encodeURIComponent(`${v.public_base_url}/d/${v.drawing_id}`)}`}
+                  href={`https://www.threads.net/intent/post?text=${encodeURIComponent(`Pixel art from Draw! · Drawing ${v.id_short}`)}&url=${encodeURIComponent(`${v.public_base_url}/d/${v.id}`)}`}
                   target="_blank"
                   rel="nofollow noopener noreferrer"
                   id="dr-share-threads"
@@ -317,7 +317,7 @@ function DrawingV2Page(v: DrawingV2View) {
                   Share to Threads
                 </a>
                 <a
-                  href={`https://www.reddit.com/submit?url=${encodeURIComponent(`${v.public_base_url}/d/${v.drawing_id}`)}&title=${encodeURIComponent(`Pixel art from Draw! · Drawing ${v.id_short}`)}`}
+                  href={`https://www.reddit.com/submit?url=${encodeURIComponent(`${v.public_base_url}/d/${v.id}`)}&title=${encodeURIComponent(`Pixel art from Draw! · Drawing ${v.id_short}`)}`}
                   target="_blank"
                   rel="nofollow noopener noreferrer"
                   id="dr-share-reddit"
@@ -326,7 +326,7 @@ function DrawingV2Page(v: DrawingV2View) {
                   Share to Reddit
                 </a>
                 <a
-                  href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(`${v.public_base_url}/d/${v.drawing_id}`)}&text=${encodeURIComponent(`Pixel art from Draw! · Drawing ${v.id_short}`)}`}
+                  href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(`${v.public_base_url}/d/${v.id}`)}&text=${encodeURIComponent(`Pixel art from Draw! · Drawing ${v.id_short}`)}`}
                   target="_blank"
                   rel="nofollow noopener noreferrer"
                   id="dr-share-x"
@@ -378,7 +378,7 @@ function DrawingV2Page(v: DrawingV2View) {
               ))}
               <li aria-current="page" className="rounded-[4px] border border-black overflow-hidden">
                 <img
-                  src={`/tiles/${v.drawing_id}.gif`}
+                  src={`/tiles/${v.id}.gif`}
                   alt={`this drawing, ${v.id_short}`}
                   width={48}
                   height={48}

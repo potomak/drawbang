@@ -44,7 +44,7 @@ export async function renderDrawingV2PageHandler(
   const authorAccount =
     cfg.userStore && !isAnonymous ? await cfg.userStore.getByUsername(row.username) : null;
   const body = renderDrawingV2({
-    drawing_id: row.drawing_id,
+    id: row.drawing_id,
     id_short: row.drawing_id.slice(0, 8),
     created_at: row.created_at,
     frames: row.frames,
