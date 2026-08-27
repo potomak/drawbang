@@ -629,6 +629,15 @@ export function createRoutes(deps: RouteDeps): Route[] {
     },
     {
       methods: ["GET"],
+      pattern: new RegExp(`^\\/v2\\/d\\/(${HEX64})$`),
+      auth: "none",
+      handler: async (_req, [id]) => {
+        const { renderDrawingV2PageHandler } = await import("./render/drawing-v2.js");
+        return render(await renderDrawingV2PageHandler(deps.renderConfig, id));
+      },
+    },
+    {
+      methods: ["GET"],
       pattern: new RegExp(`^\\/d\\/(${HEX64})$`),
       auth: "none",
       handler: async (_req, [id]) => render(await renderDrawingPageHandler(deps.renderConfig, id)),
