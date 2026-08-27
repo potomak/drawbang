@@ -629,6 +629,15 @@ export function createRoutes(deps: RouteDeps): Route[] {
     },
     {
       methods: ["GET"],
+      pattern: /^\/v2\/gallery\/lab$/,
+      auth: "none",
+      handler: async () => {
+        const { renderGalleryLabPageHandler } = await import("./render/gallery-lab.js");
+        return render(await renderGalleryLabPageHandler(deps.renderConfig));
+      },
+    },
+    {
+      methods: ["GET"],
       pattern: new RegExp(`^\\/v2\\/d\\/(${HEX64})$`),
       auth: "none",
       handler: async (_req, [id]) => {

@@ -404,6 +404,14 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: !Ref DynamicCachePolicy
+          # /v2/gallery/lab — playground for grid experiments (temporary).
+          - PathPattern: /v2/gallery/lab
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref DynamicCachePolicy
           # /v2/d/<id> — Tailwind brutalist drawing page (same cache as /d/*).
           - PathPattern: /v2/d/*
             TargetOriginId: api
@@ -1083,6 +1091,12 @@ Resources:
             ApiId: !Ref IngestApi
             Method: ANY
             Path: /v2/design
+        GalleryLab:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref IngestApi
+            Method: ANY
+            Path: /v2/gallery/lab
         DrawingPageV2:
           Type: HttpApi
           Properties:
