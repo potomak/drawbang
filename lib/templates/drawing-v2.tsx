@@ -10,13 +10,13 @@ import type { GalleryItem } from "./gallery.js";
 // once the brutal UI proves stable. For now we keep the single legacy
 // hydration channel to avoid diverging per-page state.
 
-export interface DrawingV2View {
+interface DrawingV2View {
   drawing_id: string;
   id_short: string;
   created_at: string;
   frames?: number;
   size: number;
-  parent: { parent: string; parent_short: string } | null;
+  parent: { id: string; id_short: string } | null;
   author: {
     user_id: string;
     username: string;
@@ -44,7 +44,7 @@ const MONTHS = [
   "December",
 ];
 
-export function formatCreatedAtV2(iso: string): string {
+function formatCreatedAtV2(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   const month = MONTHS[d.getUTCMonth()];
@@ -62,17 +62,21 @@ function pixelSize(size: number): number {
   return s * 10;
 }
 
-function renderProfilePictureV2(
-  drawing_id: string | null | undefined,
-  username: string,
-  size: number
-): React.ReactNode {
-  if (!drawing_id || !/^[0-9a-f]{64}$/.test(drawing_id)) return null;
+function ProfilePictureV2({
+  drawingId,
+  username,
+  size,
+}: {
+  drawingId: string | null | undefined;
+  username: string;
+  size: number;
+}): React.ReactNode {
+  if (!drawingId || !/^[0-9a-f]{64}$/.test(drawingId)) return null;
   const px = Math.max(8, Math.floor(size));
   return (
     <img
       className="rounded-[4px] border border-black"
-      src={`/tiles/${drawing_id}.gif`}
+      src={`/tiles/${drawingId}.gif`}
       alt={username}
       width={px}
       height={px}
@@ -104,7 +108,7 @@ function DrawingV2Page(v: DrawingV2View) {
       <link rel="canonical" href={`${v.public_base_url}/d/${v.drawing_id}`} />
       <meta property="og:type" content="website" />
       <meta property="og:site_name" content="Draw!" />
-      <meta property="og:title" content={`Tile ID ${v.id_short}`} />
+      <meta property="og:title" content={`Drawing ${v.id_short}`} />
       <meta
         property="og:description"
         content="Pixel art from Draw! · Create your own pixel art at https://pixel.drawbang.com"
@@ -142,7 +146,7 @@ function DrawingV2Page(v: DrawingV2View) {
             <div className="rounded-[4px] border border-black bg-[#f7f7f5] p-2 sm:p-3">
               <img
                 src={gif}
-                alt={`tile ${v.id_short}`}
+                alt={`drawing ${v.id_short}`}
                 width={sizePx}
                 height={sizePx}
                 loading="eager"
@@ -172,11 +176,11 @@ function DrawingV2Page(v: DrawingV2View) {
                       href={`/u/${v.author.username}`}
                       className="inline-flex items-center gap-2 underline decoration-black underline-offset-2 hover:bg-zinc-50 rounded-[4px] px-1 -mx-1"
                     >
-                      {renderProfilePictureV2(
-                        v.author.profile_picture_drawing_id,
-                        v.author.username,
-                        20
-                      )}
+                      <ProfilePictureV2
+                        drawingId={v.author.profile_picture_drawing_id}
+                        username={v.author.username}
+                        size={16}
+                      />
                       {v.author.username}
                     </a>
                   ) : (
@@ -189,10 +193,10 @@ function DrawingV2Page(v: DrawingV2View) {
                   <dt className="min-w-[110px] font-medium text-zinc-600">Remixed from</dt>
                   <dd>
                     <a
-                      href={`/d/${v.parent.parent}`}
+                      href={`/d/${v.parent.id}`}
                       className="underline decoration-black underline-offset-2 hover:bg-zinc-50 rounded-[4px] px-1 -mx-1"
                     >
-                      {v.parent.parent_short}
+                      {v.parent.id_short}
                     </a>
                   </dd>
                 </div>
@@ -304,7 +308,7 @@ function DrawingV2Page(v: DrawingV2View) {
               </div>
               <div className="flex flex-wrap gap-2">
                 <a
-                  href={`https://www.threads.net/intent/post?text=${encodeURIComponent(`Pixel art from Draw! · Tile ID ${v.id_short}`)}&url=${encodeURIComponent(`${v.public_base_url}/d/${v.drawing_id}`)}`}
+                  href={`https://www.threads.net/intent/post?text=${encodeURIComponent(`Pixel art from Draw! · Drawing ${v.id_short}`)}&url=${encodeURIComponent(`${v.public_base_url}/d/${v.drawing_id}`)}`}
                   target="_blank"
                   rel="nofollow noopener noreferrer"
                   id="dr-share-threads"
@@ -313,7 +317,7 @@ function DrawingV2Page(v: DrawingV2View) {
                   Share to Threads
                 </a>
                 <a
-                  href={`https://www.reddit.com/submit?url=${encodeURIComponent(`${v.public_base_url}/d/${v.drawing_id}`)}&title=${encodeURIComponent(`Pixel art from Draw! · Tile ID ${v.id_short}`)}`}
+                  href={`https://www.reddit.com/submit?url=${encodeURIComponent(`${v.public_base_url}/d/${v.drawing_id}`)}&title=${encodeURIComponent(`Pixel art from Draw! · Drawing ${v.id_short}`)}`}
                   target="_blank"
                   rel="nofollow noopener noreferrer"
                   id="dr-share-reddit"
@@ -322,7 +326,7 @@ function DrawingV2Page(v: DrawingV2View) {
                   Share to Reddit
                 </a>
                 <a
-                  href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(`${v.public_base_url}/d/${v.drawing_id}`)}&text=${encodeURIComponent(`Pixel art from Draw! · Tile ID ${v.id_short}`)}`}
+                  href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(`${v.public_base_url}/d/${v.drawing_id}`)}&text=${encodeURIComponent(`Pixel art from Draw! · Drawing ${v.id_short}`)}`}
                   target="_blank"
                   rel="nofollow noopener noreferrer"
                   id="dr-share-x"

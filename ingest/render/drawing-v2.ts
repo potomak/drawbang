@@ -30,13 +30,13 @@ async function loadAncestorChain(
 
 export async function renderDrawingV2PageHandler(
   cfg: RenderHandlersConfig,
-  drawing_id: string
+  id: string
 ): Promise<RenderResponse> {
-  if (!DRAWING_ID_RE.test(drawing_id)) return notFound(cfg);
-  const row = await cfg.drawingStore.get(drawing_id);
+  if (!DRAWING_ID_RE.test(id)) return notFound(cfg);
+  const row = await cfg.drawingStore.get(id);
   if (!row) return notFound(cfg);
 
-  const forks = await cfg.drawingStore.queryForks(drawing_id, {
+  const forks = await cfg.drawingStore.queryForks(id, {
     limit: cfg.perPage ?? PER_PAGE,
   });
   const ancestors = await loadAncestorChain(cfg.drawingStore, row);
@@ -49,9 +49,7 @@ export async function renderDrawingV2PageHandler(
     created_at: row.created_at,
     frames: row.frames,
     size: row.size,
-    parent: row.parent_id
-      ? { parent: row.parent_id, parent_short: row.parent_id.slice(0, 8) }
-      : null,
+    parent: row.parent_id ? { id: row.parent_id, id_short: row.parent_id.slice(0, 8) } : null,
     author: isAnonymous
       ? null
       : {
