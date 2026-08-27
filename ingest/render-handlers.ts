@@ -29,5 +29,4 @@ export {
   renderPromptItemsHandler,
 } from "./render/prompts.js";
 export { renderDesignPageHandler } from "./render/design.js";
-export { renderDrawingV2PageHandler } from "./render/drawing-v2.js";
 export { renderFeedHandler } from "./render/feed.js";
