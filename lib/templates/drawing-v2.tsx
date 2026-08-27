@@ -141,8 +141,8 @@ function DrawingV2Page(v: DrawingV2View) {
         className="flex flex-col gap-6 sm:gap-8"
       >
         {/* Top: art + meta — stacked on mobile, side-by-side on lg */}
-        <section className="flex flex-col gap-6 lg:flex-row lg:gap-8">
-          <div className="flex justify-center lg:justify-start">
+        <section className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
+          <div className="flex justify-start self-start">
             <div className="rounded-[4px] border border-black bg-[#f7f7f5] p-2 sm:p-3">
               <img
                 src={gif}
