@@ -79,59 +79,49 @@ function Section({
   );
 }
 
-function UniformCard({
-  d,
-  scale = 10,
-  cell = 160,
-}: {
-  d: MockDrawing;
-  scale?: number;
-  cell?: number;
-}) {
-  const artPx = pixelSize(d.size, scale);
-  // Fixed cell (aspect-square), art centered with max constraints so 8 stays small, 64 fills/clamps
+function UniformCard({ d, cell }: { d: MockDrawing; cell: number }) {
+  // Integer-pixel fit: biggest multiple of `size` that fits in `cell - 16` padding.
+  // Guarantees `scale` is integer so `image-rendering:pixelated` stays crisp.
+  const max = Math.max(0, cell - 16);
+  const scale = Math.max(1, Math.floor(max / d.size));
+  const artPx = d.size * scale;
   return (
     <a
       href="#"
       className="flex aspect-square items-center justify-center overflow-hidden rounded-[4px] border border-black bg-[#f7f7f5] p-2 hover:bg-white"
       style={{ minHeight: cell, minWidth: 0 }}
-      aria-label={`drawing ${d.id_short} ${d.size}×${d.size}`}
+      aria-label={`drawing ${d.id_short} ${d.size}×${d.size} → ${artPx}×${artPx} in ${cell}×${cell}`}
+      title={`${d.size}×${d.size} → ${artPx}×${artPx} (scale ${scale}×) in ${cell}×${cell}`}
     >
-      <div
-        className="shrink-0 border border-black/10"
-        style={{ width: Math.min(artPx, cell - 16), height: Math.min(artPx, cell - 16) }}
-      >
+      <div className="shrink-0 border border-black/10" style={{ width: artPx, height: artPx }}>
         <MockArt d={d} scale={scale} />
       </div>
     </a>
   );
 }
 
-// Variant A: uniform cell with centered art (5x in gallery, 10x would overflow 64=640)
+// Variant A: 128 uniform — integer fit (64*2, 32*4, 16*8, 8*16)
 function VariantA() {
   return (
     <>
       <p className="font-mono text-pixel text-zinc-600">
-        Cell <code className="rounded border border-black bg-zinc-50 px-1">160×160</code> fixed
-        `aspect-square`, art at{" "}
-        <code className="rounded border border-black bg-zinc-50 px-1">5×</code> (`8→40, 16→80,
-        32→160, 64→320→clamped to 144`). Grid{" "}
+        Cell <code className="rounded border border-black bg-zinc-50 px-1">128×128</code> fixed
+        `aspect-square`, art = biggest `size×integer` that fits `128-16=112` → `8→112 (14×), 16→112
+        (7×), 32→96 (3×), 64→64 (1×)`. Grid{" "}
         <code className="rounded border border-black bg-zinc-50 px-1">
           grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6
         </code>{" "}
-        — no gaps, no overflow.
+        — every render is integer, no blur.
       </p>
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
         {MOCK_DRAWINGS.map((d) => (
           <li key={`A-${d.id}`}>
-            {/* 5× keeps 64 inside 160 cell; 10× would be 640 and clamp hard */}
-            <UniformCard d={d} scale={5} cell={160} />
+            <UniformCard d={d} cell={128} />
           </li>
         ))}
       </ul>
       <p className="font-mono text-pixel text-zinc-500">
-        Same as `10×` on `/v2/d` hero, but halved for feed so `64` doesn't dominate. `8` reads as
-        tiny on purpose — size stays honest.
+        Multiples of 64? `128=64*2` — yes. Whole grid stays `1px` aligned on `390px` with `2` cols.
       </p>
     </>
   );
@@ -169,54 +159,49 @@ function VariantB() {
   );
 }
 
-// Variant C: justified row (like Google Photos) — uniform row height, variable width, but squares stay squares so it's just uniform again
+// Variant C: 192 uniform — also multiple of 64 (64*3)
 function VariantC() {
-  // For squares, justified = same size per row if we lock height, so show the intended alternative: uniform cell with 10× but cell grows to 320 for lg, letting 64 breathe.
   return (
     <>
       <p className="font-mono text-pixel text-zinc-600">
-        Cell <code className="rounded border border-black bg-zinc-50 px-1">192×192</code> on `sm` →{" "}
-        <code className="rounded border border-black bg-zinc-50 px-1">208×208</code> on `lg`, art at
-        `10×` clamped (`64→640→192`). More breathing room than A, same fixed grid (`2→3→4→6`).
+        Cell <code className="rounded border border-black bg-zinc-50 px-1">192×192</code> fixed
+        `aspect-square` (64*3), art = biggest `size×integer` that fits `192-16=176` → `8→176 (22×),
+        16→176 (11×), 32→160 (5×), 64→128 (2×)`. Same grid `2→3→4→6` — a bit more breathing room
+        than `128`.
       </p>
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
         {MOCK_DRAWINGS.map((d) => (
           <li key={`C-${d.id}`}>
-            <UniformCard d={d} scale={10} cell={192} />
+            <UniformCard d={d} cell={192} />
           </li>
         ))}
       </ul>
       <p className="font-mono text-pixel text-zinc-500">
-        `10×` honest but needs bigger cell — `160` feels cramped for `32→320`. `192–208` is the
-        sweet spot before `64` overwhelms.
+        Also multiple of 64, so integer fit stays clean. Good middle ground if `128` feels tight.
       </p>
     </>
   );
 }
 
-// Variant D: dense packing — grid auto-flow dense with spanning for large sizes (bento)
+// Variant D: 256 uniform — also multiple of 64 (64*4)
 function VariantD() {
   return (
     <>
       <p className="font-mono text-pixel text-zinc-600">
-        Bento: `64` spans `2×2` cells, `32` spans `1` (but art `10×` still centered). `grid-cols-2
-        sm:grid-cols-4 md:grid-cols-6` with `auto-rows` — large drawings get visual weight without
-        `640px` cells.
+        Cell <code className="rounded border border-black bg-zinc-50 px-1">256×256</code> fixed
+        `aspect-square` (64*4), art = biggest `size×integer` that fits `256-16=240` → `8→240 (30×),
+        16→240 (15×), 32→224 (7×), 64→192 (3×)`. Same grid `2→3→4→6` — most breathing room, best for
+        detail.
       </p>
-      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6 auto-rows-[160px]">
-        {MOCK_DRAWINGS.map((d) => {
-          const span = d.size === 64 ? "col-span-2 row-span-2 sm:col-span-2 sm:row-span-2" : "";
-          const scale = d.size === 64 ? 10 : 5;
-          const cell = d.size === 64 ? 320 : 160;
-          return (
-            <li key={`D-${d.id}`} className={span}>
-              <UniformCard d={d} scale={scale} cell={cell} />
-            </li>
-          );
-        })}
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+        {MOCK_DRAWINGS.map((d) => (
+          <li key={`D-${d.id}`}>
+            <UniformCard d={d} cell={256} />
+          </li>
+        ))}
       </ul>
       <p className="font-mono text-pixel text-zinc-500">
-        Gives `64` hierarchy without ragged gutters. Needs curation — every `64` is a feature.
+        `256=64*4` — integer for all sizes. Use if you want `64` to feel hero.
       </p>
     </>
   );
@@ -226,23 +211,23 @@ export default function renderGalleryLab(v: { repo_url: string }): string {
   const html = renderToStaticMarkup(
     <BrutalShell title="Draw! · Gallery lab — v2" repoUrl={v.repo_url}>
       <header className="flex flex-col gap-3 rounded-[4px] border border-black bg-white p-4 sm:p-6">
-        <h1 className="text-pixel-2x font-normal">Gallery lab — variable `size×10`</h1>
+        <h1 className="text-pixel-2x font-normal">Gallery lab — integer multiples of 64</h1>
         <p className="font-mono text-pixel text-zinc-600">
           Playground for feed grid. Mock art `8/16/32/64` with `color` blocks — real gifs will be
           `image-rendering:pixelated`. All variants use Tailwind brutal (`1px` `rounded-[4px]`,
-          `Departure Mono`, `border-black`).
+          `Departure Mono`, `border-black`). Cells `128/192/256` are `64*2/3/4` so scale stays
+          integer.
         </p>
         <p className="font-mono text-pixel text-zinc-500">
           Goal: multi-col on `lg` (`6`), fewer on `sm` (`3`) / mobile (`2`), no Pinterest-style
-          `uniform width` (ours are squares, so that would just rescale to col width and break
-          `10×`).
+          `uniform width` (would rescale squares to col width and break integer scale).
         </p>
         <div className="flex flex-wrap gap-2 font-mono text-pixel">
           <a
             href="#A"
             className="rounded-[4px] border border-black bg-[#00ffcc] px-3 py-1.5 hover:bg-[#00ffcc]/90"
           >
-            A · uniform 160 + 5×
+            A · 128
           </a>
           <a
             href="#B"
@@ -254,19 +239,19 @@ export default function renderGalleryLab(v: { repo_url: string }): string {
             href="#C"
             className="rounded-[4px] border border-black bg-white px-3 py-1.5 hover:bg-zinc-50"
           >
-            C · uniform 192 + 10×
+            C · 192
           </a>
           <a
             href="#D"
             className="rounded-[4px] border border-black bg-white px-3 py-1.5 hover:bg-zinc-50"
           >
-            D · bento
+            D · 256
           </a>
         </div>
       </header>
 
       <div id="A">
-        <Section title="A — Uniform 160 + art 5× (recommended)" lede="2→3→4→6 cols, no mess">
+        <Section title="A — 128 uniform (64×2)" lede="2→3→4→6 cols, integer fit">
           <VariantA />
         </Section>
       </div>
@@ -279,12 +264,12 @@ export default function renderGalleryLab(v: { repo_url: string }): string {
         </Section>
       </div>
       <div id="C">
-        <Section title="C — Uniform 192 + art 10×" lede="2→3→4→6, bigger breathing room">
+        <Section title="C — 192 uniform (64×3)" lede="2→3→4→6, middle ground">
           <VariantC />
         </Section>
       </div>
       <div id="D">
-        <Section title="D — Bento (64 spans 2×2)" lede="dense, hierarchy for large">
+        <Section title="D — 256 uniform (64×4)" lede="2→3→4→6, most breathing room">
           <VariantD />
         </Section>
       </div>
@@ -292,9 +277,9 @@ export default function renderGalleryLab(v: { repo_url: string }): string {
       <section className="rounded-[4px] border border-black bg-[#00ffcc]/20 p-4 font-mono text-pixel">
         <p className="font-medium">Takeaway</p>
         <p className="text-zinc-700">
-          Keep cells uniform (A or C). `B` proves variable cells create ragged gutters + `640px`
-          dominance. `D` is nice if you want to feature `64`s, but `A` (5× in `160`) is the calmer
-          brutal default — then keep `10×` only on `/v2/d` hero. Resize to `390px` to compare.
+          `128/192/256` are `64*2/3/4` — all integer, no blur. `B` proves variable cells create
+          ragged `640px` dominance. Pick `128` for densest feed, `192` for middle, `256` for hero
+          feel — all keep `1px` grid aligned at `390px`.
         </p>
       </section>
     </BrutalShell>

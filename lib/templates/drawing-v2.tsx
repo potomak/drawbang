@@ -56,10 +56,21 @@ function formatCreatedAtV2(iso: string): string {
 }
 
 function pixelSize(size: number): number {
-  // Constant logical pixel size: 1 image pixel = 10 screen pixels.
-  // 8→80, 16→160, 32→320, 64→640. Clamped to viewport via max-w-full.
+  // Largest integer scale that fits in 256 (64*4) with padding.
+  // 8→32×(256), 16→16×, 32→8×, 64→4×. Gallery uses 128/192/256 similarly.
+  // On small screens the container snaps to 64-step widths (see DrawingV2Page).
   const s = Number.isFinite(size) ? Math.floor(size) : 16;
-  return s * 10;
+  const scale = Math.max(1, Math.floor(256 / s));
+  return s * scale;
+}
+
+function responsiveArtClass(sizePx: number): string {
+  // Snap container to 64-step widths so hero stays multiple of 64 on narrow viewports.
+  // 256 on lg, 192 on sm, 128 on base — all 64*4/3/2. CSS-only via clamp + media is not step-precise,
+  // so we use responsive Tailwind widths that are multiples of 64.
+  if (sizePx >= 256) return "w-[128px] sm:w-[192px] lg:w-[256px]";
+  if (sizePx >= 192) return "w-[128px] sm:w-[192px]";
+  return "w-[128px]";
 }
 
 function ProfilePictureV2({
@@ -142,16 +153,22 @@ function DrawingV2Page(v: DrawingV2View) {
       >
         {/* Top: art + meta — stacked on mobile, side-by-side on lg */}
         <section className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
-          <div className="flex justify-start self-start">
-            <div className="rounded-[4px] border border-black bg-[#f7f7f5] p-2 sm:p-3">
+          <div className={`flex justify-start self-start ${responsiveArtClass(sizePx)} max-w-full`}>
+            <div className="w-full rounded-[4px] border border-black bg-[#f7f7f5] p-2 sm:p-3 flex items-center justify-center aspect-square">
               <img
                 src={gif}
                 alt={`drawing ${v.id_short}`}
                 width={sizePx}
                 height={sizePx}
                 loading="eager"
-                className="block max-w-full"
-                style={{ width: sizePx, height: sizePx, imageRendering: "pixelated" as const }}
+                className="block max-w-full max-h-full"
+                style={{
+                  width: sizePx,
+                  height: sizePx,
+                  maxWidth: "100%",
+                  maxHeight: "100%",
+                  imageRendering: "pixelated" as const,
+                }}
               />
             </div>
           </div>
